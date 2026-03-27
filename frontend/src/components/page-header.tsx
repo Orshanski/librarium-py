@@ -33,7 +33,7 @@ export default function PageHeader({
 }) {
   const [me, setMe] = useState<{ name: string }>({ name: "" });
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => { if (d.name) setMe(d); }).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d.displayName || d.username) setMe({ name: d.displayName || d.username }); }).catch(() => {});
   }, []);
 
   const hasSecondRow =

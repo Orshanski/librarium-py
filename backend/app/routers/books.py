@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Request
 from ..auth import get_current_user, require_admin
 from ..dal import books as dal
@@ -37,4 +38,25 @@ async def update_book(book_id: int, request: Request):
     require_admin(request)
     data = await request.json()
     dal.update_book(book_id, data)
+    return {"ok": True}
+
+
+@router.delete("/{book_id}")
+def delete_book(book_id: int, request: Request):
+    import shutil
+    from ..config import LIBRARY_DIR, DATA_DIR
+    require_admin(request)
+
+    # Delete files from disk
+    book_dir = str(LIBRARY_DIR / str(book_id))
+    if os.path.isdir(book_dir):
+        shutil.rmtree(book_dir)
+
+    # Delete thumb
+    thumb = str(DATA_DIR / "thumbs" / f"{book_id}.jpg")
+    if os.path.exists(thumb):
+        os.remove(thumb)
+
+    # Delete from DB (CASCADE handles book_authors, book_tags, book_files, etc.)
+    dal.delete_book(book_id)
     return {"ok": True}

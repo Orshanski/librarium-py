@@ -37,8 +37,8 @@ export default function Sidebar() {
   const [me, setMe] = useState<{ name: string; role: string }>({ name: "", role: "" });
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((data) => {
-      if (data.name) setMe(data);
+    fetch("/api/auth/me").then((r) => r.json()).then((data) => {
+      if (data.displayName || data.username) setMe({ name: data.displayName || data.username, role: data.role });
     }).catch(() => {});
   }, []);
 

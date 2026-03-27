@@ -36,6 +36,7 @@ export default function LoginPage() {
     if (err) {
       setError("Неверное имя пользователя или пароль");
     } else {
+      sessionStorage.clear();
       navigate("/");
     }
   }

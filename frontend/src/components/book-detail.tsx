@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Book } from "../types";
 import { colors, fonts } from "../theme";
 import { sanitizeHtml } from "../utils/sanitize-html";
+import ConfirmDialog from "./confirm-dialog";
 
 function StarRating({
   rating,
@@ -46,6 +47,7 @@ export default function BookDetail({
   const [rating, setRating] = useState<number | null>(book.rating);
   const [isRead, setIsRead] = useState(false);
   const [showShelfMenu, setShowShelfMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [shelfList, setShelfList] = useState<any[] | null>(null);
   const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
   const shelfRef = useRef<HTMLDivElement>(null);
@@ -254,6 +256,7 @@ export default function BookDetail({
               </a>
               <button
                 title="Удалить"
+                onClick={() => setShowDeleteConfirm(true)}
                 style={{ background: "none", border: `1px solid rgba(239,68,68,0.3)`, borderRadius: 6, cursor: "pointer", fontSize: 12, color: colors.danger, padding: "4px 10px", fontFamily: "inherit" }}
               >
                 Удалить
@@ -448,6 +451,20 @@ export default function BookDetail({
             ))}
           </div>
         </div>
+      )}
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          message={`Удалить «${book.title}»?`}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={async () => {
+            const res = await fetch(`/api/books/${book.id}`, { method: "DELETE" });
+            if (res.ok) {
+              sessionStorage.removeItem("librarium_catalog");
+              window.location.href = "/";
+            }
+          }}
+        />
       )}
     </div>
   );

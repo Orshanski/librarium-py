@@ -219,6 +219,12 @@ def update_book(book_id: int, data: dict):
     db.commit()
 
 
+def delete_book(book_id: int):
+    db = get_db()
+    db.execute("DELETE FROM books WHERE id = ?", (book_id,))
+    db.commit()
+
+
 def search_books(query: str, limit=50):
     db = get_db()
     pattern = f"%{query.lower()}%"
