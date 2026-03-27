@@ -47,6 +47,7 @@ export default function UploadForm() {
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [mergeSource, setMergeSource] = useState<string | null>(null); // key of source group
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -221,6 +222,43 @@ export default function UploadForm() {
     setSaved(true);
   }
 
+  function mergeMeta(a: BookGroup["metadata"], b: BookGroup["metadata"]): BookGroup["metadata"] {
+    // For each field, prefer non-empty value. Target (a) wins on ties.
+    const pick = (va: string, vb: string) => va || vb;
+    return {
+      title: a.title.length >= b.title.length ? a.title : b.title, // prefer longer title
+      authors: pick(a.authors, b.authors),
+      series: pick(a.series, b.series),
+      seriesNumber: pick(a.seriesNumber, b.seriesNumber),
+      description: (a.description || "").length >= (b.description || "").length ? a.description : b.description,
+      language: pick(a.language, b.language),
+      tags: (a.tags || "").length >= (b.tags || "").length ? a.tags : b.tags,
+      publisher: pick(a.publisher, b.publisher),
+      pubDate: pick(a.pubDate, b.pubDate),
+      isbn: pick(a.isbn, b.isbn),
+      coverUrl: a.coverUrl || b.coverUrl,
+    };
+  }
+
+  function mergeInto(targetKey: string) {
+    if (!mergeSource || mergeSource === targetKey) { setMergeSource(null); return; }
+    setGroups((prev) => {
+      const source = prev.find((g) => g.key === mergeSource);
+      const target = prev.find((g) => g.key === targetKey);
+      if (!source || !target) return prev;
+      // Merge files, keep target metadata (user clicked target = preferred)
+      const merged: BookGroup = {
+        ...target,
+        files: [...target.files, ...source.files],
+        hasDuplicateFormat: target.hasDuplicateFormat ||
+          target.files.some((tf) => source.files.some((sf) => tf.format === sf.format && tf.status === "ready" && sf.status === "ready")),
+        metadata: mergeMeta(target.metadata, source.metadata),
+      };
+      return prev.filter((g) => g.key !== mergeSource).map((g) => g.key === targetKey ? merged : g);
+    });
+    setMergeSource(null);
+  }
+
   function cancelAll() {
     for (const g of groups) {
       for (const f of g.files) {
@@ -263,16 +301,52 @@ export default function UploadForm() {
       {/* Book groups */}
       {groups.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {groups.map((g) => (
-            <div key={g.key} style={{
-              border: `1px solid ${g.duplicate ? "rgba(249, 190, 3, 0.4)"
-                : g.hasDuplicateFormat ? "rgba(239, 68, 68, 0.4)" : colors.border}`,
-              borderRadius: 8, padding: 16, backgroundColor: "rgba(255, 255, 255, 0.02)",
-            }}>
-              {/* Header: remove group */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-                <button onClick={() => removeGroup(g.key)} style={{ background: "none", border: "none", color: colors.textDim, cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
+          {groups.map((g) => {
+            const isSource = mergeSource === g.key;
+            const isTarget = mergeSource && mergeSource !== g.key;
+            return (
+            <div
+              key={g.key}
+              onClick={() => isTarget ? mergeInto(g.key) : undefined}
+              style={{
+                border: `1px solid ${isSource ? "rgba(249, 190, 3, 0.6)"
+                  : isTarget ? "rgba(249, 190, 3, 0.4)"
+                  : g.duplicate ? "rgba(249, 190, 3, 0.4)"
+                  : g.hasDuplicateFormat ? "rgba(239, 68, 68, 0.4)" : colors.border}`,
+                borderRadius: 8, padding: 16,
+                backgroundColor: isSource ? "rgba(249, 190, 3, 0.04)" : isTarget ? "rgba(249, 190, 3, 0.02)" : "rgba(255, 255, 255, 0.02)",
+                borderStyle: isTarget ? "dashed" : "solid",
+                cursor: isTarget ? "pointer" : "default",
+                transition: "all 0.15s",
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 4 }}>
+                {isSource ? (
+                  <button onClick={(e) => { e.stopPropagation(); setMergeSource(null); }}
+                    style={{ padding: "3px 10px", fontSize: 12, fontFamily: "inherit", borderRadius: 4, border: `1px solid rgba(255,255,255,0.15)`, background: "rgba(255,255,255,0.05)", color: colors.textSecondary, cursor: "pointer" }}>
+                    Отмена
+                  </button>
+                ) : isTarget ? (
+                  <span style={{ fontSize: 12, color: colors.accent }}>Нажмите для объединения</span>
+                ) : (
+                  <>
+                    {groups.length > 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); setMergeSource(g.key); }}
+                        style={{ padding: "3px 10px", fontSize: 12, fontFamily: "inherit", borderRadius: 4, border: `1px solid rgba(249, 190, 3, 0.3)`, background: "rgba(249, 190, 3, 0.08)", color: colors.accent, cursor: "pointer" }}>
+                        ⊕ Объединить
+                      </button>
+                    )}
+                    <button onClick={() => removeGroup(g.key)} style={{ background: "none", border: "none", color: colors.textDim, cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
+                  </>
+                )}
               </div>
+
+              {isSource && (
+                <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(249, 190, 3, 0.08)", border: "1px solid rgba(249, 190, 3, 0.2)", fontSize: 13, color: colors.accent, marginBottom: 12 }}>
+                  Выберите карточку для объединения ↓
+                </div>
+              )}
 
               {/* Files list */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
@@ -326,7 +400,8 @@ export default function UploadForm() {
                 </div>
               )}
             </div>
-          ))}
+          );
+          })}
 
           {/* Buttons */}
           {!saved && (

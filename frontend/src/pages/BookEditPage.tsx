@@ -69,11 +69,37 @@ export default function BookEditPage() {
   };
 
   async function handleSave(data: any) {
+    // Resolve names to IDs
+    const authorIds = (data.authors || "").split(",").map((a: string) => a.trim()).filter(Boolean)
+      .map((name: string) => {
+        const found = options?.authors?.find((a: any) => a.name === name);
+        return found ? found.id : name; // send name if not found — backend will get_or_create
+      });
+    const tagIds = (data.tags || []).map((name: string) => {
+      const found = options?.tags?.find((t: any) => t.name === name);
+      return found ? found.id : name;
+    });
+    const seriesId = data.series
+      ? options?.series?.find((s: any) => s.name === data.series)?.id || data.series
+      : null;
+
+    const body = {
+      title: data.title,
+      description: data.description,
+      language: data.language,
+      publisher: data.publisher,
+      pubDate: data.pubDate,
+      seriesId,
+      seriesNumber: data.seriesNumber ? parseFloat(data.seriesNumber) : null,
+      authorIds,
+      tagIds,
+    };
+
     const res = await fetch(`/api/books/${id}`, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       // Invalidate catalog/pages caches so covers and data refresh

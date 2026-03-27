@@ -28,6 +28,7 @@ interface ApiBook {
   description: string | null;
   publisher: string | null;
   pub_date: string | null;
+  updated_at?: string;
 }
 
 function toBook(b: ApiBook): Book {

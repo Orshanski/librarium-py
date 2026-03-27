@@ -35,8 +35,20 @@ def get_book(book_id: int, request: Request):
 
 @router.put("/{book_id}")
 async def update_book(book_id: int, request: Request):
+    from ..dal.authors import get_or_create_author
+    from ..dal.series import get_or_create_series
+    from ..dal.tags import get_or_create_tag
     require_admin(request)
     data = await request.json()
+
+    # Resolve string names to IDs
+    if "authorIds" in data:
+        data["authorIds"] = [get_or_create_author(a) if isinstance(a, str) else a for a in data["authorIds"]]
+    if "tagIds" in data:
+        data["tagIds"] = [get_or_create_tag(t) if isinstance(t, str) else t for t in data["tagIds"]]
+    if "seriesId" in data and isinstance(data["seriesId"], str):
+        data["seriesId"] = get_or_create_series(data["seriesId"])
+
     dal.update_book(book_id, data)
     return {"ok": True}
 
