@@ -3,11 +3,19 @@ from ..database import get_db, dict_from_row, dicts_from_rows
 
 def get_shelves(user_id: int):
     db = get_db()
-    return dicts_from_rows(db.execute("""
+    shelves = dicts_from_rows(db.execute("""
         SELECT sh.*, COUNT(sb.book_id) as book_count
         FROM shelves sh LEFT JOIN shelf_books sb ON sh.id = sb.shelf_id
         WHERE sh.user_id = :uid GROUP BY sh.id ORDER BY sh.is_system DESC, sh.name
     """, {"uid": user_id}).fetchall())
+    # Fix count for system shelf (dynamic, not in shelf_books)
+    for sh in shelves:
+        if sh["is_system"]:
+            sh["book_count"] = db.execute(
+                "SELECT COUNT(*) FROM user_books WHERE user_id = :uid AND rating >= 4",
+                {"uid": user_id},
+            ).fetchone()[0]
+    return shelves
 
 
 def get_shelf_by_id(shelf_id: int, user_id: int):
@@ -19,19 +27,36 @@ def get_shelf_by_id(shelf_id: int, user_id: int):
     if not shelf:
         return None
 
-    books = dicts_from_rows(db.execute("""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a.name) as authors,
-            GROUP_CONCAT(DISTINCT t.name) as tags
-        FROM books b
-        JOIN shelf_books sb ON b.id = sb.book_id AND sb.shelf_id = :id
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
-        GROUP BY b.id ORDER BY sb.added_at DESC
-    """, {"id": shelf_id}).fetchall())
+    if shelf["is_system"]:
+        # "Лучшее" — dynamic: books with rating 4-5
+        books = dicts_from_rows(db.execute("""
+            SELECT b.*, s.name as series_name,
+                GROUP_CONCAT(DISTINCT a.name) as authors,
+                GROUP_CONCAT(DISTINCT t.name) as tags,
+                ub.rating
+            FROM books b
+            JOIN user_books ub ON b.id = ub.book_id AND ub.user_id = :uid AND ub.rating >= 4
+            LEFT JOIN series s ON b.series_id = s.id
+            LEFT JOIN book_authors ba ON b.id = ba.book_id
+            LEFT JOIN authors a ON ba.author_id = a.id
+            LEFT JOIN book_tags bt ON b.id = bt.book_id
+            LEFT JOIN tags t ON bt.tag_id = t.id
+            GROUP BY b.id ORDER BY ub.rating DESC, b.title
+        """, {"uid": user_id}).fetchall())
+    else:
+        books = dicts_from_rows(db.execute("""
+            SELECT b.*, s.name as series_name,
+                GROUP_CONCAT(DISTINCT a.name) as authors,
+                GROUP_CONCAT(DISTINCT t.name) as tags
+            FROM books b
+            JOIN shelf_books sb ON b.id = sb.book_id AND sb.shelf_id = :id
+            LEFT JOIN series s ON b.series_id = s.id
+            LEFT JOIN book_authors ba ON b.id = ba.book_id
+            LEFT JOIN authors a ON ba.author_id = a.id
+            LEFT JOIN book_tags bt ON b.id = bt.book_id
+            LEFT JOIN tags t ON bt.tag_id = t.id
+            GROUP BY b.id ORDER BY sb.added_at DESC
+        """, {"id": shelf_id}).fetchall())
 
     return {"shelf": shelf, "books": books}
 
