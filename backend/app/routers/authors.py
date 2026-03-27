@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 @router.get("")
 def list_authors(request: Request, tagIds: str = "", language: str = ""):
     get_current_user(request)
-    tag_ids = [int(x) for x in tagIds.split(",") if x] if tagIds else None
+    tag_ids = [int(x) for x in tagIds.split(",") if x.strip().isdigit()] if tagIds else None
     return dal.get_authors(tag_ids, language or None)
 
 

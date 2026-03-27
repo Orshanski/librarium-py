@@ -17,19 +17,7 @@ def set_rating(user_id: int, book_id: int, rating: int | None):
     """, {"uid": user_id, "bid": book_id, "r": rating})
     db.commit()
 
-    # Auto-add to "Лучшее" shelf if rating >= 4
-    if rating and rating >= 4:
-        row = db.execute("SELECT id FROM shelves WHERE user_id = :uid AND is_system = 1", {"uid": user_id}).fetchone()
-        if row:
-            db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)",
-                       {"sid": row["id"], "bid": book_id})
-            db.commit()
-    elif rating and rating < 4:
-        row = db.execute("SELECT id FROM shelves WHERE user_id = :uid AND is_system = 1", {"uid": user_id}).fetchone()
-        if row:
-            db.execute("DELETE FROM shelf_books WHERE shelf_id = :sid AND book_id = :bid",
-                       {"sid": row["id"], "bid": book_id})
-            db.commit()
+    # "Лучшее" — динамический фильтр в get_shelf_by_id, shelf_books не используется
 
 
 def set_read(user_id: int, book_id: int, is_read: bool):

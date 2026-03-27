@@ -16,11 +16,11 @@ def list_books(request: Request, sort: str = "added_desc", cursor: int = 0, page
     user = get_current_user(request)
     filters = {"userId": user["userId"]}
     if authorIds:
-        filters["authorIds"] = [int(x) for x in authorIds.split(",")]
+        filters["authorIds"] = [int(x) for x in authorIds.split(",") if x.strip().isdigit()]
     if tagIds:
-        filters["tagIds"] = [int(x) for x in tagIds.split(",")]
+        filters["tagIds"] = [int(x) for x in tagIds.split(",") if x.strip().isdigit()]
     if seriesIds:
-        filters["seriesIds"] = [int(x) for x in seriesIds.split(",")]
+        filters["seriesIds"] = [int(x) for x in seriesIds.split(",") if x.strip().isdigit()]
     if language:
         filters["language"] = language
     return dal.get_books(filters, sort, cursor, pageSize)

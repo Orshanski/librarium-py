@@ -75,24 +75,14 @@ export default function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div style={{ padding: "16px 20px 16px" }}>
-        <Link
-          to="/"
-          style={{
-            fontFamily: fonts.display,
-            fontSize: 28,
-            fontWeight: 700,
-            color: colors.accent,
-            textDecoration: "none",
-            letterSpacing: "0.02em",
-          }}
-        >
-          Librarium
+      <div style={{ padding: "12px 20px 12px", textAlign: "center" }}>
+        <Link to="/" style={{ textDecoration: "none" }}>
+          <img src="/logo.png" alt="Librarium" style={{ maxWidth: "70%", height: "auto" }} />
         </Link>
       </div>
 
       {/* Search */}
-      <div style={{ padding: "0 12px", marginBottom: 16 }}>
+      <div style={{ padding: "0 12px", marginBottom: 12 }}>
         <input
           type="text"
           placeholder="Поиск..."

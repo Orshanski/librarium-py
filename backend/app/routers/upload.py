@@ -96,7 +96,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "title": meta.title,
             "authors": ", ".join(meta.authors),
             "series": meta.series or "",
-            "seriesNumber": str(int(meta.series_number)) if meta.series_number else "",
+            "seriesNumber": str(meta.series_number).rstrip("0").rstrip(".") if meta.series_number else "",
             "description": meta.description or "",
             "language": meta.language or "",
             "tags": ", ".join(meta.genres),
@@ -143,7 +143,7 @@ async def create_book_from_upload(request: Request):
     for f in os.listdir(str(UPLOADS_DIR)):
         if f.startswith(f"{temp_id}.") and "-cover." not in f:
             temp_file = f
-                break
+            break
     if not temp_file:
         return JSONResponse({"error": "Temp file not found"}, status_code=400)
 
