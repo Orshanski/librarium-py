@@ -34,10 +34,10 @@ export default function TagsPage() {
   useEffect(() => {
     fetch(`/api/tags?top=${CLOUD_SIZE}`)
       .then((r) => r.json())
-      .then((data: Tag[]) => setCloudTags(data));
+      .then((data) => setCloudTags(data.tags || data));
     fetch("/api/tags")
       .then((r) => r.json())
-      .then((data: Tag[]) => setAllTags(data));
+      .then((data) => setAllTags(data.tags || data));
   }, []);
 
   const shuffledCloud = useMemo(() => shuffled(cloudTags), [cloudTags]);

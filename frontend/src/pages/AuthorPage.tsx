@@ -71,7 +71,10 @@ export default function AuthorPage() {
       })
       .then((data) => {
         if (!data) return;
-        setAuthor(data.author);
+        const a = data.author;
+        a.tags = a.tags ? a.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [];
+        a.book_count = data.books?.length || 0;
+        setAuthor(a);
         setBooks((data.books || []).map(mapBook));
         setLoading(false);
       })
