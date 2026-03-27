@@ -12,10 +12,17 @@ DB_PATH = DATA_DIR / "db.sqlite"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
 # JWT
-SECRET_KEY = os.environ.get("SECRET_KEY", "librarium-dev-secret-change-in-production")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    import secrets
+    SECRET_KEY = secrets.token_hex(32)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 72
 COOKIE_NAME = "librarium_token"
+
+# Upload limits
+MAX_BOOK_SIZE = 100 * 1024 * 1024   # 100 MB
+MAX_COVER_SIZE = 10 * 1024 * 1024   # 10 MB
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)

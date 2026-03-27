@@ -6,6 +6,7 @@ from .config import DB_PATH, SCHEMA_PATH
 
 _local = threading.local()
 _schema_initialized = False
+_init_lock = threading.Lock()
 
 
 def get_db() -> sqlite3.Connection:
@@ -18,10 +19,11 @@ def get_db() -> sqlite3.Connection:
         db.execute("PRAGMA foreign_keys=ON")
         db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
 
-        if not _schema_initialized:
-            schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
-            db.executescript(schema)
-            _schema_initialized = True
+        with _init_lock:
+            if not _schema_initialized:
+                schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
+                db.executescript(schema)
+                _schema_initialized = True
 
         _local.db = db
     return db

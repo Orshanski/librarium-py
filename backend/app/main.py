@@ -51,8 +51,7 @@ if FRONTEND_DIST.exists():
 
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
-        # Serve actual files if they exist
-        file_path = FRONTEND_DIST / path
-        if file_path.is_file():
+        file_path = (FRONTEND_DIST / path).resolve()
+        if file_path.is_file() and str(file_path).startswith(str(FRONTEND_DIST.resolve())):
             return FileResponse(str(file_path))
         return FileResponse(str(FRONTEND_DIST / "index.html"))

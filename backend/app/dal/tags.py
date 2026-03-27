@@ -3,11 +3,16 @@ from ..database import get_db, dicts_from_rows, dict_from_row
 
 def get_tags(top: int | None = None):
     db = get_db()
-    limit = f"LIMIT {top}" if top else ""
-    return dicts_from_rows(db.execute(f"""
+    if top:
+        return dicts_from_rows(db.execute("""
+            SELECT t.id, t.name, COUNT(bt.book_id) as book_count
+            FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
+            GROUP BY t.id ORDER BY book_count DESC LIMIT :top
+        """, {"top": top}).fetchall())
+    return dicts_from_rows(db.execute("""
         SELECT t.id, t.name, COUNT(bt.book_id) as book_count
         FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
-        GROUP BY t.id ORDER BY book_count DESC {limit}
+        GROUP BY t.id ORDER BY book_count DESC
     """).fetchall())
 
 

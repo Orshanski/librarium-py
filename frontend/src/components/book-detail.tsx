@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Book } from "../types";
 import { colors, fonts } from "../theme";
 import { sanitizeHtml } from "../utils/sanitize-html";
+import { useAuth } from "../auth";
 import ConfirmDialog from "./confirm-dialog";
 
 function StarRating({
@@ -44,6 +45,8 @@ export default function BookDetail({
   book: Book;
   seriesBooks: Book[];
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [rating, setRating] = useState<number | null>(book.rating);
   const [isRead, setIsRead] = useState(false);
   const [showShelfMenu, setShowShelfMenu] = useState(false);
@@ -69,15 +72,15 @@ export default function BookDetail({
       .then((r) => r.json())
       .then((data) => {
         if (data.rating !== undefined) setRating(data.rating);
-        if (data.isRead !== undefined) setIsRead(data.isRead);
+        setIsRead(!!data.is_read);
       })
       .catch(() => {});
   }, [book.id]);
 
   function saveRating(r: number) {
     setRating(r);
-    fetch(`/api/books/${book.id}/status`, {
-      method: "POST",
+    fetch(`/api/books/${book.id}/rating`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating: r }),
     });
@@ -86,8 +89,8 @@ export default function BookDetail({
   function toggleRead() {
     const next = !isRead;
     setIsRead(next);
-    fetch(`/api/books/${book.id}/status`, {
-      method: "POST",
+    fetch(`/api/books/${book.id}/read`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isRead: next }),
     });
@@ -246,6 +249,7 @@ export default function BookDetail({
               </Link>
             ))}
             </div>
+            {isAdmin && (
             <div style={{ display: "flex", gap: 12 }}>
               <a
                 href={`/book/${book.id}/edit`}
@@ -262,6 +266,7 @@ export default function BookDetail({
                 Удалить
               </button>
             </div>
+            )}
           </div>
 
           {/* Series */}

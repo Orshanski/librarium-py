@@ -37,15 +37,6 @@ def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
         GROUP BY t.id ORDER BY count DESC
     """, {"lang": language} if language else {}).fetchall())
 
-    lang_opts = dicts_from_rows(db.execute(f"""
-        SELECT b.language as value, COUNT(DISTINCT b.id) as count
-        FROM books b JOIN book_authors ba ON b.id = ba.book_id
-        {"WHERE " + " AND ".join(c for c in clauses if "language" not in c) if [c for c in clauses if "language" not in c] else ""}
-        {"WHERE" if not [c for c in clauses if "language" not in c] else "AND"} b.language IS NOT NULL
-        GROUP BY b.language ORDER BY count DESC
-    """, {k: v for k, v in params.items() if "lang" not in k}).fetchall()) if True else []
-
-    # Simpler approach for lang opts
     lp = {k: v for k, v in params.items() if k != "lang"}
     lc = [c for c in clauses if "language" not in c]
     lw = "WHERE " + " AND ".join(lc) + " AND b.language IS NOT NULL" if lc else "WHERE b.language IS NOT NULL"

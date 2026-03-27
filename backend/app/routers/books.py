@@ -1,5 +1,6 @@
 import os
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from ..auth import get_current_user, require_admin
 from ..dal import books as dal
 
@@ -27,7 +28,7 @@ def get_book(book_id: int, request: Request):
     user = get_current_user(request)
     book = dal.get_book_by_id(book_id, user["userId"])
     if not book:
-        return {"error": "Not found"}, 404
+        return JSONResponse({"error": "Not found"}, status_code=404)
     files = dal.get_book_files(book_id)
     identifiers = dal.get_book_identifiers(book_id)
     return {"book": book, "files": files, "identifiers": identifiers}

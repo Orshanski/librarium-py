@@ -4,7 +4,9 @@ from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
 from ..auth import get_current_user, require_admin
-from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR
+from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
+
+Image.MAX_IMAGE_PIXELS = 25_000_000
 from ..database import get_db
 
 router = APIRouter(tags=["covers"])
@@ -62,6 +64,8 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 
     temp_path = str(UPLOADS_DIR / f"{book_id}-cover.{ext}")
     content = await file.read()
+    if len(content) > MAX_COVER_SIZE:
+        return JSONResponse({"error": "Файл обложки слишком большой"}, status_code=400)
     with open(temp_path, "wb") as f:
         f.write(content)
 

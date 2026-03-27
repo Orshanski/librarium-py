@@ -40,27 +40,35 @@ def get_shelf(shelf_id: int, request: Request):
 
 @router.put("/{shelf_id}")
 def update_shelf(shelf_id: int, body: ShelfBody, request: Request):
-    get_current_user(request)
+    user = get_current_user(request)
+    if not dal.get_shelf_by_id(shelf_id, user["userId"]):
+        return JSONResponse({"error": "Not found"}, status_code=404)
     dal.update_shelf(shelf_id, body.name)
     return {"ok": True}
 
 
 @router.delete("/{shelf_id}")
 def delete_shelf(shelf_id: int, request: Request):
-    get_current_user(request)
+    user = get_current_user(request)
+    if not dal.get_shelf_by_id(shelf_id, user["userId"]):
+        return JSONResponse({"error": "Not found"}, status_code=404)
     dal.delete_shelf(shelf_id)
     return {"ok": True}
 
 
 @router.post("/{shelf_id}/books")
 def add_book(shelf_id: int, body: ShelfBookBody, request: Request):
-    get_current_user(request)
+    user = get_current_user(request)
+    if not dal.get_shelf_by_id(shelf_id, user["userId"]):
+        return JSONResponse({"error": "Not found"}, status_code=404)
     dal.add_book_to_shelf(shelf_id, body.bookId)
     return {"ok": True}
 
 
 @router.delete("/{shelf_id}/books/{book_id}")
 def remove_book(shelf_id: int, book_id: int, request: Request):
-    get_current_user(request)
+    user = get_current_user(request)
+    if not dal.get_shelf_by_id(shelf_id, user["userId"]):
+        return JSONResponse({"error": "Not found"}, status_code=404)
     dal.remove_book_from_shelf(shelf_id, book_id)
     return {"ok": True}

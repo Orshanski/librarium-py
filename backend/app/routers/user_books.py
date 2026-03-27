@@ -27,6 +27,9 @@ def get_status(book_id: int, request: Request):
 
 @router.put("/api/books/{book_id}/rating")
 def set_rating(book_id: int, body: RatingBody, request: Request):
+    if body.rating is not None and not (1 <= body.rating <= 5):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Rating must be 1-5"}, status_code=400)
     user = get_current_user(request)
     dal.set_rating(user["userId"], book_id, body.rating)
     return {"ok": True}

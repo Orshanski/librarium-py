@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import glob
 import shutil
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 
 from ..auth import require_admin
-from ..config import UPLOADS_DIR, LIBRARY_DIR
+from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE
 from ..database import get_db
 from ..parsers import parse_book
 from ..dal.books import create_book, get_book_files
@@ -33,6 +34,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     temp_id = str(uuid.uuid4())[:8]
     content = await file.read()
 
+    if len(content) > MAX_BOOK_SIZE:
+        return JSONResponse({"error": f"Файл слишком большой (макс. {MAX_BOOK_SIZE // 1024 // 1024} МБ)"}, status_code=400)
+
     # ZIP: extract single book file
     if ext == "zip":
         zip_path = str(UPLOADS_DIR / f"{temp_id}.zip")
@@ -48,6 +52,11 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
                     os.remove(zip_path)
                     return JSONResponse({"error": f"ZIP содержит несколько книг: {', '.join(book_files)}"}, status_code=400)
                 book_name = book_files[0]
+                # Check decompressed size
+                info = zf.getinfo(book_name)
+                if info.file_size > MAX_BOOK_SIZE:
+                    os.remove(zip_path)
+                    return JSONResponse({"error": "Файл внутри ZIP слишком большой"}, status_code=400)
                 ext = book_name.rsplit(".", 1)[-1].lower()
                 extracted = zf.read(book_name)
         except zipfile.BadZipFile:
@@ -94,9 +103,15 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         "duplicate": duplicate,
     }
 
+def _validate_temp_id(temp_id: str) -> bool:
+    return bool(re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id))
+
+
 @router.delete("/api/uploads/{temp_id}")
 def cleanup_temp(temp_id: str, request: Request):
     require_admin(request)
+    if not _validate_temp_id(temp_id):
+        return JSONResponse({"error": "Invalid temp_id"}, status_code=400)
     for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}.*")):
         os.remove(f)
     for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*")):
@@ -110,8 +125,8 @@ async def create_book_from_upload(request: Request):
     data = await request.json()
 
     temp_id = data.get("tempId")
-    if not temp_id:
-        return JSONResponse({"error": "tempId required"}, status_code=400)
+    if not temp_id or not _validate_temp_id(temp_id):
+        return JSONResponse({"error": "Invalid tempId"}, status_code=400)
 
     meta = data.get("metadata", {})
     title = meta.get("title", "").strip()
@@ -206,8 +221,8 @@ async def add_format(book_id: int, request: Request):
     require_admin(request)
     data = await request.json()
     temp_id = data.get("tempId")
-    if not temp_id:
-        return JSONResponse({"error": "tempId required"}, status_code=400)
+    if not temp_id or not _validate_temp_id(temp_id):
+        return JSONResponse({"error": "Invalid tempId"}, status_code=400)
 
     # Find temp file
     temp_file = None

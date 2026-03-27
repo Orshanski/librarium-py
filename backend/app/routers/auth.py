@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+import os
 from ..auth import verify_password, create_token, get_current_user, COOKIE_NAME
 from ..database import get_db, dict_from_row
 
@@ -36,6 +37,7 @@ def login(body: LoginRequest):
         token,
         httponly=True,
         samesite="lax",
+        secure=os.environ.get("SECURE_COOKIE", "").lower() in ("1", "true"),
         max_age=72 * 3600,
         path="/",
     )
