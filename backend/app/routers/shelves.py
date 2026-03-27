@@ -16,10 +16,18 @@ class ShelfBookBody(BaseModel):
 
 
 @router.get("")
-def list_shelves(request: Request):
+def list_shelves(request: Request, bookId: int | None = None):
     user = get_current_user(request)
     dal.ensure_system_shelf(user["userId"])
-    return {"shelves": dal.get_shelves(user["userId"])}
+    shelves = dal.get_shelves(user["userId"])
+    result: dict = {"shelves": shelves}
+    if bookId is not None:
+        from ..database import get_db
+        db = get_db()
+        rows = db.execute("SELECT shelf_id FROM shelf_books WHERE book_id = ?", (bookId,)).fetchall()
+        on_shelf_ids = {r["shelf_id"] for r in rows}
+        result["bookShelves"] = [{"id": s["id"], "has_book": s["id"] in on_shelf_ids} for s in shelves]
+    return result
 
 
 @router.post("")

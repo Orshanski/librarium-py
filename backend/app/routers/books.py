@@ -1,7 +1,10 @@
 import os
-from fastapi import APIRouter, Request
+import shutil
+from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user, require_admin
+from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE
+from ..database import get_db
 from ..dal import books as dal
 
 router = APIRouter(prefix="/api/books", tags=["books"])
@@ -54,10 +57,54 @@ async def update_book(book_id: int, request: Request):
     return {"ok": True}
 
 
+@router.post("/{book_id}/files")
+async def upload_file(book_id: int, request: Request, file: UploadFile = File(...)):
+    require_admin(request)
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    allowed = {"fb2", "epub", "pdf"}
+    if ext not in allowed:
+        return JSONResponse({"error": f"Unsupported format: {ext}"}, status_code=400)
+    fmt = ext.upper()
+    db = get_db()
+    existing = db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
+    if existing:
+        return JSONResponse({"error": f"Формат {fmt} уже есть"}, status_code=409)
+    content = await file.read()
+    if len(content) > MAX_BOOK_SIZE:
+        return JSONResponse({"error": "Файл слишком большой"}, status_code=400)
+    book_dir = str(LIBRARY_DIR / str(book_id))
+    os.makedirs(book_dir, exist_ok=True)
+    file_path = os.path.join(book_dir, f"book.{ext}")
+    with open(file_path, "wb") as f:
+        f.write(content)
+    db.execute(
+        "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
+        (book_id, fmt, f"data/library/{book_id}/book.{ext}", len(content)),
+    )
+    db.commit()
+    return {"ok": True, "format": fmt, "size": len(content)}
+
+
+@router.delete("/{book_id}/files")
+def delete_file(book_id: int, request: Request, format: str = ""):
+    require_admin(request)
+    fmt = format.upper()
+    if not fmt:
+        return JSONResponse({"error": "format required"}, status_code=400)
+    db = get_db()
+    row = db.execute("SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
+    if not row:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    file_path = os.path.join(str(LIBRARY_DIR.parent.parent), dict(row)["file_path"])
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+    db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))
+    db.commit()
+    return {"ok": True}
+
+
 @router.delete("/{book_id}")
 def delete_book(book_id: int, request: Request):
-    import shutil
-    from ..config import LIBRARY_DIR, DATA_DIR
     require_admin(request)
 
     # Delete files from disk

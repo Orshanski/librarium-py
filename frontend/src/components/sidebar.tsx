@@ -34,13 +34,7 @@ export default function Sidebar() {
   const [shelves, setShelves] = useState<any[]>([]);
   const [showNewShelf, setShowNewShelf] = useState(false);
   const [newShelfName, setNewShelfName] = useState("");
-  const [me, setMe] = useState<{ name: string; role: string }>({ name: "", role: "" });
-
-  useEffect(() => {
-    fetch("/api/auth/me").then((r) => r.json()).then((data) => {
-      if (data.displayName || data.username) setMe({ name: data.displayName || data.username, role: data.role });
-    }).catch(() => {});
-  }, []);
+  const me = { name: user?.displayName || user?.username || "", role: user?.role || "" };
 
   useEffect(() => {
     fetch("/api/shelves")

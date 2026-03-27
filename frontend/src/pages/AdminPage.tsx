@@ -220,10 +220,10 @@ export default function AdminPage() {
       fetch("/api/admin/settings").then((r) => r.json()),
     ]).then(([userData, settingsData]) => {
       setUsers(userData.users || []);
-      setSettings(settingsData);
-      setSmtpStatus(settingsData.smtp_host ? "ok" : "none");
+      setSettings(settingsData || {});
+      setSmtpStatus(settingsData?.smtp_host ? "ok" : "none");
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch((e) => { console.error("Admin load error:", e); setLoading(false); });
   }, []);
 
   async function saveName(id: number, name: string) {

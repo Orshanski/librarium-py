@@ -14,8 +14,13 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 # JWT
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    import secrets
-    SECRET_KEY = secrets.token_hex(32)
+    _secret_file = DATA_DIR / ".secret_key"
+    if _secret_file.exists():
+        SECRET_KEY = _secret_file.read_text().strip()
+    else:
+        import secrets
+        SECRET_KEY = secrets.token_hex(32)
+        _secret_file.write_text(SECRET_KEY)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 72
 COOKIE_NAME = "librarium_token"

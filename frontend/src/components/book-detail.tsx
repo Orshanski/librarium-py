@@ -203,7 +203,7 @@ export default function BookDetail({
                       checked={bookShelfIds.has(s.id)}
                       onChange={async () => {
                         if (bookShelfIds.has(s.id)) {
-                          await fetch(`/api/shelves/${s.id}/books?bookId=${book.id}`, { method: "DELETE" });
+                          await fetch(`/api/shelves/${s.id}/books/${book.id}`, { method: "DELETE" });
                           setBookShelfIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
                         } else {
                           await fetch(`/api/shelves/${s.id}/books`, {

@@ -99,7 +99,8 @@ def _extract_cover(opf, zf: zipfile.ZipFile, cover_dir: str) -> tuple[bytes | No
     # Method 2: meta name="cover" → manifest item
     meta_cover = opf.xpath("/pkg:package/pkg:metadata/pkg:meta[@name='cover']/@content", namespaces=NS)
     if meta_cover:
-        hrefs = opf.xpath(f"/pkg:package/pkg:manifest/pkg:item[@id='{meta_cover[0]}']/@href", namespaces=NS)
+        # Safe: iterate manifest items instead of injecting into XPath
+        hrefs = [item.get("href") for item in opf.xpath("/pkg:package/pkg:manifest/pkg:item", namespaces=NS) if item.get("id") == meta_cover[0]]
         for href in hrefs:
             data, ext = _read_cover(zf, cover_dir, href)
             if data:

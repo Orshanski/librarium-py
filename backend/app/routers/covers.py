@@ -72,9 +72,10 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     return JSONResponse({"ok": True, "tempCoverUrl": f"/api/uploads/cover/{book_id}"})
 
 
-# --- GET: serve temp cover preview (for cover editing, book_id is int) ---
+# --- GET: serve temp cover preview ---
 @router.get("/api/uploads/cover/{book_id}")
-def get_temp_cover(book_id: str):
+def get_temp_cover(book_id: str, request: Request):
+    get_current_user(request)
     for f in os.listdir(str(UPLOADS_DIR)):
         if f.startswith(f"{book_id}-cover."):
             return FileResponse(str(UPLOADS_DIR / f), headers={"Cache-Control": "no-cache"})

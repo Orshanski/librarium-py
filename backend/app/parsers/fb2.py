@@ -91,9 +91,10 @@ def parse_fb2(file_path: str) -> ParsedMetadata:
         )
         if coverpage:
             cover_id = coverpage[0].lstrip("#")
-            binary = tree.xpath(f'//fb:binary[@id="{cover_id}"]', namespaces=NS)
+            # Find binary by iterating (safe from XPath injection)
+            binary = [b for b in tree.xpath("//fb:binary", namespaces=NS) if b.get("id") == cover_id]
             if not binary:
-                binary = tree.xpath(f'//binary[@id="{cover_id}"]')
+                binary = [b for b in tree.xpath("//binary") if b.get("id") == cover_id]
             if binary and binary[0].text:
                 content_type = binary[0].get("content-type", "image/jpeg")
                 meta.cover_data = base64.b64decode(binary[0].text.strip())
