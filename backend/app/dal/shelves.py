@@ -1,0 +1,76 @@
+from ..database import get_db, dict_from_row, dicts_from_rows
+
+
+def get_shelves(user_id: int):
+    db = get_db()
+    return dicts_from_rows(db.execute("""
+        SELECT sh.*, COUNT(sb.book_id) as book_count
+        FROM shelves sh LEFT JOIN shelf_books sb ON sh.id = sb.shelf_id
+        WHERE sh.user_id = :uid GROUP BY sh.id ORDER BY sh.is_system DESC, sh.name
+    """, {"uid": user_id}).fetchall())
+
+
+def get_shelf_by_id(shelf_id: int, user_id: int):
+    db = get_db()
+    shelf = dict_from_row(db.execute(
+        "SELECT * FROM shelves WHERE id = :id AND user_id = :uid",
+        {"id": shelf_id, "uid": user_id},
+    ).fetchone())
+    if not shelf:
+        return None
+
+    books = dicts_from_rows(db.execute("""
+        SELECT b.*, s.name as series_name,
+            GROUP_CONCAT(DISTINCT a.name) as authors,
+            GROUP_CONCAT(DISTINCT t.name) as tags
+        FROM books b
+        JOIN shelf_books sb ON b.id = sb.book_id AND sb.shelf_id = :id
+        LEFT JOIN series s ON b.series_id = s.id
+        LEFT JOIN book_authors ba ON b.id = ba.book_id
+        LEFT JOIN authors a ON ba.author_id = a.id
+        LEFT JOIN book_tags bt ON b.id = bt.book_id
+        LEFT JOIN tags t ON bt.tag_id = t.id
+        GROUP BY b.id ORDER BY sb.added_at DESC
+    """, {"id": shelf_id}).fetchall())
+
+    return {"shelf": shelf, "books": books}
+
+
+def create_shelf(user_id: int, name: str) -> int:
+    db = get_db()
+    cur = db.execute("INSERT INTO shelves (name, user_id) VALUES (:n, :uid)", {"n": name, "uid": user_id})
+    db.commit()
+    return cur.lastrowid
+
+
+def update_shelf(shelf_id: int, name: str):
+    db = get_db()
+    db.execute("UPDATE shelves SET name = :n WHERE id = :id AND is_system = 0", {"n": name, "id": shelf_id})
+    db.commit()
+
+
+def delete_shelf(shelf_id: int):
+    db = get_db()
+    db.execute("DELETE FROM shelves WHERE id = :id AND is_system = 0", {"id": shelf_id})
+    db.commit()
+
+
+def add_book_to_shelf(shelf_id: int, book_id: int):
+    db = get_db()
+    db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)", {"sid": shelf_id, "bid": book_id})
+    db.commit()
+
+
+def remove_book_from_shelf(shelf_id: int, book_id: int):
+    db = get_db()
+    db.execute("DELETE FROM shelf_books WHERE shelf_id = :sid AND book_id = :bid", {"sid": shelf_id, "bid": book_id})
+    db.commit()
+
+
+def ensure_system_shelf(user_id: int):
+    """Ensure 'Лучшее' system shelf exists."""
+    db = get_db()
+    row = db.execute("SELECT id FROM shelves WHERE user_id = :uid AND is_system = 1", {"uid": user_id}).fetchone()
+    if not row:
+        db.execute("INSERT INTO shelves (name, user_id, is_system) VALUES ('Лучшее', :uid, 1)", {"uid": user_id})
+        db.commit()

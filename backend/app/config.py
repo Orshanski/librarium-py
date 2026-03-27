@@ -1,0 +1,22 @@
+import os
+from pathlib import Path
+
+# Project root — two levels up from this file (backend/app/config.py → librarium-py/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Data directory (shared with old Next.js project during migration)
+DATA_DIR = PROJECT_ROOT / "data"
+LIBRARY_DIR = DATA_DIR / "library"
+UPLOADS_DIR = DATA_DIR / "uploads"
+DB_PATH = DATA_DIR / "db.sqlite"
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
+
+# JWT
+SECRET_KEY = os.environ.get("SECRET_KEY", "librarium-dev-secret-change-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = 72
+COOKIE_NAME = "librarium_token"
+
+# Ensure directories exist
+DATA_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR.mkdir(exist_ok=True)

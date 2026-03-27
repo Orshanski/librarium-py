@@ -1,0 +1,177 @@
+import { useState, useMemo, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { getBreadcrumbUrl } from "../utils/breadcrumb-state";
+import Shell from "../components/shell";
+import PageHeader from "../components/page-header";
+import BookCard from "../components/book-card";
+import { FilterConfig } from "../components/filter-bar";
+import { Book } from "../types";
+import { colors } from "../theme";
+
+interface TagData {
+  id: number;
+  name: string;
+  code: string | null;
+  book_count: number;
+}
+
+interface ApiBook {
+  id: number;
+  title: string;
+  authors: string | null;
+  series_name: string | null;
+  series_number: number | null;
+  tags: string | null;
+  rating: number | null;
+  language: string;
+  cover_path: string | null;
+  description: string | null;
+  publisher: string | null;
+  pub_date: string | null;
+}
+
+function toBook(b: ApiBook): Book {
+  return {
+    id: b.id,
+    title: b.title,
+    authors: b.authors ? b.authors.split(",").map((a) => a.trim()) : [],
+    series: b.series_name || null,
+    seriesNumber: b.series_number || null,
+    tags: b.tags ? b.tags.split(",").map((t) => t.trim()) : [],
+    rating: b.rating || null,
+    language: b.language || "",
+    coverPath: `/api/covers/${b.id}`,
+    description: b.description || null,
+    publisher: b.publisher || null,
+    pubDate: b.pub_date || null,
+    formats: [],
+    isbn: null,
+  };
+}
+
+function applyFilters(allBooks: Book[], selected: Record<string, string[]>, excludeKey?: string): Book[] {
+  return allBooks.filter((book) => {
+    for (const [key, values] of Object.entries(selected)) {
+      if (key === excludeKey || values.length === 0) continue;
+      if (key === "author" && !book.authors.some((a) => values.includes(a))) return false;
+      if (key === "series" && (!book.series || !values.includes(book.series))) return false;
+      if (key === "language" && !values.includes(book.language)) return false;
+    }
+    return true;
+  });
+}
+
+function buildOptions(filteredBooks: Book[], key: string): { value: string; count: number }[] {
+  const map = new Map<string, number>();
+  for (const book of filteredBooks) {
+    if (key === "author") {
+      for (const a of book.authors) map.set(a, (map.get(a) || 0) + 1);
+    } else if (key === "series") {
+      if (book.series) map.set(book.series, (map.get(book.series) || 0) + 1);
+    } else if (key === "language") {
+      map.set(book.language, (map.get(book.language) || 0) + 1);
+    }
+  }
+  return Array.from(map.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+const filterKeys = [
+  { key: "author", label: "Автор" },
+  { key: "series", label: "Серия" },
+  { key: "language", label: "Язык" },
+];
+
+export default function TagPage() {
+  const { id } = useParams();
+  const tagId = Number(id);
+
+  const [tag, setTag] = useState<TagData | null>(null);
+  const [tagBooks, setTagBooks] = useState<Book[]>([]);
+  const [notFound, setNotFound] = useState(false);
+  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [sort, setSort] = useState("added_desc");
+
+  useEffect(() => {
+    if (isNaN(tagId)) {
+      setNotFound(true);
+      return;
+    }
+    fetch(`/api/tags/${tagId}`)
+      .then((r) => {
+        if (!r.ok) {
+          setNotFound(true);
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        setTag(data.tag);
+        setTagBooks(data.books.map(toBook));
+      });
+  }, [tagId]);
+
+  const filterConfigs: FilterConfig[] = useMemo(() => {
+    return filterKeys.map(({ key, label }) => ({
+      key,
+      label,
+      options: buildOptions(applyFilters(tagBooks, selected, key), key),
+    }));
+  }, [selected, tagBooks]);
+
+  const filtered = useMemo(() => {
+    const books = applyFilters(tagBooks, selected);
+    switch (sort) {
+      case "title_asc": return [...books].sort((a, b) => a.title.localeCompare(b.title, "ru"));
+      case "title_desc": return [...books].sort((a, b) => b.title.localeCompare(a.title, "ru"));
+      case "author_asc": return [...books].sort((a, b) => (a.authors[0] || "").split(" ").pop()!.localeCompare((b.authors[0] || "").split(" ").pop()!, "ru"));
+      case "rating_desc": return [...books].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      default: return books;
+    }
+  }, [selected, tagBooks, sort]);
+
+  const sortOptions = [
+    { key: "added_desc", label: "По дате добавления" },
+    { key: "title_asc", label: "По названию А→Я" },
+    { key: "title_desc", label: "По названию Я→А" },
+    { key: "author_asc", label: "По автору А→Я" },
+    { key: "rating_desc", label: "По рейтингу" },
+  ];
+
+  if (notFound) return null;
+  if (!tag) return null;
+
+  return (
+    <Shell>
+      <PageHeader
+        title={tag.name}
+        breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
+        filters={filterConfigs}
+        selected={selected}
+        onSelectionChange={(key, values) => setSelected((prev) => ({ ...prev, [key]: values }))}
+        sortOptions={sortOptions}
+        sortValue={sort}
+        onSortChange={setSort}
+      />
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, 150px)",
+          gap: 24,
+        }}
+      >
+        {filtered.map((book) => (
+          <BookCard key={book.id} book={book} />
+        ))}
+        {filtered.length === 0 && (
+          <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
+            Книги не найдены
+          </div>
+        )}
+      </div>
+    </Shell>
+  );
+}
