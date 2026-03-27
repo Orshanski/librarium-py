@@ -65,7 +65,7 @@ export default function Sidebar() {
         top: 0,
         left: 0,
         width: 220,
-        height: "100vh",
+        height: "100dvh",
         backgroundColor: colors.sidebar,
         borderRight: `1px solid ${colors.border}`,
         display: "flex",
