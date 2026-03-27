@@ -47,7 +47,7 @@ def get_cover(book_id: int, full: int = 0):
         return FileResponse(cover_path, headers={"Cache-Control": "public, max-age=3600"})
 
     thumb = _get_thumb(book_id, cover_path)
-    return FileResponse(thumb, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+    return FileResponse(thumb, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
 
 
 # --- POST: upload cover to temp ---

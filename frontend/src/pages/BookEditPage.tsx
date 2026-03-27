@@ -71,10 +71,15 @@ export default function BookEditPage() {
   async function handleSave(data: any) {
     const res = await fetch(`/api/books/${id}`, {
       method: "PUT",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (res.ok) {
+      // Invalidate catalog/pages caches so covers and data refresh
+      sessionStorage.removeItem("librarium_catalog");
+      sessionStorage.removeItem("librarium_authors");
+      sessionStorage.removeItem("librarium_series");
       navigate(`/book/${id}`);
     }
   }

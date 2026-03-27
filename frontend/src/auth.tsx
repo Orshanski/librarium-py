@@ -61,21 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/login", { replace: true });
-    }
-    if (!loading && user && adminOnly && user.role !== "admin") {
-      navigate("/", { replace: true });
-    }
-  }, [user, loading, adminOnly, navigate, location]);
-
-  if (loading) return null;
-  if (!user) return null;
-  if (adminOnly && user.role !== "admin") return null;
+  if (loading) return <div style={{ textAlign: "center", padding: 48, color: "#666" }}>Загрузка...</div>;
+  if (!user) {
+    window.location.href = "/login";
+    return null;
+  }
+  if (adminOnly && user.role !== "admin") {
+    window.location.href = "/";
+    return null;
+  }
 
   return <>{children}</>;
 }

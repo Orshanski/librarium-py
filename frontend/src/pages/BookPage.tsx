@@ -91,7 +91,7 @@ export default function BookPage() {
     tags: [],
     rating: b.rating,
     language: b.language || "",
-    coverPath: `/api/covers/${b.id}`,
+    coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
     description: null,
     publisher: null,
     pubDate: null,

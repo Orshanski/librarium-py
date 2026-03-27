@@ -20,7 +20,7 @@ export default function BookCard({ book }: { book: Book }) {
           }}
         >
           <img
-            src={`/api/covers/${book.id}`}
+            src={book.coverPath}
             alt={book.title}
             loading="lazy"
             style={{

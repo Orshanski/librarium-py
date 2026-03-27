@@ -40,7 +40,7 @@ function toBook(b: ApiBook): Book {
     tags: b.tags ? b.tags.split(",").map((t) => t.trim()) : [],
     rating: b.rating || null,
     language: b.language || "",
-    coverPath: `/api/covers/${b.id}`,
+    coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
     description: b.description || null,
     publisher: b.publisher || null,
     pubDate: b.pub_date || null,

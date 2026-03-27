@@ -105,7 +105,7 @@ function SearchResults() {
                   tags: [],
                   rating: null,
                   language: "",
-                  coverPath: `/api/covers/${b.id}`,
+                  coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
                   description: null,
                   publisher: null,
                   pubDate: null,

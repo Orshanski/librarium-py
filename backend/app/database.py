@@ -1,27 +1,30 @@
 import sqlite3
+import threading
 from pathlib import Path
 
 from .config import DB_PATH, SCHEMA_PATH
 
-_db: sqlite3.Connection | None = None
+_local = threading.local()
+_schema_initialized = False
 
 
 def get_db() -> sqlite3.Connection:
-    global _db
-    if _db is None:
-        _db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        _db.row_factory = sqlite3.Row
-        _db.execute("PRAGMA journal_mode=WAL")
-        _db.execute("PRAGMA foreign_keys=ON")
+    global _schema_initialized
+    db = getattr(_local, "db", None)
+    if db is None:
+        db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA foreign_keys=ON")
+        db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
 
-        # UTF-8 lowercase for case-insensitive Cyrillic search
-        _db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
+        if not _schema_initialized:
+            schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
+            db.executescript(schema)
+            _schema_initialized = True
 
-        # Initialize schema
-        schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
-        _db.executescript(schema)
-
-    return _db
+        _local.db = db
+    return db
 
 
 def dict_from_row(row: sqlite3.Row | None) -> dict | None:
