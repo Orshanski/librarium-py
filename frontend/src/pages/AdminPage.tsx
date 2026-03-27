@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ConfirmDialog from "../components/confirm-dialog";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import { colors, fonts } from "../theme";
@@ -213,6 +214,7 @@ export default function AdminPage() {
   const [savedToast, setSavedToast] = useState(false);
   const [smtpStatus, setSmtpStatus] = useState<"none" | "checking" | "ok">("none");
   const [smtpError, setSmtpError] = useState("");
+  const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -244,14 +246,19 @@ export default function AdminPage() {
   }
 
   async function deleteUser(id: number) {
-    if (!confirm("Удалить пользователя?")) return;
-    const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    setDeleteUserId(id);
+  }
+
+  async function confirmDeleteUser() {
+    if (!deleteUserId) return;
+    const res = await fetch(`/api/admin/users/${deleteUserId}`, { method: "DELETE" });
     if (res.ok) {
-      setUsers(users.filter((u) => u.id !== id));
+      setUsers(users.filter((u) => u.id !== deleteUserId));
     } else {
       const err = await res.json();
-      alert(err.error);
+      console.error(err.error);
     }
+    setDeleteUserId(null);
   }
 
   async function createUser() {
@@ -487,6 +494,13 @@ export default function AdminPage() {
         </div>
 
       </div>
+      {deleteUserId && (
+        <ConfirmDialog
+          message="Удалить пользователя?"
+          onCancel={() => setDeleteUserId(null)}
+          onConfirm={confirmDeleteUser}
+        />
+      )}
     </Shell>
   );
 }

@@ -52,7 +52,7 @@ export default function Sidebar() {
     });
     if (res.ok) {
       const data = await res.json();
-      setShelves([...shelves, { id: data.id, name: data.name, is_system: 0, book_count: 0 }]);
+      setShelves([...shelves, { id: data.id, name: newShelfName.trim(), is_system: 0, book_count: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
     }

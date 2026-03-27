@@ -3,6 +3,7 @@ import { Book, BookFormat } from "../types";
 import { colors, fonts } from "../theme";
 import MetadataSearch from "./metadata-search";
 import Combobox from "./combobox";
+import ConfirmDialog from "./confirm-dialog";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -47,6 +48,7 @@ export default function BookEditForm({ book, options, onSave }: {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [deleteFormatConfirm, setDeleteFormatConfirm] = useState<string | null>(null);
   const [coverChanged, setCoverChanged] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [coverUrl, setCoverUrl] = useState(book.coverPath);
@@ -190,13 +192,7 @@ export default function BookEditForm({ book, options, onSave }: {
               <span>{f.format} — {f.size}</span>
               {formats.length > 1 && (
                 <button
-                  onClick={async () => {
-                    if (!confirm(`Удалить файл ${f.format}?`)) return;
-                    const res = await fetch(`/api/books/${book.id}/files?format=${f.format}`, { method: "DELETE" });
-                    if (res.ok) {
-                      setFormats(formats.filter((x) => x.format !== f.format));
-                    }
-                  }}
+                  onClick={() => setDeleteFormatConfirm(f.format)}
                   style={{
                     background: "none",
                     border: "none",
@@ -470,6 +466,19 @@ export default function BookEditForm({ book, options, onSave }: {
           </button>
         </div>
       </div>
+      {deleteFormatConfirm && (
+        <ConfirmDialog
+          message={`Удалить файл ${deleteFormatConfirm}?`}
+          onCancel={() => setDeleteFormatConfirm(null)}
+          onConfirm={async () => {
+            const res = await fetch(`/api/books/${book.id}/files?format=${deleteFormatConfirm}`, { method: "DELETE" });
+            if (res.ok) {
+              setFormats(formats.filter((x) => x.format !== deleteFormatConfirm));
+            }
+            setDeleteFormatConfirm(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Book } from "../types";
 import { colors } from "../theme";
 
-export default function BookCard({ book }: { book: Book }) {
+export default function BookCard({ book, onRemove }: { book: Book; onRemove?: () => void }) {
   return (
     <Link
       to={`/book/${book.id}`}
@@ -30,6 +30,22 @@ export default function BookCard({ book }: { book: Book }) {
               display: "block",
             }}
           />
+          {/* Remove button */}
+          {onRemove && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
+              style={{
+                position: "absolute", top: 4, left: 4, width: 22, height: 22,
+                borderRadius: "50%", border: "none",
+                backgroundColor: "rgba(0,0,0,0.6)", color: "#fff",
+                fontSize: 12, cursor: "pointer", display: "flex",
+                alignItems: "center", justifyContent: "center",
+                opacity: 0.7, transition: "opacity 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+            >✕</button>
+          )}
           {/* Rating badge */}
           {book.rating && (
             <div

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import ConfirmDialog from "../components/confirm-dialog";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
@@ -47,8 +48,9 @@ export default function ShelfPage() {
     }
   }, [books, sort]);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   async function handleDelete() {
-    if (!confirm("Удалить полку?")) return;
     const res = await fetch(`/api/shelves/${id}`, { method: "DELETE" });
     if (res.ok) navigate("/");
   }
@@ -74,7 +76,7 @@ export default function ShelfPage() {
         actionSlot={
           !shelf.is_system ? (
             <button
-              onClick={handleDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               style={{
                 background: "none",
                 border: `1px solid rgba(239,68,68,0.3)`,
@@ -119,6 +121,10 @@ export default function ShelfPage() {
               formats: [],
               isbn: null,
             }}
+            onRemove={!shelf.is_system ? async () => {
+              await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
+              setBooks(books.filter((x: any) => x.id !== b.id));
+            } : undefined}
           />
         ))}
       </div>
@@ -127,6 +133,9 @@ export default function ShelfPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
           Полка пуста
         </div>
+      )}
+      {showDeleteConfirm && (
+        <ConfirmDialog message={`Удалить полку «${shelf.name}»?`} onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete} />
       )}
     </Shell>
   );
