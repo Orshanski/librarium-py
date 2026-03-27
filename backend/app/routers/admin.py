@@ -1,11 +1,33 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
+
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+_LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "public" / "logo.png"
+
+
+def _build_email(template_name: str, subject: str, from_addr: str, to_addr: str) -> MIMEMultipart:
+    html = (_TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
+    msg = MIMEMultipart("related")
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    if _LOGO_PATH.exists():
+        img = MIMEImage(_LOGO_PATH.read_bytes(), _subtype="png")
+        img.add_header("Content-ID", "<logo>")
+        img.add_header("Content-Disposition", "inline")
+        msg.attach(img)
+    return msg
 from ..dal import users as users_dal
 from ..dal import settings as settings_dal
 
@@ -98,10 +120,7 @@ def smtp_test(request: Request):
         return JSONResponse({"error": "У вас не указан email"}, status_code=400)
 
     try:
-        msg = MIMEText("<h2>Librarium</h2><p>SMTP работает!</p>", "html", "utf-8")
-        msg["Subject"] = "Librarium — тест SMTP"
-        msg["From"] = smtp_user
-        msg["To"] = db_user["email"]
+        msg = _build_email("smtp_test.html", "Librarium — тест SMTP", smtp_user, db_user["email"])
 
         if port == 465:
             server = smtplib.SMTP_SSL(host, port, timeout=15)
