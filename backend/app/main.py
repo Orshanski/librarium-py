@@ -15,6 +15,7 @@ from .routers import search as search_router
 from .routers import options as options_router
 from .routers import admin as admin_router
 from .routers import user_books as user_books_router
+from .routers import metadata as metadata_router
 
 app = FastAPI(title="Librarium", docs_url=None, redoc_url=None)
 
@@ -31,6 +32,7 @@ app.include_router(search_router.router)
 app.include_router(options_router.router)
 app.include_router(admin_router.router)
 app.include_router(user_books_router.router)
+app.include_router(metadata_router.router)
 
 # Static files (Vite build) — added last so API routes take priority
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

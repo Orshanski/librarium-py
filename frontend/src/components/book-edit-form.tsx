@@ -108,9 +108,9 @@ export default function BookEditForm({ book, options, onSave }: {
         const blob = await coverRes.blob();
         const form = new FormData();
         form.append("file", blob, "cover.jpg");
-        const uploadRes = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form });
+        const uploadRes = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
         if (uploadRes.ok) {
-          setCoverUrl(`/api/covers/${book.id}?t=${Date.now()}`);
+          setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
           setCoverChanged(true);
         }
       } catch {}
@@ -161,9 +161,9 @@ export default function BookEditForm({ book, options, onSave }: {
             setUploadingCover(true);
             const form = new FormData();
             form.append("file", file);
-            const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form });
+            const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
             if (res.ok) {
-              setCoverUrl(`/api/covers/${book.id}?t=${Date.now()}`);
+              setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
               setCoverChanged(true);
             }
             setUploadingCover(false);
@@ -431,7 +431,7 @@ export default function BookEditForm({ book, options, onSave }: {
               if (!onSave) return;
               setSaving(true);
               if (coverChanged) {
-                await fetch(`/api/books/${book.id}/cover`, { method: "PUT" });
+                await fetch(`/api/books/${book.id}/cover`, { method: "PUT", credentials: "include" });
               }
               onSave({
                 title,
@@ -460,7 +460,7 @@ export default function BookEditForm({ book, options, onSave }: {
           <button
             onClick={async () => {
               if (coverChanged) {
-                await fetch(`/api/books/${book.id}/cover`, { method: "DELETE" });
+                await fetch(`/api/books/${book.id}/cover`, { method: "DELETE", credentials: "include" });
               }
               history.back();
             }}
