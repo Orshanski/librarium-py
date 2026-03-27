@@ -4,10 +4,12 @@ export default function ConfirmDialog({
   message,
   onConfirm,
   onCancel,
+  confirmLabel = "Удалить",
 }: {
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmLabel?: string;
 }) {
   return (
     <>
@@ -34,7 +36,7 @@ export default function ConfirmDialog({
             border: "none", backgroundColor: colors.danger, color: "#fff",
             cursor: "pointer", fontWeight: 600,
           }}>
-            Удалить
+            {confirmLabel}
           </button>
         </div>
       </div>

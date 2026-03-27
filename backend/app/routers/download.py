@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, Response
 from ..auth import get_current_user
-from ..config import DATA_DIR
+from ..config import LIBRARY_DIR
 from ..dal.books import get_book_by_id, get_book_files
 
 router = APIRouter(tags=["download"])
@@ -20,8 +20,8 @@ def download_book(book_id: int, format: str, request: Request):
     if not target:
         return Response(status_code=404)
 
-    file_path = os.path.join(str(DATA_DIR.parent), target["file_path"])
-    if not os.path.isfile(file_path):
+    file_path = os.path.realpath(os.path.join(str(LIBRARY_DIR), str(book_id), f"book.{format.lower()}"))
+    if not file_path.startswith(str(LIBRARY_DIR.resolve())) or not os.path.isfile(file_path):
         return Response(status_code=404)
 
     filename = f"{book['title']}.{format.lower()}"

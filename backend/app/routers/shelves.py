@@ -24,7 +24,11 @@ def list_shelves(request: Request, bookId: int | None = None):
     if bookId is not None:
         from ..database import get_db
         db = get_db()
-        rows = db.execute("SELECT shelf_id FROM shelf_books WHERE book_id = ?", (bookId,)).fetchall()
+        rows = db.execute("""
+            SELECT sb.shelf_id FROM shelf_books sb
+            JOIN shelves s ON sb.shelf_id = s.id
+            WHERE sb.book_id = ? AND s.user_id = ?
+        """, (bookId, user["userId"])).fetchall()
         on_shelf_ids = {r["shelf_id"] for r in rows}
         result["bookShelves"] = [{"id": s["id"], "has_book": s["id"] in on_shelf_ids} for s in shelves]
     return result

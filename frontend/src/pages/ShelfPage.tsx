@@ -122,8 +122,8 @@ export default function ShelfPage() {
               isbn: null,
             }}
             onRemove={!shelf.is_system ? async () => {
-              await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
-              setBooks(books.filter((x: any) => x.id !== b.id));
+              const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
+              if (res.ok) setBooks(books.filter((x: any) => x.id !== b.id));
             } : undefined}
           />
         ))}

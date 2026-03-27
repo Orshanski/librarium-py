@@ -95,7 +95,7 @@ def delete_file(book_id: int, request: Request, format: str = ""):
     row = db.execute("SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
     if not row:
         return JSONResponse({"error": "Not found"}, status_code=404)
-    file_path = os.path.join(str(LIBRARY_DIR.parent.parent), dict(row)["file_path"])
+    file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
     if os.path.isfile(file_path):
         os.remove(file_path)
     db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))

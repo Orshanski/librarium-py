@@ -75,7 +75,10 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 # --- GET: serve temp cover preview ---
 @router.get("/api/uploads/cover/{book_id}")
 def get_temp_cover(book_id: str, request: Request):
+    import re
     get_current_user(request)
+    if not re.match(r'^[a-zA-Z0-9]{1,20}$', book_id):
+        return Response(status_code=400)
     for f in os.listdir(str(UPLOADS_DIR)):
         if f.startswith(f"{book_id}-cover."):
             return FileResponse(str(UPLOADS_DIR / f), headers={"Cache-Control": "no-cache"})

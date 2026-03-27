@@ -3,7 +3,7 @@ from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..auth import require_admin
 from ..dal import users as users_dal
@@ -15,8 +15,8 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 # --- Users ---
 
 class CreateUserBody(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9_]+$')
+    password: str = Field(min_length=4)
     role: str = "reader"
     displayName: str | None = None
     email: str | None = None
@@ -52,7 +52,9 @@ def update_user(user_id: int, body: UpdateUserBody, request: Request):
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, request: Request):
-    require_admin(request)
+    user = require_admin(request)
+    if user["userId"] == user_id:
+        return JSONResponse({"error": "Нельзя удалить самого себя"}, status_code=400)
     users_dal.delete_user(user_id)
     return {"ok": True}
 
@@ -65,12 +67,16 @@ def get_settings(request: Request):
     return settings_dal.get_all_settings()
 
 
+ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
+
+
 @router.put("/settings")
 async def update_settings(request: Request):
     require_admin(request)
     data = await request.json()
     for key, value in data.items():
-        settings_dal.set_setting(key, value)
+        if key in ALLOWED_SETTINGS:
+            settings_dal.set_setting(key, value)
     return {"ok": True}
 
 

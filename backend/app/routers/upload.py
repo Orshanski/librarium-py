@@ -32,10 +32,15 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         return JSONResponse({"error": f"Unsupported format: {ext}"}, status_code=400)
 
     temp_id = str(uuid.uuid4())[:8]
-    content = await file.read()
 
-    if len(content) > MAX_BOOK_SIZE:
+    # Check size before reading into memory
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_BOOK_SIZE:
         return JSONResponse({"error": f"Файл слишком большой (макс. {MAX_BOOK_SIZE // 1024 // 1024} МБ)"}, status_code=400)
+
+    content = await file.read()
 
     # ZIP: extract single book file
     if ext == "zip":
@@ -136,9 +141,8 @@ async def create_book_from_upload(request: Request):
     # Find temp file
     temp_file = None
     for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{temp_id}.") and not f.endswith("-cover." + f.rsplit(".", 1)[-1]):
-            if not "-cover." in f:
-                temp_file = f
+        if f.startswith(f"{temp_id}.") and "-cover." not in f:
+            temp_file = f
                 break
     if not temp_file:
         return JSONResponse({"error": "Temp file not found"}, status_code=400)
