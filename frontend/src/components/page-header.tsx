@@ -18,7 +18,7 @@ export default function PageHeader({
   breadcrumb,
   actionSlot,
 }: {
-  title: string;
+  title: React.ReactNode;
   filters?: FilterConfig[];
   selected?: Record<string, string[]>;
   onSelectionChange?: (key: string, values: string[]) => void;

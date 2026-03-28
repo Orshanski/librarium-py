@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
+import EntityAdminPanel from "../components/entity-admin-panel";
 import { Book } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
+import { useAuth } from "../auth";
 
 interface AuthorData {
   id: number;
@@ -53,11 +55,14 @@ function mapBook(b: BookRow): Book {
 
 export default function AuthorPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [author, setAuthor] = useState<AuthorData | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     fetch(`/api/authors/${id}`)
@@ -115,13 +120,45 @@ export default function AuthorPage() {
     </div>
   );
 
+  const titleWithAdmin = (
+    <>
+      {author.name}
+      {user?.role === "admin" && (
+        <button
+          onClick={() => setShowAdmin(!showAdmin)}
+          style={{
+            marginLeft: 12,
+            padding: "3px 10px",
+            background: showAdmin ? "rgba(249, 190, 3, 0.1)" : "transparent",
+            border: `1px solid ${showAdmin ? colors.accent : "rgba(255,255,255,0.15)"}`,
+            color: showAdmin ? colors.accent : colors.textDim,
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >⚙</button>
+      )}
+    </>
+  );
+
   return (
     <Shell>
       <PageHeader
-        title={author.name}
+        title={titleWithAdmin}
         infoSlot={infoSlot}
         breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }}
       />
+      {showAdmin && author && (
+        <EntityAdminPanel
+          entityType="author"
+          entityId={author.id}
+          currentName={author.name}
+          bookCount={author.book_count}
+          onRenamed={(newName) => { setAuthor({...author, name: newName}); setShowAdmin(false); }}
+          onMerged={() => window.location.reload()}
+          onDeleted={() => navigate("/authors")}
+        />
+      )}
       <AuthorDetail author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }} books={books} />
     </Shell>
   );

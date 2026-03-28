@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
+import { useAuth } from "../auth";
 import { colors } from "../theme";
 
 interface SeriesData {
@@ -17,11 +19,14 @@ interface SeriesData {
 
 export default function SeriesPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [series, setSeries] = useState<SeriesData | null>(null);
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     fetch(`/api/series/${id}`)
@@ -75,13 +80,42 @@ export default function SeriesPage() {
     </div>
   );
 
+  const adminButton = user?.role === "admin" ? (
+    <button
+      onClick={() => setShowAdmin(!showAdmin)}
+      style={{
+        marginLeft: 12,
+        padding: "3px 10px",
+        background: showAdmin ? "rgba(249, 190, 3, 0.1)" : "transparent",
+        border: `1px solid ${showAdmin ? colors.accent : "rgba(255,255,255,0.15)"}`,
+        color: showAdmin ? colors.accent : colors.textDim,
+        borderRadius: 4,
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >⚙</button>
+  ) : null;
+
   return (
     <Shell>
       <PageHeader
         title={series.name}
         breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }}
         infoSlot={infoSlot}
+        actionSlot={adminButton}
       />
+
+      {showAdmin && series && (
+        <EntityAdminPanel
+          entityType="series"
+          entityId={series.id}
+          currentName={series.name}
+          bookCount={series.book_count}
+          onRenamed={(newName) => { setSeries({...series, name: newName}); setShowAdmin(false); }}
+          onMerged={() => window.location.reload()}
+          onDeleted={() => navigate("/series")}
+        />
+      )}
 
       <div
         style={{
