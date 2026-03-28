@@ -45,10 +45,12 @@ class MergeBody(BaseModel):
 @router.post("/{series_id}/merge")
 def merge_series(series_id: int, body: MergeBody, request: Request):
     user = require_admin(request)
+    if body.sourceId == series_id:
+        return JSONResponse({"error": "Нельзя объединить с самой собой"}, status_code=400)
     dal.merge_series(series_id, body.sourceId)
     log.info("Merged series source=%d into target=%d by user_id=%s",
              body.sourceId, series_id, user["userId"])
-    return {"ok": True, "moved": moved}
+    return {"ok": True}
 
 
 @router.delete("/{series_id}")

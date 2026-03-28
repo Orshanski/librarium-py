@@ -44,10 +44,12 @@ class MergeBody(BaseModel):
 @router.post("/{author_id}/merge")
 def merge_author(author_id: int, body: MergeBody, request: Request):
     user = require_admin(request)
+    if body.sourceId == author_id:
+        return JSONResponse({"error": "Нельзя объединить с самим собой"}, status_code=400)
     dal.merge_authors(author_id, body.sourceId)
     log.info("Merged author source=%d into target=%d by user_id=%s",
              body.sourceId, author_id, user["userId"])
-    return {"ok": True, "moved": moved}
+    return {"ok": True}
 
 
 @router.delete("/{author_id}")
