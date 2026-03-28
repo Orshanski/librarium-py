@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -84,6 +84,36 @@ const filterKeys = [
   { key: "language", label: "Язык" },
 ];
 
+function cacheKey(tagId: number) {
+  return `librarium_tag_${tagId}`;
+}
+
+function saveCache(tagId: number, tag: TagData, tagBooks: Book[], selected: Record<string, string[]>, sort: string) {
+  try {
+    const main = document.querySelector("main");
+    sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
+      tag,
+      tagBooks,
+      selected,
+      sort,
+      scrollTop: main?.scrollTop || 0,
+    }));
+    saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
+  } catch {}
+}
+
+function loadCache(tagId: number) {
+  try {
+    const raw = sessionStorage.getItem(cacheKey(tagId));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data.tag || !data.tagBooks?.length) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export default function TagPage() {
   const { id } = useParams();
   const tagId = Number(id);
@@ -95,12 +125,34 @@ export default function TagPage() {
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState("added_desc");
 
+  const frozenRef = useRef(false);
+
+  // Restore from cache on mount
   useEffect(() => {
     if (isNaN(tagId)) {
       setNotFound(true);
       setLoading(false);
       return;
     }
+
+    const cached = loadCache(tagId);
+    if (cached) {
+      setTag(cached.tag);
+      setTagBooks(cached.tagBooks);
+      if (cached.selected) setSelected(cached.selected);
+      if (cached.sort) setSort(cached.sort);
+      setLoading(false);
+      frozenRef.current = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const main = document.querySelector("main");
+          if (main) main.scrollTop = cached.scrollTop;
+          setTimeout(() => { frozenRef.current = false; }, 200);
+        });
+      });
+      return;
+    }
+
     fetch(`/api/tags/${tagId}`)
       .then((r) => {
         if (!r.ok) {
@@ -117,6 +169,21 @@ export default function TagPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [tagId]);
+
+  // Scroll listener — saves cache on scroll
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main || !tag) return;
+
+    function onScroll() {
+      if (tag) saveCache(tagId, tag, tagBooks, selected, sort);
+    }
+
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      main.removeEventListener("scroll", onScroll);
+    };
+  }, [tag, tagBooks, selected, sort, tagId]);
 
   const filterConfigs: FilterConfig[] = useMemo(() => {
     return filterKeys.map(({ key, label }) => ({
@@ -145,6 +212,11 @@ export default function TagPage() {
     { key: "rating_desc", label: "По рейтингу" },
   ];
 
+  function onSelectionChange(key: string, values: string[]) {
+    sessionStorage.removeItem(cacheKey(tagId));
+    setSelected((prev) => ({ ...prev, [key]: values }));
+  }
+
   if (loading) {
     return (
       <Shell>
@@ -170,10 +242,13 @@ export default function TagPage() {
         breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
         filters={filterConfigs}
         selected={selected}
-        onSelectionChange={(key, values) => setSelected((prev) => ({ ...prev, [key]: values }))}
+        onSelectionChange={onSelectionChange}
         sortOptions={sortOptions}
         sortValue={sort}
-        onSortChange={setSort}
+        onSortChange={(s) => {
+          sessionStorage.removeItem(cacheKey(tagId));
+          setSort(s);
+        }}
       />
 
       <div
