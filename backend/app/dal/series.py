@@ -65,3 +65,42 @@ def get_or_create_series(name: str) -> int:
     cur = db.execute("INSERT INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
     db.commit()
     return cur.lastrowid
+
+
+def rename_series(series_id: int, name: str):
+    db = get_db()
+    db.execute("UPDATE series SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": series_id})
+    db.commit()
+
+
+def merge_series(target_id: int, source_id: int) -> int:
+    """Переносит книги source → target, удаляет source. Возвращает кол-во перенесённых книг."""
+    db = get_db()
+    moved = db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
+                       {"target": target_id, "source": source_id}).rowcount
+    db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
+    db.commit()
+    return moved
+
+
+def delete_series(series_id: int) -> bool:
+    """Удаляет серию если у неё нет книг. Возвращает True если удалена."""
+    db = get_db()
+    count = db.execute("SELECT COUNT(*) as c FROM books WHERE series_id = :id", {"id": series_id}).fetchone()["c"]
+    if count > 0:
+        return False
+    db.execute("DELETE FROM series WHERE id = :id", {"id": series_id})
+    db.commit()
+    return True
+
+
+def search_series(query: str, exclude_id: int | None = None) -> list[dict]:
+    db = get_db()
+    rows = db.execute("""
+        SELECT s.id, s.name, COUNT(b.id) as book_count
+        FROM series s
+        LEFT JOIN books b ON b.series_id = s.id
+        WHERE s.name LIKE :q AND (:exclude IS NULL OR s.id != :exclude)
+        GROUP BY s.id ORDER BY s.name LIMIT 10
+    """, {"q": f"%{query}%", "exclude": exclude_id}).fetchall()
+    return dicts_from_rows(rows)
