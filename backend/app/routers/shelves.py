@@ -1,7 +1,11 @@
+import logging
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user
+
+log = logging.getLogger("librarium.shelves")
 from ..dal import shelves as dal
 
 router = APIRouter(prefix="/api/shelves", tags=["shelves"])
@@ -38,6 +42,7 @@ def list_shelves(request: Request, bookId: int | None = None):
 def create_shelf(body: ShelfBody, request: Request):
     user = get_current_user(request)
     shelf_id = dal.create_shelf(user["userId"], body.name)
+    log.info("Created shelf=%s by user_id=%s", body.name, user["userId"])
     return {"id": shelf_id}
 
 
@@ -65,6 +70,7 @@ def delete_shelf(shelf_id: int, request: Request):
     if not dal.get_shelf_by_id(shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.delete_shelf(shelf_id)
+    log.info("Deleted shelf=%d by user_id=%s", shelf_id, user["userId"])
     return {"ok": True}
 
 

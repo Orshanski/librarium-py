@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import uuid
@@ -8,6 +9,8 @@ from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 
 from ..auth import require_admin
+
+log = logging.getLogger("librarium.upload")
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE
 from ..database import get_db
 from ..parsers import parse_book
@@ -23,7 +26,7 @@ BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
 
 @router.post("/api/upload")
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    require_admin(request)
+    user = require_admin(request)
 
     filename = file.filename or "unknown"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -89,6 +92,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     # Deduplication
     duplicate = _check_duplicate(meta.title, meta.authors)
 
+    log.info("Uploaded temp_id=%s file=%s by user_id=%s", temp_id, filename, user["userId"])
     return {
         "tempId": temp_id,
         "format": ext.upper(),
@@ -126,7 +130,7 @@ def cleanup_temp(temp_id: str, request: Request):
 
 @router.post("/api/books/create")
 async def create_book_from_upload(request: Request):
-    require_admin(request)
+    user = require_admin(request)
     data = await request.json()
 
     temp_id = data.get("tempId")
@@ -217,12 +221,13 @@ async def create_book_from_upload(request: Request):
 
     db.commit()
 
+    log.info("Created book=%d title=%s by user_id=%s", book_id, title, user["userId"])
     return {"bookId": book_id}
 
 
 @router.post("/api/books/{book_id}/add-format")
 async def add_format(book_id: int, request: Request):
-    require_admin(request)
+    user = require_admin(request)
     data = await request.json()
     temp_id = data.get("tempId")
     if not temp_id or not _validate_temp_id(temp_id):
@@ -263,6 +268,7 @@ async def add_format(book_id: int, request: Request):
     for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*")):
         os.remove(f)
 
+    log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True, "format": fmt}
 
 

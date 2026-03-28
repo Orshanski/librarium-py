@@ -1,10 +1,14 @@
+import logging
+import os
+
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-import os
-from ..auth import verify_password, create_token, get_current_user, COOKIE_NAME
+from ..auth import verify_password, create_token, get_current_user, get_client_ip, COOKIE_NAME
 from ..database import get_db, dict_from_row
+
+log = logging.getLogger("librarium.auth")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -15,7 +19,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(body: LoginRequest):
+def login(body: LoginRequest, request: Request):
     db = get_db()
     row = db.execute(
         "SELECT id, username, display_name, email, password_hash, role FROM users WHERE username = ?",
@@ -23,8 +27,10 @@ def login(body: LoginRequest):
     ).fetchone()
 
     if not row or not verify_password(body.password, row["password_hash"]):
+        log.warning("Login FAILED user=%s ip=%s", body.username, get_client_ip(request))
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    log.info("Login OK user=%s ip=%s", row["username"], get_client_ip(request))
     token = create_token(row["id"], row["role"])
     response = JSONResponse({"ok": True, "user": {
         "id": row["id"],
@@ -64,7 +70,12 @@ def me(request: Request):
 
 
 @router.post("/logout")
-def logout():
+def logout(request: Request):
+    try:
+        user = get_current_user(request)
+        log.info("Logout user_id=%s", user["userId"])
+    except Exception:
+        pass
     response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME, path="/")
     return response

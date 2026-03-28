@@ -28,9 +28,12 @@ def _build_email(template_name: str, subject: str, from_addr: str, to_addr: str)
         img.add_header("Content-Disposition", "inline")
         msg.attach(img)
     return msg
+import logging
+
 from ..dal import users as users_dal
 from ..dal import settings as settings_dal
 
+log = logging.getLogger("librarium.admin")
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
@@ -59,16 +62,18 @@ def list_users(request: Request):
 
 @router.post("/users")
 def create_user(body: CreateUserBody, request: Request):
-    require_admin(request)
+    user = require_admin(request)
     uid = users_dal.create_user(body.username, body.password, body.role, body.displayName, body.email)
+    log.info("Created user=%s role=%s by user_id=%s", body.username, body.role, user["userId"])
     return {"id": uid}
 
 
 @router.put("/users/{user_id}")
 def update_user(user_id: int, body: UpdateUserBody, request: Request):
-    require_admin(request)
+    user = require_admin(request)
     data = body.model_dump(exclude_none=True)
     users_dal.update_user(user_id, data)
+    log.info("Updated user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
 
 
@@ -78,6 +83,7 @@ def delete_user(user_id: int, request: Request):
     if user["userId"] == user_id:
         return JSONResponse({"error": "Нельзя удалить самого себя"}, status_code=400)
     users_dal.delete_user(user_id)
+    log.info("Deleted user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
 
 
@@ -94,11 +100,15 @@ ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pas
 
 @router.put("/settings")
 async def update_settings(request: Request):
-    require_admin(request)
+    user = require_admin(request)
     data = await request.json()
+    changed = []
     for key, value in data.items():
         if key in ALLOWED_SETTINGS:
             settings_dal.set_setting(key, value)
+            changed.append(key)
+    if changed:
+        log.info("Updated settings=%s by user_id=%s", ",".join(changed), user["userId"])
     return {"ok": True}
 
 

@@ -1,7 +1,16 @@
-from fastapi import FastAPI
+import logging
+import traceback
+
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 from .routers import auth as auth_router
 from .routers import books as books_router
@@ -19,6 +28,18 @@ from .routers import metadata as metadata_router
 from .routers import upload as upload_router
 
 app = FastAPI(title="Librarium", docs_url=None, redoc_url=None)
+
+_log = logging.getLogger("librarium")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    from fastapi import HTTPException as _HTTPException
+    if isinstance(exc, _HTTPException):
+        raise exc
+    _log.error("Unhandled exception on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
+    return JSONResponse({"error": "Internal server error"}, status_code=500)
+
 
 # Routers
 app.include_router(auth_router.router)

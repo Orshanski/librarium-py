@@ -41,6 +41,14 @@ def get_current_user(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+def get_client_ip(request: Request) -> str:
+    return (
+        request.headers.get("X-Real-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
+
+
 def require_admin(request: Request) -> dict[str, Any]:
     user = get_current_user(request)
     if user.get("role") != "admin":

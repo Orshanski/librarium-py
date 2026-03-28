@@ -1,8 +1,11 @@
+import logging
 import os
 import shutil
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user, require_admin
+
+log = logging.getLogger("librarium.books")
 from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE
 from ..database import get_db
 from ..dal import books as dal
@@ -42,7 +45,7 @@ async def update_book(book_id: int, request: Request):
     from ..dal.authors import get_or_create_author
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
-    require_admin(request)
+    user = require_admin(request)
     data = await request.json()
 
     # Resolve string names to IDs
@@ -54,12 +57,13 @@ async def update_book(book_id: int, request: Request):
         data["seriesId"] = get_or_create_series(data["seriesId"])
 
     dal.update_book(book_id, data)
+    log.info("Updated book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}
 
 
 @router.post("/{book_id}/files")
 async def upload_file(book_id: int, request: Request, file: UploadFile = File(...)):
-    require_admin(request)
+    user = require_admin(request)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     allowed = {"fb2", "epub", "pdf"}
     if ext not in allowed:
@@ -82,12 +86,13 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
         (book_id, fmt, f"data/library/{book_id}/book.{ext}", len(content)),
     )
     db.commit()
+    log.info("Uploaded file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True, "format": fmt, "size": len(content)}
 
 
 @router.delete("/{book_id}/files")
 def delete_file(book_id: int, request: Request, format: str = ""):
-    require_admin(request)
+    user = require_admin(request)
     fmt = format.upper()
     if not fmt:
         return JSONResponse({"error": "format required"}, status_code=400)
@@ -100,12 +105,13 @@ def delete_file(book_id: int, request: Request, format: str = ""):
         os.remove(file_path)
     db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))
     db.commit()
+    log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True}
 
 
 @router.delete("/{book_id}")
 def delete_book(book_id: int, request: Request):
-    require_admin(request)
+    user = require_admin(request)
 
     # Delete files from disk
     book_dir = str(LIBRARY_DIR / str(book_id))
@@ -119,4 +125,5 @@ def delete_book(book_id: int, request: Request):
 
     # Delete from DB (CASCADE handles book_authors, book_tags, book_files, etc.)
     dal.delete_book(book_id)
+    log.info("Deleted book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}

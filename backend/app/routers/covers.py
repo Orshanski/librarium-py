@@ -1,9 +1,12 @@
+import logging
 import os
 import glob
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
 from ..auth import get_current_user, require_admin
+
+log = logging.getLogger("librarium.covers")
 from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 
 Image.MAX_IMAGE_PIXELS = 25_000_000
@@ -88,7 +91,7 @@ def get_temp_cover(book_id: str, request: Request):
 # --- PUT: commit temp cover → library ---
 @router.put("/api/books/{book_id}/cover")
 def commit_cover(book_id: int, request: Request):
-    require_admin(request)
+    user = require_admin(request)
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
 
@@ -125,6 +128,7 @@ def commit_cover(book_id: int, request: Request):
     if os.path.exists(thumb):
         os.remove(thumb)
 
+    log.info("Cover updated book=%d by user_id=%s", book_id, user["userId"])
     return JSONResponse({"ok": True})
 
 
