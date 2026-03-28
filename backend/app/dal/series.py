@@ -80,14 +80,13 @@ def rename_series(series_id: int, name: str):
 def merge_series(target_id: int, source_id: int):
     """Переносит книги source → target, удаляет source."""
     db = get_db()
-    db.execute("BEGIN")
     try:
         db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
                    {"target": target_id, "source": source_id})
         db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
         db.commit()
     except:
-        db.execute("ROLLBACK")
+        db.rollback()
         raise
 
 

@@ -89,7 +89,6 @@ def rename_author(author_id: int, name: str):
 def merge_authors(target_id: int, source_id: int):
     """Переносит книги source → target, удаляет source."""
     db = get_db()
-    db.execute("BEGIN")
     try:
         db.execute("""
             INSERT OR IGNORE INTO book_authors (book_id, author_id)
@@ -99,7 +98,7 @@ def merge_authors(target_id: int, source_id: int):
         db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
         db.commit()
     except:
-        db.execute("ROLLBACK")
+        db.rollback()
         raise
 
 

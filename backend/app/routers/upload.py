@@ -166,8 +166,6 @@ async def create_book_from_upload(request: Request):
     moved_paths: list[str] = []
 
     try:
-        db.execute("BEGIN")
-
         # Create authors/series/tags without commit
         author_ids = [get_or_create_author(a.strip(), commit=False)
                       for a in meta.get("authors", "").split(",") if a.strip()]
@@ -268,8 +266,6 @@ async def add_format(book_id: int, request: Request):
     dst = ""
 
     try:
-        db.execute("BEGIN")
-
         src = str(UPLOADS_DIR / temp_file)
         dst = os.path.join(book_dir, f"book.{ext}")
         shutil.move(src, dst)
