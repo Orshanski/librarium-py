@@ -2,6 +2,7 @@ import base64
 import logging
 from lxml import etree
 from . import ParsedMetadata
+from .fb2_genres import FB2_GENRES
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def parse_fb2(file_path: str) -> ParsedMetadata:
 
     # Genres
     genres = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:genre/text()", namespaces=NS)
-    meta.genres = list(genres)
+    meta.genres = [FB2_GENRES.get(g.strip().lower(), g.strip()) for g in genres]
 
     # Language
     lang = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:lang/text()", namespaces=NS)
