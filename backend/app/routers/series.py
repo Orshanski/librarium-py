@@ -1,14 +1,19 @@
+import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from ..auth import get_current_user
+from pydantic import BaseModel
+from ..auth import get_current_user, require_admin
 from ..dal import series as dal
 
+log = logging.getLogger("librarium.series")
 router = APIRouter(prefix="/api/series", tags=["series"])
 
 
 @router.get("")
-def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = ""):
+def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = "", search: str = "", exclude: int = 0):
     get_current_user(request)
+    if search:
+        return {"series": dal.search_series(search, exclude or None)}
     author_ids = [int(x) for x in authorIds.split(",") if x.strip().isdigit()] if authorIds else None
     tag_ids = [int(x) for x in tagIds.split(",") if x.strip().isdigit()] if tagIds else None
     return dal.get_series(author_ids, tag_ids, language or None)
@@ -21,3 +26,37 @@ def get_series(series_id: int, request: Request):
     if not result:
         return JSONResponse({"error": "Not found"}, status_code=404)
     return result
+
+
+class RenameBody(BaseModel):
+    name: str
+
+
+@router.put("/{series_id}")
+def rename_series(series_id: int, body: RenameBody, request: Request):
+    user = require_admin(request)
+    dal.rename_series(series_id, body.name.strip())
+    log.info("Renamed series=%d to=%s by user_id=%s", series_id, body.name.strip(), user["userId"])
+    return {"ok": True}
+
+
+class MergeBody(BaseModel):
+    sourceId: int
+
+
+@router.post("/{series_id}/merge")
+def merge_series(series_id: int, body: MergeBody, request: Request):
+    user = require_admin(request)
+    moved = dal.merge_series(series_id, body.sourceId)
+    log.info("Merged series source=%d into target=%d moved=%d books by user_id=%s",
+             body.sourceId, series_id, moved, user["userId"])
+    return {"ok": True, "moved": moved}
+
+
+@router.delete("/{series_id}")
+def delete_series(series_id: int, request: Request):
+    user = require_admin(request)
+    if not dal.delete_series(series_id):
+        return JSONResponse({"error": "Нельзя удалить серию с книгами"}, status_code=400)
+    log.info("Deleted series=%d by user_id=%s", series_id, user["userId"])
+    return {"ok": True}
