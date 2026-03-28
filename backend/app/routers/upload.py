@@ -154,19 +154,6 @@ async def create_book_from_upload(request: Request):
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
 
-    # Create authors/series/tags
-    author_ids = []
-    for name in [a.strip() for a in meta.get("authors", "").split(",") if a.strip()]:
-        author_ids.append(get_or_create_author(name))
-
-    series_id = None
-    if meta.get("series", "").strip():
-        series_id = get_or_create_series(meta["series"].strip())
-
-    tag_ids = []
-    for name in [t.strip() for t in meta.get("tags", "").split(",") if t.strip()]:
-        tag_ids.append(get_or_create_tag(name))
-
     series_number = None
     if meta.get("seriesNumber"):
         try:
@@ -174,52 +161,73 @@ async def create_book_from_upload(request: Request):
         except ValueError:
             pass
 
-    # Create book in DB
-    book_id = create_book({
-        "title": title,
-        "description": meta.get("description") or None,
-        "language": meta.get("language") or None,
-        "publisher": meta.get("publisher") or None,
-        "pubDate": meta.get("pubDate") or None,
-        "seriesId": series_id,
-        "seriesNumber": series_number,
-        "authorIds": author_ids,
-        "tagIds": tag_ids,
-    })
-
-    # Move file to library
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    os.makedirs(book_dir, exist_ok=True)
-
-    src_file = str(UPLOADS_DIR / temp_file)
-    dst_file = os.path.join(book_dir, f"book.{ext}")
-    shutil.move(src_file, dst_file)
-
-    file_size = os.path.getsize(dst_file)
-
-    # Insert book_files
     db = get_db()
-    db.execute(
-        "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-        (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
-    )
+    book_dir = ""
+    moved_paths: list[str] = []
 
-    # Move cover if exists
-    cover_files = glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*"))
-    if cover_files:
-        cover_src = cover_files[0]
-        cover_ext = cover_src.rsplit(".", 1)[-1]
-        cover_dst = os.path.join(book_dir, f"cover.{cover_ext}")
-        shutil.move(cover_src, cover_dst)
-        db.execute("UPDATE books SET cover_path = ? WHERE id = ?",
-                   (f"data/library/{book_id}/cover.{cover_ext}", book_id))
+    try:
+        db.execute("BEGIN")
 
-    # ISBN
-    if meta.get("isbn"):
-        db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
-                   (book_id, meta["isbn"]))
+        # Create authors/series/tags without commit
+        author_ids = [get_or_create_author(a.strip(), commit=False)
+                      for a in meta.get("authors", "").split(",") if a.strip()]
+        series_id = get_or_create_series(meta["series"].strip(), commit=False) if meta.get("series", "").strip() else None
+        tag_ids = [get_or_create_tag(t.strip(), commit=False)
+                   for t in meta.get("tags", "").split(",") if t.strip()]
 
-    db.commit()
+        # Create book without commit
+        book_id = create_book({
+            "title": title,
+            "description": meta.get("description") or None,
+            "language": meta.get("language") or None,
+            "publisher": meta.get("publisher") or None,
+            "pubDate": meta.get("pubDate") or None,
+            "seriesId": series_id,
+            "seriesNumber": series_number,
+            "authorIds": author_ids,
+            "tagIds": tag_ids,
+        }, commit=False)
+
+        # File operations
+        book_dir = str(LIBRARY_DIR / str(book_id))
+        os.makedirs(book_dir, exist_ok=True)
+
+        src_file = str(UPLOADS_DIR / temp_file)
+        dst_file = os.path.join(book_dir, f"book.{ext}")
+        shutil.move(src_file, dst_file)
+        moved_paths.append(dst_file)
+
+        file_size = os.path.getsize(dst_file)
+        db.execute(
+            "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
+            (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
+        )
+
+        # Cover
+        cover_files = glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*"))
+        if cover_files:
+            cover_src = cover_files[0]
+            cover_ext_name = cover_src.rsplit(".", 1)[-1]
+            cover_dst = os.path.join(book_dir, f"cover.{cover_ext_name}")
+            shutil.move(cover_src, cover_dst)
+            moved_paths.append(cover_dst)
+            db.execute("UPDATE books SET cover_path = ? WHERE id = ?",
+                       (f"data/library/{book_id}/cover.{cover_ext_name}", book_id))
+
+        # ISBN
+        if meta.get("isbn"):
+            db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
+                       (book_id, meta["isbn"]))
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        for path in moved_paths:
+            if os.path.exists(path):
+                os.remove(path)
+        if book_dir and os.path.isdir(book_dir) and not os.listdir(book_dir):
+            os.rmdir(book_dir)
+        raise
 
     log.info("Created book=%d title=%s by user_id=%s", book_id, title, user["userId"])
     return {"bookId": book_id}
@@ -246,25 +254,39 @@ async def add_format(book_id: int, request: Request):
     fmt = ext.upper()
 
     db = get_db()
+
+    # Проверить что книга существует
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
+        return JSONResponse({"error": "Книга не найдена"}, status_code=404)
+
     existing = db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
     if existing:
         return JSONResponse({"error": f"Формат {fmt} уже есть"}, status_code=409)
 
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
+    dst = ""
 
-    src = str(UPLOADS_DIR / temp_file)
-    dst = os.path.join(book_dir, f"book.{ext}")
-    shutil.move(src, dst)
+    try:
+        db.execute("BEGIN")
 
-    file_size = os.path.getsize(dst)
-    db.execute(
-        "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-        (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
-    )
-    db.commit()
+        src = str(UPLOADS_DIR / temp_file)
+        dst = os.path.join(book_dir, f"book.{ext}")
+        shutil.move(src, dst)
 
-    # Clean temp cover
+        file_size = os.path.getsize(dst)
+        db.execute(
+            "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
+            (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        if dst and os.path.exists(dst):
+            os.remove(dst)
+        raise
+
+    # Clean temp cover AFTER successful commit
     for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*")):
         os.remove(f)
 

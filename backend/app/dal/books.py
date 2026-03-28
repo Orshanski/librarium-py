@@ -160,7 +160,7 @@ def _sort_title(title: str) -> str:
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 
-def create_book(data: dict) -> int:
+def create_book(data: dict, commit: bool = True) -> int:
     db = get_db()
     cur = db.execute("""
         INSERT INTO books (title, sort_title, description, language, publisher, pub_date, series_id, series_number, cover_path)
@@ -181,7 +181,8 @@ def create_book(data: dict) -> int:
         db.execute("INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)", (book_id, aid))
     for tid in data.get("tagIds", []):
         db.execute("INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)", (book_id, tid))
-    db.commit()
+    if commit:
+        db.commit()
     return book_id
 
 

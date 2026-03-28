@@ -60,11 +60,9 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None, 
     return {"tag": tag, "books": books}
 
 
-def get_or_create_tag(name: str) -> int:
+def get_or_create_tag(name: str, commit: bool = True) -> int:
     db = get_db()
-    row = db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()
-    if row:
-        return row["id"]
-    cur = db.execute("INSERT INTO tags (name) VALUES (:name)", {"name": name})
-    db.commit()
-    return cur.lastrowid
+    db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})
+    if commit:
+        db.commit()
+    return db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()["id"]

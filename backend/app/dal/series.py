@@ -63,14 +63,12 @@ def get_series_by_id(series_id: int):
     return {"series": s, "books": books}
 
 
-def get_or_create_series(name: str) -> int:
+def get_or_create_series(name: str, commit: bool = True) -> int:
     db = get_db()
-    row = db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()
-    if row:
-        return row["id"]
-    cur = db.execute("INSERT INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
-    db.commit()
-    return cur.lastrowid
+    db.execute("INSERT OR IGNORE INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
+    if commit:
+        db.commit()
+    return db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()["id"]
 
 
 def rename_series(series_id: int, name: str):

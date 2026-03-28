@@ -72,14 +72,12 @@ def get_author_by_id(author_id: int):
     return {"author": author, "books": books}
 
 
-def get_or_create_author(name: str) -> int:
+def get_or_create_author(name: str, commit: bool = True) -> int:
     db = get_db()
-    row = db.execute("SELECT id FROM authors WHERE name = :name", {"name": name}).fetchone()
-    if row:
-        return row["id"]
-    cur = db.execute("INSERT INTO authors (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
-    db.commit()
-    return cur.lastrowid
+    db.execute("INSERT OR IGNORE INTO authors (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
+    if commit:
+        db.commit()
+    return db.execute("SELECT id FROM authors WHERE name = :name", {"name": name}).fetchone()["id"]
 
 
 def rename_author(author_id: int, name: str):
