@@ -10,10 +10,8 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 
 @router.get("")
-def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = "", search: str = "", exclude: int = 0):
+def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = ""):
     get_current_user(request)
-    if search:
-        return {"series": dal.search_series(search, exclude or None)}
     author_ids = [int(x) for x in authorIds.split(",") if x.strip().isdigit()] if authorIds else None
     tag_ids = [int(x) for x in tagIds.split(",") if x.strip().isdigit()] if tagIds else None
     return dal.get_series(author_ids, tag_ids, language or None)
@@ -47,9 +45,9 @@ class MergeBody(BaseModel):
 @router.post("/{series_id}/merge")
 def merge_series(series_id: int, body: MergeBody, request: Request):
     user = require_admin(request)
-    moved = dal.merge_series(series_id, body.sourceId)
-    log.info("Merged series source=%d into target=%d moved=%d books by user_id=%s",
-             body.sourceId, series_id, moved, user["userId"])
+    dal.merge_series(series_id, body.sourceId)
+    log.info("Merged series source=%d into target=%d by user_id=%s",
+             body.sourceId, series_id, user["userId"])
     return {"ok": True, "moved": moved}
 
 

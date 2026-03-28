@@ -88,20 +88,21 @@ def rename_author(author_id: int, name: str):
     db.commit()
 
 
-def merge_authors(target_id: int, source_id: int) -> int:
-    """Переносит книги source → target, удаляет source. Возвращает кол-во перенесённых книг."""
+def merge_authors(target_id: int, source_id: int):
+    """Переносит книги source → target, удаляет source."""
     db = get_db()
-    # Перенести book_authors (игнорировать дубликаты)
-    db.execute("""
-        INSERT OR IGNORE INTO book_authors (book_id, author_id)
-        SELECT book_id, :target FROM book_authors WHERE author_id = :source
-    """, {"target": target_id, "source": source_id})
-    # Удалить старые связи
-    moved = db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id}).rowcount
-    # Удалить автора
-    db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
-    db.commit()
-    return moved
+    db.execute("BEGIN")
+    try:
+        db.execute("""
+            INSERT OR IGNORE INTO book_authors (book_id, author_id)
+            SELECT book_id, :target FROM book_authors WHERE author_id = :source
+        """, {"target": target_id, "source": source_id})
+        db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id})
+        db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
+        db.commit()
+    except:
+        db.execute("ROLLBACK")
+        raise
 
 
 def delete_author(author_id: int) -> bool:
@@ -115,13 +116,3 @@ def delete_author(author_id: int) -> bool:
     return True
 
 
-def search_authors(query: str, exclude_id: int | None = None) -> list[dict]:
-    db = get_db()
-    rows = db.execute("""
-        SELECT a.id, a.name, COUNT(ba.book_id) as book_count
-        FROM authors a
-        LEFT JOIN book_authors ba ON a.id = ba.author_id
-        WHERE lower_utf8(a.name) LIKE :q AND (:exclude IS NULL OR a.id != :exclude)
-        GROUP BY a.id ORDER BY a.name LIMIT 10
-    """, {"q": f"%{query.lower()}%", "exclude": exclude_id}).fetchall()
-    return dicts_from_rows(rows)

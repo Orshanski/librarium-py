@@ -10,10 +10,8 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 
 
 @router.get("")
-def list_authors(request: Request, tagIds: str = "", language: str = "", search: str = "", exclude: int = 0):
+def list_authors(request: Request, tagIds: str = "", language: str = ""):
     get_current_user(request)
-    if search:
-        return {"authors": dal.search_authors(search, exclude or None)}
     tag_ids = [int(x) for x in tagIds.split(",") if x.strip().isdigit()] if tagIds else None
     return dal.get_authors(tag_ids, language or None)
 
@@ -46,9 +44,9 @@ class MergeBody(BaseModel):
 @router.post("/{author_id}/merge")
 def merge_author(author_id: int, body: MergeBody, request: Request):
     user = require_admin(request)
-    moved = dal.merge_authors(author_id, body.sourceId)
-    log.info("Merged author source=%d into target=%d moved=%d books by user_id=%s",
-             body.sourceId, author_id, moved, user["userId"])
+    dal.merge_authors(author_id, body.sourceId)
+    log.info("Merged author source=%d into target=%d by user_id=%s",
+             body.sourceId, author_id, user["userId"])
     return {"ok": True, "moved": moved}
 
 
