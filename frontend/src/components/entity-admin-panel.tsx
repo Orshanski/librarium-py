@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { colors, fonts } from "../theme";
+import ConfirmDialog from "./confirm-dialog";
 
 interface EntityAdminPanelProps {
   entityType: "author" | "series";
@@ -110,46 +111,33 @@ export default function EntityAdminPanel({
   const [name, setName] = useState(currentName);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
   const [merging, setMerging] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ message: string; label: string; action: () => void } | null>(null);
 
   const endpoint = entityType === "author" ? "authors" : "series";
   const label = entityType === "author" ? "автора" : "серию";
   const labelCap = entityType === "author" ? "Автор" : "Серия";
 
-  const searchEntities = useCallback(
-    async (q: string) => {
-      if (q.length < 2) {
-        setSearchResults([]);
-        return;
-      }
-      setSearching(true);
-      try {
-        const res = await fetch(
-          `/api/${endpoint}?search=${encodeURIComponent(q)}&exclude=${entityId}`,
-          { credentials: "include" }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data);
-        }
-      } finally {
-        setSearching(false);
-      }
-    },
-    [endpoint, entityId]
-  );
+  const [allEntities, setAllEntities] = useState<SearchResult[]>([]);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchEntities(searchQuery), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, searchEntities]);
+    fetch("/api/options", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const list = (entityType === "author" ? data.authors : data.series) || [];
+        setAllEntities(list.filter((e: any) => e.id !== entityId).map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          book_count: e.book_count || 0,
+        })));
+      })
+      .catch(() => {});
+  }, [entityType, entityId]);
+
+  const filtered = searchQuery.length >= 2
+    ? allEntities.filter((e) => e.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 10)
+    : [];
 
   const handleRename = async () => {
     const trimmed = name.trim();
@@ -168,38 +156,47 @@ export default function EntityAdminPanel({
     }
   };
 
-  const handleMerge = async (source: SearchResult) => {
-    const msg =
-      `Все книги "${source.name}" (${source.book_count}) будут перенесены к "${currentName}". Дубликат будет удалён. Продолжить?`;
-    if (!window.confirm(msg)) return;
-    setMerging(true);
-    try {
-      const res = await fetch(`/api/${endpoint}/${entityId}/merge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ sourceId: source.id }),
-      });
-      if (res.ok) onMerged();
-    } finally {
-      setMerging(false);
-    }
+  const handleMerge = (source: SearchResult) => {
+    setConfirmAction({
+      message: `Все книги "${source.name}" будут перенесены к "${currentName}". Дубликат будет удалён.`,
+      label: "Присоединить",
+      action: async () => {
+        setConfirmAction(null);
+        setMerging(true);
+        try {
+          const res = await fetch(`/api/${endpoint}/${entityId}/merge`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ sourceId: source.id }),
+          });
+          if (res.ok) onMerged();
+        } finally {
+          setMerging(false);
+        }
+      },
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (bookCount > 0) return;
-    const msg = `Удалить ${label} "${currentName}"? Это действие необратимо.`;
-    if (!window.confirm(msg)) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/${endpoint}/${entityId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (res.ok) onDeleted();
-    } finally {
-      setDeleting(false);
-    }
+    setConfirmAction({
+      message: `Удалить ${label} "${currentName}"? Это действие необратимо.`,
+      label: "Удалить",
+      action: async () => {
+        setConfirmAction(null);
+        setDeleting(true);
+        try {
+          const res = await fetch(`/api/${endpoint}/${entityId}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (res.ok) onDeleted();
+        } finally {
+          setDeleting(false);
+        }
+      },
+    });
   };
 
   const canDelete = bookCount === 0;
@@ -221,7 +218,7 @@ export default function EntityAdminPanel({
           <button
             style={{
               ...saveBtnStyle,
-              opacity: saving || name.trim() === currentName ? 0.5 : 1,
+              opacity: saving ? 0.5 : 1,
             }}
             disabled={saving || name.trim() === currentName}
             onClick={handleRename}
@@ -240,23 +237,13 @@ export default function EntityAdminPanel({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        {searching && (
-          <div style={{ fontSize: 12, color: colors.textDim, marginTop: 6 }}>
-            Поиск...
-          </div>
-        )}
-        {searchResults.map((item) => (
+        {filtered.map((item) => (
           <div key={item.id} style={resultRowStyle}>
-            <div>
-              <span style={{ fontSize: 13, color: colors.text, fontFamily: fonts.body }}>
-                {item.name}
-              </span>
-              <span style={{ fontSize: 11, color: colors.textDim, marginLeft: 8 }}>
-                {item.book_count} кн.
-              </span>
-            </div>
+            <span style={{ fontSize: 13, color: colors.text, fontFamily: fonts.body }}>
+              {item.name}
+            </span>
             <button
-              style={{ ...mergeBtnStyle, opacity: merging ? 0.5 : 1 }}
+              style={mergeBtnStyle}
               disabled={merging}
               onClick={() => handleMerge(item)}
             >
@@ -283,7 +270,6 @@ export default function EntityAdminPanel({
         <button
           style={{
             ...deleteBtnBase,
-            opacity: canDelete && !deleting ? 1 : 0.4,
             cursor: canDelete && !deleting ? "pointer" : "not-allowed",
           }}
           disabled={!canDelete || deleting}
@@ -292,6 +278,14 @@ export default function EntityAdminPanel({
           {deleting ? "..." : "Удалить"}
         </button>
       </div>
+      {confirmAction && (
+        <ConfirmDialog
+          message={confirmAction.message}
+          confirmLabel={confirmAction.label}
+          onConfirm={confirmAction.action}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   );
 }

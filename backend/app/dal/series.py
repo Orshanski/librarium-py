@@ -38,7 +38,13 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
 
 def get_series_by_id(series_id: int):
     db = get_db()
-    s = dict_from_row(db.execute("SELECT * FROM series WHERE id = :id", {"id": series_id}).fetchone())
+    s = dict_from_row(db.execute("""
+        SELECT s.*, COUNT(b.id) as book_count
+        FROM series s
+        LEFT JOIN books b ON b.series_id = s.id
+        WHERE s.id = :id
+        GROUP BY s.id
+    """, {"id": series_id}).fetchone())
     if not s:
         return None
 
@@ -100,7 +106,7 @@ def search_series(query: str, exclude_id: int | None = None) -> list[dict]:
         SELECT s.id, s.name, COUNT(b.id) as book_count
         FROM series s
         LEFT JOIN books b ON b.series_id = s.id
-        WHERE s.name LIKE :q AND (:exclude IS NULL OR s.id != :exclude)
+        WHERE lower_utf8(s.name) LIKE :q AND (:exclude IS NULL OR s.id != :exclude)
         GROUP BY s.id ORDER BY s.name LIMIT 10
-    """, {"q": f"%{query}%", "exclude": exclude_id}).fetchall()
+    """, {"q": f"%{query.lower()}%", "exclude": exclude_id}).fetchall()
     return dicts_from_rows(rows)

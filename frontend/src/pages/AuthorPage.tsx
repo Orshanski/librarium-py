@@ -128,13 +128,13 @@ export default function AuthorPage() {
           onClick={() => setShowAdmin(!showAdmin)}
           style={{
             marginLeft: 12,
-            padding: "3px 10px",
-            background: showAdmin ? "rgba(249, 190, 3, 0.1)" : "transparent",
-            border: `1px solid ${showAdmin ? colors.accent : "rgba(255,255,255,0.15)"}`,
-            color: showAdmin ? colors.accent : colors.textDim,
-            borderRadius: 4,
-            fontSize: 12,
+            padding: 0,
+            background: "transparent",
+            border: "none",
+            color: colors.accent,
+            fontSize: 22,
             cursor: "pointer",
+            opacity: 1,
           }}
         >⚙</button>
       )}

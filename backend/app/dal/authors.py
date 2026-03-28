@@ -121,7 +121,7 @@ def search_authors(query: str, exclude_id: int | None = None) -> list[dict]:
         SELECT a.id, a.name, COUNT(ba.book_id) as book_count
         FROM authors a
         LEFT JOIN book_authors ba ON a.id = ba.author_id
-        WHERE a.name LIKE :q AND (:exclude IS NULL OR a.id != :exclude)
+        WHERE lower_utf8(a.name) LIKE :q AND (:exclude IS NULL OR a.id != :exclude)
         GROUP BY a.id ORDER BY a.name LIMIT 10
-    """, {"q": f"%{query}%", "exclude": exclude_id}).fetchall()
+    """, {"q": f"%{query.lower()}%", "exclude": exclude_id}).fetchall()
     return dicts_from_rows(rows)
