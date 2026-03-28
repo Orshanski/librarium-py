@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -41,6 +41,10 @@ export default function SeriesPage() {
       })
       .catch(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (series) saveBookOrigin(series.name, `/series/${series.id}`);
+  }, [series]);
 
   if (notFoundState) {
     return (

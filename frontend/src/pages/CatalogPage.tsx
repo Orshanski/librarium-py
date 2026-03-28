@@ -5,7 +5,7 @@ import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
 import { colors } from "../theme";
-import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
+import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -30,6 +30,7 @@ function saveCache(books: any[], filterOptions: any, hasMore: boolean, paramsKey
       scrollTop: main?.scrollTop || 0,
     }));
     saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
+    saveBookOrigin("Каталог", "/");
   } catch {}
 }
 
@@ -50,6 +51,10 @@ export default function CatalogPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const frozenRef = useRef(false); // block lazy load after restore
+
+  useEffect(() => {
+    saveBookOrigin("Каталог", "/");
+  }, []);
 
   const [books, setBooks] = useState<any[]>([]);
   const [filterOptions, setFilterOptions] = useState<any>(null);

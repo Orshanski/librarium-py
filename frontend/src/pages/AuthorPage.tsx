@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
@@ -83,6 +83,10 @@ export default function AuthorPage() {
         setLoading(false);
       });
   }, [id]);
+
+  useEffect(() => {
+    if (author) saveBookOrigin(author.name, `/authors/${author.id}`);
+  }, [author]);
 
   if (loading) {
     return (

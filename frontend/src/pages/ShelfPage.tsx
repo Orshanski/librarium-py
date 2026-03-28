@@ -6,6 +6,7 @@ import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
 import { colors } from "../theme";
+import { saveBookOrigin } from "../utils/breadcrumb-state";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -54,6 +55,10 @@ export default function ShelfPage() {
     const res = await fetch(`/api/shelves/${id}`, { method: "DELETE" });
     if (res.ok) navigate("/");
   }
+
+  useEffect(() => {
+    if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
+  }, [shelf]);
 
   if (loading) {
     return (

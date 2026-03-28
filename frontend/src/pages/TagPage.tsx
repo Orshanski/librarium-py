@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl, saveBreadcrumbUrl } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -99,6 +99,7 @@ function saveCache(tagId: number, tag: TagData, tagBooks: Book[], selected: Reco
       scrollTop: main?.scrollTop || 0,
     }));
     saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
+    saveBookOrigin(tag.name, `/tags/${tagId}`);
   } catch {}
 }
 
@@ -126,6 +127,10 @@ export default function TagPage() {
   const [sort, setSort] = useState("added_desc");
 
   const frozenRef = useRef(false);
+
+  useEffect(() => {
+    if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
+  }, [tag, tagId]);
 
   // Restore from cache on mount
   useEffect(() => {
