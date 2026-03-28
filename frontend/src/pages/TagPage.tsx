@@ -90,6 +90,7 @@ export default function TagPage() {
 
   const [tag, setTag] = useState<TagData | null>(null);
   const [tagBooks, setTagBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState("added_desc");
@@ -97,6 +98,7 @@ export default function TagPage() {
   useEffect(() => {
     if (isNaN(tagId)) {
       setNotFound(true);
+      setLoading(false);
       return;
     }
     fetch(`/api/tags/${tagId}`)
@@ -111,7 +113,9 @@ export default function TagPage() {
         if (!data) return;
         setTag(data.tag);
         setTagBooks(data.books.map(toBook));
-      });
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [tagId]);
 
   const filterConfigs: FilterConfig[] = useMemo(() => {
@@ -141,8 +145,23 @@ export default function TagPage() {
     { key: "rating_desc", label: "По рейтингу" },
   ];
 
-  if (notFound) return null;
-  if (!tag) return null;
+  if (loading) {
+    return (
+      <Shell>
+        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      </Shell>
+    );
+  }
+
+  if (notFound || !tag) {
+    return (
+      <Shell>
+        <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Жанр не найден</div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
