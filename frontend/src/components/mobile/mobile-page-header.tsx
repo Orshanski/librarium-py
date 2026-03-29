@@ -115,7 +115,14 @@ export default function MobilePageHeader({
                 }}
               >
                 {breadcrumb && (
-                  <>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     <Link
                       to={breadcrumb.href}
                       style={{
@@ -127,7 +134,7 @@ export default function MobilePageHeader({
                       {breadcrumb.label}
                     </Link>
                     <span style={{ color: colors.textDim, fontWeight: 400 }}>/</span>
-                  </>
+                  </span>
                 )}
                 {title}
               </h1>

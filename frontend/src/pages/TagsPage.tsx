@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import Combobox from "../components/combobox";
@@ -38,6 +39,7 @@ export default function TagsPage() {
     fetch("/api/tags")
       .then((r) => r.json())
       .then((data) => setAllTags(data.tags || data));
+    saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
   }, []);
 
   const shuffledCloud = useMemo(() => shuffled(cloudTags), [cloudTags]);

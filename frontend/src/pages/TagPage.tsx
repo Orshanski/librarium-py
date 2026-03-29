@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl, saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -99,7 +99,6 @@ function saveCache(tagId: number, tag: TagData, tagBooks: Book[], selected: Reco
       sort,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
     saveBookOrigin(tag.name, `/tags/${tagId}`);
   } catch {}
 }

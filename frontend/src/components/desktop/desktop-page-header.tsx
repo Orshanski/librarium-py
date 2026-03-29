@@ -82,7 +82,14 @@ export default function DesktopPageHeader({
           }}
         >
           {breadcrumb && (
-            <>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "baseline",
+                gap: 8,
+                whiteSpace: "nowrap",
+              }}
+            >
               <Link
                 to={breadcrumb.href}
                 style={{
@@ -94,7 +101,7 @@ export default function DesktopPageHeader({
                 {breadcrumb.label}
               </Link>
               <span style={{ color: colors.textDim, fontWeight: 400 }}>/</span>
-            </>
+            </span>
           )}
           {title}
           {titleSlot}
