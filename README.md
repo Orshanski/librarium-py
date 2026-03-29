@@ -6,7 +6,7 @@
 
 ## Зачем
 
-Домашняя коллекция электронных книг — FB2, EPUB, PDF. Загрузил файл, метаданные извлеклись автоматически, обложка на месте. Вся семья пользуется через браузер с любого устройства. Не нужен Calibre на компьютере, не нужна синхронизация — всё на сервере.
+Домашняя коллекция электронных книг — FB2, EPUB, PDF. Загрузил файл, метаданные извлеклись автоматически, обложка на месте. Вся семья пользуется через браузер с любого устройства — десктоп или телефон. Не нужен Calibre на компьютере, не нужна синхронизация — всё на сервере.
 
 ## Что умеет
 
@@ -34,9 +34,9 @@
 
 ![Edit](docs/screenshots/11-book-edit.png)
 
-### Полнотекстовый поиск
+### Поиск
 
-Поиск по названиям и описаниям книг (SQLite FTS5). Результаты группируются: авторы, серии, книги.
+Поиск по названиям книг, авторам и сериям. Результаты группируются: авторы, серии, книги.
 
 ![Search](docs/screenshots/07-search.png)
 
@@ -63,6 +63,7 @@
 ### Безопасность
 
 - JWT-авторизация с HTTP-only cookies
+- CSP, HSTS, TLS 1.2+
 - Логирование авторизации и всех мутаций (journald)
 - Fail2ban + Cloudflare API — автоматический бан при переборе паролей и сканировании
 - SPA route whitelist — неизвестные пути возвращают 404
@@ -72,21 +73,23 @@
 | Слой | Технология |
 |------|-----------|
 | Backend | Python, FastAPI, Uvicorn |
-| База данных | SQLite (WAL, FTS5) |
+| База данных | SQLite (WAL) |
 | Авторизация | JWT + bcrypt |
 | Парсинг книг | lxml (FB2/EPUB), Pillow (обложки) |
 | Метаданные | Litres.ru, Google Books API |
 | Frontend | React 19, TypeScript, React Router 7 |
+| Адаптивность | Desktop/Mobile layout (responsive, breakpoint 768px) |
 | Сборка | Vite 6 |
 | Стилизация | Inline CSS |
+| Тесты | pytest (backend), Vitest (frontend) |
 | CI/CD | GitHub Actions → SSH deploy |
 
 ## Быстрый старт
 
 ### Требования
 
-- Python 3.11+
-- Node.js 20+
+- Python 3.12+
+- Node.js 25+
 
 ### Backend
 
@@ -139,14 +142,18 @@ librarium-py/
 │       ├── config.py       # Пути, JWT, лимиты
 │       ├── database.py     # SQLite connection pool
 │       ├── auth.py         # JWT + bcrypt + get_client_ip
-│       ├── routers/        # API (13 модулей)
+│       ├── routers/        # API (14 модулей)
 │       ├── dal/            # Data Access Layer (8 модулей)
 │       ├── parsers/        # FB2, EPUB, PDF + fb2_genres.py
-│       └── providers/      # Litres, Google Books
+│       ├── providers/      # Litres, Google Books
+│       └── tests/          # pytest (auth, upload, delete, merge, parsers)
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/          # 13 страниц
-│   │   └── components/     # 17 компонентов
+│   │   ├── pages/              # 14 страниц
+│   │   ├── components/         # 26 общих компонентов
+│   │   ├── components/desktop/ # 8 desktop layout-компонентов
+│   │   ├── components/mobile/  # 11 mobile layout-компонентов
+│   │   └── responsive.ts       # ResponsiveProvider, useIsMobile()
 │   └── vite.config.ts
 ├── data/                   # Не в git
 │   ├── db.sqlite
@@ -161,7 +168,7 @@ librarium-py/
 
 ## Деплой
 
-CI/CD: GitHub Actions деплоит на push в `main` — git pull, pip install, vite build, restart service.
+CI/CD: GitHub Actions — тесты (pytest + vitest), затем деплой на push в `main` — git pull, pip install, vite build, restart service.
 
 ```bash
 ssh lib                    # Hetzner VM
