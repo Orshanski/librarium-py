@@ -1,26 +1,17 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../auth";
-import { colors, fonts } from "../theme";
+import { colors, layout } from "../theme";
 
-const navItems = [
-  { href: "/?fresh=1", label: "Все книги" },
-  { href: "/authors?fresh=1", label: "Авторы" },
-  { href: "/series?fresh=1", label: "Серии" },
-  { href: "/tags?fresh=1", label: "Жанры" },
+export const navItems = [
+  { href: "/?fresh=1", label: "Все книги", shortLabel: "Книги" },
+  { href: "/authors?fresh=1", label: "Авторы", shortLabel: "Авторы" },
+  { href: "/series?fresh=1", label: "Серии", shortLabel: "Серии" },
+  { href: "/tags?fresh=1", label: "Жанры", shortLabel: "Жанры" },
 ];
 
-export default function Sidebar() {
-  const pathname = useLocation().pathname;
-  const { user, logout } = useAuth();
-
-  function isActive(href: string) {
-    const path = href.split("?")[0];
-    if (path === "/") return pathname === "/";
-    return pathname.startsWith(path);
-  }
-
-  const linkBase: React.CSSProperties = {
+function getLinkBaseStyle(): React.CSSProperties {
+  return {
     display: "block",
     padding: "8px 12px",
     borderRadius: 6,
@@ -28,8 +19,24 @@ export default function Sidebar() {
     textDecoration: "none",
     transition: "background 0.15s, color 0.15s",
   };
+}
 
+function isActivePath(pathname: string, href: string) {
+  const path = href.split("?")[0];
+  if (path === "/") return pathname === "/";
+  return pathname.startsWith(path);
+}
+
+export function SidebarContent({
+  mobile = false,
+  onNavigate,
+}: {
+  mobile?: boolean;
+  onNavigate?: () => void;
+}) {
+  const pathname = useLocation().pathname;
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [shelves, setShelves] = useState<any[]>([]);
   const [showNewShelf, setShowNewShelf] = useState(false);
@@ -55,33 +62,20 @@ export default function Sidebar() {
       setShelves([...shelves, { id: data.id, name: newShelfName.trim(), is_system: 0, book_count: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
+      onNavigate?.();
     }
   }
 
+  const linkBase = getLinkBaseStyle();
+
   return (
-    <aside
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: 220,
-        height: "100dvh",
-        backgroundColor: colors.sidebar,
-        borderRight: `1px solid ${colors.border}`,
-        display: "flex",
-        flexDirection: "column",
-        zIndex: 50,
-        overflowY: "auto",
-      }}
-    >
-      {/* Logo */}
-      <div style={{ padding: "12px 20px 12px", textAlign: "center" }}>
-        <Link to="/" style={{ textDecoration: "none" }}>
-          <img src="/logo.png" alt="Librarium" style={{ maxWidth: "70%", height: "auto" }} />
+    <>
+      <div style={{ padding: mobile ? "16px 16px 12px" : "12px 20px 12px", textAlign: mobile ? "left" : "center" }}>
+        <Link to="/" style={{ textDecoration: "none" }} onClick={onNavigate}>
+          <img src="/logo.png" alt="Librarium" style={{ maxWidth: mobile ? 160 : "70%", height: "auto" }} />
         </Link>
       </div>
 
-      {/* Search */}
       <div style={{ padding: "0 12px", marginBottom: 12 }}>
         <input
           type="text"
@@ -92,6 +86,7 @@ export default function Sidebar() {
             if (e.key === "Enter" && searchQuery.trim()) {
               navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
               setSearchQuery("");
+              onNavigate?.();
             }
           }}
           style={{
@@ -99,7 +94,7 @@ export default function Sidebar() {
             backgroundColor: colors.card,
             border: "none",
             borderRadius: 6,
-            padding: "8px 12px",
+            padding: mobile ? "10px 12px" : "8px 12px",
             fontSize: 13,
             color: colors.textSecondary,
             outline: "none",
@@ -108,17 +103,17 @@ export default function Sidebar() {
         />
       </div>
 
-      {/* Navigation */}
-      <nav style={{ flex: 1, padding: "0 12px" }}>
+      <nav style={{ flex: 1, padding: "0 12px", overflowY: "auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {navItems.map((item) => (
             <Link
               key={item.href}
               to={item.href}
+              onClick={onNavigate}
               style={{
                 ...linkBase,
-                backgroundColor: isActive(item.href) ? colors.accentBg : "transparent",
-                color: isActive(item.href) ? colors.accent : colors.textSecondary,
+                backgroundColor: isActivePath(pathname, item.href) ? colors.accentBg : "transparent",
+                color: isActivePath(pathname, item.href) ? colors.accent : colors.textSecondary,
               }}
             >
               {item.label}
@@ -126,7 +121,6 @@ export default function Sidebar() {
           ))}
         </div>
 
-        {/* Shelves */}
         <div style={{ marginTop: 28 }}>
           <div
             style={{
@@ -140,26 +134,23 @@ export default function Sidebar() {
           >
             Полки
           </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {shelves.map((shelf) => (
               <Link
                 key={shelf.id}
                 to={`/shelves/${shelf.id}`}
+                onClick={onNavigate}
                 style={{
                   ...linkBase,
-                  color:
-                    pathname === `/shelves/${shelf.id}`
-                      ? colors.accent
-                      : colors.textDim,
-                  backgroundColor:
-                    pathname === `/shelves/${shelf.id}`
-                      ? colors.accentBg
-                      : "transparent",
+                  color: pathname === `/shelves/${shelf.id}` ? colors.accent : colors.textDim,
+                  backgroundColor: pathname === `/shelves/${shelf.id}` ? colors.accentBg : "transparent",
                 }}
               >
                 {shelf.name}
               </Link>
             ))}
+
             {showNewShelf ? (
               <div style={{ display: "flex", gap: 4, padding: "4px 0" }}>
                 <input
@@ -168,7 +159,10 @@ export default function Sidebar() {
                   onChange={(e) => setNewShelfName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") createShelf();
-                    if (e.key === "Escape") { setShowNewShelf(false); setNewShelfName(""); }
+                    if (e.key === "Escape") {
+                      setShowNewShelf(false);
+                      setNewShelfName("");
+                    }
                   }}
                   placeholder="Название..."
                   style={{
@@ -176,7 +170,7 @@ export default function Sidebar() {
                     backgroundColor: colors.card,
                     border: "none",
                     borderRadius: 4,
-                    padding: "4px 8px",
+                    padding: "8px 10px",
                     fontSize: 13,
                     color: colors.text,
                     outline: "none",
@@ -204,11 +198,11 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* User */}
       <div
         style={{
           padding: "12px",
           borderTop: `1px solid ${colors.border}`,
+          flexShrink: 0,
         }}
       >
         <div
@@ -240,9 +234,22 @@ export default function Sidebar() {
             <div style={{ fontSize: 10, color: colors.textDim }}>{me.role || "..."}</div>
           </div>
         </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
           <Link
+            to="/upload"
+            onClick={onNavigate}
+            style={{
+              ...linkBase,
+              color: pathname === "/upload" ? colors.accent : colors.textDim,
+              backgroundColor: pathname === "/upload" ? colors.accentBg : "transparent",
+            }}
+          >
+            Загрузить
+          </Link>
+          <Link
             to="/admin"
+            onClick={onNavigate}
             style={{
               ...linkBase,
               color: pathname === "/admin" ? colors.accent : colors.textDim,
@@ -252,7 +259,10 @@ export default function Sidebar() {
             Настройки
           </Link>
           <button
-            onClick={() => logout()}
+            onClick={() => {
+              onNavigate?.();
+              logout();
+            }}
             style={{
               ...linkBase,
               background: "none",
@@ -267,6 +277,28 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+    </>
+  );
+}
+
+export default function Sidebar() {
+  return (
+    <aside
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: layout.desktopSidebarWidth,
+        height: "100dvh",
+        backgroundColor: colors.sidebar,
+        borderRight: `1px solid ${colors.border}`,
+        display: "flex",
+        flexDirection: "column",
+        zIndex: 50,
+        overflow: "hidden",
+      }}
+    >
+      <SidebarContent />
     </aside>
   );
 }

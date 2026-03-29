@@ -17,3 +17,12 @@ export const fonts = {
   display: "'Cormorant Garamond', Georgia, serif",
   body: "'IBM Plex Sans', -apple-system, sans-serif",
 };
+
+export const layout = {
+  desktopSidebarWidth: 220,
+  mobileBreakpoint: 820,
+  mobileHeaderMinHeight: 64,
+  mobileBottomBarHeight: 72,
+  desktopContentPaddingX: 32,
+  mobileContentPaddingX: 16,
+};
