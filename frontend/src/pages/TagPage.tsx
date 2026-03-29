@@ -4,6 +4,7 @@ import { getBreadcrumbUrl, saveBreadcrumbUrl, saveBookOrigin } from "../utils/br
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { FilterConfig } from "../components/filter-bar";
 import { Book } from "../types";
 import { colors } from "../theme";
@@ -256,13 +257,7 @@ export default function TagPage() {
         }}
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, 150px)",
-          gap: 24,
-        }}
-      >
+      <BookGrid>
         {filtered.map((book) => (
           <BookCard key={book.id} book={book} />
         ))}
@@ -271,7 +266,7 @@ export default function TagPage() {
             Книги не найдены
           </div>
         )}
-      </div>
+      </BookGrid>
     </Shell>
   );
 }

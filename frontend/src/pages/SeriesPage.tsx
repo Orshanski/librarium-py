@@ -4,6 +4,7 @@ import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
@@ -120,13 +121,7 @@ export default function SeriesPage() {
         />
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, 150px)",
-          gap: 24,
-        }}
-      >
+      <BookGrid>
         {books.map((b: any) => (
           <BookCard
             key={b.id}
@@ -148,7 +143,7 @@ export default function SeriesPage() {
             }}
           />
         ))}
-      </div>
+      </BookGrid>
     </Shell>
   );
 }

@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 
@@ -93,7 +94,7 @@ function SearchResults() {
       {books.length > 0 && (
         <div>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Книги</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 150px)", gap: 24 }}>
+          <BookGrid>
             {books.map((b: any) => (
               <BookCard
                 key={b.id}
@@ -115,7 +116,7 @@ function SearchResults() {
                 }}
               />
             ))}
-          </div>
+          </BookGrid>
         </div>
       )}
     </div>
