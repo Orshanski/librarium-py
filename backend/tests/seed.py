@@ -96,8 +96,5 @@ def seed_baseline():
     db.execute("INSERT INTO shelves (id, name, user_id, is_system) VALUES (1, 'Лучшее', 2, 1)")
     db.execute("INSERT INTO user_books (user_id, book_id, rating, is_read) VALUES (2, 1, 5, 1)")
 
-    # FTS
-    db.execute("INSERT INTO books_fts(books_fts) VALUES('rebuild')")
-
     db.commit()
     db.close()

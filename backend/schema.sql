@@ -120,23 +120,6 @@ CREATE TABLE IF NOT EXISTS user_books (
     PRIMARY KEY (user_id, book_id)
 );
 
--- FTS5
-CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-    title, description, content='books', content_rowid='id'
-);
-
--- Triggers для FTS sync
-CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
-    INSERT INTO books_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
-END;
-CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
-    INSERT INTO books_fts(books_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
-END;
-CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
-    INSERT INTO books_fts(books_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
-    INSERT INTO books_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
-END;
-
 -- Default settings
 INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Librarium');
 
