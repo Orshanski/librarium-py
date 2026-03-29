@@ -35,3 +35,30 @@ def test_delete_user_cascade(admin_client):
 def test_cannot_delete_self(admin_client):
     resp = admin_client.delete("/api/admin/users/1")
     assert resp.status_code == 400
+
+
+# ── Admin settings ──
+
+def test_get_settings(admin_client):
+    resp = admin_client.get("/api/admin/settings")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), dict)
+
+
+def test_update_settings(admin_client):
+    resp = admin_client.put("/api/admin/settings", json={"app_name": "Test Library"})
+    assert resp.status_code == 200
+    settings = admin_client.get("/api/admin/settings").json()
+    assert settings["app_name"] == "Test Library"
+
+
+def test_unknown_setting_ignored(admin_client):
+    resp = admin_client.put("/api/admin/settings", json={"evil_key": "hacked"})
+    assert resp.status_code == 200
+    settings = admin_client.get("/api/admin/settings").json()
+    assert "evil_key" not in settings
+
+
+def test_reader_cannot_access_settings(reader_client):
+    resp = reader_client.get("/api/admin/settings")
+    assert resp.status_code == 403

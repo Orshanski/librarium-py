@@ -1,5 +1,7 @@
+import io
 import os
 import sqlite3
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -116,3 +118,73 @@ def test_reader_cannot_upload(reader_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
         resp = reader_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
     assert resp.status_code == 403
+
+
+# ── Upload edge cases ──
+
+def test_unsupported_format(admin_client):
+    resp = admin_client.post("/api/upload", files={"file": ("test.txt", b"hello", "application/octet-stream")})
+    assert resp.status_code == 400
+    assert "Unsupported format" in resp.json()["error"]
+
+
+def test_create_book_empty_title(admin_client):
+    with open(FIXTURES / "minimal.fb2", "rb") as f:
+        upload = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+    temp_id = upload.json()["tempId"]
+    resp = admin_client.post("/api/books/create", json={
+        "tempId": temp_id,
+        "metadata": {"title": "", "authors": "Author"}
+    })
+    assert resp.status_code == 400
+    assert "Title required" in resp.json()["error"]
+
+
+def test_file_size_limit(admin_client):
+    with patch("app.routers.upload.MAX_BOOK_SIZE", 10):
+        with open(FIXTURES / "minimal.fb2", "rb") as f:
+            resp = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+    assert resp.status_code == 400
+
+
+def test_zip_upload(admin_client):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.write(FIXTURES / "minimal.fb2", "book.fb2")
+    buf.seek(0)
+    resp = admin_client.post("/api/upload", files={"file": ("books.zip", buf, "application/octet-stream")})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["format"] == "FB2"
+    assert data["metadata"]["title"] == "Minimal Test Book"
+
+
+def test_zip_no_books(admin_client):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("readme.txt", "hello")
+    buf.seek(0)
+    resp = admin_client.post("/api/upload", files={"file": ("empty.zip", buf, "application/octet-stream")})
+    assert resp.status_code == 400
+    assert "ZIP не содержит книг (fb2/epub/pdf)" in resp.json()["error"]
+
+
+# ── Cleanup temp ──
+
+def test_cleanup_temp(admin_client):
+    with open(FIXTURES / "minimal.fb2", "rb") as f:
+        upload = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+    temp_id = upload.json()["tempId"]
+    uploads_dir = os.path.join(os.environ["DATA_DIR"], "uploads")
+    temp_files = [f for f in os.listdir(uploads_dir) if f.startswith(temp_id)]
+    assert len(temp_files) > 0
+
+    resp = admin_client.delete(f"/api/uploads/{temp_id}")
+    assert resp.status_code == 200
+    remaining = [f for f in os.listdir(uploads_dir) if f.startswith(temp_id)]
+    assert remaining == []
+
+
+def test_cleanup_temp_idempotent(admin_client):
+    resp = admin_client.delete("/api/uploads/nonexist1")
+    assert resp.status_code == 200
