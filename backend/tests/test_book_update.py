@@ -38,6 +38,13 @@ class TestBookUpdate:
         assert resp.status_code == 200
         assert "Brand New Author" in get_book(admin_client, 1)["authors"]
 
+    def test_update_tag_ids_int(self, admin_client):
+        resp = admin_client.put("/api/books/1", json={"tagIds": [2]})
+        assert resp.status_code == 200
+        book = get_book(admin_client, 1)
+        assert "Классический детектив" in book["tags"]
+        assert "Фэнтези" not in book["tags"]
+
     def test_update_tag_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"tagIds": ["Новый Жанр"]})
         assert resp.status_code == 200

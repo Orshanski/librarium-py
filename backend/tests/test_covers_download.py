@@ -17,6 +17,11 @@ TINY_PNG = (
 # ── Covers: GET ──
 
 class TestCoverGet:
+    def test_thumb(self, client):
+        resp = client.get("/api/covers/2")
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "") == "image/jpeg"
+
     def test_full(self, client):
         resp = client.get("/api/covers/2", params={"full": 1})
         assert resp.status_code == 200
