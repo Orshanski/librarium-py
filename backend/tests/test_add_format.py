@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
