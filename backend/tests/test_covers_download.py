@@ -20,7 +20,7 @@ class TestCoverGet:
     def test_full(self, client):
         resp = client.get("/api/covers/2", params={"full": 1})
         assert resp.status_code == 200
-        assert "image" in resp.headers.get("content-type", "") or len(resp.content) > 0
+        assert resp.headers.get("content-type", "").startswith("image/")
 
     def test_no_cover(self, client):
         resp = client.get("/api/covers/1")
@@ -54,11 +54,11 @@ class TestCoverCommit:
 
 class TestCoverDiscard:
     def test_upload_and_discard(self, admin_client):
-        admin_client.post(
+        upload = admin_client.post(
             "/api/books/2/cover",
             files={"file": ("new.png", TINY_PNG, "image/png")},
         )
-        temp_url = "/api/uploads/cover/2"
+        temp_url = upload.json()["tempCoverUrl"]
 
         # temp preview is available
         resp = admin_client.get(temp_url)
