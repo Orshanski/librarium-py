@@ -1,5 +1,5 @@
 """Собирает .test-data-baseline/ с seeded dataset."""
-import base64
+import io
 import os
 import shutil
 import sqlite3
@@ -10,15 +10,13 @@ BASELINE_DIR = PROJECT_ROOT / ".test-data-baseline"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "books"
 
-# Минимальный 1x1 JPEG для cover
-TINY_JPEG = base64.b64decode(
-    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0o"
-    "OjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2f/2wBDARESEhgVGC8a"
-    "GC9nQTtBZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2f/"
-    "wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAB//EABQQAQAAAAAAAAAA"
-    "AAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/a"
-    "AAwDAQACEQMRAD8AAAH/2Q=="
-)
+
+def _make_test_jpeg(width=100, height=150) -> bytes:
+    from PIL import Image
+    img = Image.new("RGB", (width, height), color=(70, 130, 180))
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=80)
+    return buf.getvalue()
 
 
 def seed_baseline():
@@ -80,7 +78,7 @@ def seed_baseline():
     book2_dir = BASELINE_DIR / "library" / "2"
     book2_dir.mkdir()
     shutil.copy(FIXTURES_DIR / "with-cover.fb2", book2_dir / "book.fb2")
-    (book2_dir / "cover.jpg").write_bytes(TINY_JPEG)
+    (book2_dir / "cover.jpg").write_bytes(_make_test_jpeg())
     db.execute(
         "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, cover_path, added_at) VALUES (2, 'Book With Cover', 'Book With Cover', 'en', 'Cover Press', '2024', 'data/library/2/cover.jpg', '2025-01-02 00:00:00')"
     )

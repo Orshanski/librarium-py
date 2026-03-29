@@ -79,3 +79,31 @@ def test_add_format_rollback_on_move_failure(client):
     formats = [r[0] for r in db.execute("SELECT format FROM book_files WHERE book_id = 1").fetchall()]
     assert formats == ["FB2"]
     db.close()
+
+
+# ── Delete format ──
+
+def test_delete_format(admin_client):
+    test_data = os.environ["DATA_DIR"]
+    assert os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
+
+    resp = admin_client.delete("/api/books/1/files", params={"format": "FB2"})
+    assert resp.status_code == 200
+
+    db = sqlite3.connect(os.path.join(test_data, "db.sqlite"))
+    formats = [r[0] for r in db.execute("SELECT format FROM book_files WHERE book_id = 1").fetchall()]
+    assert "FB2" not in formats
+    db.close()
+
+    assert not os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
+
+
+def test_delete_format_missing_param(admin_client):
+    resp = admin_client.delete("/api/books/1/files")
+    assert resp.status_code == 400
+    assert "format required" in resp.json()["error"]
+
+
+def test_delete_format_nonexistent(admin_client):
+    resp = admin_client.delete("/api/books/1/files", params={"format": "PDF"})
+    assert resp.status_code == 404
