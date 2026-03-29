@@ -4,6 +4,7 @@ import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
@@ -73,37 +74,36 @@ export default function SeriesPage() {
 
   const bookCount = series.book_count;
 
-  const titleWithAdmin = (
-    <>
-      {series.name}
-      {user?.role === "admin" && (
-        <button
-          onClick={() => setShowAdmin(!showAdmin)}
-          style={{
-            marginLeft: 12,
-            padding: 0,
-            background: "transparent",
-            border: "none",
-            color: colors.accent,
-            fontSize: 22,
-            cursor: "pointer",
-          }}
-        >⚙</button>
-      )}
-    </>
-  );
+  const adminButton = user?.role === "admin" ? (
+    <button
+      onClick={() => setShowAdmin(!showAdmin)}
+      style={{
+        marginLeft: 12,
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        color: colors.accent,
+        fontSize: 22,
+        cursor: "pointer",
+        lineHeight: 1,
+      }}
+      aria-label="Управление серией"
+    >⚙</button>
+  ) : undefined;
 
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
-      <span>{series.authors}</span>
       <span>{pluralizeBooks(bookCount)}</span>
+      {series.authors ? <span>{series.authors}</span> : null}
     </div>
   );
 
   return (
     <Shell>
       <PageHeader
-        title={titleWithAdmin}
+        title={series.name}
+        titleSlot={adminButton}
+        mobileActionSlot={adminButton}
         breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }}
         infoSlot={infoSlot}
       />
@@ -120,13 +120,7 @@ export default function SeriesPage() {
         />
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, 150px)",
-          gap: 24,
-        }}
-      >
+      <BookGrid>
         {books.map((b: any) => (
           <BookCard
             key={b.id}
@@ -148,7 +142,7 @@ export default function SeriesPage() {
             }}
           />
         ))}
-      </div>
+      </BookGrid>
     </Shell>
   );
 }

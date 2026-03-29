@@ -1,22 +1,21 @@
-import Sidebar from "./sidebar";
+import DesktopShell from "./desktop/desktop-shell";
+import MobileShell from "./mobile/mobile-shell";
+import { ResponsiveProvider, useIsMobile } from "../responsive";
+
+function ShellLayout({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return <MobileShell>{children}</MobileShell>;
+  }
+
+  return <DesktopShell>{children}</DesktopShell>;
+}
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      <Sidebar />
-      <main
-        style={{
-          flex: 1,
-          marginLeft: 220,
-          overflowY: "auto",
-          marginTop: "var(--page-header-height, 0px)",
-          height: "calc(100vh - var(--page-header-height, 0px))",
-        }}
-      >
-        <div style={{ padding: "24px 32px 120px" }}>
-          {children}
-        </div>
-      </main>
-    </div>
+    <ResponsiveProvider>
+      <ShellLayout>{children}</ShellLayout>
+    </ResponsiveProvider>
   );
 }

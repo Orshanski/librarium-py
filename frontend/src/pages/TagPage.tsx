@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { getBreadcrumbUrl, saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { FilterConfig } from "../components/filter-bar";
 import { Book } from "../types";
 import { colors } from "../theme";
@@ -98,7 +99,6 @@ function saveCache(tagId: number, tag: TagData, tagBooks: Book[], selected: Reco
       sort,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
     saveBookOrigin(tag.name, `/tags/${tagId}`);
   } catch {}
 }
@@ -256,13 +256,7 @@ export default function TagPage() {
         }}
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, 150px)",
-          gap: 24,
-        }}
-      >
+      <BookGrid>
         {filtered.map((book) => (
           <BookCard key={book.id} book={book} />
         ))}
@@ -271,7 +265,7 @@ export default function TagPage() {
             Книги не найдены
           </div>
         )}
-      </div>
+      </BookGrid>
     </Shell>
   );
 }

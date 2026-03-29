@@ -1,6 +1,7 @@
 import { Book } from "../types";
 import { colors, fonts } from "../theme";
 import BookCard from "./book-card";
+import BookRail from "./book-rail";
 
 export default function AuthorDetail({
   author,
@@ -44,20 +45,11 @@ export default function AuthorDetail({
           >
             {seriesName}
           </h3>
-          <div
-            style={{
-              display: "flex",
-              gap: 24,
-              overflowX: "auto",
-              paddingBottom: 8,
-            }}
-          >
+          <BookRail>
             {seriesBooks.map((book) => (
-              <div key={book.id} style={{ width: 150, flexShrink: 0 }}>
-                <BookCard book={book} />
-              </div>
+              <BookCard key={book.id} book={book} />
             ))}
-          </div>
+          </BookRail>
         </div>
       ))}
 
@@ -75,20 +67,11 @@ export default function AuthorDetail({
           >
             Вне серий
           </h3>
-          <div
-            style={{
-              display: "flex",
-              gap: 24,
-              overflowX: "auto",
-              paddingBottom: 8,
-            }}
-          >
+          <BookRail>
             {standalone.map((book) => (
-              <div key={book.id} style={{ width: 150, flexShrink: 0 }}>
-                <BookCard book={book} />
-              </div>
+              <BookCard key={book.id} book={book} />
             ))}
-          </div>
+          </BookRail>
         </div>
       )}
     </div>

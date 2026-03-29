@@ -5,6 +5,7 @@ import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 
@@ -100,13 +101,7 @@ export default function ShelfPage() {
         }
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, 150px)",
-          gap: 24,
-        }}
-      >
+      <BookGrid>
         {sorted.map((b: any) => (
           <BookCard
             key={b.id}
@@ -132,7 +127,7 @@ export default function ShelfPage() {
             } : undefined}
           />
         ))}
-      </div>
+      </BookGrid>
 
       {!loading && sorted.length === 0 && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
