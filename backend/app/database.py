@@ -37,3 +37,13 @@ def dict_from_row(row: sqlite3.Row | None) -> dict | None:
 
 def dicts_from_rows(rows: list[sqlite3.Row]) -> list[dict]:
     return [dict(r) for r in rows]
+
+
+def reset_db():
+    """Сбросить состояние для тестов — закрыть соединение, пересоздать схему."""
+    global _schema_initialized
+    db = getattr(_local, "db", None)
+    if db:
+        db.close()
+        _local.db = None
+    _schema_initialized = False

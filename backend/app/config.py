@@ -4,8 +4,8 @@ from pathlib import Path
 # Project root — two levels up from this file (backend/app/config.py → librarium-py/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Data directory (shared with old Next.js project during migration)
-DATA_DIR = PROJECT_ROOT / "data"
+# Data directory — переопределяется через env DATA_DIR для тестов
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(PROJECT_ROOT / "data")))
 LIBRARY_DIR = DATA_DIR / "library"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.sqlite"
