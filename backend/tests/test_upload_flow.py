@@ -40,9 +40,24 @@ def test_create_book_from_upload(admin_token):
 
     book = admin_token.get(f"/api/books/{book_id}").json()
     assert book["book"]["title"] == "New Book"
+    assert "New Author" in book["book"]["authors"]
+    assert book["book"]["series_name"] == "New Series"
+    assert book["book"]["series_number"] == 1.0
+    assert book["book"]["language"] == "ru"
+    assert book["book"]["publisher"] == "New Press"
     assert len(book["files"]) == 1
     assert book["files"][0]["format"] == "FB2"
 
+    # ISBN
+    identifiers = book.get("identifiers", [])
+    isbn_values = [i["value"] for i in identifiers if i["type"] == "isbn"]
+    assert "978-0-000-00099-0" in isbn_values
+
+    # Теги
+    assert "Фэнтези" in book["book"]["tags"]
+    assert "Детектив" in book["book"]["tags"]
+
+    # Файл на диске
     test_data = os.environ["DATA_DIR"]
     assert os.path.isfile(os.path.join(test_data, "library", str(book_id), "book.fb2"))
 

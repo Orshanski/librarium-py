@@ -15,6 +15,7 @@ def test_delete_book(admin_token):
     assert resp.status_code == 404
 
     assert not os.path.exists(os.path.join(test_data, "library", "1"))
+    assert not os.path.exists(os.path.join(test_data, "thumbs", "1.jpg"))
 
     db = sqlite3.connect(os.path.join(test_data, "db.sqlite"))
     assert db.execute("SELECT COUNT(*) FROM book_authors WHERE book_id = 1").fetchone()[0] == 0
