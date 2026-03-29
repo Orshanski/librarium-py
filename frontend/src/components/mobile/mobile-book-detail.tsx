@@ -1,0 +1,316 @@
+import { Link } from "react-router-dom";
+import { colors, fonts } from "../../theme";
+import { sanitizeHtml } from "../../utils/sanitize-html";
+import BookCard from "../book-card";
+import BookRail from "../book-rail";
+import BookStarRating from "../book-star-rating";
+import { BookDetailViewProps } from "../book-detail.types";
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "100%",
+  minHeight: 48,
+  borderRadius: 10,
+  textDecoration: "none",
+  fontFamily: "inherit",
+  fontSize: 14,
+  fontWeight: 600,
+  boxSizing: "border-box",
+};
+
+export default function MobileBookDetail({
+  book,
+  seriesBooks,
+  isAdmin,
+  rating,
+  isRead,
+  showShelfMenu,
+  shelfList,
+  bookShelfIds,
+  shelfRef,
+  onChangeRating,
+  onToggleRead,
+  onToggleShelfMenu,
+  onToggleShelfBook,
+  onShowDeleteConfirm,
+}: BookDetailViewProps) {
+  const otherSeriesBooks = seriesBooks.filter((item) => item.id !== book.id);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 16 }}>
+        <div
+          style={{
+            width: 112,
+            flexShrink: 0,
+            borderRadius: 6,
+            overflow: "hidden",
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.bg,
+          }}
+        >
+          <img
+            src={book.coverPath}
+            alt={book.title}
+            style={{
+              width: "100%",
+              aspectRatio: "2 / 3",
+              objectFit: "contain",
+              objectPosition: "top",
+              display: "block",
+            }}
+          />
+        </div>
+
+        <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 20,
+              fontWeight: 600,
+              lineHeight: 1.15,
+              color: colors.text,
+              marginBottom: 6,
+            }}
+          >
+            {book.title}
+          </div>
+          <div style={{ fontSize: 13, color: colors.accent, marginBottom: 8 }}>
+            {book.authors.join(", ")}
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <BookStarRating rating={rating} onChange={onChangeRating} size={18} gap={3} />
+          </div>
+          <div style={{ fontSize: 11, color: colors.textDim, lineHeight: 1.5 }}>
+            {book.series && (
+              <div>
+                {book.series}
+                {book.seriesNumber ? ` · кн. ${book.seriesNumber}` : ""}
+              </div>
+            )}
+            {book.formats[0] && (
+              <div>
+                {book.formats[0].format} · {book.formats[0].size}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {book.formats.map((f) => (
+          <a
+            key={f.format}
+            href={`/api/books/${book.id}/download?format=${f.format}`}
+            style={{
+              ...primaryButtonStyle,
+              backgroundColor: "rgba(255, 255, 255, 0.04)",
+              border: `1px solid ${colors.border}`,
+              color: colors.textSecondary,
+            }}
+          >
+            Скачать {f.format}
+            <span style={{ fontSize: 11, color: colors.textDim, marginLeft: 8 }}>{f.size}</span>
+          </a>
+        ))}
+
+        <div ref={shelfRef} style={{ position: "relative" }}>
+          <button
+            onClick={onToggleShelfMenu}
+            style={{
+              ...primaryButtonStyle,
+              background: "none",
+              border: "1px solid rgba(249, 190, 3, 0.3)",
+              color: colors.accent,
+            }}
+          >
+            На полку
+          </button>
+          {showShelfMenu && shelfList && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 50,
+                backgroundColor: colors.sidebar,
+                border: `1px solid ${colors.border}`,
+                borderRadius: 8,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                padding: "6px 0",
+                marginTop: 6,
+              }}
+            >
+              {shelfList.filter((s: any) => !s.is_system).map((s: any) => (
+                <label
+                  key={s.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    color: colors.textSecondary,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={bookShelfIds.has(s.id)}
+                    onChange={() => { void onToggleShelfBook(s.id); }}
+                    style={{ accentColor: colors.accent }}
+                  />
+                  {s.name}
+                </label>
+              ))}
+              {shelfList.filter((s: any) => !s.is_system).length === 0 && (
+                <div style={{ padding: "8px 12px", fontSize: 12, color: colors.textDim }}>
+                  Нет полок
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          <a
+            href={`/book/${book.id}/edit`}
+            style={{
+              ...primaryButtonStyle,
+              minHeight: 40,
+              backgroundColor: "transparent",
+              border: `1px solid ${colors.border}`,
+              color: colors.textDim,
+              flex: 1,
+            }}
+          >
+            Ред.
+          </a>
+          <button
+            onClick={onShowDeleteConfirm}
+            style={{
+              ...primaryButtonStyle,
+              minHeight: 40,
+              backgroundColor: "transparent",
+              border: "1px solid rgba(239,68,68,0.3)",
+              color: colors.danger,
+              flex: 1,
+            }}
+          >
+            Удалить
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={onToggleRead}
+          style={{
+            background: "none",
+            border: `1px solid ${isRead ? colors.success : colors.border}`,
+            borderRadius: 18,
+            padding: "6px 14px",
+            fontSize: 13,
+            fontFamily: "inherit",
+            color: isRead ? colors.success : colors.textDim,
+            cursor: "pointer",
+          }}
+        >
+          {isRead ? "✓ Прочитано" : "Не прочитано"}
+        </button>
+      </div>
+
+      {book.description && (
+        <div
+          style={{
+            fontSize: 13,
+            lineHeight: 1.6,
+            color: colors.textSecondary,
+            marginBottom: 16,
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(book.description) }}
+        />
+      )}
+
+      {book.tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+          {book.tags.map((tag) => (
+            <span
+              key={tag}
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                borderRadius: 14,
+                backgroundColor: "rgba(255, 255, 255, 0.06)",
+                border: `1px solid ${colors.border}`,
+                color: colors.textSecondary,
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginBottom: 16 }}>
+        {book.series && (
+          <>
+            <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Серия</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
+              <Link to="/series" style={{ color: colors.accent, textDecoration: "none" }}>
+                {book.series}
+              </Link>
+              {book.seriesNumber ? ` (книга ${book.seriesNumber})` : ""}
+            </div>
+          </>
+        )}
+        <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Язык</div>
+        <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>{book.language}</div>
+        {book.publisher && (
+          <>
+            <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Издатель</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>{book.publisher}</div>
+          </>
+        )}
+        {book.pubDate && (
+          <>
+            <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Год</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>{book.pubDate}</div>
+          </>
+        )}
+        {book.isbn && (
+          <>
+            <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>ISBN</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>{book.isbn}</div>
+          </>
+        )}
+      </div>
+
+      {otherSeriesBooks.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 18,
+              fontWeight: 600,
+              color: colors.text,
+              marginBottom: 12,
+            }}
+          >
+            Другие книги серии «{book.series}»
+          </h3>
+          <BookRail>
+            {otherSeriesBooks.map((seriesBook) => (
+              <BookCard key={seriesBook.id} book={seriesBook} />
+            ))}
+          </BookRail>
+        </div>
+      )}
+    </div>
+  );
+}
