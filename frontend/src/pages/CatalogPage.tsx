@@ -4,6 +4,7 @@ import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
@@ -223,7 +224,7 @@ export default function CatalogPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 150px)", gap: 24 }}>
+      <BookGrid>
         {books.map((b: any) => (
           <BookCard
             key={b.id}
@@ -245,7 +246,7 @@ export default function CatalogPage() {
             }}
           />
         ))}
-      </div>
+      </BookGrid>
 
       {hasMore && (
         <div style={{ textAlign: "center", padding: 32, color: colors.textDim }}>
