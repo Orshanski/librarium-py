@@ -14,6 +14,7 @@ export default function MobilePageHeader({
   sortOptions,
   sortValue,
   onSortChange,
+  showUpload,
   infoSlot,
   breadcrumb,
   actionSlot,
@@ -21,8 +22,11 @@ export default function MobilePageHeader({
 }: PageHeaderProps) {
   const { toggleDrawer } = useMobileLayout();
   const headerRef = useRef<HTMLDivElement | null>(null);
+  // Mobile intentionally does not render the global upload CTA in the header.
+  // The screen is already crowded, and this prop is desktop-only by product choice.
+  void showUpload;
   const hasToolbar =
-    (filters && filters.length > 0) || sortOptions || infoSlot || actionSlot;
+    (filters && filters.length > 0) || sortOptions || actionSlot;
 
   useEffect(() => {
     const element = headerRef.current;
@@ -202,6 +206,12 @@ export default function MobilePageHeader({
                   </option>
                 ))}
               </select>
+            )}
+
+            {actionSlot && (
+              <div style={{ flexShrink: 0 }}>
+                {actionSlot}
+              </div>
             )}
           </div>
         </div>
