@@ -64,8 +64,7 @@
 
 - JWT-авторизация с HTTP-only cookies
 - CSP, HSTS, TLS 1.2+
-- Логирование авторизации и всех мутаций (journald)
-- Fail2ban + Cloudflare API — автоматический бан при переборе паролей и сканировании
+- Логирование авторизации и всех мутаций
 - SPA route whitelist — неизвестные пути возвращают 404
 
 ## Стек
@@ -82,7 +81,7 @@
 | Сборка | Vite 6 |
 | Стилизация | Inline CSS |
 | Тесты | pytest (backend), Vitest (frontend) |
-| CI/CD | GitHub Actions → SSH deploy |
+| CI/CD | GitHub Actions |
 
 ## Быстрый старт
 
@@ -166,17 +165,3 @@ librarium-py/
     └── screenshots/        # Скриншоты
 ```
 
-## Деплой
-
-CI/CD: GitHub Actions — тесты (pytest + vitest), затем деплой на push в `main` — git pull, pip install, vite build, restart service.
-
-```bash
-ssh lib                    # Hetzner VM
-sudo systemctl status librarium
-sudo journalctl -u librarium -f
-```
-
-## Документация
-
-- [Техспека](docs/spec.md) — архитектура, API, схема БД, безопасность
-- [Бэклог](docs/backlog.md) — планы развития
