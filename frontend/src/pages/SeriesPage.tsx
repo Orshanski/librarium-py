@@ -95,8 +95,8 @@ export default function SeriesPage() {
 
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
-      <span>{series.authors}</span>
       <span>{pluralizeBooks(bookCount)}</span>
+      {series.authors ? <span>{series.authors}</span> : null}
     </div>
   );
 

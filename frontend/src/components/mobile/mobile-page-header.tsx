@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { colors, fonts, layout } from "../../theme";
 import { useMobileLayout } from "./layout-context";
@@ -33,11 +34,33 @@ export default function MobilePageHeader({
   actionSlot?: React.ReactNode;
 }) {
   const { toggleDrawer } = useMobileLayout();
+  const headerRef = useRef<HTMLDivElement | null>(null);
   const hasToolbar =
     (filters && filters.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
 
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty("--page-header-height", `${element.offsetHeight}px`);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      document.documentElement.style.setProperty("--page-header-height", "0px");
+    };
+  }, [actionSlot, breadcrumb?.href, breadcrumb?.label, hasToolbar, infoSlot, showUpload, sortValue, title]);
+
   return (
     <div
+      ref={headerRef}
       style={{
         position: "fixed",
         top: 0,
@@ -54,52 +77,72 @@ export default function MobilePageHeader({
           minHeight: layout.mobileHeaderMinHeight,
         }}
       >
-        <div style={{ display: "flex", alignItems: breadcrumb ? "flex-start" : "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <button
             onClick={toggleDrawer}
             style={{
               background: "none",
               border: "none",
-              color: colors.textSecondary,
-              fontSize: 24,
-              lineHeight: 1,
               cursor: "pointer",
-              padding: "2px 0",
+              padding: 0,
+              width: 28,
+              height: 28,
               flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 1,
             }}
             aria-label="Открыть меню"
           >
-            ☰
+            <span
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 4,
+                width: 18,
+              }}
+            >
+              <span style={{ height: 2, borderRadius: 2, backgroundColor: colors.textSecondary, display: "block" }} />
+              <span style={{ height: 2, borderRadius: 2, backgroundColor: colors.textSecondary, display: "block" }} />
+              <span style={{ height: 2, borderRadius: 2, backgroundColor: colors.textSecondary, display: "block" }} />
+            </span>
           </button>
 
           <div style={{ minWidth: 0, flex: 1 }}>
-            {breadcrumb && (
-              <Link
-                to={breadcrumb.href}
-                style={{
-                  color: colors.textDim,
-                  textDecoration: "none",
-                  fontSize: 12,
-                  display: "inline-block",
-                  marginBottom: 4,
-                }}
-              >
-                ← {breadcrumb.label}
-              </Link>
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 28 }}>
               <h1
                 style={{
                   fontFamily: fonts.display,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: 600,
                   margin: 0,
                   color: colors.text,
-                  lineHeight: 1.05,
+                  lineHeight: 1,
                   minWidth: 0,
                   flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
+                {breadcrumb && (
+                  <>
+                    <Link
+                      to={breadcrumb.href}
+                      style={{
+                        color: colors.textDim,
+                        textDecoration: "none",
+                        fontWeight: 400,
+                      }}
+                    >
+                      {breadcrumb.label}
+                    </Link>
+                    <span style={{ color: colors.textDim, fontWeight: 400 }}>/</span>
+                  </>
+                )}
                 {title}
               </h1>
               {actionSlot}
