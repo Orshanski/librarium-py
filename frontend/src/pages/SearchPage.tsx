@@ -75,15 +75,32 @@ function SearchResults() {
             {series.map((s: any) => (
               <Link key={s.id} to={`/series/${s.id}`} style={{ textDecoration: "none" }}>
                 <div
-                  style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
+                  style={{ padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div>
-                    <span style={{ fontSize: 14, color: colors.text }}>{s.name}</span>
-                    <span style={{ fontSize: 12, color: colors.textDim, marginLeft: 12 }}>{s.authors}</span>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 14, color: colors.text, lineHeight: 1.35, marginBottom: s.authors ? 4 : 0 }}>
+                        {s.name}
+                      </div>
+                      {s.authors && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: colors.textDim,
+                            lineHeight: 1.4,
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {s.authors}
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 12, color: colors.textDim, whiteSpace: "nowrap", flexShrink: 0, paddingTop: 2 }}>
+                      {pluralize(s.book_count, "книга", "книги", "книг")}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 12, color: colors.textDim }}>{pluralize(s.book_count, "книга", "книги", "книг")}</span>
                 </div>
               </Link>
             ))}
