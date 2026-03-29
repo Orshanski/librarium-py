@@ -66,7 +66,7 @@ def seed_baseline():
     book1_dir.mkdir()
     shutil.copy(FIXTURES_DIR / "minimal.fb2", book1_dir / "book.fb2")
     db.execute(
-        "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, series_id, series_number) VALUES (1, 'Minimal Test Book', 'Minimal Test Book', 'ru', 'Test Publisher', '2025', 1, 1)"
+        "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, series_id, series_number, added_at) VALUES (1, 'Minimal Test Book', 'Minimal Test Book', 'ru', 'Test Publisher', '2025', 1, 1, '2025-01-01 00:00:00')"
     )
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (1, 1)")
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (1, 1)")
@@ -82,7 +82,7 @@ def seed_baseline():
     shutil.copy(FIXTURES_DIR / "with-cover.fb2", book2_dir / "book.fb2")
     (book2_dir / "cover.jpg").write_bytes(TINY_JPEG)
     db.execute(
-        "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, cover_path) VALUES (2, 'Book With Cover', 'Book With Cover', 'en', 'Cover Press', '2024', 'data/library/2/cover.jpg')"
+        "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, cover_path, added_at) VALUES (2, 'Book With Cover', 'Book With Cover', 'en', 'Cover Press', '2024', 'data/library/2/cover.jpg', '2025-01-02 00:00:00')"
     )
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (2, 2)")
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (2, 2)")
@@ -91,6 +91,28 @@ def seed_baseline():
         (os.path.getsize(book2_dir / "book.fb2"),),
     )
     db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (2, 'isbn', '978-0-000-00002-0')")
+
+    # --- Книга 3: English Fantasy (no file on disk) ---
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at) VALUES (3, 'English Fantasy', 'English Fantasy', 'en', 1, 2, '2025-01-03 00:00:00')"
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (3, 1)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (3, 1)")
+
+    # --- Книга 4: Русский Детектив (no file on disk) ---
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at) VALUES (4, 'Русский Детектив', 'Русский Детектив', 'ru', 2, 1, '2025-01-04 00:00:00')"
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (4, 3)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (4, 2)")
+
+    # --- Книга 5: Fantasy Detective (no file on disk, two tags) ---
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, added_at) VALUES (5, 'Fantasy Detective', 'Fantasy Detective', 'en', '2025-01-05 00:00:00')"
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (5, 2)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (5, 1)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (5, 2)")
 
     # --- User data ---
     db.execute("INSERT INTO shelves (id, name, user_id, is_system) VALUES (1, 'Лучшее', 2, 1)")
