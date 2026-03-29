@@ -3,6 +3,7 @@ import { colors, fonts } from "../../theme";
 import { sanitizeHtml } from "../../utils/sanitize-html";
 import BookStarRating from "../book-star-rating";
 import { BookDetailViewProps } from "../book-detail.types";
+import ShelfDropdownMenu from "../shelf-dropdown-menu";
 
 const actionButtonStyle: React.CSSProperties = {
   background: "none",
@@ -102,33 +103,11 @@ export default function DesktopBookDetail({
                   marginTop: 4,
                 }}
               >
-                {shelfList.filter((s: any) => !s.is_system).map((s: any) => (
-                  <label
-                    key={s.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 12px",
-                      fontSize: 13,
-                      color: colors.textSecondary,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={bookShelfIds.has(s.id)}
-                      onChange={() => { void onToggleShelfBook(s.id); }}
-                      style={{ accentColor: colors.accent }}
-                    />
-                    {s.name}
-                  </label>
-                ))}
-                {shelfList.filter((s: any) => !s.is_system).length === 0 && (
-                  <div style={{ padding: "8px 12px", fontSize: 12, color: colors.textDim }}>
-                    Нет полок
-                  </div>
-                )}
+                <ShelfDropdownMenu
+                  shelves={shelfList}
+                  selectedIds={bookShelfIds}
+                  onToggleShelf={onToggleShelfBook}
+                />
               </div>
             )}
           </div>
@@ -189,7 +168,7 @@ export default function DesktopBookDetail({
           )}
 
           <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24 }}>
-            <BookStarRating rating={rating} onChange={onChangeRating} />
+            <BookStarRating rating={rating} onChange={onChangeRating} targetSize={32} />
             <button
               onClick={onToggleRead}
               style={{

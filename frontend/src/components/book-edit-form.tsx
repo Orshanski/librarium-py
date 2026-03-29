@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "../responsive";
 import MetadataSearch from "./metadata-search";
 import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";
-import { BookEditFormProps, MetadataPayload } from "./book-edit-form.types";
+import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);
   const [authors, setAuthors] = useState(book.authors.join(", "));
   const [seriesName, setSeriesName] = useState(book.series || "");
@@ -31,10 +33,10 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const seriesOptions = options?.series.map((s: any) => ({ value: s.name })) || [];
+  const seriesOptions = options?.series.map((s: NamedOption) => ({ value: s.name })) || [];
   const languageOptions = options?.languages.map((l: string) => ({ value: l })) || [];
   const publisherOptions = options?.publishers.map((p: string) => ({ value: p })) || [];
-  const allTags = options?.tags.map((t: any) => ({ name: t.name, bookCount: t.book_count || 0 })) || [];
+  const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: t.book_count || 0 })) || [];
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -86,42 +88,53 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingCover(true);
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
-    if (res.ok) {
-      setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
-      setCoverChanged(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
+      if (res.ok) {
+        setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
+        setCoverChanged(true);
+      } else {
+        alert("Ошибка загрузки обложки");
+      }
+    } catch {
+      alert("Ошибка загрузки обложки");
+    } finally {
+      setUploadingCover(false);
+      e.target.value = "";
     }
-    setUploadingCover(false);
-    e.target.value = "";
   }
 
   async function handleSaveForm() {
     if (!onSave) return;
     setSaving(true);
-    if (coverChanged) {
-      await fetch(`/api/books/${book.id}/cover`, { method: "PUT", credentials: "include" });
+    try {
+      if (coverChanged) {
+        await fetch(`/api/books/${book.id}/cover`, { method: "PUT", credentials: "include" });
+      }
+      await onSave({
+        title,
+        authors,
+        series: seriesName || null,
+        seriesNumber: seriesNumber || null,
+        description,
+        tags,
+        language,
+        publisher: publisher || null,
+        pubDate: pubDate || null,
+        isbn: isbn || null,
+      });
+    } finally {
+      setSaving(false);
     }
-    onSave({
-      title,
-      authors,
-      series: seriesName || null,
-      seriesNumber: seriesNumber || null,
-      description,
-      tags,
-      language,
-      publisher: publisher || null,
-      pubDate: pubDate || null,
-      isbn: isbn || null,
-    });
   }
 
   async function handleCancel() {
     if (coverChanged) {
       await fetch(`/api/books/${book.id}/cover`, { method: "DELETE", credentials: "include" });
     }
-    history.back();
+    navigate(-1);
   }
 
   const viewProps = {

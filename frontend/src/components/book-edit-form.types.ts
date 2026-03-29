@@ -1,12 +1,34 @@
 import { RefObject } from "react";
 import { Book, BookFormat } from "../types";
 
+export interface NamedOption {
+  name: string;
+}
+
+export interface TagOption {
+  name: string;
+  book_count?: number;
+}
+
 export interface BookEditOptions {
-  authors: any[];
-  series: any[];
-  tags: any[];
+  authors: NamedOption[];
+  series: NamedOption[];
+  tags: TagOption[];
   languages: string[];
   publishers: string[];
+}
+
+export interface BookSavePayload {
+  title: string;
+  authors: string;
+  series: string | null;
+  seriesNumber: string | null;
+  description: string;
+  tags: string[];
+  language: string;
+  publisher: string | null;
+  pubDate: string | null;
+  isbn: string | null;
 }
 
 export interface MetadataPayload {
@@ -25,7 +47,7 @@ export interface MetadataPayload {
 export interface BookEditFormProps {
   book: Book;
   options?: BookEditOptions;
-  onSave?: (data: any) => void;
+  onSave?: (data: BookSavePayload) => Promise<void> | void;
 }
 
 export interface BookEditViewProps {

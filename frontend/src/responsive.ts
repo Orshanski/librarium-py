@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { createContext, createElement, ReactNode, useContext, useEffect, useState } from "react";
 import { layout } from "./theme";
 
-export function useIsMobile() {
-  const getMatches = () => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < layout.mobileBreakpoint;
-  };
+const ResponsiveContext = createContext<boolean | null>(null);
 
+function getMatches() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < layout.mobileBreakpoint;
+}
+
+function useResponsiveValue() {
   const [isMobile, setIsMobile] = useState(getMatches);
 
   useEffect(() => {
@@ -18,4 +20,15 @@ export function useIsMobile() {
   }, []);
 
   return isMobile;
+}
+
+export function ResponsiveProvider({ children }: { children: ReactNode }) {
+  const isMobile = useResponsiveValue();
+
+  return createElement(ResponsiveContext.Provider, { value: isMobile }, children);
+}
+
+export function useIsMobile() {
+  const contextValue = useContext(ResponsiveContext);
+  return contextValue ?? useResponsiveValue();
 }

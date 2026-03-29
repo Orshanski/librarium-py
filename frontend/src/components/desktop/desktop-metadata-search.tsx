@@ -1,14 +1,10 @@
 import { colors, fonts } from "../../theme";
-import { MetadataSearchViewProps } from "../metadata-search.types";
-
-const providers = [
-  { key: "litres", label: "Litres" },
-  { key: "google", label: "Google Books" },
-];
+import { MetadataSearchViewProps, metadataProviders } from "../metadata-search.types";
 
 export default function DesktopMetadataSearch({
   searching,
   results,
+  error,
   activeProviders,
   searchQuery,
   onClose,
@@ -127,7 +123,7 @@ export default function DesktopMetadataSearch({
             borderBottom: `1px solid ${colors.border}`,
           }}
         >
-          {providers.map((p) => {
+          {metadataProviders.map((p) => {
             const active = activeProviders.has(p.key);
             return (
               <button
@@ -136,7 +132,7 @@ export default function DesktopMetadataSearch({
                 style={{
                   padding: "8px 16px",
                   margin: "8px 4px 8px 0",
-                  marginLeft: p.key === providers[0].key ? 16 : 0,
+                  marginLeft: p.key === metadataProviders[0].key ? 16 : 0,
                   fontSize: 13,
                   fontFamily: "inherit",
                   background: active ? "rgba(249, 190, 3, 0.12)" : "transparent",
@@ -165,15 +161,21 @@ export default function DesktopMetadataSearch({
             </div>
           )}
 
-          {results !== null && !searching && results.length === 0 && (
+          {error && !searching && (
+            <div style={{ textAlign: "center", padding: 32, color: colors.danger }}>
+              {error}
+            </div>
+          )}
+
+          {results !== null && !searching && !error && results.length === 0 && (
             <div style={{ textAlign: "center", padding: 32, color: colors.textDim }}>
               Ничего не найдено
             </div>
           )}
 
-          {results && !searching && results.map((r, i) => (
+          {results && !searching && !error && results.map((r, i) => (
             <div
-              key={i}
+              key={`${r.source}:${r.title}:${r.authors}:${i}`}
               style={{
                 display: "flex",
                 gap: 16,
@@ -192,11 +194,15 @@ export default function DesktopMetadataSearch({
                 }}
                 title="Нажмите, чтобы применить метаданные"
               >
-                <img
-                  src={r.coverUrl ? `/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}` : ""}
-                  alt={r.title}
-                  style={{ width: "100%", height: "auto", display: "block" }}
-                />
+                {r.coverUrl ? (
+                  <img
+                    src={`/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}`}
+                    alt={r.title}
+                    style={{ width: "100%", height: "auto", display: "block" }}
+                  />
+                ) : (
+                  <div style={{ width: "100%", aspectRatio: "2 / 3", backgroundColor: colors.bg }} />
+                )}
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>

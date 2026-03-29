@@ -1,6 +1,13 @@
 import { RefObject } from "react";
 import { Book } from "../types";
 
+export interface Shelf {
+  id: number;
+  name: string;
+  is_system: boolean;
+  has_book?: boolean;
+}
+
 export interface BookDetailViewProps {
   book: Book;
   seriesBooks: Book[];
@@ -8,7 +15,7 @@ export interface BookDetailViewProps {
   rating: number | null;
   isRead: boolean;
   showShelfMenu: boolean;
-  shelfList: any[] | null;
+  shelfList: Shelf[] | null;
   bookShelfIds: Set<number>;
   shelfRef: RefObject<HTMLDivElement | null>;
   onChangeRating: (rating: number) => void;

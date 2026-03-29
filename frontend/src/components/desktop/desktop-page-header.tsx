@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../../auth";
 import { colors, fonts, layout } from "../../theme";
 import FilterBar, { FilterConfig } from "../filter-bar";
 import SortSelect, { SortOption } from "../sort-select";
+import { PageHeaderProps } from "../page-header.types";
 
 export default function DesktopPageHeader({
   title,
@@ -18,32 +20,10 @@ export default function DesktopPageHeader({
   infoSlot,
   breadcrumb,
   actionSlot,
-}: {
-  title: React.ReactNode;
-  titleSlot?: React.ReactNode;
-  filters?: FilterConfig[];
-  selected?: Record<string, string[]>;
-  onSelectionChange?: (key: string, values: string[]) => void;
-  onClearAll?: () => void;
-  sortOptions?: SortOption[];
-  sortValue?: string;
-  onSortChange?: (key: string) => void;
-  showUpload?: boolean;
-  infoSlot?: React.ReactNode;
-  breadcrumb?: { label: string; href: string };
-  actionSlot?: React.ReactNode;
-}) {
-  const [me, setMe] = useState<{ name: string }>({ name: "" });
+}: PageHeaderProps) {
+  const { user } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.displayName || d.username) setMe({ name: d.displayName || d.username });
-      })
-      .catch(() => {});
-  }, []);
+  const meName = user?.displayName || user?.username || "";
 
   const hasSecondRow =
     (filters && filters.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
@@ -66,7 +46,7 @@ export default function DesktopPageHeader({
       window.removeEventListener("resize", updateHeight);
       document.documentElement.style.setProperty("--page-header-height", "0px");
     };
-  }, [actionSlot, breadcrumb?.href, breadcrumb?.label, hasSecondRow, infoSlot, me.name, showUpload, sortValue, title]);
+  }, []);
 
   return (
     <div
@@ -121,7 +101,7 @@ export default function DesktopPageHeader({
         </h1>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: colors.textDim }}>{me.name || "..."}</span>
+          <span style={{ fontSize: 13, color: colors.textDim }}>{meName || "..."}</span>
           <div
             style={{
               width: 32,
@@ -136,7 +116,7 @@ export default function DesktopPageHeader({
               fontWeight: 700,
             }}
           >
-            {(me.name || "?")[0].toUpperCase()}
+            {(meName || "?")[0].toUpperCase()}
           </div>
         </div>
       </div>

@@ -2,38 +2,25 @@ import { colors } from "../../theme";
 import MetadataSearch from "../metadata-search";
 import Combobox from "../combobox";
 import { BookEditViewProps } from "../book-edit-form.types";
+import { sharedBookEditButtonStyle, sharedBookEditInputStyle, sharedBookEditLabelStyle } from "../book-edit-form.styles";
 
 const inputStyle: React.CSSProperties = {
-  width: "100%",
-  backgroundColor: "rgba(255, 255, 255, 0.06)",
-  border: `1px solid ${colors.border}`,
+  ...sharedBookEditInputStyle,
   borderRadius: 6,
   padding: "8px 12px",
   fontSize: 14,
-  color: colors.text,
-  outline: "none",
-  boxSizing: "border-box",
-  fontFamily: "inherit",
 };
 
 const labelStyle: React.CSSProperties = {
+  ...sharedBookEditLabelStyle,
   fontSize: 12,
-  color: colors.textDim,
-  marginBottom: 4,
-  display: "block",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
 };
 
 const btnStyle: React.CSSProperties = {
-  background: "none",
-  border: `1px solid ${colors.border}`,
+  ...sharedBookEditButtonStyle,
   borderRadius: 6,
   padding: "8px 16px",
   fontSize: 13,
-  fontFamily: "inherit",
-  color: colors.textSecondary,
-  cursor: "pointer",
 };
 
 export default function DesktopBookEditForm({

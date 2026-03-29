@@ -29,7 +29,7 @@ export default function MobileFilterBar({
   }, [highlighted]);
 
   useEffect(() => {
-    function handlePointerDown(e: MouseEvent) {
+    function handlePointerDown(e: PointerEvent) {
       const target = e.target as Node;
       const trigger = openKey ? triggerRefs.current[openKey] : null;
       if (
@@ -43,8 +43,8 @@ export default function MobileFilterBar({
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [openKey]);
 
   useEffect(() => {
@@ -120,16 +120,12 @@ export default function MobileFilterBar({
   const hasAnySelection = filters.some((filter) => (selected[filter.key] || []).length > 0);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", flexShrink: 0 }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
-          overflowX: "auto",
-          overflowY: "visible",
-          scrollbarWidth: "none",
-          paddingBottom: 2,
         }}
       >
         {filters.map((filter) => {

@@ -2,9 +2,8 @@ import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { colors, fonts, layout } from "../../theme";
 import { useMobileLayout } from "./layout-context";
-import { FilterConfig } from "../filter-bar";
-import { SortOption } from "../sort-select";
 import MobileFilterBar from "./mobile-filter-bar";
+import { PageHeaderProps } from "../page-header.types";
 
 export default function MobilePageHeader({
   title,
@@ -15,26 +14,11 @@ export default function MobilePageHeader({
   sortOptions,
   sortValue,
   onSortChange,
-  showUpload,
   infoSlot,
   breadcrumb,
   actionSlot,
   mobileActionSlot,
-}: {
-  title: React.ReactNode;
-  filters?: FilterConfig[];
-  selected?: Record<string, string[]>;
-  onSelectionChange?: (key: string, values: string[]) => void;
-  onClearAll?: () => void;
-  sortOptions?: SortOption[];
-  sortValue?: string;
-  onSortChange?: (key: string) => void;
-  showUpload?: boolean;
-  infoSlot?: React.ReactNode;
-  breadcrumb?: { label: string; href: string };
-  actionSlot?: React.ReactNode;
-  mobileActionSlot?: React.ReactNode;
-}) {
+}: PageHeaderProps) {
   const { toggleDrawer } = useMobileLayout();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const hasToolbar =
@@ -58,7 +42,7 @@ export default function MobilePageHeader({
       window.removeEventListener("resize", updateHeight);
       document.documentElement.style.setProperty("--page-header-height", "0px");
     };
-  }, [actionSlot, breadcrumb?.href, breadcrumb?.label, hasToolbar, infoSlot, sortValue, title]);
+  }, []);
 
   return (
     <div
@@ -160,14 +144,26 @@ export default function MobilePageHeader({
 
       {hasToolbar && (
         <div style={{ padding: `0 ${layout.mobileContentPaddingX}px 12px` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, overflowX: "auto", overflowY: "visible", scrollbarWidth: "none" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              overflowX: "auto",
+              overflowY: "visible",
+              scrollbarWidth: "none",
+              paddingBottom: 2,
+            }}
+          >
             {filters && selected && onSelectionChange && (
-              <MobileFilterBar
-                filters={filters}
-                selected={selected}
-                onSelectionChange={onSelectionChange}
-                onClearAll={onClearAll}
-              />
+              <div style={{ flexShrink: 0 }}>
+                <MobileFilterBar
+                  filters={filters}
+                  selected={selected}
+                  onSelectionChange={onSelectionChange}
+                  onClearAll={onClearAll}
+                />
+              </div>
             )}
 
             {sortOptions && sortValue !== undefined && onSortChange && (
@@ -194,7 +190,7 @@ export default function MobilePageHeader({
                 }}
               >
                 {sortOptions.map((option) => (
-                  <option key={option.key} value={option.key} style={{ backgroundColor: "#16162a", color: "#ccc" }}>
+                  <option key={option.key} value={option.key} style={{ backgroundColor: colors.sidebar, color: colors.textSecondary }}>
                     {option.label}
                   </option>
                 ))}

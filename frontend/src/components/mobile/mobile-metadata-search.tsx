@@ -1,14 +1,10 @@
 import { colors, fonts } from "../../theme";
-import { MetadataSearchViewProps } from "../metadata-search.types";
-
-const providers = [
-  { key: "litres", label: "Litres" },
-  { key: "google", label: "Google Books" },
-];
+import { MetadataSearchViewProps, metadataProviders } from "../metadata-search.types";
 
 export default function MobileMetadataSearch({
   searching,
   results,
+  error,
   activeProviders,
   searchQuery,
   onClose,
@@ -68,7 +64,9 @@ export default function MobileMetadataSearch({
               color: colors.textDim,
               fontSize: 20,
               cursor: "pointer",
-              padding: 4,
+              padding: 12,
+              minWidth: 44,
+              minHeight: 44,
             }}
           >
             ✕
@@ -118,15 +116,15 @@ export default function MobileMetadataSearch({
 
         <div style={{ padding: "10px 16px", borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
-            {providers.map((p) => {
+            {metadataProviders.map((p) => {
               const active = activeProviders.has(p.key);
               return (
                 <button
                   key={p.key}
                   onClick={() => onToggleProvider(p.key)}
                   style={{
-                    padding: "7px 12px",
-                    fontSize: 12,
+                    padding: "10px 16px",
+                    fontSize: 13,
                     fontFamily: "inherit",
                     background: active ? "rgba(249, 190, 3, 0.12)" : "transparent",
                     border: `1px solid ${active ? "rgba(249, 190, 3, 0.3)" : colors.border}`,
@@ -155,15 +153,21 @@ export default function MobileMetadataSearch({
             </div>
           )}
 
-          {results !== null && !searching && results.length === 0 && (
+          {error && !searching && (
+            <div style={{ textAlign: "center", padding: 32, color: colors.danger }}>
+              {error}
+            </div>
+          )}
+
+          {results !== null && !searching && !error && results.length === 0 && (
             <div style={{ textAlign: "center", padding: 32, color: colors.textDim }}>
               Ничего не найдено
             </div>
           )}
 
-          {results && !searching && results.map((r, i) => (
+          {results && !searching && !error && results.map((r, i) => (
             <div
-              key={i}
+              key={`${r.source}:${r.title}:${r.authors}:${i}`}
               style={{
                 display: "flex",
                 gap: 12,
@@ -183,11 +187,15 @@ export default function MobileMetadataSearch({
                 }}
                 title="Нажмите, чтобы применить метаданные"
               >
-                <img
-                  src={r.coverUrl ? `/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}` : ""}
-                  alt={r.title}
-                  style={{ width: "100%", aspectRatio: "2 / 3", objectFit: "cover", display: "block" }}
-                />
+                {r.coverUrl ? (
+                  <img
+                    src={`/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}`}
+                    alt={r.title}
+                    style={{ width: "100%", aspectRatio: "2 / 3", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <div style={{ width: "100%", aspectRatio: "2 / 3", backgroundColor: colors.bg }} />
+                )}
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>

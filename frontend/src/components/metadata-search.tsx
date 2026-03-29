@@ -4,11 +4,6 @@ import DesktopMetadataSearch from "./desktop/desktop-metadata-search";
 import MobileMetadataSearch from "./mobile/mobile-metadata-search";
 import { MetadataResult } from "./metadata-search.types";
 
-const providers = [
-  { key: "litres", label: "Litres" },
-  { key: "google", label: "Google Books" },
-];
-
 export default function MetadataSearch({
   query,
   onApply,
@@ -23,17 +18,25 @@ export default function MetadataSearch({
   const [searchQuery, setSearchQuery] = useState(query);
   const [results, setResults] = useState<MetadataResult[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function fetchResults(providerKeys: Set<string>) {
     setSearching(true);
+    setError(null);
     fetch(`/api/metadata/search?q=${encodeURIComponent(searchQuery)}&providers=${Array.from(providerKeys).join(",")}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
       .then((data) => {
         setResults(data.results || []);
         setSearching(false);
       })
       .catch(() => {
-        setResults([]);
+        setResults(null);
+        setError("Ошибка поиска метаданных");
         setSearching(false);
       });
   }
@@ -53,6 +56,7 @@ export default function MetadataSearch({
     query,
     searching,
     results,
+    error,
     activeProviders,
     searchQuery,
     onClose,

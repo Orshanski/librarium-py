@@ -34,11 +34,12 @@ export default function MobileBookCard({ book, onRemove }: BookCardProps) {
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
               style={{
-                position: "absolute", top: 4, left: 4, width: 20, height: 20,
+                position: "absolute", top: 0, left: 0, width: 44, height: 44,
                 borderRadius: "50%", border: "none",
                 backgroundColor: "rgba(0,0,0,0.65)", color: "#fff",
-                fontSize: 11, cursor: "pointer", display: "flex",
+                fontSize: 14, cursor: "pointer", display: "flex",
                 alignItems: "center", justifyContent: "center",
+                transform: "translate(-6px, -6px)",
               }}
             >✕</button>
           )}

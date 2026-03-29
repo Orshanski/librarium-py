@@ -2,38 +2,25 @@ import { colors, fonts } from "../../theme";
 import MetadataSearch from "../metadata-search";
 import Combobox from "../combobox";
 import { BookEditViewProps } from "../book-edit-form.types";
+import { sharedBookEditButtonStyle, sharedBookEditInputStyle, sharedBookEditLabelStyle } from "../book-edit-form.styles";
 
 const inputStyle: React.CSSProperties = {
-  width: "100%",
-  backgroundColor: "rgba(255, 255, 255, 0.06)",
-  border: `1px solid ${colors.border}`,
+  ...sharedBookEditInputStyle,
   borderRadius: 8,
   padding: "9px 12px",
   fontSize: 14,
-  color: colors.text,
-  outline: "none",
-  boxSizing: "border-box",
-  fontFamily: "inherit",
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: colors.textDim,
-  marginBottom: 4,
-  display: "block",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
+  ...sharedBookEditLabelStyle,
+  fontSize: 11,
 };
 
 const btnStyle: React.CSSProperties = {
-  background: "none",
-  border: `1px solid ${colors.border}`,
+  ...sharedBookEditButtonStyle,
   borderRadius: 8,
   padding: "10px 16px",
   fontSize: 13,
-  fontFamily: "inherit",
-  color: colors.textSecondary,
-  cursor: "pointer",
 };
 
 export default function MobileBookEditForm({
@@ -173,6 +160,8 @@ export default function MobileBookEditForm({
           <input
             type="number"
             step="0.1"
+            inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
             style={inputStyle}
             value={seriesNumber}
             onChange={(e) => onSetSeriesNumber(e.target.value)}
@@ -180,7 +169,7 @@ export default function MobileBookEditForm({
         </div>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Год</label>
-          <input style={inputStyle} value={pubDate} onChange={(e) => onSetPubDate(e.target.value)} />
+          <input inputMode="numeric" style={inputStyle} value={pubDate} onChange={(e) => onSetPubDate(e.target.value)} />
         </div>
       </div>
 
@@ -249,7 +238,7 @@ export default function MobileBookEditForm({
 
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>ISBN</label>
-        <input style={inputStyle} value={isbn} onChange={(e) => onSetIsbn(e.target.value)} />
+        <input inputMode="numeric" style={inputStyle} value={isbn} onChange={(e) => onSetIsbn(e.target.value)} />
       </div>
 
       <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 10 }}>Файлы</div>
@@ -302,9 +291,6 @@ export default function MobileBookEditForm({
 
       <div
         onClick={onChooseFile}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDropFile}
         style={{
           border: `2px dashed ${dragOver ? colors.accent : colors.border}`,
           borderRadius: 8,
@@ -347,7 +333,18 @@ export default function MobileBookEditForm({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginBottom: 16,
+          position: "sticky",
+          bottom: 0,
+          paddingTop: 12,
+          paddingBottom: 8,
+          background: "linear-gradient(to top, rgba(45,48,64,1), rgba(45,48,64,0.96), rgba(45,48,64,0))",
+        }}
+      >
         <button onClick={() => { void onCancel(); }} style={{ ...btnStyle, flex: 1 }}>
           Отмена
         </button>

@@ -193,7 +193,7 @@ function UserCard({
       {/* Inline edit: password */}
       {editMode === "password" && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: 1, marginBottom: 8 }}>
               <label style={labelStyle}>Новый пароль</label>
               <input
@@ -362,7 +362,7 @@ export default function AdminPage() {
               <h3 style={{ ...sectionTitleStyle, fontSize: 16, marginBottom: 16, borderBottom: "none", paddingBottom: 0 }}>
                 Новый пользователь
               </h3>
-              <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Логин</label>
                   <input style={inputStyle} placeholder="username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
@@ -376,7 +376,7 @@ export default function AdminPage() {
                 <label style={labelStyle}>Email</label>
                 <input style={inputStyle} type="email" placeholder="user@example.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
               </div>
-              <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Пароль</label>
                   <input style={inputStyle} type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
@@ -385,7 +385,7 @@ export default function AdminPage() {
                   <label style={labelStyle}>Повторите</label>
                   <input style={inputStyle} type="password" value={newUser.passwordConfirm} onChange={(e) => setNewUser({ ...newUser, passwordConfirm: e.target.value })} />
                 </div>
-                <div style={{ flex: "0 0 100px" }}>
+                <div style={{ flex: "1 1 100px", minWidth: 100 }}>
                   <label style={labelStyle}>Роль</label>
                   <select
                     style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none", paddingRight: 32, cursor: "pointer", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
@@ -451,17 +451,17 @@ export default function AdminPage() {
               {smtpStatus === "ok" ? "Подключено" : "Не настроено"}
             </span>
           </h2>
-          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>SMTP хост</label>
               <input style={inputStyle} placeholder="smtp.gmail.com" value={settings.smtp_host || ""} onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })} />
             </div>
-            <div style={{ flex: "0 0 100px" }}>
+            <div style={{ flex: "1 1 100px", minWidth: 100 }}>
               <label style={labelStyle}>Порт</label>
               <input style={inputStyle} value={settings.smtp_port || "587"} onChange={(e) => setSettings({ ...settings, smtp_port: e.target.value })} />
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Пользователь</label>
               <input style={inputStyle} placeholder="user@gmail.com" value={settings.smtp_user || ""} onChange={(e) => setSettings({ ...settings, smtp_user: e.target.value })} />

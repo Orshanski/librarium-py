@@ -5,6 +5,7 @@ import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
 import DesktopBookDetail from "./desktop/desktop-book-detail";
 import MobileBookDetail from "./mobile/mobile-book-detail";
+import { Shelf } from "./book-detail.types";
 
 export default function BookDetail({
   book,
@@ -20,19 +21,19 @@ export default function BookDetail({
   const [isRead, setIsRead] = useState(false);
   const [showShelfMenu, setShowShelfMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [shelfList, setShelfList] = useState<any[] | null>(null);
+  const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
   const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
   const shelfRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showShelfMenu) return;
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: PointerEvent) {
       if (shelfRef.current && !shelfRef.current.contains(e.target as Node)) {
         setShowShelfMenu(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("pointerdown", handleClick);
+    return () => document.removeEventListener("pointerdown", handleClick);
   }, [showShelfMenu]);
 
   useEffect(() => {
@@ -45,23 +46,35 @@ export default function BookDetail({
       .catch(() => {});
   }, [book.id]);
 
-  function saveRating(nextRating: number) {
+  async function saveRating(nextRating: number) {
+    const previous = rating;
     setRating(nextRating);
-    fetch(`/api/books/${book.id}/rating`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: nextRating }),
-    });
+    try {
+      const res = await fetch(`/api/books/${book.id}/rating`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: nextRating }),
+      });
+      if (!res.ok) throw new Error("save rating failed");
+    } catch {
+      setRating(previous ?? null);
+    }
   }
 
-  function toggleRead() {
+  async function toggleRead() {
     const next = !isRead;
+    const previous = isRead;
     setIsRead(next);
-    fetch(`/api/books/${book.id}/read`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isRead: next }),
-    });
+    try {
+      const res = await fetch(`/api/books/${book.id}/read`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRead: next }),
+      });
+      if (!res.ok) throw new Error("toggle read failed");
+    } catch {
+      setIsRead(previous);
+    }
   }
 
   function toggleShelfMenu() {
@@ -70,7 +83,7 @@ export default function BookDetail({
         .then((r) => r.json())
         .then((data) => {
           setShelfList(data.shelves || []);
-          const onShelves = (data.bookShelves || []).filter((s: any) => s.has_book).map((s: any) => s.id);
+          const onShelves = (data.bookShelves || []).filter((s: Shelf) => s.has_book).map((s: Shelf) => s.id);
           setBookShelfIds(new Set(onShelves));
         });
     }
@@ -79,21 +92,33 @@ export default function BookDetail({
 
   async function toggleShelfBook(shelfId: number) {
     if (bookShelfIds.has(shelfId)) {
-      await fetch(`/api/shelves/${shelfId}/books/${book.id}`, { method: "DELETE" });
+      const previous = new Set(bookShelfIds);
       setBookShelfIds((prev) => {
         const next = new Set(prev);
         next.delete(shelfId);
         return next;
       });
+      try {
+        const res = await fetch(`/api/shelves/${shelfId}/books/${book.id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("remove shelf failed");
+      } catch {
+        setBookShelfIds(previous);
+      }
       return;
     }
 
-    await fetch(`/api/shelves/${shelfId}/books`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookId: book.id }),
-    });
+    const previous = new Set(bookShelfIds);
     setBookShelfIds((prev) => new Set(prev).add(shelfId));
+    try {
+      const res = await fetch(`/api/shelves/${shelfId}/books`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: book.id }),
+      });
+      if (!res.ok) throw new Error("add shelf failed");
+    } catch {
+      setBookShelfIds(previous);
+    }
   }
 
   const detailProps = {

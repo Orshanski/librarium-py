@@ -5,6 +5,7 @@ import BookCard from "../book-card";
 import BookRail from "../book-rail";
 import BookStarRating from "../book-star-rating";
 import { BookDetailViewProps } from "../book-detail.types";
+import ShelfDropdownMenu from "../shelf-dropdown-menu";
 
 const primaryButtonStyle: React.CSSProperties = {
   display: "flex",
@@ -51,17 +52,19 @@ export default function MobileBookDetail({
             backgroundColor: colors.bg,
           }}
         >
-          <img
-            src={book.coverPath}
-            alt={book.title}
-            style={{
-              width: "100%",
-              aspectRatio: "2 / 3",
-              objectFit: "contain",
-              objectPosition: "top",
-              display: "block",
-            }}
-          />
+          {book.coverPath && (
+            <img
+              src={book.coverPath}
+              alt={book.title}
+              style={{
+                width: "100%",
+                aspectRatio: "2 / 3",
+                objectFit: "contain",
+                objectPosition: "top",
+                display: "block",
+              }}
+            />
+          )}
         </div>
 
         <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -81,7 +84,7 @@ export default function MobileBookDetail({
             {book.authors.join(", ")}
           </div>
           <div style={{ marginBottom: 8 }}>
-            <BookStarRating rating={rating} onChange={onChangeRating} size={18} gap={3} />
+            <BookStarRating rating={rating} onChange={onChangeRating} size={20} gap={6} targetSize={44} />
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, lineHeight: 1.5 }}>
             {book.series && (
@@ -144,33 +147,12 @@ export default function MobileBookDetail({
                 marginTop: 6,
               }}
             >
-              {shelfList.filter((s: any) => !s.is_system).map((s: any) => (
-                <label
-                  key={s.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 12px",
-                    fontSize: 13,
-                    color: colors.textSecondary,
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={bookShelfIds.has(s.id)}
-                    onChange={() => { void onToggleShelfBook(s.id); }}
-                    style={{ accentColor: colors.accent }}
-                  />
-                  {s.name}
-                </label>
-              ))}
-              {shelfList.filter((s: any) => !s.is_system).length === 0 && (
-                <div style={{ padding: "8px 12px", fontSize: 12, color: colors.textDim }}>
-                  Нет полок
-                </div>
-              )}
+              <ShelfDropdownMenu
+                shelves={shelfList}
+                selectedIds={bookShelfIds}
+                onToggleShelf={onToggleShelfBook}
+                compact
+              />
             </div>
           )}
         </div>
