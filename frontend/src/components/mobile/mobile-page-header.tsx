@@ -36,7 +36,7 @@ export default function MobilePageHeader({
   const { toggleDrawer } = useMobileLayout();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const hasToolbar =
-    (filters && filters.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
+    (filters && filters.length > 0) || sortOptions || infoSlot || actionSlot;
 
   useEffect(() => {
     const element = headerRef.current;
@@ -56,7 +56,7 @@ export default function MobilePageHeader({
       window.removeEventListener("resize", updateHeight);
       document.documentElement.style.setProperty("--page-header-height", "0px");
     };
-  }, [actionSlot, breadcrumb?.href, breadcrumb?.label, hasToolbar, infoSlot, showUpload, sortValue, title]);
+  }, [actionSlot, breadcrumb?.href, breadcrumb?.label, hasToolbar, infoSlot, sortValue, title]);
 
   return (
     <div
@@ -197,31 +197,6 @@ export default function MobilePageHeader({
                   </option>
                 ))}
               </select>
-            )}
-
-            {showUpload && (
-              <Link
-                to="/upload"
-                style={{
-                  height: 32,
-                  padding: "0 14px",
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                  borderRadius: 16,
-                  border: `1px solid ${colors.accent}`,
-                  backgroundColor: colors.accent,
-                  color: colors.sidebar,
-                  textDecoration: "none",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  boxSizing: "border-box",
-                  flexShrink: 0,
-                }}
-              >
-                Загрузить
-              </Link>
             )}
           </div>
         </div>
