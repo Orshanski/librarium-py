@@ -1,91 +1,95 @@
 # Librarium
 
-Персональная семейная библиотека. Self-hosted замена Calibre-Web.
+Self-hosted home library for ebooks. Built as a replacement for Calibre-Web.
 
 ![Catalog](docs/screenshots/01-catalog.png)
 
-## Зачем
+## Why
 
-Домашняя коллекция электронных книг — FB2, EPUB, PDF. Загрузил файл, метаданные извлеклись автоматически, обложка на месте. Вся семья пользуется через браузер с любого устройства — десктоп или телефон. Не нужен Calibre на компьютере, не нужна синхронизация — всё на сервере.
+We needed a simple way to keep our family book collection — FB2, EPUB, PDF — accessible from any device without installing Calibre or syncing files. Drop a book in, metadata gets extracted, cover appears, everyone reads through a browser.
 
-## Что умеет
+## Features
 
-### Каталог с умными фильтрами
+### Catalog
 
-Книги отображаются сеткой с обложками. Фильтрация по автору, серии, жанру, языку — фильтры зависимые: выбрал автора, жанры пересчитались. Сортировка по дате, названию, автору, рейтингу. Бесконечный скролл — подгружает по мере прокрутки, запоминает позицию при возврате.
+Books are displayed as a grid of covers. Filters by author, series, genre, and language are interdependent — picking an author narrows down the available genres, and so on. Sort by date added, title, author, or rating. Infinite scroll that remembers your position when you come back.
 
-![Tags](docs/screenshots/05-tags.png)
+![Catalog with filters](docs/screenshots/12-tag-detail.png)
 
-### Загрузка книг
+### Upload
 
-Перетаскиваешь FB2, EPUB, PDF или ZIP — метаданные извлекаются автоматически: название, авторы, серия, номер, описание, язык, жанры, ISBN, обложка. Можно загрузить несколько файлов сразу. Перед созданием — редактирование метаданных, поиск по внешним каталогам (Litres.ru, Google Books), замена обложки. Дубликаты определяются автоматически.
+Drag and drop FB2, EPUB, PDF, or ZIP files. Metadata is extracted automatically — title, authors, series, description, language, genres, ISBN, cover. Batch uploads work. Before saving, you can edit metadata, search external catalogs (Litres.ru, Google Books), or swap the cover. Duplicates are detected on the fly.
 
 ![Upload](docs/screenshots/08-upload.png)
 
-### Страница книги
+### Book page
 
-Полная информация: обложка, описание, метаданные, доступные форматы для скачивания. Контекст серии — другие книги серии тут же. Рейтинг (1-5 звёзд), отметка "прочитано", добавление на полку.
+Cover, description, all metadata, download links for each format. If the book belongs to a series, other books in the series are shown alongside. Rate it (1–5 stars), mark as read, or add to a shelf.
 
 ![Book](docs/screenshots/02-book-detail.png)
 
-### Редактирование
+### Editing
 
-Админ может редактировать все метаданные: название, авторов, серию, описание, жанры, язык, издателя, ISBN. Замена обложки, добавление/удаление форматов файлов. Поиск метаданных во внешних каталогах — нашёл лучшее описание или обложку, подставил в пару кликов.
+Admins can edit everything — title, authors, series, description, genres, language, publisher, ISBN. Replace the cover, add or remove file formats. Pull better metadata from external catalogs in a couple of clicks.
 
 ![Edit](docs/screenshots/11-book-edit.png)
 
-### Поиск
+### Search
 
-Поиск по названиям книг, авторам и сериям. Результаты группируются: авторы, серии, книги.
+Searches across book titles, authors, and series names. Results are grouped by type.
 
 ![Search](docs/screenshots/07-search.png)
 
-### Полки
+### Shelves
 
-"Лучшее" — системная полка, автоматически собирает книги с рейтингом 4-5. Свои полки — создаёшь, добавляешь книги. Каждый пользователь видит свои полки.
+A built-in "Best" shelf automatically collects books rated 4–5 stars. Create your own shelves and add books to them. Each user has their own set.
 
-### Авторы, серии, жанры
+### Authors, series, genres
 
-Отдельные страницы с фильтрами и подсчётом книг. Облако жанров с размером шрифта по количеству. Навигация между связанными сущностями: автор → его книги → серия → все книги серии.
+Dedicated pages with filters and book counts. Genre cloud sized by popularity. Navigate freely: author → books → series → all books in series.
 
 ![Authors](docs/screenshots/03-authors.png)
 
-### Многопользовательский режим
+![Series](docs/screenshots/04-series.png)
 
-Роли: админ (полный доступ, загрузка, удаление, управление пользователями) и читатель (просмотр, скачивание, рейтинги, полки). У каждого свои рейтинги и полки. Возможность скрыть книгу — она пропадает из каталога только для тебя.
+![Tags](docs/screenshots/05-tags.png)
 
-### Администрирование
+### Multi-user
 
-Управление пользователями, настройки приложения, SMTP для email-уведомлений.
+Two roles: admin (full access — upload, delete, manage users) and reader (browse, download, rate, shelves). Ratings and shelves are per-user. A reader can hide a book — it disappears from their catalog without affecting others.
+
+### Admin panel
+
+User management, app settings, SMTP configuration for email notifications.
 
 ![Admin](docs/screenshots/09-admin.png)
 
-### Безопасность
+### Security
 
-- JWT-авторизация с HTTP-only cookies
+- JWT authentication with HTTP-only cookies
 - CSP, HSTS, TLS 1.2+
-- Логирование авторизации и всех мутаций
-- SPA route whitelist — неизвестные пути возвращают 404
+- All auth events and data mutations are logged
+- SPA route whitelist — unknown paths return 404
 
-## Стек
+## Stack
 
-| Слой | Технология |
-|------|-----------|
+| Layer | Technology |
+|-------|-----------|
 | Backend | Python, FastAPI, Uvicorn |
-| База данных | SQLite (WAL) |
-| Авторизация | JWT + bcrypt |
-| Парсинг книг | lxml (FB2/EPUB), Pillow (обложки) |
-| Метаданные | Litres.ru, Google Books API |
+| Database | SQLite (WAL mode) |
+| Auth | JWT + bcrypt |
+| Book parsing | lxml (FB2/EPUB), Pillow (covers) |
+| Metadata | Litres.ru, Google Books API |
 | Frontend | React 19, TypeScript, React Router 7 |
-| Адаптивность | Desktop/Mobile layout (responsive, breakpoint 768px) |
-| Сборка | Vite 6 |
-| Стилизация | Inline CSS |
-| Тесты | pytest (backend), Vitest (frontend) |
+| Responsive | Desktop + mobile layouts (768px breakpoint) |
+| Build | Vite 6 |
+| Styling | Inline CSS, no framework |
+| Tests | pytest (backend), Vitest (frontend) |
 | CI/CD | GitHub Actions |
 
-## Быстрый старт
+## Getting started
 
-### Требования
+### Prerequisites
 
 - Python 3.12+
 - Node.js 25+
@@ -98,7 +102,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 python run.py          # http://localhost:8000
-python run.py --dev    # с auto-reload
+python run.py --dev    # with auto-reload
 ```
 
 ### Frontend
@@ -106,11 +110,11 @@ python run.py --dev    # с auto-reload
 ```bash
 cd frontend
 npm install
-npm run dev            # http://localhost:5173 (proxy /api → :8000)
+npm run dev            # http://localhost:5173 (proxies /api → :8000)
 npm run build          # production build → dist/
 ```
 
-### Создание админа
+### Create an admin user
 
 ```bash
 cd backend
@@ -128,40 +132,38 @@ db.commit()
 "
 ```
 
-## Структура проекта
+## Project structure
 
 ```
 librarium-py/
 ├── backend/
-│   ├── run.py              # Uvicorn server
-│   ├── schema.sql          # Схема БД
+│   ├── run.py              # Uvicorn entry point
+│   ├── schema.sql          # DB schema
 │   ├── requirements.txt
 │   └── app/
-│       ├── main.py         # FastAPI app + SPA whitelist
-│       ├── config.py       # Пути, JWT, лимиты
+│       ├── main.py         # FastAPI app, SPA fallback
+│       ├── config.py       # Paths, JWT settings, limits
 │       ├── database.py     # SQLite connection pool
-│       ├── auth.py         # JWT + bcrypt + get_client_ip
-│       ├── routers/        # API (14 модулей)
-│       ├── dal/            # Data Access Layer (8 модулей)
-│       ├── parsers/        # FB2, EPUB, PDF + fb2_genres.py
-│       ├── providers/      # Litres, Google Books
-│       └── tests/          # pytest (auth, upload, delete, merge, parsers)
+│       ├── auth.py         # JWT + bcrypt
+│       ├── routers/        # API endpoints (14 modules)
+│       ├── dal/            # Data access layer (8 modules)
+│       ├── parsers/        # FB2, EPUB, PDF metadata extraction
+│       ├── providers/      # Litres, Google Books lookup
+│       └── tests/          # pytest suite
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/              # 14 страниц
-│   │   ├── components/         # 26 общих компонентов
-│   │   ├── components/desktop/ # 8 desktop layout-компонентов
-│   │   ├── components/mobile/  # 11 mobile layout-компонентов
-│   │   └── responsive.ts       # ResponsiveProvider, useIsMobile()
+│   │   ├── pages/              # Page components
+│   │   ├── components/         # Shared components
+│   │   ├── components/desktop/ # Desktop layout
+│   │   ├── components/mobile/  # Mobile layout
+│   │   └── responsive.ts       # Breakpoint provider
 │   └── vite.config.ts
-├── data/                   # Не в git
-│   ├── db.sqlite
-│   ├── library/{id}/       # Файлы книг + обложки
-│   ├── thumbs/             # Кэш миниатюр
-│   └── uploads/            # Временная загрузка
-└── docs/
-    ├── spec.md             # Техспека
-    ├── backlog.md          # Бэклог
-    └── screenshots/        # Скриншоты
+├── docs/
+│   ├── spec.md                 # Technical specification
+│   └── screenshots/            # UI screenshots
+└── data/                       # Not in git
+    ├── db.sqlite
+    ├── library/{id}/           # Book files and covers
+    ├── thumbs/                 # Thumbnail cache
+    └── uploads/                # Temporary upload staging
 ```
-

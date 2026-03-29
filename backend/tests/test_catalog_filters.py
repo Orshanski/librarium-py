@@ -78,6 +78,11 @@ class TestOptions:
         data = reader_client.get("/api/options").json()
         assert set(data["languages"]) == {"ru", "en"}
 
+    def test_options_publishers(self, reader_client):
+        data = reader_client.get("/api/options").json()
+        assert "Test Publisher" in data["publishers"]
+        assert "Cover Press" in data["publishers"]
+
 
 # ── /api/books filters ──
 
