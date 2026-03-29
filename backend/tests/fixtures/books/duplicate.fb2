@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0">
+  <description>
+    <title-info>
+      <genre>sf_fantasy</genre>
+      <author><first-name>Test</first-name><last-name>Author</last-name></author>
+      <book-title>Minimal Test Book</book-title>
+      <lang>ru</lang>
+    </title-info>
+  </description>
+  <body>
+    <section><p>Duplicate content.</p></section>
+  </body>
+</FictionBook>

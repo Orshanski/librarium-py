@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"
+             xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <genre>det_classic</genre>
+      <author><first-name>Cover</first-name><last-name>Writer</last-name></author>
+      <book-title>Book With Cover</book-title>
+      <lang>en</lang>
+      <annotation><p>A book that has a cover image.</p></annotation>
+      <coverpage><image l:href="#cover.jpg"/></coverpage>
+    </title-info>
+    <publish-info>
+      <publisher>Cover Press</publisher>
+      <year>2024</year>
+      <isbn>978-0-000-00002-0</isbn>
+    </publish-info>
+  </description>
+  <body>
+    <section><p>Content with cover.</p></section>
+  </body>
+  <binary id="cover.jpg" content-type="image/jpeg">/9j/4AAQSkZJRgABAQEASABIAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2f/2wBDARESEhgVGC8aGC9nQTtBZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2f/wAARCAAQABADASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABAUH/8QAIhAAAgIBBAIDAAAAAAAAAAAAAQIDBBEABRIhMUFRYXH/xAAVAQEBAAAAAAAAAAAAAAAAAAACA//EABkRAAIDAQAAAAAAAAAAAAAAAAECAAMRIf/aAAwDAQACEQMRAD8Aw2ht09xkMcCFj9LWeL20QwxSJHLIy+iRpU7bq9jt1U2hl8xLyfYz0c7HljQZNuL5J9k/9k=</binary>
+</FictionBook>
