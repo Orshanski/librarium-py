@@ -50,16 +50,18 @@ def client():
 
 
 @pytest.fixture
-def admin_token(client):
+def admin_client(client):
     """Залогиниться как admin."""
     resp = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
     assert resp.status_code == 200
+    assert "librarium_token" in resp.cookies
     return client
 
 
 @pytest.fixture
-def reader_token(client):
+def reader_client(client):
     """Залогиниться как reader."""
     resp = client.post("/api/auth/login", json={"username": "reader", "password": "reader123"})
     assert resp.status_code == 200
+    assert "librarium_token" in resp.cookies
     return client

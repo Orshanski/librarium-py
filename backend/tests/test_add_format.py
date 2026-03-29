@@ -8,16 +8,16 @@ from starlette.testclient import TestClient
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
 
-def test_add_format_happy_path(admin_token):
+def test_add_format_happy_path(admin_client):
     """Добавить EPUB к существующей FB2-книге."""
     # Upload EPUB
     with open(FIXTURES / "minimal.epub", "rb") as f:
-        upload = admin_token.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
+        upload = admin_client.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
     assert upload.status_code == 200
     temp_id = upload.json()["tempId"]
 
     # Add format to book 1 (имеет FB2)
-    resp = admin_token.post("/api/books/1/add-format", json={"tempId": temp_id})
+    resp = admin_client.post("/api/books/1/add-format", json={"tempId": temp_id})
     assert resp.status_code == 200
     assert resp.json()["format"] == "EPUB"
 
@@ -33,24 +33,24 @@ def test_add_format_happy_path(admin_token):
     assert os.path.isfile(os.path.join(test_data, "library", "1", "book.epub"))
 
 
-def test_add_format_duplicate_rejected(admin_token):
+def test_add_format_duplicate_rejected(admin_client):
     """Нельзя добавить формат который уже есть."""
     with open(FIXTURES / "minimal.fb2", "rb") as f:
-        upload = admin_token.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        upload = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
     temp_id = upload.json()["tempId"]
 
     # Книга 1 уже имеет FB2
-    resp = admin_token.post("/api/books/1/add-format", json={"tempId": temp_id})
+    resp = admin_client.post("/api/books/1/add-format", json={"tempId": temp_id})
     assert resp.status_code == 409
 
 
-def test_add_format_nonexistent_book(admin_token):
+def test_add_format_nonexistent_book(admin_client):
     """Нельзя добавить формат к несуществующей книге."""
     with open(FIXTURES / "minimal.epub", "rb") as f:
-        upload = admin_token.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
+        upload = admin_client.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
     temp_id = upload.json()["tempId"]
 
-    resp = admin_token.post("/api/books/999/add-format", json={"tempId": temp_id})
+    resp = admin_client.post("/api/books/999/add-format", json={"tempId": temp_id})
     assert resp.status_code == 404
 
 

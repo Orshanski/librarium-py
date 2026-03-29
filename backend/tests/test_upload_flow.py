@@ -6,9 +6,9 @@ from unittest.mock import patch
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
 
-def test_upload_fb2(admin_token):
+def test_upload_fb2(admin_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
-        resp = admin_token.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        resp = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
     assert resp.status_code == 200
     data = resp.json()
     assert data["tempId"]
@@ -16,12 +16,12 @@ def test_upload_fb2(admin_token):
     assert "Test Author" in data["metadata"]["authors"]
 
 
-def test_create_book_from_upload(admin_token):
+def test_create_book_from_upload(admin_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
-        upload = admin_token.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        upload = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
     temp_id = upload.json()["tempId"]
 
-    resp = admin_token.post("/api/books/create", json={
+    resp = admin_client.post("/api/books/create", json={
         "tempId": temp_id,
         "metadata": {
             "title": "New Book",
@@ -38,7 +38,7 @@ def test_create_book_from_upload(admin_token):
     assert resp.status_code == 200
     book_id = resp.json()["bookId"]
 
-    book = admin_token.get(f"/api/books/{book_id}").json()
+    book = admin_client.get(f"/api/books/{book_id}").json()
     assert book["book"]["title"] == "New Book"
     assert "New Author" in book["book"]["authors"]
     assert book["book"]["series_name"] == "New Series"
@@ -62,18 +62,18 @@ def test_create_book_from_upload(admin_token):
     assert os.path.isfile(os.path.join(test_data, "library", str(book_id), "book.fb2"))
 
 
-def test_upload_epub(admin_token):
+def test_upload_epub(admin_client):
     with open(FIXTURES / "minimal.epub", "rb") as f:
-        resp = admin_token.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
+        resp = admin_client.post("/api/upload", files={"file": ("test.epub", f, "application/octet-stream")})
     assert resp.status_code == 200
     data = resp.json()
     assert data["metadata"]["title"] == "EPUB Test Book"
     assert "EPUB Author" in data["metadata"]["authors"]
 
 
-def test_duplicate_detection(admin_token):
+def test_duplicate_detection(admin_client):
     with open(FIXTURES / "duplicate.fb2", "rb") as f:
-        resp = admin_token.post("/api/upload", files={"file": ("dup.fb2", f, "application/octet-stream")})
+        resp = admin_client.post("/api/upload", files={"file": ("dup.fb2", f, "application/octet-stream")})
     data = resp.json()
     assert data["duplicate"] is not None
     assert data["duplicate"]["title"] == "Minimal Test Book"
@@ -112,7 +112,7 @@ def test_create_book_rollback_on_move_failure(client):
     db.close()
 
 
-def test_reader_cannot_upload(reader_token):
+def test_reader_cannot_upload(reader_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
-        resp = reader_token.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        resp = reader_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
     assert resp.status_code == 403

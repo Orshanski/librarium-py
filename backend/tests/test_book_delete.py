@@ -2,16 +2,16 @@ import os
 import sqlite3
 
 
-def test_delete_book(admin_token):
+def test_delete_book(admin_client):
     test_data = os.environ["DATA_DIR"]
 
-    resp = admin_token.get("/api/books/1")
+    resp = admin_client.get("/api/books/1")
     assert resp.status_code == 200
 
-    resp = admin_token.delete("/api/books/1")
+    resp = admin_client.delete("/api/books/1")
     assert resp.status_code == 200
 
-    resp = admin_token.get("/api/books/1")
+    resp = admin_client.get("/api/books/1")
     assert resp.status_code == 404
 
     assert not os.path.exists(os.path.join(test_data, "library", "1"))
@@ -25,6 +25,6 @@ def test_delete_book(admin_token):
     db.close()
 
 
-def test_reader_cannot_delete(reader_token):
-    resp = reader_token.delete("/api/books/1")
+def test_reader_cannot_delete(reader_client):
+    resp = reader_client.delete("/api/books/1")
     assert resp.status_code == 403

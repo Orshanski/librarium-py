@@ -2,8 +2,8 @@ import os
 import sqlite3
 
 
-def test_create_user(admin_token):
-    resp = admin_token.post("/api/admin/users", json={
+def test_create_user(admin_client):
+    resp = admin_client.post("/api/admin/users", json={
         "username": "newuser",
         "password": "pass1234",
         "role": "reader",
@@ -14,7 +14,7 @@ def test_create_user(admin_token):
     assert user_id > 0
 
 
-def test_delete_user_cascade(admin_token):
+def test_delete_user_cascade(admin_client):
     test_data = os.environ["DATA_DIR"]
 
     db = sqlite3.connect(os.path.join(test_data, "db.sqlite"))
@@ -22,7 +22,7 @@ def test_delete_user_cascade(admin_token):
     assert db.execute("SELECT COUNT(*) FROM user_books WHERE user_id = 2").fetchone()[0] > 0
     db.close()
 
-    resp = admin_token.delete("/api/admin/users/2")
+    resp = admin_client.delete("/api/admin/users/2")
     assert resp.status_code == 200
 
     db = sqlite3.connect(os.path.join(test_data, "db.sqlite"))
@@ -32,6 +32,6 @@ def test_delete_user_cascade(admin_token):
     db.close()
 
 
-def test_cannot_delete_self(admin_token):
-    resp = admin_token.delete("/api/admin/users/1")
+def test_cannot_delete_self(admin_client):
+    resp = admin_client.delete("/api/admin/users/1")
     assert resp.status_code == 400

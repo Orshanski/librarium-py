@@ -21,8 +21,8 @@ def test_login_nonexistent_user(client):
     assert resp.status_code == 401
 
 
-def test_me_authenticated(admin_token):
-    resp = admin_token.get("/api/auth/me")
+def test_me_authenticated(admin_client):
+    resp = admin_client.get("/api/auth/me")
     assert resp.status_code == 200
     assert resp.json()["username"] == "admin"
 
@@ -32,13 +32,13 @@ def test_me_unauthenticated(client):
     assert resp.status_code == 401
 
 
-def test_logout(admin_token):
-    resp = admin_token.post("/api/auth/logout")
+def test_logout(admin_client):
+    resp = admin_client.post("/api/auth/logout")
     assert resp.status_code == 200
-    resp = admin_token.get("/api/auth/me")
+    resp = admin_client.get("/api/auth/me")
     assert resp.status_code == 401
 
 
-def test_reader_cannot_access_admin(reader_token):
-    resp = reader_token.get("/api/admin/users")
+def test_reader_cannot_access_admin(reader_client):
+    resp = reader_client.get("/api/admin/users")
     assert resp.status_code == 403
