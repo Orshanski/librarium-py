@@ -6,6 +6,7 @@ import { SortOption } from "./sort-select";
 
 export default function PageHeader(props: {
   title: React.ReactNode;
+  titleSlot?: React.ReactNode;
   filters?: FilterConfig[];
   selected?: Record<string, string[]>;
   onSelectionChange?: (key: string, values: string[]) => void;
@@ -17,6 +18,7 @@ export default function PageHeader(props: {
   infoSlot?: React.ReactNode;
   breadcrumb?: { label: string; href: string };
   actionSlot?: React.ReactNode;
+  mobileActionSlot?: React.ReactNode;
 }) {
   const isMobile = useIsMobile();
 

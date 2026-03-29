@@ -19,6 +19,7 @@ export default function MobilePageHeader({
   infoSlot,
   breadcrumb,
   actionSlot,
+  mobileActionSlot,
 }: {
   title: React.ReactNode;
   filters?: FilterConfig[];
@@ -32,6 +33,7 @@ export default function MobilePageHeader({
   infoSlot?: React.ReactNode;
   breadcrumb?: { label: string; href: string };
   actionSlot?: React.ReactNode;
+  mobileActionSlot?: React.ReactNode;
 }) {
   const { toggleDrawer } = useMobileLayout();
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -145,7 +147,7 @@ export default function MobilePageHeader({
                 )}
                 {title}
               </h1>
-              {actionSlot}
+              {mobileActionSlot}
             </div>
             {infoSlot && (
               <div style={{ marginTop: 6, fontSize: 12, color: colors.textDim }}>

@@ -74,25 +74,22 @@ export default function SeriesPage() {
 
   const bookCount = series.book_count;
 
-  const titleWithAdmin = (
-    <>
-      {series.name}
-      {user?.role === "admin" && (
-        <button
-          onClick={() => setShowAdmin(!showAdmin)}
-          style={{
-            marginLeft: 12,
-            padding: 0,
-            background: "transparent",
-            border: "none",
-            color: colors.accent,
-            fontSize: 22,
-            cursor: "pointer",
-          }}
-        >⚙</button>
-      )}
-    </>
-  );
+  const adminButton = user?.role === "admin" ? (
+    <button
+      onClick={() => setShowAdmin(!showAdmin)}
+      style={{
+        marginLeft: 12,
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        color: colors.accent,
+        fontSize: 22,
+        cursor: "pointer",
+        lineHeight: 1,
+      }}
+      aria-label="Управление серией"
+    >⚙</button>
+  ) : undefined;
 
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
@@ -104,7 +101,9 @@ export default function SeriesPage() {
   return (
     <Shell>
       <PageHeader
-        title={titleWithAdmin}
+        title={series.name}
+        titleSlot={adminButton}
+        mobileActionSlot={adminButton}
         breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }}
         infoSlot={infoSlot}
       />

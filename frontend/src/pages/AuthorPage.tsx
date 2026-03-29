@@ -120,31 +120,30 @@ export default function AuthorPage() {
     </div>
   );
 
-  const titleWithAdmin = (
-    <>
-      {author.name}
-      {user?.role === "admin" && (
-        <button
-          onClick={() => setShowAdmin(!showAdmin)}
-          style={{
-            marginLeft: 12,
-            padding: 0,
-            background: "transparent",
-            border: "none",
-            color: colors.accent,
-            fontSize: 22,
-            cursor: "pointer",
-            opacity: 1,
-          }}
-        >⚙</button>
-      )}
-    </>
-  );
+  const adminButton = user?.role === "admin" ? (
+    <button
+      onClick={() => setShowAdmin(!showAdmin)}
+      style={{
+        marginLeft: 12,
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        color: colors.accent,
+        fontSize: 22,
+        cursor: "pointer",
+        opacity: 1,
+        lineHeight: 1,
+      }}
+      aria-label="Управление автором"
+    >⚙</button>
+  ) : undefined;
 
   return (
     <Shell>
       <PageHeader
-        title={titleWithAdmin}
+        title={author.name}
+        titleSlot={adminButton}
+        mobileActionSlot={adminButton}
         infoSlot={infoSlot}
         breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }}
       />

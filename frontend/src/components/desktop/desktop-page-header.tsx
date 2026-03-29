@@ -6,6 +6,7 @@ import SortSelect, { SortOption } from "../sort-select";
 
 export default function DesktopPageHeader({
   title,
+  titleSlot,
   filters,
   selected,
   onSelectionChange,
@@ -19,6 +20,7 @@ export default function DesktopPageHeader({
   actionSlot,
 }: {
   title: React.ReactNode;
+  titleSlot?: React.ReactNode;
   filters?: FilterConfig[];
   selected?: Record<string, string[]>;
   onSelectionChange?: (key: string, values: string[]) => void;
@@ -115,6 +117,7 @@ export default function DesktopPageHeader({
             </>
           )}
           {title}
+          {titleSlot}
         </h1>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
