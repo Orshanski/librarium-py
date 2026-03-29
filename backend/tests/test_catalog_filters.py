@@ -128,6 +128,8 @@ class TestBooksFilters:
         fo = data["filterOptions"]
         series_ids = {s["id"] for s in fo["series"]}
         assert series_ids == {1}
+        tag_ids = {t["id"] for t in fo["tags"]}
+        assert tag_ids == {1}
         lang_names = {l["name"] for l in fo["languages"]}
         assert lang_names == {"ru", "en"}
 
@@ -138,12 +140,14 @@ class TestBooksSorting:
     def test_sort_title_asc(self, reader_client):
         data = reader_client.get("/api/books", params={"sort": "title_asc"}).json()
         titles = [b["title"] for b in data["books"]]
-        assert titles == sorted(titles, key=str.casefold)
+        expected = ["Book With Cover", "English Fantasy", "Fantasy Detective", "Minimal Test Book", "Русский Детектив"]
+        assert titles == expected
 
     def test_sort_title_desc(self, reader_client):
         data = reader_client.get("/api/books", params={"sort": "title_desc"}).json()
         titles = [b["title"] for b in data["books"]]
-        assert titles == sorted(titles, key=str.casefold, reverse=True)
+        expected = ["Русский Детектив", "Minimal Test Book", "Fantasy Detective", "English Fantasy", "Book With Cover"]
+        assert titles == expected
 
     def test_sort_added_desc(self, reader_client):
         data = reader_client.get("/api/books", params={"sort": "added_desc"}).json()
@@ -170,10 +174,16 @@ class TestAuthorsFilters:
     def test_filter_options_present(self, reader_client):
         data = reader_client.get("/api/authors").json()
         assert "filterOptions" in data
-        assert "tags" in data["filterOptions"]
-        assert "languages" in data["filterOptions"]
-        assert len(data["filterOptions"]["tags"]) > 0
-        assert len(data["filterOptions"]["languages"]) > 0
+        fo = data["filterOptions"]
+        assert "tags" in fo
+        assert "languages" in fo
+        assert len(fo["tags"]) > 0
+        assert len(fo["languages"]) > 0
+        # authors filterOptions uses value/label keys (not id/name)
+        tag_opt = fo["tags"][0]
+        assert "value" in tag_opt
+        assert "label" in tag_opt
+        assert "count" in tag_opt
 
 
 # ── /api/series filters ──
