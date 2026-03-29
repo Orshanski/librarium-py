@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import ConfirmDialog from "../components/confirm-dialog";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
+import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
 
 // ─── Styles ─────────────────────────────────────────
@@ -87,6 +88,7 @@ function UserCard({
   const [passValue, setPassValue] = useState("");
   const [passConfirm, setPassConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const isMobile = useIsMobile();
 
   function closeEdit() {
     setEditMode(null);
@@ -105,28 +107,55 @@ function UserCard({
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 500, color: colors.text }}>{user.display_name || user.username}</span>
-            <span style={{ fontSize: 12, color: colors.textDim }}>{user.username}</span>
-            <span
+      <div
+        style={{
+          display: "flex",
+          alignItems: isMobile ? "stretch" : "center",
+          justifyContent: "space-between",
+          flexDirection: isMobile ? "column" : "row",
+          gap: isMobile ? 12 : 0,
+          marginBottom: 4,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: isMobile ? "flex-start" : "baseline",
+              flexDirection: isMobile ? "column" : "row",
+              gap: isMobile ? 6 : 8,
+            }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 500, color: colors.text }}>
+              {user.display_name || user.username}
+            </span>
+            <div
               style={{
-                display: "inline-block",
-                padding: "2px 10px",
-                fontSize: 11,
-                borderRadius: 10,
-                fontWeight: 500,
-                background: user.role === "admin" ? "rgba(249,190,3,0.1)" : "rgba(255,255,255,0.06)",
-                color: user.role === "admin" ? colors.accent : colors.textDim,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
               }}
             >
-              {user.role}
-            </span>
+              <span style={{ fontSize: 12, color: colors.textDim }}>{user.username}</span>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "2px 10px",
+                  fontSize: 11,
+                  borderRadius: 10,
+                  fontWeight: 500,
+                  background: user.role === "admin" ? "rgba(249,190,3,0.1)" : "rgba(255,255,255,0.06)",
+                  color: user.role === "admin" ? colors.accent : colors.textDim,
+                }}
+              >
+                {user.role}
+              </span>
+            </div>
           </div>
           <div style={{ fontSize: 13, color: colors.textDim, marginTop: 2 }}>{user.email || "—"}</div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "name" ? null : "name")}>Имя</button>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "password" ? null : "password")}>Пароль</button>
           {user.role !== "admin" && (
