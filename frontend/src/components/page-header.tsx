@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { colors, fonts } from "../theme";
 import FilterBar, { FilterConfig } from "./filter-bar";
@@ -32,6 +32,8 @@ export default function PageHeader({
   actionSlot?: React.ReactNode;
 }) {
   const [me, setMe] = useState<{ name: string }>({ name: "" });
+  const headerRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d.displayName || d.username) setMe({ name: d.displayName || d.username }); }).catch(() => {});
   }, []);
@@ -39,8 +41,30 @@ export default function PageHeader({
   const hasSecondRow =
     (filters && filters.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
 
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty("--page-header-height", `${element.offsetHeight}px`);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      document.documentElement.style.setProperty("--page-header-height", "0px");
+    };
+  }, [hasSecondRow, me.name, title, breadcrumb?.href, breadcrumb?.label]);
+
   return (
     <div
+      ref={headerRef}
       style={{
         position: "fixed",
         top: 0,
