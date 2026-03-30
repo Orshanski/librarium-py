@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librarium — Похожие книги</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #2d3040;
+    --sidebar: #16162a;
+    --card: #2a2a4a;
+    --card-hover: #33335a;
+    --accent: #f9be03;
+    --accent-bg: rgba(249, 190, 3, 0.1);
+    --text: #ffffff;
+    --text-secondary: #cccccc;
+    --text-dim: #888888;
+    --border: rgba(255, 255, 255, 0.08);
+    --font-display: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar (simplified) ── */
+  .sidebar {
+    width: 220px;
+    background: var(--sidebar);
+    min-height: 100vh;
+    padding: 20px 16px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+  }
+  .sidebar .logo {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar .logo-icon {
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sidebar);
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .sidebar nav a {
+    display: block;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    transition: all 0.15s;
+  }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .sidebar nav a.active { background: var(--accent-bg); color: var(--accent); }
+
+  /* ── Main ── */
+  main {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+    max-height: 100vh;
+  }
+
+  /* ── Breadcrumb ── */
+  .breadcrumb {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .breadcrumb a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+  /* ── Source book header ── */
+  .source-book {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .source-book img {
+    width: 80px;
+    height: auto;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.12);
+    flex-shrink: 0;
+  }
+  .source-book-info {
+    min-width: 0;
+  }
+  .source-book-info h1 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .source-book-info .authors {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .source-book-info .subtitle {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .source-book-info .subtitle strong {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .powered-by {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    opacity: 0.6;
+  }
+
+  /* ── Results grid ── */
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 24px 16px;
+  }
+
+  /* ── Similar book card ── */
+  .sim-card {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: transform 0.2s ease;
+  }
+  .sim-card:hover {
+    transform: translateY(-4px);
+  }
+  .sim-card .cover-wrap {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    margin-bottom: 8px;
+    background: rgba(0,0,0,0.2);
+    aspect-ratio: 0.7;
+  }
+  .sim-card .cover-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.2s;
+  }
+  .sim-card:hover .cover-wrap img {
+    opacity: 0.85;
+  }
+  .sim-card .cover-wrap .external-badge {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.75));
+    padding: 16px 6px 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .sim-card:hover .cover-wrap .external-badge {
+    opacity: 1;
+  }
+  .sim-card .cover-wrap .external-badge svg {
+    width: 10px;
+    height: 10px;
+    fill: rgba(255,255,255,0.7);
+  }
+  .sim-card .rating-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .sim-card .rating-badge .star {
+    color: var(--accent);
+    font-size: 10px;
+  }
+  .sim-card .title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin-bottom: 2px;
+  }
+  .sim-card .author {
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Loading state ── */
+  .loading {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-dim);
+  }
+  .loading .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .empty-state .icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  /* ── Error state ── */
+  .error-state {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .error-state .retry-btn {
+    margin-top: 12px;
+    padding: 8px 20px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .error-state .retry-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 820px) {
+    .sidebar { display: none; }
+    main { padding: 16px; max-height: none; }
+    .source-book img { width: 60px; }
+    .source-book-info h1 { font-size: 20px; }
+    .results-grid {
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 16px 12px;
+    }
+    .sim-card .cover-wrap .external-badge { opacity: 1; }
+  }
+
+  /* ── Tab switcher (states demo) ── */
+  .demo-tabs {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    gap: 4px;
+    background: var(--sidebar);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    z-index: 100;
+    font-size: 11px;
+  }
+  .demo-tabs button {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--font-body);
+  }
+  .demo-tabs button.active {
+    background: var(--accent);
+    color: var(--sidebar);
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">L</div>
+    Librarium
+  </div>
+  <nav>
+    <a href="#">Все книги</a>
+    <a href="#">Авторы</a>
+    <a href="#">Серии</a>
+    <a href="#">Жанры</a>
+  </nav>
+</aside>
+
+<main>
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a href="#">Каталог</a><span class="sep">/</span>
+    <a href="#">Социальная психология</a><span class="sep">/</span>
+    Похожие книги
+  </div>
+
+  <!-- Source book -->
+  <div class="source-book">
+    <img src="https://cv5.litres.ru/pub/c/cover/17037722.jpg" alt="Социальная психология">
+    <div class="source-book-info">
+      <h1>Похожие книги</h1>
+      <div class="authors">по книге <strong style="color: var(--text)">Социальная психология</strong> &mdash; Р. Чалдини, Д. Кенрик, С. Нейберг</div>
+      <div class="subtitle">
+        Подборка на основе рекомендаций Litres. По клику откроется страница книги на litres.ru
+      </div>
+      <div class="powered-by">Данные: litres.ru</div>
+    </div>
+  </div>
+
+  <!-- Results: loaded state -->
+  <div id="state-loaded">
+    <div class="results-grid">
+
+      <a class="sim-card" href="https://www.litres.ru/book/dmitriy-kovpak/bezopasnoe-obschenie-ili-kak-stat-neuyazvimym-6508863/" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/6508863.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.0</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Безопасное общение, или Как стать неуязвимым!</div>
+        <div class="author">Дмитрий Ковпак, Андрей Каменюкин</div>
+      </a>
+
+      <a class="sim-card" href="https://www.litres.ru/book/kimberli-maklin/kognitivnaya-psihologiya-70843111/" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/70843111.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 5.0</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Когнитивная психология</div>
+        <div class="author">Роберт Солсо, Кимберли Маклин</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/6090581.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.3</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Секс, деньги, счастье и смерть: В поисках себя</div>
+        <div class="author">Манфред Кетс де Врис</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/22498061.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.4</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Гайд по НЛП. Самые эффективные приемы и трюки</div>
+        <div class="author">Том Дотц, Том Хубияр</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/48637230.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 5.0</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">12 элементов эмоционального интеллекта</div>
+        <div class="author">Дэниел Гоулман</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/63576453.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.4</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Взламывая психологию</div>
+        <div class="author">Игнатий Журавлев</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/6044482.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.5</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Эмоции и чувства</div>
+        <div class="author">Е. П. Ильин</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/22076508.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.7</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">НЛП-практик. Практическое руководство</div>
+        <div class="author">Александр Антонов</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/6055671.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 4.6</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Психология конфликта</div>
+        <div class="author">Н. В. Гришина</div>
+      </a>
+
+      <a class="sim-card" href="#" target="_blank" rel="noopener">
+        <div class="cover-wrap">
+          <img src="https://cv5.litres.ru/pub/c/cover/2546081.jpg" alt="">
+          <div class="rating-badge"><span class="star">★</span> 5.0</div>
+          <div class="external-badge">
+            <svg viewBox="0 0 12 12"><path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5"/></svg>
+            litres.ru
+          </div>
+        </div>
+        <div class="title">Психология доверия</div>
+        <div class="author">Е. П. Ильин</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div id="state-loading" style="display: none">
+    <div class="loading">
+      <div class="spinner"></div>
+      Ищем похожие книги на Litres...
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div id="state-empty" style="display: none">
+    <div class="empty-state">
+      <div class="icon">📚</div>
+      Похожих книг не найдено на Litres
+    </div>
+  </div>
+
+  <!-- Error state -->
+  <div id="state-error" style="display: none">
+    <div class="error-state">
+      Не удалось загрузить рекомендации. Сервис Litres недоступен.
+      <br>
+      <button class="retry-btn" onclick="switchState('loading')">Попробовать снова</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- Demo state switcher -->
+<div class="demo-tabs">
+  <button class="active" onclick="switchState('loaded')">Результат</button>
+  <button onclick="switchState('loading')">Загрузка</button>
+  <button onclick="switchState('empty')">Пусто</button>
+  <button onclick="switchState('error')">Ошибка</button>
+</div>
+
+<script>
+function switchState(state) {
+  ['loaded','loading','empty','error'].forEach(s => {
+    document.getElementById('state-' + s).style.display = s === state ? 'block' : 'none';
+  });
+  document.querySelectorAll('.demo-tabs button').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().includes(
+      state === 'loaded' ? 'результат' : state === 'loading' ? 'загрузка' : state === 'empty' ? 'пусто' : 'ошибка'
+    ));
+  });
+}
+</script>
+
+</body>
+</html>
