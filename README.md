@@ -48,6 +48,8 @@ A built-in "Best" shelf automatically collects books rated 4–5 stars. Create y
 
 Dedicated pages with filters and book counts. Genre cloud sized by popularity. Navigate freely: author → books → series → all books in series.
 
+Admins can rename and merge authors and series. Genres support smart mapping: when a book arrives with a raw genre code (e.g., `fantasy_fight`), it's stored as-is. On the genre page, an admin can map it to an existing genre like "Боевое фэнтези" — all books are reassigned, and future imports with the same code are resolved automatically.
+
 ![Authors](docs/screenshots/03-authors.png)
 
 ![Series](docs/screenshots/04-series.png)
