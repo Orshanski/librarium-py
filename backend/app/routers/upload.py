@@ -17,7 +17,7 @@ from ..parsers import parse_book
 from ..dal.books import create_book, get_book_files
 from ..dal.authors import get_or_create_author
 from ..dal.series import get_or_create_series
-from ..dal.tags import resolve_raw_tag, resolve_tag_names
+from ..dal.tags import get_or_create_tag, resolve_tag_names
 
 router = APIRouter(tags=["upload"])
 
@@ -170,7 +170,7 @@ async def create_book_from_upload(request: Request):
         author_ids = [get_or_create_author(a.strip(), commit=False)
                       for a in meta.get("authors", "").split(",") if a.strip()]
         series_id = get_or_create_series(meta["series"].strip(), commit=False) if meta.get("series", "").strip() else None
-        tag_ids = [resolve_raw_tag(t.strip(), commit=False)
+        tag_ids = [get_or_create_tag(t.strip(), commit=False)
                    for t in meta.get("tags", "").split(",") if t.strip()]
 
         # Create book without commit
