@@ -66,6 +66,8 @@ data/
 
 **tags** — id, name, code
 
+**tag_mappings** — raw_tag (PK), tag_id → maps raw genre codes (e.g. `sf_fantasy`) to tags. Populated by seed script from FB2 genre dictionary. Unknown genres at import time create a self-mapping (raw_tag = name). Admins remap via tag page UI.
+
 **users** — id, username, display_name, email, password_hash, role, created_at
 
 **shelves** — id, name, user_id, is_system, created_at
@@ -144,6 +146,7 @@ On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(t
 | GET | /api/series/{id} | yes | Detail + ordered books |
 | GET | /api/tags | yes | List with book counts |
 | GET | /api/tags/{id} | yes | Detail + books with filters |
+| PUT | /api/tags/{id}/map | admin | Map tag to existing (merge) or new name (rename). Updates tag_mappings for future imports |
 
 ### Shelves
 
@@ -194,6 +197,7 @@ backend/
 ├── run.py              # Uvicorn entry (--dev for reload)
 ├── requirements.txt
 ├── schema.sql
+├── scripts/            # One-time migrations (seed_tag_mappings.py)
 └── app/
     ├── main.py         # FastAPI app, SPA fallback, CORS
     ├── config.py       # Paths, JWT, limits
@@ -201,14 +205,14 @@ backend/
     ├── auth.py         # JWT create/verify, bcrypt, get_current_user
     ├── routers/        # 14 route modules
     ├── dal/            # 8 data access modules
-    ├── parsers/        # FB2, EPUB, PDF → ParsedMetadata + fb2_genres.py (code→name map)
+    ├── parsers/        # FB2, EPUB, PDF → ParsedMetadata
     ├── providers/      # Litres, Google Books → MetadataResult
     └── templates/      # Email templates (SMTP test)
 ```
 
 ### Book Parsing
 
-- **FB2**: XML parsing via lxml — title, authors, series, genres, description, language, cover (base64). Genre codes mapped to Russian names via `fb2_genres.py` (~200 codes)
+- **FB2**: XML parsing via lxml — title, authors, series, genres, description, language, cover (base64). Parser returns raw genre codes; mapping to human-readable names happens in upload flow via `tag_mappings` table (~270 codes seeded from FB2 spec)
 - **EPUB**: ZIP → META-INF/container.xml → OPF → metadata + cover image
 - **PDF**: Basic title/author extraction
 
