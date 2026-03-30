@@ -1,8 +1,16 @@
-# FB2 genre code → human-readable Russian name
-# Based on FB2 specification: http://www.fictionbook.org/index.php/Жанры_FictionBook_2.0
+#!/usr/bin/env python3
+"""One-time migration: seed tag_mappings from FB2 genre dictionary.
+
+Usage:
+    python scripts/seed_tag_mappings.py [path/to/db.sqlite]
+
+Default path: ../../data/db.sqlite (relative to script location).
+"""
+import sqlite3
+import sys
+from pathlib import Path
 
 FB2_GENRES: dict[str, str] = {
-    # Фантастика и фэнтези
     "sf_history": "Альтернативная история",
     "sf_action": "Боевая фантастика",
     "sf_epic": "Эпическая фантастика",
@@ -29,8 +37,6 @@ FB2_GENRES: dict[str, str] = {
     "russian_fantasy": "Славянское фэнтези",
     "foreign_fantasy": "Зарубежное фэнтези",
     "sf_writing": "Фантастика: прочее",
-
-    # Детективы и триллеры
     "det_classic": "Классический детектив",
     "det_police": "Полицейский детектив",
     "det_action": "Боевик",
@@ -46,8 +52,6 @@ FB2_GENRES: dict[str, str] = {
     "det_cozy": "Уютный детектив",
     "det_su": "Советский детектив",
     "det_all": "Детектив: прочее",
-
-    # Проза
     "prose_classic": "Классическая проза",
     "prose_history": "Историческая проза",
     "prose_contemporary": "Современная проза",
@@ -63,8 +67,6 @@ FB2_GENRES: dict[str, str] = {
     "short_story": "Рассказ",
     "great_story": "Повесть",
     "prose_all": "Проза: прочее",
-
-    # Любовные романы
     "love_contemporary": "Современные любовные романы",
     "love_history": "Исторические любовные романы",
     "love_detective": "Любовно-детективные романы",
@@ -73,8 +75,6 @@ FB2_GENRES: dict[str, str] = {
     "love": "Любовный роман",
     "love_hard": "Остросюжетные любовные романы",
     "love_all": "Любовные романы: прочее",
-
-    # Приключения
     "adv_western": "Вестерн",
     "adv_history": "Исторические приключения",
     "adv_indian": "Приключения про индейцев",
@@ -83,8 +83,6 @@ FB2_GENRES: dict[str, str] = {
     "adv_animal": "Природа и животные",
     "adventure": "Приключения",
     "adv_all": "Приключения: прочее",
-
-    # Детская литература
     "child_tale": "Детские сказки",
     "child_verse": "Детские стихи",
     "child_prose": "Детская проза",
@@ -95,8 +93,6 @@ FB2_GENRES: dict[str, str] = {
     "children": "Детская литература",
     "child_all": "Детская литература: прочее",
     "ya": "Подростковая литература",
-
-    # Поэзия и драматургия
     "poetry": "Поэзия",
     "dramaturgy": "Драматургия",
     "vers_libre": "Верлибр",
@@ -107,8 +103,6 @@ FB2_GENRES: dict[str, str] = {
     "experimental_poetry": "Экспериментальная поэзия",
     "epic_poetry": "Эпическая поэзия",
     "in_verse": "В стихах",
-
-    # Старинная литература
     "antique_ant": "Античная литература",
     "antique_european": "Европейская старинная литература",
     "antique_russian": "Древнерусская литература",
@@ -116,8 +110,6 @@ FB2_GENRES: dict[str, str] = {
     "antique_myths": "Мифы. Легенды. Эпос",
     "antique": "Старинная литература",
     "antique_all": "Старинная литература: прочее",
-
-    # Наука, образование
     "sci_history": "История",
     "sci_psychology": "Психология",
     "sci_culture": "Культурология",
@@ -143,8 +135,6 @@ FB2_GENRES: dict[str, str] = {
     "sci_transport": "Транспорт",
     "sci_state": "Государство и право",
     "sci_all": "Наука и образование: прочее",
-
-    # Компьютеры и интернет
     "comp_www": "Интернет",
     "comp_programming": "Программирование",
     "comp_hard": "Компьютерное железо",
@@ -153,16 +143,12 @@ FB2_GENRES: dict[str, str] = {
     "comp_osnet": "ОС и сети",
     "computers": "Компьютеры и интернет",
     "comp_all": "Компьютеры и интернет: прочее",
-
-    # Справочники
     "ref_encyc": "Энциклопедии",
     "ref_dict": "Словари",
     "ref_ref": "Справочники",
     "ref_guide": "Путеводители",
     "reference": "Справочная литература",
     "ref_all": "Справочная литература: прочее",
-
-    # Документальная литература
     "nonf_biography": "Биографии и мемуары",
     "nonf_publicism": "Публицистика",
     "nonf_criticism": "Критика",
@@ -171,8 +157,6 @@ FB2_GENRES: dict[str, str] = {
     "nonf_military": "Военная документалистика",
     "travel_notes": "Путевые заметки",
     "nonf_all": "Документальная литература: прочее",
-
-    # Религия и духовность
     "religion_rel": "Религия",
     "religion_esoterics": "Эзотерика",
     "religion_self": "Самосовершенствование",
@@ -184,16 +168,12 @@ FB2_GENRES: dict[str, str] = {
     "religion_paganism": "Язычество",
     "religion": "Религия и духовность",
     "religion_all": "Религия и духовность: прочее",
-
-    # Юмор
     "humor_anecdote": "Анекдоты",
     "humor_prose": "Юмористическая проза",
     "humor_verse": "Юмористические стихи",
     "humor": "Юмор",
     "humor_satire": "Сатира",
     "humor_all": "Юмор: прочее",
-
-    # Дом, семья
     "home_cooking": "Кулинария",
     "home_pets": "Домашние животные",
     "home_crafts": "Хобби и ремёсла",
@@ -205,8 +185,6 @@ FB2_GENRES: dict[str, str] = {
     "home_sex": "Эротика, секс",
     "home": "Дом, семья",
     "home_all": "Дом, семья: прочее",
-
-    # Деловая литература
     "busines": "Деловая литература",
     "business": "Деловая литература",
     "org_behavior": "Корпоративная культура",
@@ -224,8 +202,6 @@ FB2_GENRES: dict[str, str] = {
     "real_estate": "Недвижимость",
     "popular_business": "Бизнес: популярное",
     "personal_finance": "Личные финансы",
-
-    # Прочее
     "other": "Прочее",
     "network_literature": "Сетевая литература",
     "fanfiction": "Фанфик",
@@ -268,3 +244,57 @@ FB2_GENRES: dict[str, str] = {
     "military_weapon": "Оружие и военная техника",
     "military_arts": "Военное искусство",
 }
+
+
+def seed(db_path: str):
+    db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys=ON")
+
+    # Create table if not exists
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS tag_mappings (
+            raw_tag TEXT PRIMARY KEY,
+            tag_id INTEGER NOT NULL REFERENCES tags(id)
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_tag_mappings_tag ON tag_mappings(tag_id)")
+
+    existing = db.execute("SELECT COUNT(*) as c FROM tag_mappings").fetchone()["c"]
+    print(f"Existing mappings: {existing}")
+
+    added = 0
+    for code, name in FB2_GENRES.items():
+        if db.execute("SELECT 1 FROM tag_mappings WHERE raw_tag = ?", (code,)).fetchone():
+            continue
+        db.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (name,))
+        row = db.execute("SELECT id FROM tags WHERE name = ?", (name,)).fetchone()
+        if row:
+            db.execute("INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (?, ?)",
+                       (code, row["id"]))
+            added += 1
+
+    # Self-mappings for orphan tags
+    orphans = db.execute("""
+        SELECT id, name FROM tags
+        WHERE id NOT IN (SELECT tag_id FROM tag_mappings)
+    """).fetchall()
+    for tag in orphans:
+        db.execute("INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (?, ?)",
+                   (tag["name"], tag["id"]))
+        added += 1
+
+    db.commit()
+    total = db.execute("SELECT COUNT(*) as c FROM tag_mappings").fetchone()["c"]
+    print(f"Added: {added}, Total mappings: {total}")
+    db.close()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        path = str(Path(__file__).parent.parent.parent / "data" / "db.sqlite")
+    print(f"Database: {path}")
+    seed(path)
+    print("Done.")

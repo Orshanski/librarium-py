@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
+import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterConfig } from "../components/filter-bar";
 import { Book } from "../types";
+import { useAuth } from "../auth";
 import { colors } from "../theme";
 
 interface TagData {
@@ -118,6 +120,8 @@ function loadCache(tagId: number) {
 export default function TagPage() {
   const { id } = useParams();
   const tagId = Number(id);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [tag, setTag] = useState<TagData | null>(null);
   const [tagBooks, setTagBooks] = useState<Book[]>([]);
@@ -125,6 +129,7 @@ export default function TagPage() {
   const [notFound, setNotFound] = useState(false);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState("added_desc");
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const frozenRef = useRef(false);
 
@@ -240,10 +245,29 @@ export default function TagPage() {
     );
   }
 
+  const adminButton = user?.role === "admin" ? (
+    <button
+      onClick={() => setShowAdmin(!showAdmin)}
+      style={{
+        marginLeft: 12,
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        color: colors.accent,
+        fontSize: 22,
+        cursor: "pointer",
+        lineHeight: 1,
+      }}
+      aria-label="Управление жанром"
+    >⚙</button>
+  ) : undefined;
+
   return (
     <Shell>
       <PageHeader
         title={tag.name}
+        titleSlot={adminButton}
+        mobileActionSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
         filters={filterConfigs}
         selected={selected}
@@ -255,6 +279,21 @@ export default function TagPage() {
           setSort(s);
         }}
       />
+
+      {showAdmin && tag && (
+        <TagAdminPanel
+          tagId={tag.id}
+          currentName={tag.name}
+          onMapped={(targetId, newName) => {
+            if (targetId !== tag.id) {
+              navigate(`/tags/${targetId}`);
+            } else {
+              setTag({ ...tag, name: newName });
+              setShowAdmin(false);
+            }
+          }}
+        />
+      )}
 
       <BookGrid>
         {filtered.map((book) => (

@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS tags (
     code TEXT
 );
 
+-- Маппинг сырых жанров → теги
+CREATE TABLE IF NOT EXISTS tag_mappings (
+    raw_tag TEXT PRIMARY KEY,
+    tag_id INTEGER NOT NULL REFERENCES tags(id)
+);
+
 -- Файлы книг
 CREATE TABLE IF NOT EXISTS book_files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,6 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_books_added ON books(added_at DESC);
 CREATE INDEX IF NOT EXISTS idx_books_sort_title ON books(sort_title);
 CREATE INDEX IF NOT EXISTS idx_book_authors_author ON book_authors(author_id);
 CREATE INDEX IF NOT EXISTS idx_book_tags_tag ON book_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tag_mappings_tag ON tag_mappings(tag_id);
 CREATE INDEX IF NOT EXISTS idx_book_files_book ON book_files(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_identifiers_book ON book_identifiers(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_identifiers_type_value ON book_identifiers(type, value);
