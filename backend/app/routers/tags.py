@@ -1,8 +1,11 @@
+import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from ..auth import get_current_user
+from pydantic import BaseModel
+from ..auth import get_current_user, require_admin
 from ..dal import tags as dal
 
+log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 
@@ -21,3 +24,25 @@ def get_tag(tag_id: int, request: Request, authorIds: str = "", seriesIds: str =
     if not result:
         return JSONResponse({"error": "Not found"}, status_code=404)
     return result
+
+
+class MapBody(BaseModel):
+    name: str
+
+
+@router.put("/{tag_id}/map")
+def map_tag(tag_id: int, body: MapBody, request: Request):
+    user = require_admin(request)
+    name = body.name.strip()
+    if not name:
+        return JSONResponse({"error": "Name required"}, status_code=400)
+    from ..database import get_db
+    db = get_db()
+    tag = db.execute("SELECT id FROM tags WHERE id = :id", {"id": tag_id}).fetchone()
+    if not tag:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    result = dal.map_tag(tag_id, name)
+    action = "renamed" if result["renamed"] else "merged"
+    log.info("Tag %s: %d → %s (target=%d) by user_id=%s",
+             action, tag_id, name, result["target_id"], user["userId"])
+    return {"ok": True, "targetId": result["target_id"]}

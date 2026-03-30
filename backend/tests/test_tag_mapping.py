@@ -77,3 +77,31 @@ class TestMapTag:
         result = map_tag(tag_id=1, target_name="Фэнтези")
         assert result["renamed"] is True
         assert result["target_id"] == 1
+
+
+class TestMapTagEndpoint:
+    def test_rename(self, admin_client):
+        resp = admin_client.put("/api/tags/1/map", json={"name": "Новое Фэнтези"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["targetId"] == 1
+
+    def test_merge(self, admin_client):
+        resp = admin_client.put("/api/tags/1/map", json={"name": "Классический детектив"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["targetId"] == 2
+
+    def test_reader_forbidden(self, reader_client):
+        resp = reader_client.put("/api/tags/1/map", json={"name": "Whatever"})
+        assert resp.status_code == 403
+
+    def test_not_found(self, admin_client):
+        resp = admin_client.put("/api/tags/999/map", json={"name": "Whatever"})
+        assert resp.status_code == 404
+
+    def test_empty_name(self, admin_client):
+        resp = admin_client.put("/api/tags/1/map", json={"name": "  "})
+        assert resp.status_code == 400
