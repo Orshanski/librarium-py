@@ -7,7 +7,7 @@ from ..providers import search_metadata
 
 router = APIRouter(prefix="/api/metadata", tags=["metadata"])
 
-ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "books.google.com", "encrypted-tbn0.gstatic.com", "books.googleusercontent.com"}
+ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "cv5.litres.ru", "books.google.com", "encrypted-tbn0.gstatic.com", "books.googleusercontent.com"}
 
 
 @router.get("/search")

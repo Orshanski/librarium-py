@@ -15,6 +15,7 @@ import ShelfPage from "./pages/ShelfPage";
 import SearchPage from "./pages/SearchPage";
 import UploadPage from "./pages/UploadPage";
 import AdminPage from "./pages/AdminPage";
+import SimilarBooksPage from "./pages/SimilarBooksPage";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><CatalogPage /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookPage /></ProtectedRoute>} />
       <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
+      <Route path="/book/:id/similar" element={<ProtectedRoute><SimilarBooksPage /></ProtectedRoute>} />
       <Route path="/authors" element={<ProtectedRoute><AuthorsPage /></ProtectedRoute>} />
       <Route path="/authors/:id" element={<ProtectedRoute><AuthorPage /></ProtectedRoute>} />
       <Route path="/series" element={<ProtectedRoute><SeriesListPage /></ProtectedRoute>} />

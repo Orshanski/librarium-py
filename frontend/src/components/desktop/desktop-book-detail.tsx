@@ -87,6 +87,7 @@ export default function DesktopBookDetail({
             >
               На полку
             </button>
+
             {showShelfMenu && shelfList && (
               <div
                 style={{
@@ -111,6 +112,23 @@ export default function DesktopBookDetail({
               </div>
             )}
           </div>
+
+          <Link
+            to={`/book/${book.id}/similar`}
+            style={{
+              ...actionButtonStyle,
+              marginTop: 6,
+              gap: 6,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+              <path d="M9 7h6M9 11h4" />
+            </svg>
+            Похожие книги
+            <span style={{ fontSize: 9, opacity: 0.5, marginLeft: 2 }}>litres</span>
+          </Link>
         </div>
 
         <div style={{ width: 520, flexShrink: 0 }}>
