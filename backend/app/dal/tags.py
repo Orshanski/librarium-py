@@ -96,6 +96,39 @@ def resolve_tag_names(raw_tags: list[str]) -> list[str]:
     return result
 
 
+def map_tag(tag_id: int, target_name: str) -> dict:
+    """Map tag to target (rename or merge).
+    Returns {"renamed": bool, "target_id": int}."""
+    db = get_db()
+    target_name = target_name.strip()
+    existing = db.execute(
+        "SELECT id FROM tags WHERE name = :name AND id != :id",
+        {"name": target_name, "id": tag_id},
+    ).fetchone()
+
+    if existing:
+        target_id = existing["id"]
+        try:
+            db.execute("""
+                INSERT OR IGNORE INTO book_tags (book_id, tag_id)
+                SELECT book_id, :target FROM book_tags WHERE tag_id = :source
+            """, {"target": target_id, "source": tag_id})
+            db.execute("DELETE FROM book_tags WHERE tag_id = :source", {"source": tag_id})
+            db.execute("UPDATE tag_mappings SET tag_id = :target WHERE tag_id = :source",
+                       {"target": target_id, "source": tag_id})
+            db.execute("DELETE FROM tags WHERE id = :source", {"source": tag_id})
+            db.commit()
+        except:
+            db.rollback()
+            raise
+        return {"renamed": False, "target_id": target_id}
+    else:
+        db.execute("UPDATE tags SET name = :name WHERE id = :id",
+                   {"name": target_name, "id": tag_id})
+        db.commit()
+        return {"renamed": True, "target_id": tag_id}
+
+
 def get_or_create_tag(name: str, commit: bool = True) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})

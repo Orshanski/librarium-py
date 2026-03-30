@@ -41,3 +41,39 @@ class TestResolveTagNames:
     def test_empty_list(self, admin_client):
         from app.dal.tags import resolve_tag_names
         assert resolve_tag_names([]) == []
+
+
+class TestMapTag:
+    def test_rename_to_new_name(self, admin_client):
+        """Сопоставление с новым именем → переименование."""
+        from app.dal.tags import map_tag
+        from app.database import get_db
+        result = map_tag(tag_id=1, target_name="Новое Фэнтези")
+        assert result["renamed"] is True
+        assert result["target_id"] == 1
+        db = get_db()
+        tag = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
+        assert tag["name"] == "Новое Фэнтези"
+
+    def test_merge_into_existing(self, admin_client):
+        """Сопоставление с существующим тегом → мерж."""
+        from app.dal.tags import map_tag
+        from app.database import get_db
+        db = get_db()
+        result = map_tag(tag_id=1, target_name="Классический детектив")
+        assert result["renamed"] is False
+        assert result["target_id"] == 2
+        rows = db.execute("SELECT book_id FROM book_tags WHERE tag_id = 2 ORDER BY book_id").fetchall()
+        book_ids = {r["book_id"] for r in rows}
+        assert 1 in book_ids
+        assert 4 in book_ids
+        assert db.execute("SELECT id FROM tags WHERE id = 1").fetchone() is None
+        m = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = 'sf_fantasy'").fetchone()
+        assert m["tag_id"] == 2
+
+    def test_merge_self_noop(self, admin_client):
+        """Сопоставление с собой → noop."""
+        from app.dal.tags import map_tag
+        result = map_tag(tag_id=1, target_name="Фэнтези")
+        assert result["renamed"] is True
+        assert result["target_id"] == 1
