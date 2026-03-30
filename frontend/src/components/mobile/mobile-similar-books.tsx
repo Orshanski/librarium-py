@@ -70,7 +70,7 @@ export default function MobileSimilarBooks({ books }: SimilarBooksViewProps) {
                 color: "rgba(255,255,255,0.6)",
               }}
             >
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="rgba(255,255,255,0.6)">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2">
                 <path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5" />
               </svg>
               litres.ru

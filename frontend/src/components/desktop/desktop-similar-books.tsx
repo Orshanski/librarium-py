@@ -2,7 +2,7 @@ import { colors } from "../../theme";
 import { SimilarBooksViewProps } from "../similar-books.types";
 
 const externalIcon = (
-  <svg width="10" height="10" viewBox="0 0 12 12" fill="rgba(255,255,255,0.7)">
+  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2">
     <path d="M3.5 1.5H1.5v9h9v-2M7 1.5h3.5V5M5 7l6-5.5" />
   </svg>
 );
@@ -25,11 +25,11 @@ export default function DesktopSimilarBooks({ books }: SimilarBooksViewProps) {
           style={{ textDecoration: "none", color: "inherit", display: "block", transition: "transform 0.2s" }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-4px)";
-            e.currentTarget.querySelector<HTMLElement>(".ext-badge")!.style.opacity = "1";
+            e.currentTarget.querySelector<HTMLElement>(".ext-badge")?.style.setProperty("opacity", "1");
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.querySelector<HTMLElement>(".ext-badge")!.style.opacity = "0";
+            e.currentTarget.querySelector<HTMLElement>(".ext-badge")?.style.setProperty("opacity", "0");
           }}
         >
           <div

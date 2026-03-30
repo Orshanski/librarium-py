@@ -118,7 +118,7 @@ def _fetch_similar(litres_id: int) -> list[dict]:
             "ratingCount": rating_count,
         })
 
-    # Sort by rating desc
+    # Sort by rating desc, no limit — show all that passed filters
     results.sort(key=lambda r: r["rating"], reverse=True)
     return results
 
