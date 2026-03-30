@@ -1,4 +1,13 @@
-"""Tests for similar books: provider (find_litres_id, fetch_similar), DAL (exclude_owned), endpoint."""
+"""Tests for similar books: provider (find_litres_id, fetch_similar), DAL (exclude_owned), endpoint.
+
+Test architecture: 3-layer separation.
+- Provider unit tests patch _session.get (HTTP layer) to verify filtering, sorting, normalization.
+- Endpoint tests patch provider boundary (find_litres_id, fetch_similar) to verify routing,
+  error handling, and DAL integration. exclude_owned runs against real seed DB.
+- No full-stack HTTP-mock integration test by design: Litres API is unofficial and undocumented,
+  so mocking its exact HTTP responses at endpoint level adds fragility without real confidence.
+  If Litres changes their response format, unit mocks won't catch it either — only manual testing will.
+"""
 
 import pytest
 from unittest.mock import patch
@@ -190,9 +199,10 @@ class TestSimilarEndpoint:
         data = resp.json()
         assert data["source"] == "litres"
         assert data["error"] is None
-        titles = [b["title"] for b in data["books"]]
-        assert "New Recommendation" in titles
-        assert "Minimal Test Book" not in titles  # excluded by exclude_owned
+        assert len(data["books"]) == 1
+        book = data["books"][0]
+        assert set(book.keys()) == {"title", "authors", "coverUrl", "litresUrl", "rating", "ratingCount"}
+        assert book["title"] == "New Recommendation"
 
     @patch("app.routers.similar.find_litres_id")
     def test_find_service_unavailable(self, mock_find, reader_client):
