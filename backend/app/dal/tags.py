@@ -60,6 +60,42 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None, 
     return {"tag": tag, "books": books}
 
 
+def resolve_raw_tag(raw_tag: str, commit: bool = True) -> int:
+    """Resolve raw genre code to tag_id via tag_mappings.
+    If unknown — create tag + mapping."""
+    db = get_db()
+    row = db.execute(
+        "SELECT tag_id FROM tag_mappings WHERE raw_tag = :raw COLLATE NOCASE",
+        {"raw": raw_tag},
+    ).fetchone()
+    if row:
+        return row["tag_id"]
+    tag_id = get_or_create_tag(raw_tag, commit=False)
+    db.execute(
+        "INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (:raw, :tid)",
+        {"raw": raw_tag, "tid": tag_id},
+    )
+    if commit:
+        db.commit()
+    return tag_id
+
+
+def resolve_tag_names(raw_tags: list[str]) -> list[str]:
+    """Resolve raw genre codes to human-readable tag names.
+    Unknown tags pass through as-is."""
+    if not raw_tags:
+        return []
+    db = get_db()
+    result = []
+    for raw in raw_tags:
+        row = db.execute(
+            "SELECT t.name FROM tag_mappings m JOIN tags t ON m.tag_id = t.id WHERE m.raw_tag = :raw COLLATE NOCASE",
+            {"raw": raw},
+        ).fetchone()
+        result.append(row["name"] if row else raw)
+    return result
+
+
 def get_or_create_tag(name: str, commit: bool = True) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})
