@@ -118,7 +118,7 @@ def map_tag(tag_id: int, target_name: str) -> dict:
                        {"target": target_id, "source": tag_id})
             db.execute("DELETE FROM tags WHERE id = :source", {"source": tag_id})
             db.commit()
-        except:
+        except Exception:
             db.rollback()
             raise
         return {"renamed": False, "target_id": target_id}
