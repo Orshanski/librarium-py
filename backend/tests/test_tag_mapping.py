@@ -119,3 +119,23 @@ class TestUploadMapping:
         tags = resp.json()["metadata"]["tags"]
         assert "sf_fantasy" not in tags
         assert "Фэнтези" in tags
+
+    def test_create_book_resolves_raw_tag(self, admin_client):
+        """Create book с сырым кодом → тег разрешается через маппинг."""
+        from pathlib import Path
+        fixtures = Path(__file__).parent / "fixtures" / "books"
+        fb2_path = fixtures / "minimal.fb2"
+        with open(fb2_path, "rb") as f:
+            resp = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        temp_id = resp.json()["tempId"]
+        # Подменяем теги на сырой код — имитируем клиента, который послал raw
+        meta = resp.json()["metadata"]
+        meta["tags"] = "sf_fantasy"
+        resp2 = admin_client.post("/api/books/create", json={"tempId": temp_id, "metadata": meta})
+        assert resp2.status_code == 200
+        book_id = resp2.json()["bookId"]
+        from app.database import get_db
+        db = get_db()
+        tag_ids = [r["tag_id"] for r in db.execute("SELECT tag_id FROM book_tags WHERE book_id = ?", (book_id,)).fetchall()]
+        # Должен быть тег 1 (Фэнтези), а не новый тег "sf_fantasy"
+        assert 1 in tag_ids
