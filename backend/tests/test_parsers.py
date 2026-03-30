@@ -14,7 +14,7 @@ def test_parse_fb2():
     assert meta.language == "ru"
     assert meta.publisher == "Test Publisher"
     assert meta.isbn == "978-0-000-00001-0"
-    assert "Фэнтези" in meta.genres  # sf_fantasy mapped
+    assert "sf_fantasy" in meta.genres  # raw code, mapping in upload flow
 
 
 def test_parse_fb2_with_cover():

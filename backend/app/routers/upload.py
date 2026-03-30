@@ -17,7 +17,7 @@ from ..parsers import parse_book
 from ..dal.books import create_book, get_book_files
 from ..dal.authors import get_or_create_author
 from ..dal.series import get_or_create_series
-from ..dal.tags import get_or_create_tag
+from ..dal.tags import get_or_create_tag, resolve_tag_names
 
 router = APIRouter(tags=["upload"])
 
@@ -103,7 +103,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "seriesNumber": str(meta.series_number).rstrip("0").rstrip(".") if meta.series_number else "",
             "description": meta.description or "",
             "language": meta.language or "",
-            "tags": ", ".join(meta.genres),
+            "tags": ", ".join(resolve_tag_names(meta.genres)),
             "publisher": meta.publisher or "",
             "pubDate": meta.pub_date or "",
             "isbn": meta.isbn or "",

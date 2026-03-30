@@ -105,3 +105,17 @@ class TestMapTagEndpoint:
     def test_empty_name(self, admin_client):
         resp = admin_client.put("/api/tags/1/map", json={"name": "  "})
         assert resp.status_code == 400
+
+
+class TestUploadMapping:
+    def test_upload_resolves_known_genre(self, admin_client):
+        """Upload FB2 → metadata tags содержит человекочитаемое имя."""
+        from pathlib import Path
+        fixtures = Path(__file__).parent / "fixtures" / "books"
+        fb2_path = fixtures / "minimal.fb2"
+        with open(fb2_path, "rb") as f:
+            resp = admin_client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+        assert resp.status_code == 200
+        tags = resp.json()["metadata"]["tags"]
+        assert "sf_fantasy" not in tags
+        assert "Фэнтези" in tags

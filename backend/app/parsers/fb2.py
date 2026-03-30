@@ -2,7 +2,6 @@ import base64
 import logging
 from lxml import etree
 from . import ParsedMetadata
-from .fb2_genres import FB2_GENRES
 
 log = logging.getLogger(__name__)
 
@@ -48,9 +47,9 @@ def parse_fb2(file_path: str) -> ParsedMetadata:
             except ValueError:
                 pass
 
-    # Genres
+    # Genres — raw codes, mapping happens in upload flow via tag_mappings table
     genres = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:genre/text()", namespaces=NS)
-    meta.genres = [FB2_GENRES.get(g.strip().lower(), g.strip()) for g in genres]
+    meta.genres = [g.strip() for g in genres if g.strip()]
 
     # Language
     lang = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:lang/text()", namespaces=NS)
