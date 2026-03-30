@@ -10,30 +10,34 @@ import { useIsMobile } from "../responsive";
 export default function SimilarBooksPage() {
   const { id } = useParams();
   const isMobile = useIsMobile();
-  const [book, setBook] = useState<any>(null);
+  const [book, setBook] = useState<{ id: number; title: string; authors: string | string[] } | null>(null);
   const [similar, setSimilar] = useState<SimilarBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/books/${id}`)
-      .then((r) => r.json())
-      .then((data) => setBook(data.book))
-      .catch(() => {});
+    let cancelled = false;
 
-    fetch(`/api/books/${id}/similar`)
-      .then((r) => {
+    Promise.all([
+      fetch(`/api/books/${id}`).then((r) => r.json()).then((d) => d.book),
+      fetch(`/api/books/${id}/similar`).then((r) => {
         if (!r.ok) throw new Error();
         return r.json();
-      })
-      .then((data) => {
-        setSimilar(data.books || []);
+      }),
+    ])
+      .then(([bookData, similarData]) => {
+        if (cancelled) return;
+        setBook(bookData);
+        setSimilar(similarData.books || []);
         setLoading(false);
       })
       .catch(() => {
+        if (cancelled) return;
         setError(true);
         setLoading(false);
       });
+
+    return () => { cancelled = true; };
   }, [id]);
 
   return (

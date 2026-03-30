@@ -66,9 +66,6 @@ def _find_litres_id(query: str, title: str) -> int | None:
         if title_lower in item_title or item_title in title_lower:
             return instance.get("id")
 
-    # Fallback: return first result
-    if items:
-        return items[0].get("instance", {}).get("id")
     return None
 
 
