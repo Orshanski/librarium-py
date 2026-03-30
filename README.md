@@ -132,6 +132,16 @@ db.commit()
 "
 ```
 
+### Seed tag mappings
+
+Populate the FB2 genre code → human-readable tag mapping table:
+
+```bash
+cd backend
+source venv/bin/activate
+python scripts/seed_tag_mappings.py ../data/db.sqlite
+```
+
 ## Project structure
 
 ```
