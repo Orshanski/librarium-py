@@ -37,17 +37,15 @@ export default function DesktopSimilarBooks({ books }: SimilarBooksViewProps) {
               position: "relative",
               borderRadius: 4,
               overflow: "hidden",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
               marginBottom: 8,
-              background: "rgba(0,0,0,0.2)",
-              aspectRatio: "0.7",
             }}
           >
             <img
               src={book.coverUrl}
               alt={book.title}
               loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              style={{ width: "auto", height: 230, maxWidth: "100%", display: "block" }}
             />
             <div
               style={{
