@@ -49,9 +49,11 @@ def get_series_by_id(series_id: int):
         return None
 
     books = dicts_from_rows(db.execute("""
-        SELECT b.*, GROUP_CONCAT(DISTINCT a.name) as authors,
+        SELECT b.*, s.name as series_name,
+            GROUP_CONCAT(DISTINCT a.name) as authors,
             GROUP_CONCAT(DISTINCT t.name) as tags
         FROM books b
+        LEFT JOIN series s ON b.series_id = s.id
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
         LEFT JOIN book_tags bt ON b.id = bt.book_id
