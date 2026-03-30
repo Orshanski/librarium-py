@@ -58,6 +58,8 @@ def seed_baseline():
     db.execute("INSERT INTO authors (id, name, sort_name) VALUES (3, 'Test Autor', 'Autor, Test')")
     db.execute("INSERT INTO tags (id, name) VALUES (1, 'Фэнтези')")
     db.execute("INSERT INTO tags (id, name) VALUES (2, 'Классический детектив')")
+    db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('sf_fantasy', 1)")
+    db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('det_classic', 2)")
 
     # --- Книга 1: minimal.fb2 ---
     book1_dir = BASELINE_DIR / "library" / "1"
