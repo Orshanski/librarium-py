@@ -5,9 +5,12 @@ from . import MetadataResult
 
 log = logging.getLogger(__name__)
 
-API_URL = "https://api.litres.ru/foundation/api/search"
-ARTS_URL = "https://api.litres.ru/foundation/api/arts/{}"
+API_BASE = "https://api.litres.ru/foundation/api"
+API_URL = f"{API_BASE}/search"
+ARTS_URL = f"{API_BASE}/arts/{{}}"
+SIMILAR_URL = f"{API_BASE}/arts/{{}}/similar"
 META_URL = "https://www.litres.ru"
+COVER_BASE = "https://cv5.litres.ru"
 TIMEOUT = 15
 LIMIT = 7
 
@@ -119,6 +122,69 @@ def _process_item(item: dict) -> MetadataResult | None:
         source="Litres",
         coverUrl=cover_url,
     )
+
+
+def find_litres_id(query: str, title: str) -> int | None:
+    """Search Litres for a book and return its ID if title matches."""
+    resp = _session.get(API_URL, params={
+        "q": query,
+        "limit": 5,
+        "types": ["text_book"],
+    }, headers={"ui-language-code": "ru"}, timeout=TIMEOUT)
+    if resp.status_code != 200:
+        raise ConnectionError(f"Litres search returned {resp.status_code}")
+
+    items = _extract_items(resp.json())
+    title_lower = title.lower()
+    for item in items:
+        item_title = (item.get("title") or "").lower()
+        if title_lower in item_title or item_title in title_lower:
+            return item.get("id")
+    return None
+
+
+def fetch_similar(litres_id: int) -> list[dict]:
+    """Fetch similar books from Litres, filter and normalize."""
+    resp = _session.get(SIMILAR_URL.format(litres_id), params={
+        "limit": 24,
+        "offset": 0,
+    }, headers={"ui-language-code": "ru"}, timeout=TIMEOUT)
+    if resp.status_code != 200:
+        raise ConnectionError(f"Litres similar returned {resp.status_code}")
+
+    items = resp.json().get("payload", {}).get("data", [])
+    results = []
+    for item in items:
+        if item.get("art_type") not in (0, 4):
+            continue
+
+        rating_data = item.get("rating", {})
+        rating_avg = rating_data.get("rated_avg", 0)
+        rating_count = rating_data.get("rated_total_count", 0)
+        if rating_count < 5:
+            continue
+
+        authors = ", ".join(
+            p.get("full_name", "")
+            for p in item.get("persons", [])
+            if p.get("role", "").lower() in ("author", "")
+        )
+
+        cover_rel = item.get("cover_url", "")
+        cover_url = f"/api/metadata/cover-proxy?url={COVER_BASE}{cover_rel}" if cover_rel else ""
+
+        results.append({
+            "title": item.get("title", ""),
+            "authors": authors,
+            "coverUrl": cover_url,
+            "litresUrl": f"{META_URL}{item.get('url', '')}",
+            "rating": round(rating_avg, 1),
+            "ratingCount": rating_count,
+        })
+
+    # Sort by rating desc, no limit — show all that passed filters
+    results.sort(key=lambda r: r["rating"], reverse=True)
+    return results
 
 
 def _get_detailed(item_id) -> dict | None:

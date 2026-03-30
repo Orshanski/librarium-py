@@ -29,6 +29,9 @@ export default function SimilarBooksPage() {
         if (cancelled) return;
         setBook(bookData);
         setSimilar(similarData.books || []);
+        if (similarData.error === "service_unavailable") {
+          setError(true);
+        }
         setLoading(false);
       })
       .catch(() => {
