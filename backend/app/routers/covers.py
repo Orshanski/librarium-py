@@ -129,6 +129,13 @@ def commit_cover(book_id: int, request: Request):
         os.remove(thumb)
 
     log.info("Cover updated book=%d by user_id=%s", book_id, user["userId"])
+
+    from ..cover_embedder import embed_cover
+    try:
+        embed_cover(book_id)
+    except Exception as e:
+        log.warning("Failed to embed cover into book files: %s", e)
+
     return JSONResponse({"ok": True})
 
 
