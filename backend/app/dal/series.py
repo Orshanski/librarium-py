@@ -92,14 +92,17 @@ def merge_series(target_id: int, source_id: int):
         raise
 
 
-def delete_series(series_id: int) -> bool:
-    """Удаляет серию если у неё нет книг. Возвращает True если удалена."""
+def delete_series(series_id: int) -> str | None:
+    """Удаляет серию. Возвращает None если удалена, иначе причину ошибки."""
     db = get_db()
+    exists = db.execute("SELECT 1 FROM series WHERE id = :id", {"id": series_id}).fetchone()
+    if not exists:
+        return "not_found"
     count = db.execute("SELECT COUNT(*) as c FROM books WHERE series_id = :id", {"id": series_id}).fetchone()["c"]
     if count > 0:
-        return False
+        return "has_books"
     db.execute("DELETE FROM series WHERE id = :id", {"id": series_id})
     db.commit()
-    return True
+    return None
 
 

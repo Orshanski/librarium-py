@@ -102,14 +102,17 @@ def merge_authors(target_id: int, source_id: int):
         raise
 
 
-def delete_author(author_id: int) -> bool:
-    """Удаляет автора если у него нет книг. Возвращает True если удалён."""
+def delete_author(author_id: int) -> str | None:
+    """Удаляет автора. Возвращает None если удалён, иначе причину ошибки."""
     db = get_db()
+    exists = db.execute("SELECT 1 FROM authors WHERE id = :id", {"id": author_id}).fetchone()
+    if not exists:
+        return "not_found"
     count = db.execute("SELECT COUNT(*) as c FROM book_authors WHERE author_id = :id", {"id": author_id}).fetchone()["c"]
     if count > 0:
-        return False
+        return "has_books"
     db.execute("DELETE FROM authors WHERE id = :id", {"id": author_id})
     db.commit()
-    return True
+    return None
 
 

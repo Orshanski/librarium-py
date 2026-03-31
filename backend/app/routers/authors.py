@@ -55,7 +55,10 @@ def merge_author(author_id: int, body: MergeBody, request: Request):
 @router.delete("/{author_id}")
 def delete_author(author_id: int, request: Request):
     user = require_admin(request)
-    if not dal.delete_author(author_id):
+    err = dal.delete_author(author_id)
+    if err == "not_found":
+        return JSONResponse({"error": "Автор не найден"}, status_code=404)
+    if err == "has_books":
         return JSONResponse({"error": "Нельзя удалить автора с книгами"}, status_code=400)
     log.info("Deleted author=%d by user_id=%s", author_id, user["userId"])
     return {"ok": True}

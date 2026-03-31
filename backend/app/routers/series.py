@@ -56,7 +56,10 @@ def merge_series(series_id: int, body: MergeBody, request: Request):
 @router.delete("/{series_id}")
 def delete_series(series_id: int, request: Request):
     user = require_admin(request)
-    if not dal.delete_series(series_id):
+    err = dal.delete_series(series_id)
+    if err == "not_found":
+        return JSONResponse({"error": "Серия не найдена"}, status_code=404)
+    if err == "has_books":
         return JSONResponse({"error": "Нельзя удалить серию с книгами"}, status_code=400)
     log.info("Deleted series=%d by user_id=%s", series_id, user["userId"])
     return {"ok": True}
