@@ -11,4 +11,5 @@ frontend/dist/
 *.tsbuildinfo
 .DS_Store
 .vscode/
-.claude/
+.claude/*
+!.claude/settings.json
