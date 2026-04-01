@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
+import { removeBookFromCatalogCache } from "../utils/catalog-cache";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
@@ -14,6 +16,7 @@ export default function BookDetail({
   book: Book;
   seriesBooks: Book[];
 }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const isAdmin = user?.role === "admin";
@@ -149,8 +152,8 @@ export default function BookDetail({
           onConfirm={async () => {
             const res = await fetch(`/api/books/${book.id}`, { method: "DELETE" });
             if (res.ok) {
-              sessionStorage.removeItem("librarium_catalog");
-              window.location.href = "/";
+              removeBookFromCatalogCache(book.id);
+              navigate(-1);
             }
           }}
         />
