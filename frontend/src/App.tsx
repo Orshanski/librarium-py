@@ -16,6 +16,7 @@ import SearchPage from "./pages/SearchPage";
 import UploadPage from "./pages/UploadPage";
 import AdminPage from "./pages/AdminPage";
 import SimilarBooksPage from "./pages/SimilarBooksPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
       <Route path="/upload" element={<ProtectedRoute adminOnly><UploadPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+      <Route path="*" element={<ProtectedRoute><NotFoundPage /></ProtectedRoute>} />
     </Routes>
   );
 }

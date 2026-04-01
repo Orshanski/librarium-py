@@ -68,9 +68,6 @@ def health():
     return {"ok": True}
 
 
-# Valid SPA route prefixes (first segment of path)
-SPA_ROUTES = {"", "login", "book", "authors", "series", "tags", "shelves", "search", "upload", "admin"}
-
 # SPA fallback — must be after all API routes
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
@@ -81,8 +78,4 @@ if FRONTEND_DIST.exists():
         if file_path.is_file() and str(file_path).startswith(str(FRONTEND_DIST.resolve())):
             return FileResponse(str(file_path))
 
-        first_segment = path.split("/")[0]
-        if first_segment in SPA_ROUTES:
-            return FileResponse(str(FRONTEND_DIST / "index.html"))
-
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        return FileResponse(str(FRONTEND_DIST / "index.html"))
