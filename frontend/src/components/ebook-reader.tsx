@@ -32,25 +32,27 @@ function buildCSS(settings: ReaderSettings): string {
       font-family: ${settings.fontFamily} !important;
       font-size: ${settings.fontSize}px !important;
     }
-    p, li, blockquote, dd {
-      line-height: ${settings.lineSpacing};
-      text-align: ${settings.justify ? "justify" : "start"};
-      -webkit-hyphens: ${settings.hyphenate ? "auto" : "manual"};
-      hyphens: ${settings.hyphenate ? "auto" : "manual"};
-      -webkit-hyphenate-limit-before: 3;
-      -webkit-hyphenate-limit-after: 2;
-      -webkit-hyphenate-limit-lines: 2;
-      hanging-punctuation: allow-end last;
-      widows: 2;
+    * {
+      line-height: ${settings.lineSpacing} !important;
+      -webkit-hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
+      hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
+    }
+    p, li, blockquote, dd, div, span {
+      text-align: ${settings.justify ? "justify" : "start"} !important;
+      -webkit-hyphenate-limit-before: 3 !important;
+      -webkit-hyphenate-limit-after: 2 !important;
+      -webkit-hyphenate-limit-lines: 2 !important;
+      hanging-punctuation: allow-end last !important;
+      widows: 2 !important;
     }
     h1, h2, h3, h4, h5, h6 {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
-      text-align: center;
+      text-align: center !important;
     }
-    h1 { font-size: 1.5em; }
-    h2 { font-size: 1.3em; }
-    h3 { font-size: 1.1em; }
-    h4 { font-size: 1em; }
+    h1 { font-size: 1.5em !important; }
+    h2 { font-size: 1.3em !important; }
+    h3 { font-size: 1.1em !important; }
+    h4 { font-size: 1em !important; }
     blockquote {
       margin: 1em 5%;
     }
