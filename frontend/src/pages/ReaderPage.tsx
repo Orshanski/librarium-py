@@ -13,6 +13,7 @@ export default function ReaderPage() {
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
   const [bookTitle, setBookTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
@@ -31,9 +32,29 @@ export default function ReaderPage() {
 
     Promise.all([
       fetch(`/api/books/${id}`, { credentials: "include" }).then((r) => r.json()),
-      fetch(`/api/books/${id}/download?format=${format}`, { credentials: "include" }).then((r) => {
+      fetch(`/api/books/${id}/download?format=${format}`, { credentials: "include" }).then(async (r) => {
         if (!r.ok) throw new Error("Failed to download book");
-        return r.blob().then((b) => new File([b], `book.${format}`, { type: b.type }));
+        if (!r.body) {
+          const b = await r.blob();
+          return new File([b], `book.${format}`, { type: b.type });
+        }
+        const total = Number(r.headers.get("content-length")) || 0;
+        const reader = r.body.getReader();
+        let received = 0;
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (total) {
+            setLoadProgress(Math.round((received / total) * 100));
+          } else {
+            setLoadProgress(-(received)); // negative = bytes without total
+          }
+        }
+        const blob = new Blob(chunks);
+        return new File([blob], `book.${format}`, { type: r.headers.get("content-type") || "" });
       }),
       fetch(`/api/reader/settings?device_type=${deviceType}`, { credentials: "include" }).then((r) => r.json()),
       fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()),
@@ -117,10 +138,15 @@ export default function ReaderPage() {
     setBookReady(true);
   }, []);
 
-  if (loading) {
+  const showLoadingOverlay = loading || !bookReady;
+
+  if (loading && !bookBlob) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.textDim }}>
-        Загрузка книги...
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.textDim, gap: 16 }}>
+        <div>Загрузка книги...{loadProgress > 0 ? ` ${loadProgress}%` : loadProgress < 0 ? ` ${(-loadProgress / 1048576).toFixed(1)} МБ` : ""}</div>
+        <div style={{ width: 200, height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+          <div style={{ width: loadProgress > 0 ? `${loadProgress}%` : "0%", height: "100%", backgroundColor: colors.accent, borderRadius: 2, transition: "width 0.2s" }} />
+        </div>
       </div>
     );
   }
@@ -162,8 +188,10 @@ export default function ReaderPage() {
         </div>
       )}
       {!bookReady && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: colors.textDim }}>
-          Загрузка книги...
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: colors.textDim, gap: 16, zIndex: 40 }}>
+          <div style={{ width: 32, height: 32, border: `3px solid ${colors.border}`, borderTopColor: colors.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          Открытие книги...
         </div>
       )}
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>

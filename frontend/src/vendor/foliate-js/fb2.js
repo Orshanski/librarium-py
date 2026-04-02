@@ -41,23 +41,33 @@ const POEM = {
     'stanza': 'stanza',
 }
 
-const SECTION = {
-    'title': ['header', {
-        'p': ['h1', STYLE],
+const makeSectionDef = (level) => {
+    const hTag = level <= 1 ? 'h1' : level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4'
+    const nextLevel = Math.min(level + 1, 4)
+    const def = {
+        'title': ['header', {
+            'p': [hTag, STYLE],
+            'empty-line': ['br'],
+        }],
+        'epigraph': ['blockquote', 'self'],
+        'image': 'image',
+        'annotation': ['aside'],
+        'p': ['p', STYLE],
+        'poem': ['blockquote', POEM],
+        'subtitle': [level <= 2 ? 'h3' : 'h4', STYLE],
+        'cite': ['blockquote', 'self'],
         'empty-line': ['br'],
-    }],
-    'epigraph': ['blockquote', 'self'],
-    'image': 'image',
-    'annotation': ['aside'],
-    'section': ['section', 'self'],
-    'p': ['p', STYLE],
-    'poem': ['blockquote', POEM],
-    'subtitle': ['h2', STYLE],
-    'cite': ['blockquote', 'self'],
-    'empty-line': ['br'],
-    'table': ['table', TABLE],
-    'text-author': ['p', STYLE],
+        'table': ['table', TABLE],
+        'text-author': ['p', STYLE],
+    }
+    // Lazy reference to avoid infinite recursion
+    Object.defineProperty(def, 'section', {
+        get() { return ['section', makeSectionDef(nextLevel)] },
+        enumerable: true,
+    })
+    return def
 }
+const SECTION = makeSectionDef(1)
 POEM['epigraph'].push(SECTION)
 
 const BODY = {
@@ -285,16 +295,26 @@ export const makeFB2 = async blob => {
     })
 
     const urls = []
+    let tocCounter = 0
+    const collectTitles = (parentEl) => {
+        const sections = parentEl.querySelectorAll(':scope > section')
+        return Array.from(sections, (section) => {
+            const titleEl = section.querySelector(':scope > .title')
+            if (!titleEl) return null
+            const index = tocCounter++
+            titleEl.setAttribute(dataID, index)
+            const subitems = collectTitles(section)
+            return {
+                title: getElementText(titleEl),
+                index,
+                subitems: subitems.length ? subitems : null,
+            }
+        }).filter(x => x)
+    }
     const sectionData = bodyData[0][0]
         // make a separate section for each section in the first body
         .map(({ el, ids }) => {
-            // set up titles for TOC
-            const titles = Array.from(
-                el.querySelectorAll(':scope > section > .title'),
-                (el, index) => {
-                    el.setAttribute(dataID, index)
-                    return { title: getElementText(el), index }
-                })
+            const titles = collectTitles(el)
             return { ids, titles, el }
         })
         // for additional bodies, only make one section for each body
@@ -329,15 +349,18 @@ export const makeFB2 = async blob => {
         return { id: index, load, createDocument, size, linear }
     })
 
+    const buildTocItems = (titles, sectionId) =>
+        titles?.map(({ title, index, subitems }) => ({
+            label: title,
+            href: `${sectionId}#${index}`,
+            subitems: subitems?.length ? buildTocItems(subitems, sectionId) : null,
+        })) ?? null
     book.toc = sectionData.map(({ title, titles }, index) => {
         const id = index.toString()
         return {
             label: title,
             href: id,
-            subitems: titles?.length ? titles.map(({ title, index }) => ({
-                label: title,
-                href: `${id}#${index}`,
-            })) : null,
+            subitems: buildTocItems(titles, id),
         }
     }).filter(item => item)
 

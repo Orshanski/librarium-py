@@ -2,6 +2,15 @@ import { useState } from "react";
 import { colors, fonts, layout } from "../../theme";
 import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS } from "../reader-toolbar";
 
+function flattenToc(items: any[], depth = 0): any[] {
+  const result: any[] = [];
+  for (const item of items) {
+    result.push({ ...item, depth });
+    if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
+  }
+  return result;
+}
+
 export default function MobileReaderToolbar({
   bookTitle,
   fraction,
@@ -160,7 +169,7 @@ export default function MobileReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 14 }}>Нет содержания</span>
               )}
-              {tocItems.map((item: any, i: number) => (
+              {flattenToc(tocItems).map((item: any, i: number) => (
                 <div
                   key={i}
                   onClick={() => { onTocSelect(item.href); setPanel(null); }}
