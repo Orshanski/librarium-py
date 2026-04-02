@@ -96,6 +96,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   onCenterTapRef.current = onCenterTap;
   const settingsRef = useRef(settings);
   const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
+  const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
+  const lastClickXRef = useRef(0);
+  const footnoteOpenRef = useRef(false);
 
   // Apply styles when settings change
   useEffect(() => {
@@ -127,10 +130,19 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       callbacksRef.current?.onLoad?.();
       const doc = e.detail?.doc;
       if (doc) {
+        // Capture phase: record click position BEFORE foliate-js handles the link
         doc.addEventListener("click", (ev: MouseEvent) => {
-          if ((ev.target as Element)?.closest?.("a[href]")) return;
+          lastClickXRef.current = ev.screenX - window.screenX;
+        }, true);
+        doc.addEventListener("click", (ev: MouseEvent) => {
+          if ((ev.target as Element)?.closest?.("a[href]")) return; // links handled by foliate-js
+          if (footnoteOpenRef.current) {
+            setFootnoteHtml(null);
+            footnoteOpenRef.current = false;
+            return; // only close, don't navigate
+          }
           const rect = container.getBoundingClientRect();
-          const x = (ev.screenX - window.screenX) / rect.width;
+          const x = lastClickXRef.current / rect.width;
           if (x < 0.33) view.prev();
           else if (x > 0.67) view.next();
           else onCenterTapRef.current?.();
@@ -153,12 +165,17 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
       e.preventDefault(); // prevent navigation
       try {
+        const containerWidth = container.getBoundingClientRect().width;
+        const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
+        setFootnoteSide(side);
+
         const resolved = await Promise.resolve(view.book.resolveHref(href));
         if (!resolved) return;
         const { index, anchor } = resolved;
         const doc = await view.book.sections[index].createDocument();
         const el = anchor(doc);
         if (!el) return;
+        footnoteOpenRef.current = true;
         setFootnoteHtml(el.innerHTML || el.textContent || "");
       } catch (err) {
         console.error("Failed to load footnote:", err);
@@ -201,26 +218,26 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       />
       {footnoteHtml && (
         <div
-          onClick={() => setFootnoteHtml(null)}
           style={{
             position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
+            bottom: 16,
+            ...(window.innerWidth > 1000
+              ? (footnoteSide === "left" ? { left: "5%", right: "55%" } : { left: "55%", right: "5%" })
+              : { left: "5%", right: "5%" }),
             maxHeight: "40vh",
             overflowY: "auto",
             backgroundColor: theme.bg,
             color: theme.text,
-            borderTop: `2px solid ${theme.accent}`,
-            borderRadius: "12px 12px 0 0",
-            boxShadow: "0 -4px 24px rgba(0,0,0,0.3)",
-            padding: "20px 24px",
-            fontSize: 15,
-            lineHeight: 1.7,
+            border: `1px solid ${theme.accent}`,
+            borderRadius: 12,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+            padding: "16px 20px",
+            fontSize: Math.round(settings.fontSize * 0.8),
+            lineHeight: 1.6,
             fontFamily: settings.fontFamily,
             zIndex: 100,
           }}
-          dangerouslySetInnerHTML={{ __html: footnoteHtml }}
+          dangerouslySetInnerHTML={{ __html: `<style>h1,h2,h3{font-size:1em;margin:0 0 8px 0;color:${theme.accent};}p{margin:4px 0;}</style>${footnoteHtml}` }}
         />
       )}
     </>
