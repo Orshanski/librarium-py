@@ -66,12 +66,33 @@ User management, app settings, SMTP configuration for email notifications.
 
 ![Admin](docs/screenshots/09-admin.png)
 
+### Built-in reader
+
+Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device. Footnotes appear as popups.
+
 ### Security
 
 - JWT authentication with HTTP-only cookies
 - CSP, HSTS, TLS 1.2+
 - All auth events and data mutations are logged
 - SPA route whitelist — unknown paths return 404
+
+#### Nginx CSP for the reader
+
+The built-in reader uses iframes with `blob:` URLs. The following CSP directives are required:
+
+```
+add_header Content-Security-Policy "
+  default-src 'self';
+  style-src 'self' 'unsafe-inline' blob: https://fonts.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com;
+  img-src 'self' data:;
+  connect-src 'self';
+  frame-src 'self' blob:;
+  script-src 'self' 'unsafe-inline' blob: https://static.cloudflareinsights.com;
+  frame-ancestors 'self'
+" always;
+```
 
 ## Stack
 

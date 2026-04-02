@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { colors } from "../theme";
+import { useEffect, useRef, useState } from "react";
 import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
 
 // Import foliate-js view (registers <foliate-view> custom element)
