@@ -19,16 +19,6 @@ export default function MobileReaderToolbar({
 
   const progressPct = Math.round(fraction * 100);
 
-  const headerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 16px",
-    minHeight: layout.mobileHeaderMinHeight,
-    background: colors.sidebar,
-    borderBottom: `1px solid ${colors.border}`,
-  };
-
   const btnStyle: React.CSSProperties = {
     background: "none",
     border: `1px solid ${colors.border}`,
@@ -63,8 +53,24 @@ export default function MobileReaderToolbar({
 
   return (
     <>
-      {/* Header */}
-      <div style={headerStyle}>
+      {/* Fixed top header bar */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 200,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "0 16px",
+          paddingTop: "env(safe-area-inset-top)",
+          minHeight: layout.mobileHeaderMinHeight,
+          background: colors.sidebar,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
         <button onClick={onClose} style={btnStyle}>
           ✕
         </button>
@@ -86,16 +92,6 @@ export default function MobileReaderToolbar({
         <span style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap" }}>
           {progressPct}%
         </span>
-
-        <button
-          onClick={() => {
-            if (document.fullscreenElement) document.exitFullscreen();
-            else document.documentElement.requestFullscreen();
-          }}
-          style={btnStyle}
-        >
-          ⛶
-        </button>
 
         <button
           onClick={() => setPanel(panel === "toc" ? null : "toc")}

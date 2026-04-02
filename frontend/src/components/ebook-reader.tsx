@@ -16,6 +16,10 @@ interface EbookReaderProps {
   settings: ReaderSettings;
   onCenterTap?: () => void;
   callbacks?: ReaderCallbacks;
+  maxInlineSize?: string;
+  gap?: string;
+  margin?: string;
+  maxBlockSize?: string;
 }
 
 function buildCSS(settings: ReaderSettings): string {
@@ -88,7 +92,7 @@ function isFootnoteRef(a: Element): boolean {
   return false;
 }
 
-export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks }: EbookReaderProps) {
+export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
   const callbacksRef = useRef(callbacks);
@@ -108,8 +112,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     if (!view?.renderer) return;
     view.renderer.setStyles?.(buildCSS(settings));
     view.renderer.setAttribute("flow", settings.flow);
-    view.renderer.setAttribute("max-inline-size", "1000px");
-    view.renderer.setAttribute("gap", "5%");
+    view.renderer.setAttribute("max-inline-size", maxInlineSize);
+    view.renderer.setAttribute("gap", gap);
+    if (margin) view.renderer.setAttribute("margin", margin);
+    if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
   }, [settings]);
 
   useEffect(() => {
@@ -187,8 +193,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       .then(() => {
         view.renderer.setStyles?.(buildCSS(settingsRef.current));
         view.renderer.setAttribute("flow", settingsRef.current.flow);
-        view.renderer.setAttribute("max-inline-size", "1000px");
-        view.renderer.setAttribute("gap", "5%");
+        view.renderer.setAttribute("max-inline-size", maxInlineSize);
+        view.renderer.setAttribute("gap", gap);
+        if (margin) view.renderer.setAttribute("margin", margin);
+        if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
         if (initialPosition) {
           view.goTo(initialPosition);
         } else {
