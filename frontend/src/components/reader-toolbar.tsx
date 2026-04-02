@@ -12,7 +12,6 @@ export interface ReaderSettings {
   theme: ReaderTheme;
   hyphenate: boolean;
   justify: boolean;
-  margins: "small" | "medium" | "large";
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -23,13 +22,6 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   theme: "light",
   hyphenate: true,
   justify: true,
-  margins: "large",
-};
-
-export const MARGIN_OPTIONS: Record<ReaderSettings["margins"], { margin: string; gap: string }> = {
-  small: { margin: "16px", gap: "3%" },
-  medium: { margin: "32px", gap: "5%" },
-  large: { margin: "48px", gap: "7%" },
 };
 
 export const FONT_OPTIONS = [

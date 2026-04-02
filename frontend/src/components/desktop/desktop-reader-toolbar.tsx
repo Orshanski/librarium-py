@@ -292,25 +292,6 @@ export default function DesktopReaderToolbar({
               </button>
             </div>
 
-            {/* Margins */}
-            <span style={labelStyle}>Поля</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              {(["small", "medium", "large"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => update({ margins: m })}
-                  style={{
-                    ...toggleBtnStyle,
-                    flex: 1,
-                    background: settings.margins === m ? "rgba(249,190,3,0.12)" : "none",
-                    color: settings.margins === m ? colors.accent : colors.textSecondary,
-                    borderColor: settings.margins === m ? colors.accent : colors.border,
-                  }}
-                >
-                  {m === "small" ? "Мин" : m === "medium" ? "Сред" : "Макс"}
-                </button>
-              ))}
-            </div>
           </div>
         )}
       </div>
