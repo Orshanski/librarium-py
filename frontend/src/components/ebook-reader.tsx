@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { colors } from "../theme";
 import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
 
 // Import foliate-js view (registers <foliate-view> custom element)
@@ -75,6 +76,17 @@ function buildCSS(settings: ReaderSettings): string {
   `;
 }
 
+// Check if a link is a footnote reference
+function isFootnoteRef(a: Element): boolean {
+  const epubType = a.getAttributeNS("http://www.idpf.org/2007/ops", "type") || "";
+  const role = a.getAttribute("role") || "";
+  if (["noteref", "biblioref", "glossref"].some(t => epubType.includes(t))) return true;
+  if (["doc-noteref", "doc-biblioref", "doc-glossref"].some(r => role.includes(r))) return true;
+  // Heuristic: superscript link
+  if (a.matches("sup") || a.closest("sup") || (a.children.length === 1 && a.children[0]?.matches("sup"))) return true;
+  return false;
+}
+
 export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
@@ -83,6 +95,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const onCenterTapRef = useRef(onCenterTap);
   onCenterTapRef.current = onCenterTap;
   const settingsRef = useRef(settings);
+  const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
 
   // Apply styles when settings change
   useEffect(() => {
@@ -134,6 +147,24 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     };
     document.addEventListener("keydown", handleKeyDown);
 
+    // Footnote popup: intercept link, load content via createDocument
+    view.addEventListener("link", async (e: any) => {
+      const { a, href } = e.detail;
+      if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
+      e.preventDefault(); // prevent navigation
+      try {
+        const resolved = await Promise.resolve(view.book.resolveHref(href));
+        if (!resolved) return;
+        const { index, anchor } = resolved;
+        const doc = await view.book.sections[index].createDocument();
+        const el = anchor(doc);
+        if (!el) return;
+        setFootnoteHtml(el.innerHTML || el.textContent || "");
+      } catch (err) {
+        console.error("Failed to load footnote:", err);
+      }
+    });
+
     view.open(bookBlob)
       .then(() => {
         view.renderer.setStyles?.(buildCSS(settingsRef.current));
@@ -159,13 +190,38 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const theme = THEME_STYLES[settings.theme];
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        backgroundColor: theme.bg,
-      }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        style={{
+          width: "100%",
+          height: "100%",
+          backgroundColor: theme.bg,
+        }}
+      />
+      {footnoteHtml && (
+        <div
+          onClick={() => setFootnoteHtml(null)}
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            maxHeight: "40vh",
+            overflowY: "auto",
+            backgroundColor: colors.sidebar,
+            color: colors.text,
+            borderTop: `1px solid ${colors.border}`,
+            borderRadius: "12px 12px 0 0",
+            boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
+            padding: "20px 24px",
+            fontSize: 15,
+            lineHeight: 1.7,
+            zIndex: 100,
+          }}
+          dangerouslySetInnerHTML={{ __html: footnoteHtml }}
+        />
+      )}
+    </>
   );
 }
