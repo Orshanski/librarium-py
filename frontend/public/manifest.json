@@ -1,0 +1,16 @@
+{
+  "name": "Librarium",
+  "short_name": "Librarium",
+  "description": "Personal family library",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2d3040",
+  "theme_color": "#2d3040",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ]
+}
