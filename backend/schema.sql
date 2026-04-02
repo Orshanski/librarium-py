@@ -126,6 +126,26 @@ CREATE TABLE IF NOT EXISTS user_books (
     PRIMARY KEY (user_id, book_id)
 );
 
+-- Настройки ридера (per user + device type)
+CREATE TABLE IF NOT EXISTS reader_settings (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_type TEXT NOT NULL,
+    settings TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (user_id, device_type)
+);
+
+-- Прогресс чтения (per user + book)
+CREATE TABLE IF NOT EXISTS reading_progress (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    position TEXT,
+    last_device TEXT,
+    last_read_at DATETIME,
+    PRIMARY KEY (user_id, book_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_progress_book ON reading_progress(book_id);
+
 -- Default settings
 INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Librarium');
 
