@@ -6,10 +6,10 @@ const btnStyle: React.CSSProperties = {
   background: "none",
   border: `1px solid ${colors.border}`,
   borderRadius: 6,
-  padding: "6px 14px",
-  fontSize: 13,
+  padding: "10px 18px",
+  fontSize: 17,
   fontFamily: fonts.display,
-  color: colors.textSecondary,
+  color: colors.text,
   cursor: "pointer",
 };
 
@@ -90,7 +90,7 @@ export default function DesktopReaderToolbar({
         alignItems: "center",
         gap: 12,
         padding: "env(safe-area-inset-top) 16px 0",
-        minHeight: 48,
+        minHeight: 56,
         background: colors.sidebar,
         borderBottom: `1px solid ${colors.border}`,
         position: "relative",
@@ -105,7 +105,7 @@ export default function DesktopReaderToolbar({
           position: "absolute",
           left: "50%",
           transform: "translateX(-50%)",
-          fontSize: 14,
+          fontSize: 18,
           fontFamily: fonts.display,
           color: colors.text,
           overflow: "hidden",
@@ -119,7 +119,7 @@ export default function DesktopReaderToolbar({
       </span>
 
       {/* Progress */}
-      <span style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 17, color: colors.text, whiteSpace: "nowrap" }}>
         {progressPct}%
       </span>
 
