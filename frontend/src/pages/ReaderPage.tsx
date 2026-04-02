@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../theme";
-import { getDeviceName, getDeviceType } from "../utils/device-info";
+import { getDeviceName } from "../utils/device-info";
 import EbookReader from "../components/ebook-reader";
 import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES } from "../components/reader-toolbar";
 
@@ -23,7 +23,6 @@ export default function ReaderPage() {
   const [bookReady, setBookReady] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
-  const deviceType = getDeviceType();
   const deviceName = getDeviceName();
 
   // Load book data, settings, progress
@@ -56,7 +55,7 @@ export default function ReaderPage() {
         const blob = new Blob(chunks);
         return new File([blob], `book.${format}`, { type: r.headers.get("content-type") || "" });
       }),
-      fetch(`/api/reader/settings?device_type=${deviceType}`, { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.json()),
       fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()),
     ])
       .then(([bookData, blob, settingsData, progressData]) => {
@@ -74,7 +73,7 @@ export default function ReaderPage() {
         setError(err.message);
         setLoading(false);
       });
-  }, [id, format, deviceType]);
+  }, [id, format]);
 
   // Save progress on relocate (debounced 3s, flush on unmount)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -118,11 +117,11 @@ export default function ReaderPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ device_type: deviceType, settings: newSettings }),
+          body: JSON.stringify({ settings: newSettings }),
         }).catch(() => {});
       }, 1500);
     },
-    [deviceType],
+    [],
   );
 
   useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
