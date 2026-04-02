@@ -96,21 +96,23 @@ export default function DesktopReaderToolbar({
         position: "relative",
       }}
     >
-      {/* Close button */}
-      <button onClick={onClose} style={{ ...btnStyle, marginRight: 12 }}>
-        ✕
-      </button>
+      {/* Spacer left */}
+      <span style={{ flex: 1 }} />
 
-      {/* Book title */}
+      {/* Book title — true center */}
       <span
         style={{
-          flex: 1,
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
           fontSize: 14,
           fontFamily: fonts.display,
           color: colors.text,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
+          maxWidth: "40%",
+          pointerEvents: "none",
         }}
       >
         {bookTitle}
@@ -312,6 +314,11 @@ export default function DesktopReaderToolbar({
           </div>
         )}
       </div>
+
+      {/* Close button — rightmost */}
+      <button onClick={onClose} style={btnStyle}>
+        ✕
+      </button>
     </div>
   );
 }
