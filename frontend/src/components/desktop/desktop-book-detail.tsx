@@ -63,6 +63,22 @@ export default function DesktopBookDetail({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {book.formats
+              .filter((f) => ["EPUB", "FB2", "PDF", "MOBI", "CBZ"].includes(f.format.toUpperCase()))
+              .map((f) => (
+                <Link
+                  key={`read-${f.format}`}
+                  to={`/book/${book.id}/read/${f.format.toLowerCase()}`}
+                  style={{
+                    ...actionButtonStyle,
+                    textDecoration: "none",
+                    borderColor: "rgba(249, 190, 3, 0.3)",
+                    color: colors.accent,
+                  }}
+                >
+                  Читать {f.format}
+                </Link>
+              ))}
             {book.formats.map((f) => (
               <a
                 key={f.format}

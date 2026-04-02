@@ -103,6 +103,22 @@ export default function MobileBookDetail({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {book.formats
+          .filter((f) => ["EPUB", "FB2", "PDF", "MOBI", "CBZ"].includes(f.format.toUpperCase()))
+          .map((f) => (
+            <Link
+              key={`read-${f.format}`}
+              to={`/book/${book.id}/read/${f.format.toLowerCase()}`}
+              style={{
+                ...primaryButtonStyle,
+                backgroundColor: "rgba(249, 190, 3, 0.1)",
+                border: "1px solid rgba(249, 190, 3, 0.3)",
+                color: colors.accent,
+              }}
+            >
+              Читать {f.format}
+            </Link>
+          ))}
         {book.formats.map((f) => (
           <a
             key={f.format}
