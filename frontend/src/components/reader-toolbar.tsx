@@ -11,6 +11,7 @@ export interface ReaderSettings {
   flow: "paginated" | "scrolled";
   theme: ReaderTheme;
   hyphenate: boolean;
+  justify: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   flow: "paginated",
   theme: "light",
   hyphenate: true,
+  justify: true,
 };
 
 export const FONT_OPTIONS = [

@@ -251,32 +251,31 @@ export default function DesktopReaderToolbar({
               ))}
             </div>
 
-            {/* Hyphenation */}
-            <span style={labelStyle}>Переносы</span>
+            {/* Toggles row */}
             <div style={{ display: "flex", gap: 6 }}>
               <button
-                onClick={() => update({ hyphenate: true })}
+                onClick={() => update({ hyphenate: !settings.hyphenate })}
                 style={{
                   ...toggleBtnStyle,
                   flex: 1,
-                  background: settings.hyphenate ? colors.accent : "none",
-                  color: settings.hyphenate ? colors.sidebar : colors.textSecondary,
+                  background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
+                  color: settings.hyphenate ? colors.accent : colors.textSecondary,
                   borderColor: settings.hyphenate ? colors.accent : colors.border,
                 }}
               >
-                Вкл
+                Переносы
               </button>
               <button
-                onClick={() => update({ hyphenate: false })}
+                onClick={() => update({ justify: !settings.justify })}
                 style={{
                   ...toggleBtnStyle,
                   flex: 1,
-                  background: !settings.hyphenate ? colors.accent : "none",
-                  color: !settings.hyphenate ? colors.sidebar : colors.textSecondary,
-                  borderColor: !settings.hyphenate ? colors.accent : colors.border,
+                  background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
+                  color: settings.justify ? colors.accent : colors.textSecondary,
+                  borderColor: settings.justify ? colors.accent : colors.border,
                 }}
               >
-                Выкл
+                По ширине
               </button>
             </div>
           </div>

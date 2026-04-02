@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../theme";
 import { getDeviceName, getDeviceType } from "../utils/device-info";
 import EbookReader from "../components/ebook-reader";
-import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
+import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES } from "../components/reader-toolbar";
 
 export default function ReaderPage() {
   const { id, format } = useParams();
@@ -31,7 +31,7 @@ export default function ReaderPage() {
       fetch(`/api/books/${id}`, { credentials: "include" }).then((r) => r.json()),
       fetch(`/api/books/${id}/download?format=${format}`, { credentials: "include" }).then((r) => {
         if (!r.ok) throw new Error("Failed to download book");
-        return r.blob();
+        return r.blob().then((b) => new File([b], `book.${format}`, { type: b.type }));
       }),
       fetch(`/api/reader/settings?device_type=${deviceType}`, { credentials: "include" }).then((r) => r.json()),
       fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()),
@@ -118,7 +118,7 @@ export default function ReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: colors.bg }}>
+    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       <ReaderToolbar
         bookTitle={bookTitle}
         fraction={fraction}
@@ -132,6 +132,7 @@ export default function ReaderPage() {
         <EbookReader
           bookBlob={bookBlob}
           initialPosition={initialPosition}
+          settings={settings}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />
       </div>
