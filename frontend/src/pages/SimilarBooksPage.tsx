@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import SimilarBooksGrid from "../components/similar-books-grid";
 import { SimilarBook } from "../components/similar-books.types";
@@ -44,7 +44,7 @@ export default function SimilarBooksPage() {
   }, [id]);
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title="Похожие книги"
         breadcrumb={{ label: book?.title || "Книга", href: `/book/${id}` }}
@@ -151,6 +151,6 @@ export default function SimilarBooksPage() {
       )}
 
       {!loading && !error && similar.length > 0 && <SimilarBooksGrid books={similar} />}
-    </Shell>
+    </>
   );
 }

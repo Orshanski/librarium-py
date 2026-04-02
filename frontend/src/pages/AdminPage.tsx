@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import ConfirmDialog from "../components/confirm-dialog";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
@@ -329,14 +329,14 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <Shell><PageHeader title="Настройки" />
+      <><PageHeader title="Настройки" />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   return (
-    <Shell>
+    <>
       <PageHeader title="Настройки" />
 
       <div style={{ maxWidth: 640 }}>
@@ -530,6 +530,6 @@ export default function AdminPage() {
           onConfirm={confirmDeleteUser}
         />
       )}
-    </Shell>
+    </>
   );
 }

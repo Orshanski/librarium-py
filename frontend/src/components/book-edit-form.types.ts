@@ -2,10 +2,12 @@ import { RefObject } from "react";
 import { Book, BookFormat } from "../types";
 
 export interface NamedOption {
+  id: number;
   name: string;
 }
 
 export interface TagOption {
+  id: number;
   name: string;
   book_count?: number;
 }

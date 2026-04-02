@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
-import Shell from "../components/shell";
 import { colors, fonts } from "../theme";
 
 export default function NotFoundPage() {
   return (
-    <Shell>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: "60vh" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: "60vh" }}>
         <div style={{ textAlign: "center", padding: "40px" }}>
           <div style={{ fontFamily: fonts.display, fontSize: 120, fontWeight: 600, color: colors.accent, lineHeight: 1, letterSpacing: -4 }}>
             404
@@ -35,6 +33,5 @@ export default function NotFoundPage() {
           </Link>
         </div>
       </div>
-    </Shell>
   );
 }

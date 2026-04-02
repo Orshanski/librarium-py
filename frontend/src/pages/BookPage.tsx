@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { getBookOrigin } from "../utils/breadcrumb-state";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
 import { colors } from "../theme";
@@ -43,19 +43,19 @@ export default function BookPage() {
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="..." breadcrumb={getBookOrigin()} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   if (!book) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Книга не найдена" breadcrumb={getBookOrigin()} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Книга не найдена</div>
-      </Shell>
+      </>
     );
   }
 
@@ -74,9 +74,9 @@ export default function BookPage() {
   const seriesBooksData: Book[] = seriesBooks.map((b) => toBook(b));
 
   return (
-    <Shell>
+    <>
       <PageHeader title={book.title} breadcrumb={getBookOrigin()} />
       <BookDetail book={bookData} seriesBooks={seriesBooksData} />
-    </Shell>
+    </>
   );
 }

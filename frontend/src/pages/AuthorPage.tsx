@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
@@ -60,19 +60,19 @@ export default function AuthorPage() {
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="..." breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   if (notFound || !author) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Автор не найден" breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Автор не найден</div>
-      </Shell>
+      </>
     );
   }
 
@@ -104,7 +104,7 @@ export default function AuthorPage() {
   ) : undefined;
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title={author.name}
         titleSlot={adminButton}
@@ -124,6 +124,6 @@ export default function AuthorPage() {
         />
       )}
       <AuthorDetail author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }} books={books} />
-    </Shell>
+    </>
   );
 }

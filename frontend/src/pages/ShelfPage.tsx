@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
@@ -64,17 +64,17 @@ export default function ShelfPage() {
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="..." />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   if (!shelf) return null;
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title={shelf.name}
         sortOptions={sortOptions}
@@ -123,6 +123,6 @@ export default function ShelfPage() {
       {showDeleteConfirm && (
         <ConfirmDialog message={`Удалить полку «${shelf.name}»?`} onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete} />
       )}
-    </Shell>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import Combobox from "../components/combobox";
 import { colors, fonts } from "../theme";
@@ -64,7 +64,7 @@ export default function TagsPage() {
 
 
   return (
-    <Shell>
+    <>
       <PageHeader title="Жанры" showUpload />
 
       {/* Search */}
@@ -122,6 +122,6 @@ export default function TagsPage() {
             </Link>
           ))}
         </div>
-    </Shell>
+    </>
   );
 }

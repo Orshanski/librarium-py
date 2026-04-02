@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import BookEditForm from "../components/book-edit-form";
+import { BookEditOptions } from "../components/book-edit-form.types";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
 
@@ -12,7 +13,7 @@ export default function BookEditPage() {
   const [book, setBook] = useState<RawBook | null>(null);
   const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
   const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
-  const [options, setOptions] = useState<{ authors: { id: number; name: string }[]; tags: { id: number; name: string }[]; series: { id: number; name: string }[] } | null>(null);
+  const [options, setOptions] = useState<BookEditOptions | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,19 +31,19 @@ export default function BookEditPage() {
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Загрузка..." />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   if (!book) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Книга не найдена" />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Книга не найдена</div>
-      </Shell>
+      </>
     );
   }
 
@@ -100,12 +101,12 @@ export default function BookEditPage() {
   }
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title={`Редактирование: ${book.title}`}
         breadcrumb={{ label: book.title, href: `/book/${id}` }}
       />
-      <BookEditForm book={bookData} options={options} onSave={handleSave} />
-    </Shell>
+      <BookEditForm book={bookData} options={options ?? undefined} onSave={handleSave} />
+    </>
   );
 }
