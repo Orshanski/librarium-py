@@ -57,6 +57,7 @@ export default function MobilePageHeader({
         top: 0,
         left: 0,
         right: 0,
+        paddingTop: "var(--sat)",
         zIndex: 30,
         backgroundColor: colors.sidebar,
         borderBottom: `1px solid ${colors.border}`,

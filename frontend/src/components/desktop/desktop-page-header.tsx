@@ -57,6 +57,7 @@ export default function DesktopPageHeader({
         top: 0,
         right: 0,
         left: layout.desktopSidebarWidth,
+        paddingTop: "var(--sat)",
         zIndex: 10,
         backgroundColor: colors.sidebar,
         borderBottom: `1px solid ${colors.border}`,
