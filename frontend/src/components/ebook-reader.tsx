@@ -112,14 +112,12 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
 
     view.addEventListener("load", (e: CustomEvent) => {
       callbacksRef.current?.onLoad?.();
-      // Add click handler to iframe document for navigation zones
       const doc = e.detail?.doc;
       if (doc) {
         doc.addEventListener("click", (ev: MouseEvent) => {
-          // Skip if clicking a link
           if ((ev.target as Element)?.closest?.("a[href]")) return;
-          const rect = doc.documentElement.getBoundingClientRect();
-          const x = (ev.clientX - rect.left) / rect.width;
+          const rect = container.getBoundingClientRect();
+          const x = (ev.screenX - window.screenX) / rect.width;
           if (x < 0.33) view.prev();
           else if (x > 0.67) view.next();
           else onCenterTapRef.current?.();
