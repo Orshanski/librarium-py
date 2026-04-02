@@ -20,6 +20,7 @@ export default function ReaderPage() {
   const [fraction, setFraction] = useState(0);
   const [tocItems, setTocItems] = useState<any[]>([]);
   const [bookReady, setBookReady] = useState(false);
+  const [toolbarVisible, setToolbarVisible] = useState(false);
 
   const deviceType = getDeviceType();
   const deviceName = getDeviceName();
@@ -120,28 +121,41 @@ export default function ReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && (
-        <ReaderToolbar
-          bookTitle={bookTitle}
-          fraction={fraction}
-          tocItems={tocItems}
-          settings={settings}
-          onSettingsChange={handleSettingsChange}
-          onTocSelect={handleTocSelect}
-          onClose={() => navigate(`/book/${id}`)}
-        />
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            transform: toolbarVisible ? "translateY(0)" : "translateY(-100%)",
+            transition: "transform 0.3s ease",
+          }}
+        >
+          <ReaderToolbar
+            bookTitle={bookTitle}
+            fraction={fraction}
+            tocItems={tocItems}
+            settings={settings}
+            onSettingsChange={handleSettingsChange}
+            onTocSelect={handleTocSelect}
+            onClose={() => navigate(`/book/${id}`)}
+          />
+        </div>
       )}
       {!bookReady && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: colors.textDim }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: colors.textDim }}>
           Загрузка книги...
         </div>
       )}
-      <div style={{ flex: 1, overflow: "hidden", visibility: bookReady ? "visible" : "hidden" }}>
+      <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
           bookBlob={bookBlob}
           initialPosition={initialPosition}
           settings={settings}
+          onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />
       </div>

@@ -13,6 +13,7 @@ interface EbookReaderProps {
   bookBlob: Blob;
   initialPosition?: string | null;
   settings: ReaderSettings;
+  onCenterTap?: () => void;
   callbacks?: ReaderCallbacks;
 }
 
@@ -48,11 +49,13 @@ function buildCSS(settings: ReaderSettings): string {
   `;
 }
 
-export default function EbookReader({ bookBlob, initialPosition, settings, callbacks }: EbookReaderProps) {
+export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
+  const onCenterTapRef = useRef(onCenterTap);
+  onCenterTapRef.current = onCenterTap;
   const settingsRef = useRef(settings);
 
   // Apply styles when settings change
@@ -86,16 +89,20 @@ export default function EbookReader({ bookBlob, initialPosition, settings, callb
       callbacksRef.current?.onLoad?.();
     });
 
-    // Transparent overlays for click/tap navigation
+    // Transparent overlays for click/tap navigation + center tap for toolbar
     const leftZone = document.createElement("div");
+    const centerZone = document.createElement("div");
     const rightZone = document.createElement("div");
     const zoneStyle = "position:absolute;top:0;bottom:0;width:33%;z-index:10;cursor:pointer;";
     leftZone.setAttribute("style", zoneStyle + "left:0;");
+    centerZone.setAttribute("style", zoneStyle + "left:33%;");
     rightZone.setAttribute("style", zoneStyle + "right:0;");
     leftZone.addEventListener("click", () => view.prev());
+    centerZone.addEventListener("click", () => onCenterTapRef.current?.());
     rightZone.addEventListener("click", () => view.next());
     container.style.position = "relative";
     container.appendChild(leftZone);
+    container.appendChild(centerZone);
     container.appendChild(rightZone);
 
     // Keyboard navigation
@@ -124,6 +131,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, callb
 
     return () => {
       leftZone.remove();
+      centerZone.remove();
       rightZone.remove();
       document.removeEventListener("keydown", handleKeyDown);
       try { view.close(); } catch {}
