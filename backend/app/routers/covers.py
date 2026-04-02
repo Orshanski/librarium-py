@@ -11,6 +11,7 @@ from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 
 Image.MAX_IMAGE_PIXELS = 25_000_000
 from ..database import get_db
+from ..dal.books import get_book_by_id
 
 router = APIRouter(tags=["covers"])
 
@@ -38,9 +39,9 @@ def _find_cover(book_dir: str) -> str | None:
     return next((f for f in os.listdir(book_dir) if f.startswith("cover.") and "bak" not in f), None)
 
 
-# --- GET cover (public, no auth) ---
 @router.get("/api/covers/{book_id}")
-def get_cover(book_id: int, full: int = 0):
+def get_cover(book_id: int, request: Request, full: int = 0):
+    get_current_user(request)
     book_dir = str(LIBRARY_DIR / str(book_id))
     cover = _find_cover(book_dir)
     if not cover:
@@ -59,6 +60,8 @@ def get_cover(book_id: int, full: int = 0):
 @router.post("/api/books/{book_id}/cover")
 async def upload_cover(book_id: int, request: Request, file: UploadFile = File(...)):
     require_admin(request)
+    if not get_book_by_id(book_id):
+        return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "cover.jpg").split(".")[-1].lower() or "jpg"
 
     # Clean old temp covers for this book
@@ -92,6 +95,8 @@ def get_temp_cover(book_id: str, request: Request):
 @router.put("/api/books/{book_id}/cover")
 def commit_cover(book_id: int, request: Request):
     user = require_admin(request)
+    if not get_book_by_id(book_id):
+        return JSONResponse({"error": "Book not found"}, status_code=404)
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
 

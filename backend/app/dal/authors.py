@@ -97,7 +97,7 @@ def merge_authors(target_id: int, source_id: int):
         db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id})
         db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
         db.commit()
-    except:
+    except Exception:
         db.rollback()
         raise
 

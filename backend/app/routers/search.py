@@ -8,6 +8,7 @@ router = APIRouter(tags=["search"])
 @router.get("/api/search")
 def search(request: Request, q: str = "", limit: int = 50):
     get_current_user(request)
+    limit = min(limit, 100)
     if not q.strip():
         return {"books": [], "authors": [], "series": []}
     return search_books(q.strip(), limit)

@@ -87,7 +87,7 @@ def merge_series(target_id: int, source_id: int):
                    {"target": target_id, "source": source_id})
         db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
         db.commit()
-    except:
+    except Exception:
         db.rollback()
         raise
 

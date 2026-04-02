@@ -25,6 +25,7 @@ if not SECRET_KEY:
         import secrets
         SECRET_KEY = secrets.token_hex(32)
         _secret_file.write_text(SECRET_KEY)
+        os.chmod(str(_secret_file), 0o600)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 72
 COOKIE_NAME = "librarium_token"

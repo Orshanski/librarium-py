@@ -17,22 +17,22 @@ TINY_PNG = (
 # ── Covers: GET ──
 
 class TestCoverGet:
-    def test_thumb(self, client):
-        resp = client.get("/api/covers/2")
+    def test_thumb(self, reader_client):
+        resp = reader_client.get("/api/covers/2")
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "") == "image/jpeg"
 
-    def test_full(self, client):
-        resp = client.get("/api/covers/2", params={"full": 1})
+    def test_full(self, reader_client):
+        resp = reader_client.get("/api/covers/2", params={"full": 1})
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("image/")
 
-    def test_no_cover(self, client):
-        resp = client.get("/api/covers/1")
+    def test_no_cover(self, reader_client):
+        resp = reader_client.get("/api/covers/1")
         assert resp.status_code == 404
 
-    def test_nonexistent_book(self, client):
-        resp = client.get("/api/covers/999")
+    def test_nonexistent_book(self, reader_client):
+        resp = reader_client.get("/api/covers/999")
         assert resp.status_code == 404
 
 

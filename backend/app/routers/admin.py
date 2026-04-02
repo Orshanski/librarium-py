@@ -92,7 +92,10 @@ def delete_user(user_id: int, request: Request):
 @router.get("/settings")
 def get_settings(request: Request):
     require_admin(request)
-    return settings_dal.get_all_settings()
+    result = settings_dal.get_all_settings()
+    if result.get("smtp_pass"):
+        result["smtp_pass"] = "••••••"
+    return result
 
 
 ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}

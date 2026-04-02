@@ -294,13 +294,14 @@ def _check_duplicate(title: str, authors: list[str]) -> dict | None:
     if not title:
         return None
     db = get_db()
-    pattern = f"%{title.lower()}%"
+    escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
     rows = db.execute("""
         SELECT b.id, b.title, GROUP_CONCAT(DISTINCT a.name) as authors
         FROM books b
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE lower_utf8(b.title) LIKE ?
+        WHERE lower_utf8(b.title) LIKE ? ESCAPE '\\'
         GROUP BY b.id LIMIT 5
     """, (pattern,)).fetchall()
 

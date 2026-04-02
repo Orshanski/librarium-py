@@ -236,28 +236,32 @@ export function SidebarContent({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
-          <Link
-            to="/upload"
-            onClick={onNavigate}
-            style={{
-              ...linkBase,
-              color: pathname === "/upload" ? colors.accent : colors.textDim,
-              backgroundColor: pathname === "/upload" ? colors.accentBg : "transparent",
-            }}
-          >
-            Загрузить
-          </Link>
-          <Link
-            to="/admin"
-            onClick={onNavigate}
-            style={{
-              ...linkBase,
-              color: pathname === "/admin" ? colors.accent : colors.textDim,
-              backgroundColor: pathname === "/admin" ? colors.accentBg : "transparent",
-            }}
-          >
-            Настройки
-          </Link>
+          {me.role === "admin" && (
+            <>
+              <Link
+                to="/upload"
+                onClick={onNavigate}
+                style={{
+                  ...linkBase,
+                  color: pathname === "/upload" ? colors.accent : colors.textDim,
+                  backgroundColor: pathname === "/upload" ? colors.accentBg : "transparent",
+                }}
+              >
+                Загрузить
+              </Link>
+              <Link
+                to="/admin"
+                onClick={onNavigate}
+                style={{
+                  ...linkBase,
+                  color: pathname === "/admin" ? colors.accent : colors.textDim,
+                  backgroundColor: pathname === "/admin" ? colors.accentBg : "transparent",
+                }}
+              >
+                Настройки
+              </Link>
+            </>
+          )}
           <button
             onClick={() => {
               onNavigate?.();

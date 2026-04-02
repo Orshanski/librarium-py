@@ -33,7 +33,7 @@ def cover_proxy(request: Request, url: str = ""):
         return Response(status_code=403)
 
     try:
-        resp = requests.get(url, timeout=15, headers={"User-Agent": "Librarium/1.0"})
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "Librarium/1.0"}, allow_redirects=False)
         if resp.status_code != 200:
             return Response(status_code=resp.status_code)
         content_type = resp.headers.get("Content-Type", "image/jpeg")
