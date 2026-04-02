@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
@@ -211,7 +211,7 @@ export default function CatalogPage() {
   const filterBarProps = filterConfigs.length > 0 ? { filters: filterConfigs, selected, onSelectionChange, onClearAll: clearAllFilters } : undefined;
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title="Книги"
         {...filterBarProps}
@@ -243,6 +243,6 @@ export default function CatalogPage() {
       {!loading && books.length === 0 && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Ничего не найдено</div>
       )}
-    </Shell>
+    </>
   );
 }

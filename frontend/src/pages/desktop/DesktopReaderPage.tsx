@@ -40,7 +40,7 @@ export default function DesktopReaderPage() {
         const total = Number(r.headers.get("content-length")) || 0;
         const reader = r.body.getReader();
         let received = 0;
-        const chunks: Uint8Array[] = [];
+        const chunks: BlobPart[] = [];
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;

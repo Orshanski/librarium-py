@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
@@ -55,19 +55,19 @@ export default function SeriesPage() {
 
   if (notFoundState) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Серия не найдена" breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Серия не найдена</div>
-      </Shell>
+      </>
     );
   }
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="..." breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
@@ -100,7 +100,7 @@ export default function SeriesPage() {
   );
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title={series.name}
         titleSlot={adminButton}
@@ -129,6 +129,6 @@ export default function SeriesPage() {
           />
         ))}
       </BookGrid>
-    </Shell>
+    </>
   );
 }

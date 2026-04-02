@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
@@ -141,9 +141,9 @@ export default function SearchPage() {
   }, []);
 
   return (
-    <Shell>
+    <>
       <PageHeader title="Поиск" />
       <SearchResults />
-    </Shell>
+    </>
   );
 }

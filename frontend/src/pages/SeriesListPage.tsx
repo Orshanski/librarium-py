@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import { FilterConfig } from "../components/filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
@@ -170,7 +170,7 @@ export default function SeriesListPage() {
   }, [allSeries]);
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title="Серии"
         filters={filterConfigs}
@@ -224,6 +224,6 @@ export default function SeriesListPage() {
       {!loading && sorted.length === 0 && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Ничего не найдено</div>
       )}
-    </Shell>
+    </>
   );
 }

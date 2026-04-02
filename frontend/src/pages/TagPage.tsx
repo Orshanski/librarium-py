@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
-import Shell from "../components/shell";
+
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterConfig } from "../components/filter-bar";
-import { RawBook, toBook } from "../types";
+import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 
@@ -22,7 +22,7 @@ function applyFilters(allBooks: Book[], selected: Record<string, string[]>, excl
   return allBooks.filter((book) => {
     for (const [key, values] of Object.entries(selected)) {
       if (key === excludeKey || values.length === 0) continue;
-      if (key === "author" && !book.authors.some((a) => values.includes(a))) return false;
+      if (key === "author" && !book.authors.some((a: string) => values.includes(a))) return false;
       if (key === "series" && (!book.series || !values.includes(book.series))) return false;
       if (key === "language" && !values.includes(book.language)) return false;
     }
@@ -205,19 +205,19 @@ export default function TagPage() {
 
   if (loading) {
     return (
-      <Shell>
+      <>
         <PageHeader title="..." breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </Shell>
+      </>
     );
   }
 
   if (notFound || !tag) {
     return (
-      <Shell>
+      <>
         <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Жанр не найден</div>
-      </Shell>
+      </>
     );
   }
 
@@ -239,7 +239,7 @@ export default function TagPage() {
   ) : undefined;
 
   return (
-    <Shell>
+    <>
       <PageHeader
         title={tag.name}
         titleSlot={adminButton}
@@ -281,6 +281,6 @@ export default function TagPage() {
           </div>
         )}
       </BookGrid>
-    </Shell>
+    </>
   );
 }
