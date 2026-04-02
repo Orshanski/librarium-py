@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import { ReaderSettings, THEME_STYLES, MARGIN_OPTIONS } from "./reader-toolbar";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";
@@ -62,6 +62,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, callb
     if (!view?.renderer) return;
     view.renderer.setStyles?.(buildCSS(settings));
     view.renderer.setAttribute("flow", settings.flow);
+    const mo = MARGIN_OPTIONS[settings.margins];
+    view.renderer.setAttribute("margin", mo.margin);
+    view.renderer.setAttribute("gap", mo.gap);
   }, [settings]);
 
   useEffect(() => {
@@ -108,6 +111,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, callb
       .then(() => {
         view.renderer.setStyles?.(buildCSS(settingsRef.current));
         view.renderer.setAttribute("flow", settingsRef.current.flow);
+        const mo = MARGIN_OPTIONS[settingsRef.current.margins];
+        view.renderer.setAttribute("margin", mo.margin);
+        view.renderer.setAttribute("gap", mo.gap);
         if (initialPosition) {
           view.goTo(initialPosition);
         } else {
