@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user
@@ -10,24 +11,49 @@ from ..dal.reader import (
 
 router = APIRouter(tags=["reader"])
 
+DEVICE_COOKIE = "device_id"
+DEVICE_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60  # ~10 years
+
+
+def _get_or_create_device_id(request: Request, response: JSONResponse | None = None):
+    """Get device_id from cookie, or generate a new one."""
+    device_id = request.cookies.get(DEVICE_COOKIE)
+    if not device_id:
+        device_id = str(uuid.uuid4())
+    return device_id
+
+
+def _set_device_cookie(response, device_id: str):
+    response.set_cookie(
+        DEVICE_COOKIE,
+        device_id,
+        max_age=DEVICE_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="strict",
+        path="/",
+    )
+
 
 @router.get("/api/reader/settings")
-def api_get_settings(device_type: str, request: Request):
+def api_get_settings(request: Request):
     user = get_current_user(request)
-    settings = get_reader_settings(user["userId"], device_type)
-    return {"settings": settings}
+    device_id = _get_or_create_device_id(request)
+    settings = get_reader_settings(user["userId"], device_id)
+    response = JSONResponse({"settings": settings})
+    _set_device_cookie(response, device_id)
+    return response
 
 
 @router.put("/api/reader/settings")
 async def api_save_settings(request: Request):
     user = get_current_user(request)
+    device_id = _get_or_create_device_id(request)
     body = await request.json()
-    device_type = body.get("device_type")
     settings = body.get("settings", {})
-    if not device_type:
-        return JSONResponse({"error": "device_type required"}, status_code=400)
-    save_reader_settings(user["userId"], device_type, settings)
-    return {"ok": True}
+    save_reader_settings(user["userId"], device_id, settings)
+    response = JSONResponse({"ok": True})
+    _set_device_cookie(response, device_id)
+    return response
 
 
 @router.get("/api/reader/progress/{book_id}")
