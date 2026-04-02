@@ -231,7 +231,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             borderRadius: 12,
             boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
             padding: "16px 20px",
-            fontSize: Math.round(settings.fontSize * 0.8),
+            fontSize: Math.round(settings.fontSize * 0.9),
             lineHeight: 1.4,
             fontFamily: settings.fontFamily,
             zIndex: 100,
