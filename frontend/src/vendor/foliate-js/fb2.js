@@ -41,23 +41,33 @@ const POEM = {
     'stanza': 'stanza',
 }
 
-const SECTION = {
-    'title': ['header', {
-        'p': ['h1', STYLE],
+const makeSectionDef = (level) => {
+    const hTag = level <= 1 ? 'h1' : level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4'
+    const nextLevel = Math.min(level + 1, 4)
+    const def = {
+        'title': ['header', {
+            'p': [hTag, STYLE],
+            'empty-line': ['br'],
+        }],
+        'epigraph': ['blockquote', 'self'],
+        'image': 'image',
+        'annotation': ['aside'],
+        'p': ['p', STYLE],
+        'poem': ['blockquote', POEM],
+        'subtitle': [level <= 2 ? 'h3' : 'h4', STYLE],
+        'cite': ['blockquote', 'self'],
         'empty-line': ['br'],
-    }],
-    'epigraph': ['blockquote', 'self'],
-    'image': 'image',
-    'annotation': ['aside'],
-    'section': ['section', 'self'],
-    'p': ['p', STYLE],
-    'poem': ['blockquote', POEM],
-    'subtitle': ['h2', STYLE],
-    'cite': ['blockquote', 'self'],
-    'empty-line': ['br'],
-    'table': ['table', TABLE],
-    'text-author': ['p', STYLE],
+        'table': ['table', TABLE],
+        'text-author': ['p', STYLE],
+    }
+    // Lazy reference to avoid infinite recursion
+    Object.defineProperty(def, 'section', {
+        get() { return ['section', makeSectionDef(nextLevel)] },
+        enumerable: true,
+    })
+    return def
 }
+const SECTION = makeSectionDef(1)
 POEM['epigraph'].push(SECTION)
 
 const BODY = {
