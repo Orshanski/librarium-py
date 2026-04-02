@@ -10,6 +10,7 @@ log = logging.getLogger("librarium.covers")
 from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 
 _MAX_IMAGE_PIXELS = 25_000_000
+_ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 
 from ..database import get_db
 from ..dal.books import get_book_by_id
@@ -56,7 +57,11 @@ def get_cover(book_id: int, request: Request, full: int = 0):
     if full:
         return FileResponse(cover_path, headers={"Cache-Control": "public, max-age=3600"})
 
-    thumb = _get_thumb(book_id, cover_path)
+    try:
+        thumb = _get_thumb(book_id, cover_path)
+    except Exception:
+        log.warning("Failed to generate thumbnail for book=%d, serving full cover", book_id)
+        return FileResponse(cover_path, headers={"Cache-Control": "public, max-age=3600"})
     return FileResponse(thumb, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
 
 
@@ -76,6 +81,22 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     content = await file.read()
     if len(content) > MAX_COVER_SIZE:
         return JSONResponse({"error": "Файл обложки слишком большой"}, status_code=400)
+
+    # Validate image before saving
+    import io
+    prev = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
+    try:
+        img = Image.open(io.BytesIO(content))
+        fmt = (img.format or "").upper()
+        if fmt not in _ALLOWED_IMAGE_FORMATS:
+            return JSONResponse({"error": f"Неподдерживаемый формат: {fmt or 'unknown'}"}, status_code=400)
+        img.load()
+    except Exception:
+        return JSONResponse({"error": "Файл не является изображением или повреждён"}, status_code=400)
+    finally:
+        Image.MAX_IMAGE_PIXELS = prev
+
     with open(temp_path, "wb") as f:
         f.write(content)
 
