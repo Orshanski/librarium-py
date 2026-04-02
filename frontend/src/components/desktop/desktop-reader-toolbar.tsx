@@ -97,7 +97,7 @@ export default function DesktopReaderToolbar({
       }}
     >
       {/* Close button */}
-      <button onClick={onClose} style={{ ...btnStyle, marginRight: 4 }}>
+      <button onClick={onClose} style={{ ...btnStyle, marginRight: 12 }}>
         ✕
       </button>
 
