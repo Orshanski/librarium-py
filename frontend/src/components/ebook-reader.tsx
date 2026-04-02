@@ -42,6 +42,32 @@ function buildCSS(settings: ReaderSettings): string {
       hanging-punctuation: allow-end last;
       widows: 2;
     }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+    }
+    h2 {
+      text-align: center;
+      font-size: 1.2em;
+      font-weight: normal;
+      font-style: italic;
+    }
+    blockquote {
+      margin: 1em 5%;
+    }
+    blockquote p {
+      text-indent: 0;
+    }
+    section > blockquote:first-of-type {
+      font-style: italic;
+    }
+    section > blockquote:first-of-type em,
+    section > blockquote:first-of-type i {
+      font-style: normal;
+    }
+    .poem {
+      margin: 1em 0 1em 5%;
+      text-align: left;
+    }
     a:link { color: ${theme.accent}; }
     [align="left"] { text-align: left; }
     [align="right"] { text-align: right; }
