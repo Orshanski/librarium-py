@@ -181,7 +181,7 @@ export default function DesktopReaderPage() {
             settings={settings}
             onSettingsChange={handleSettingsChange}
             onTocSelect={handleTocSelect}
-            onClose={() => navigate(`/book/${id}`)}
+            onClose={() => navigate(-1)}
           />
         </div>
       )}

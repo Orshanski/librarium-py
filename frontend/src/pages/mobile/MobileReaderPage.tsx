@@ -172,7 +172,7 @@ export default function MobileReaderPage() {
           settings={settings}
           onSettingsChange={handleSettingsChange}
           onTocSelect={handleTocSelect}
-          onClose={() => navigate(`/book/${id}`)}
+          onClose={() => navigate(-1)}
         />
       )}
       {!bookReady && (
