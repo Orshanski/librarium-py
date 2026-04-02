@@ -41,7 +41,9 @@ def api_get_progress(book_id: int, request: Request):
 async def api_save_progress(book_id: int, request: Request):
     user = get_current_user(request)
     body = await request.json()
-    position = body.get("position", "")
+    position = body.get("position")
     last_device = body.get("last_device", "")
+    if not position:
+        return JSONResponse({"error": "position required"}, status_code=400)
     save_reading_progress(user["userId"], book_id, position, last_device)
     return {"ok": True}

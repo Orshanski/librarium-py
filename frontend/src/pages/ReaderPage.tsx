@@ -55,40 +55,56 @@ export default function ReaderPage() {
       });
   }, [id, format, deviceType]);
 
-  // Save progress on relocate (debounced 3s)
+  // Save progress on relocate (debounced 3s, flush on unmount)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastPositionRef = useRef<{ cfi: string; device: string } | null>(null);
+
+  const flushProgress = useCallback(() => {
+    clearTimeout(saveTimerRef.current);
+    const pos = lastPositionRef.current;
+    if (!pos || !id) return;
+    fetch(`/api/reader/progress/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ position: pos.cfi, last_device: pos.device }),
+    }).catch(() => {});
+    lastPositionRef.current = null;
+  }, [id]);
+
+  useEffect(() => () => flushProgress(), [flushProgress]);
+
   const handleRelocate = useCallback(
     (detail: { fraction: number; cfi: string }) => {
       setFraction(detail.fraction);
+      lastPositionRef.current = { cfi: detail.cfi, device: deviceName };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        fetch(`/api/reader/progress/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            position: detail.cfi,
-            last_device: deviceName,
-          }),
-        }).catch(() => {});
+        flushProgress();
       }, 3000);
     },
-    [id, deviceName],
+    [deviceName, flushProgress],
   );
 
-  // Save settings on change
+  // Save settings on change (debounced 1.5s)
+  const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const handleSettingsChange = useCallback(
     (newSettings: ReaderSettings) => {
       setSettings(newSettings);
-      fetch("/api/reader/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ device_type: deviceType, settings: newSettings }),
-      }).catch(() => {});
+      clearTimeout(settingsTimerRef.current);
+      settingsTimerRef.current = setTimeout(() => {
+        fetch("/api/reader/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ device_type: deviceType, settings: newSettings }),
+        }).catch(() => {});
+      }, 1500);
     },
     [deviceType],
   );
+
+  useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
 
   const handleTocSelect = useCallback((href: string) => {
     const view = containerRef.current?.querySelector("foliate-view") as any;
