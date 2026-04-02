@@ -138,7 +138,6 @@ export default function ReaderPage() {
     setBookReady(true);
   }, []);
 
-  const showLoadingOverlay = loading || !bookReady;
 
   if (loading && !bookBlob) {
     return (

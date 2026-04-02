@@ -1,15 +1,6 @@
 import { useState } from "react";
 import { colors, fonts, layout } from "../../theme";
-import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS } from "../reader-toolbar";
-
-function flattenToc(items: any[], depth = 0): any[] {
-  const result: any[] = [];
-  for (const item of items) {
-    result.push({ ...item, depth });
-    if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
-  }
-  return result;
-}
+import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, flattenToc } from "../reader-toolbar";
 
 export default function MobileReaderToolbar({
   bookTitle,

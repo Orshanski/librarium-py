@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { colors, fonts } from "../../theme";
-import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES } from "../reader-toolbar";
+import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES, flattenToc } from "../reader-toolbar";
 
 const btnStyle: React.CSSProperties = {
   background: "none",
@@ -46,15 +46,6 @@ const toggleBtnStyle: React.CSSProperties = {
   color: colors.textSecondary,
   cursor: "pointer",
 };
-
-function flattenToc(items: any[], depth = 0): any[] {
-  const result: any[] = [];
-  for (const item of items) {
-    result.push({ ...item, depth });
-    if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
-  }
-  return result;
-}
 
 export default function DesktopReaderToolbar({
   bookTitle,
