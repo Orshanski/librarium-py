@@ -110,25 +110,22 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem });
     });
 
-    view.addEventListener("load", () => {
+    view.addEventListener("load", (e: CustomEvent) => {
       callbacksRef.current?.onLoad?.();
+      // Add click handler to iframe document for navigation zones
+      const doc = e.detail?.doc;
+      if (doc) {
+        doc.addEventListener("click", (ev: MouseEvent) => {
+          // Skip if clicking a link
+          if ((ev.target as Element)?.closest?.("a[href]")) return;
+          const rect = doc.documentElement.getBoundingClientRect();
+          const x = (ev.clientX - rect.left) / rect.width;
+          if (x < 0.33) view.prev();
+          else if (x > 0.67) view.next();
+          else onCenterTapRef.current?.();
+        });
+      }
     });
-
-    // Transparent overlays for click/tap navigation + center tap for toolbar
-    const leftZone = document.createElement("div");
-    const centerZone = document.createElement("div");
-    const rightZone = document.createElement("div");
-    const zoneStyle = "position:absolute;top:0;bottom:0;width:33%;z-index:10;cursor:pointer;";
-    leftZone.setAttribute("style", zoneStyle + "left:0;");
-    centerZone.setAttribute("style", zoneStyle + "left:33%;");
-    rightZone.setAttribute("style", zoneStyle + "right:0;");
-    leftZone.addEventListener("click", () => view.prev());
-    centerZone.addEventListener("click", () => onCenterTapRef.current?.());
-    rightZone.addEventListener("click", () => view.next());
-    container.style.position = "relative";
-    container.appendChild(leftZone);
-    container.appendChild(centerZone);
-    container.appendChild(rightZone);
 
     // Keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -154,9 +151,6 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
-      leftZone.remove();
-      centerZone.remove();
-      rightZone.remove();
       document.removeEventListener("keydown", handleKeyDown);
       try { view.close(); } catch {}
       view.remove();
