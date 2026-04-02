@@ -88,6 +88,16 @@ export default function MobileReaderToolbar({
         </span>
 
         <button
+          onClick={() => {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else document.documentElement.requestFullscreen();
+          }}
+          style={btnStyle}
+        >
+          ⛶
+        </button>
+
+        <button
           onClick={() => setPanel(panel === "toc" ? null : "toc")}
           style={{ ...btnStyle, background: panel === "toc" ? colors.border : "none" }}
         >

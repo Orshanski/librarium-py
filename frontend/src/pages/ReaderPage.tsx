@@ -19,6 +19,7 @@ export default function ReaderPage() {
   const [initialPosition, setInitialPosition] = useState<string | null>(null);
   const [fraction, setFraction] = useState(0);
   const [tocItems, setTocItems] = useState<any[]>([]);
+  const [bookReady, setBookReady] = useState(false);
 
   const deviceType = getDeviceType();
   const deviceName = getDeviceName();
@@ -96,6 +97,7 @@ export default function ReaderPage() {
   const handleLoad = useCallback(() => {
     const view = containerRef.current?.querySelector("foliate-view") as any;
     setTocItems(view?.book?.toc ?? []);
+    setBookReady(true);
   }, []);
 
   if (loading) {
@@ -119,16 +121,23 @@ export default function ReaderPage() {
 
   return (
     <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
-      <ReaderToolbar
-        bookTitle={bookTitle}
-        fraction={fraction}
-        tocItems={tocItems}
-        settings={settings}
-        onSettingsChange={handleSettingsChange}
-        onTocSelect={handleTocSelect}
-        onClose={() => navigate(`/book/${id}`)}
-      />
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      {bookReady && (
+        <ReaderToolbar
+          bookTitle={bookTitle}
+          fraction={fraction}
+          tocItems={tocItems}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          onTocSelect={handleTocSelect}
+          onClose={() => navigate(`/book/${id}`)}
+        />
+      )}
+      {!bookReady && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: colors.textDim }}>
+          Загрузка книги...
+        </div>
+      )}
+      <div style={{ flex: 1, overflow: "hidden", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
           bookBlob={bookBlob}
           initialPosition={initialPosition}

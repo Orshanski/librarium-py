@@ -121,6 +121,17 @@ export default function DesktopReaderToolbar({
         {progressPct}%
       </span>
 
+      {/* Fullscreen */}
+      <button
+        onClick={() => {
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        }}
+        style={btnStyle}
+      >
+        ⛶
+      </button>
+
       {/* TOC button */}
       <div ref={tocRef} style={{ position: "relative" }}>
         <button
