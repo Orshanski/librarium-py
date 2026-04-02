@@ -162,7 +162,7 @@ export default function MobileReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {/* Mobile toolbar: header + bottom sheets, visibility controlled directly */}
       {bookReady && toolbarVisible && (
         <MobileReaderToolbar

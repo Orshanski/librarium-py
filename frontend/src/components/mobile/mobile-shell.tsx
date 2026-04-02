@@ -48,6 +48,9 @@ export default function MobileShell({ children }: { children: React.ReactNode })
             left: 0,
             bottom: 0,
             width: "min(84vw, 320px)",
+            paddingTop: "var(--sat)",
+            paddingBottom: "var(--sab)",
+            paddingLeft: "var(--sal)",
             backgroundColor: colors.sidebar,
             borderRight: `1px solid ${colors.border}`,
             zIndex: 61,
@@ -66,7 +69,7 @@ export default function MobileShell({ children }: { children: React.ReactNode })
           style={{
             overflowY: "auto",
             marginTop: "var(--page-header-height, 0px)",
-            height: `calc(100dvh - var(--page-header-height, 0px) - ${layout.mobileBottomBarHeight}px)`,
+            height: `calc(100dvh - var(--page-header-height, 0px) - ${layout.mobileBottomBarHeight}px - var(--sab))`,
           }}
         >
           <div style={{ padding: `${layout.mobileContentPaddingX}px ${layout.mobileContentPaddingX}px ${layout.mobileContentPaddingX + 12}px` }}>
