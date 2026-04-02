@@ -13,7 +13,7 @@ export default function BookEditPage() {
   const [book, setBook] = useState<RawBook | null>(null);
   const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
   const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
-  const [options, setOptions] = useState<BookEditOptions | null>(null);
+  const [options, setOptions] = useState<BookEditOptions>();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function BookEditPage() {
         title={`Редактирование: ${book.title}`}
         breadcrumb={{ label: book.title, href: `/book/${id}` }}
       />
-      <BookEditForm book={bookData} options={options ?? undefined} onSave={handleSave} />
+      <BookEditForm book={bookData} options={options} onSave={handleSave} />
     </>
   );
 }
