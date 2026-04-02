@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { colors, fonts, layout } from "../../theme";
 import FilterBar, { FilterConfig } from "../filter-bar";
@@ -22,6 +22,7 @@ export default function DesktopPageHeader({
   actionSlot,
 }: PageHeaderProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const meName = user?.displayName || user?.username || "";
 
@@ -90,16 +91,18 @@ export default function DesktopPageHeader({
                 whiteSpace: "nowrap",
               }}
             >
-              <Link
-                to={breadcrumb.href}
+              <a
+                onClick={(e) => { e.preventDefault(); navigate(-1); }}
+                href={breadcrumb.href}
                 style={{
                   color: colors.textDim,
                   textDecoration: "none",
                   fontWeight: 400,
+                  cursor: "pointer",
                 }}
               >
                 {breadcrumb.label}
-              </Link>
+              </a>
               <span style={{ color: colors.textDim, fontWeight: 400 }}>/</span>
             </span>
           )}
