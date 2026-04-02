@@ -295,16 +295,26 @@ export const makeFB2 = async blob => {
     })
 
     const urls = []
+    let tocCounter = 0
+    const collectTitles = (parentEl) => {
+        const sections = parentEl.querySelectorAll(':scope > section')
+        return Array.from(sections, (section) => {
+            const titleEl = section.querySelector(':scope > .title')
+            if (!titleEl) return null
+            const index = tocCounter++
+            titleEl.setAttribute(dataID, index)
+            const subitems = collectTitles(section)
+            return {
+                title: getElementText(titleEl),
+                index,
+                subitems: subitems.length ? subitems : null,
+            }
+        }).filter(x => x)
+    }
     const sectionData = bodyData[0][0]
         // make a separate section for each section in the first body
         .map(({ el, ids }) => {
-            // set up titles for TOC
-            const titles = Array.from(
-                el.querySelectorAll(':scope > section > .title'),
-                (el, index) => {
-                    el.setAttribute(dataID, index)
-                    return { title: getElementText(el), index }
-                })
+            const titles = collectTitles(el)
             return { ids, titles, el }
         })
         // for additional bodies, only make one section for each body
@@ -339,15 +349,18 @@ export const makeFB2 = async blob => {
         return { id: index, load, createDocument, size, linear }
     })
 
+    const buildTocItems = (titles, sectionId) =>
+        titles?.map(({ title, index, subitems }) => ({
+            label: title,
+            href: `${sectionId}#${index}`,
+            subitems: subitems?.length ? buildTocItems(subitems, sectionId) : null,
+        })) ?? null
     book.toc = sectionData.map(({ title, titles }, index) => {
         const id = index.toString()
         return {
             label: title,
             href: id,
-            subitems: titles?.length ? titles.map(({ title, index }) => ({
-                label: title,
-                href: `${id}#${index}`,
-            })) : null,
+            subitems: buildTocItems(titles, id),
         }
     }).filter(item => item)
 
