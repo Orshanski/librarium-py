@@ -120,7 +120,7 @@ export default function ReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && (
         <ReaderToolbar
           bookTitle={bookTitle}
