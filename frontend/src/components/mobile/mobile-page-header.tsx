@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { colors, fonts, layout } from "../../theme";
 import { useMobileLayout } from "./layout-context";
 import MobileFilterBar from "./mobile-filter-bar";
@@ -21,6 +21,7 @@ export default function MobilePageHeader({
   mobileActionSlot,
 }: PageHeaderProps) {
   const { toggleDrawer } = useMobileLayout();
+  const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement | null>(null);
   // Mobile intentionally does not render the global upload CTA in the header.
   // The screen is already crowded, and this prop is desktop-only by product choice.
@@ -127,16 +128,18 @@ export default function MobilePageHeader({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    <Link
-                      to={breadcrumb.href}
+                    <a
+                      onClick={(e) => { e.preventDefault(); navigate(-1); }}
+                      href={breadcrumb.href}
                       style={{
                         color: colors.textDim,
                         textDecoration: "none",
                         fontWeight: 400,
+                        cursor: "pointer",
                       }}
                     >
                       {breadcrumb.label}
-                    </Link>
+                    </a>
                     <span style={{ color: colors.textDim, fontWeight: 400 }}>/</span>
                   </span>
                 )}

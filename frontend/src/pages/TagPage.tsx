@@ -145,20 +145,31 @@ export default function TagPage() {
       .finally(() => setLoading(false));
   }, [tagId]);
 
+  // Save cache on data/filter change and on unmount
+  const stateRef = useRef({ tag, tagBooks, selected, sort });
+  stateRef.current = { tag, tagBooks, selected, sort };
+
+  useEffect(() => {
+    if (tag && tagBooks.length > 0) saveCache(tagId, tag, tagBooks, selected, sort);
+  }, [tag, tagBooks, selected, sort, tagId]);
+
   // Scroll listener — saves cache on scroll
   useEffect(() => {
     const main = document.querySelector("main");
-    if (!main || !tag) return;
+    if (!main) return;
 
     function onScroll() {
-      if (tag) saveCache(tagId, tag, tagBooks, selected, sort);
+      const s = stateRef.current;
+      if (s.tag) saveCache(tagId, s.tag, s.tagBooks, s.selected, s.sort);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
+      const s = stateRef.current;
+      if (s.tag && s.tagBooks.length > 0) saveCache(tagId, s.tag, s.tagBooks, s.selected, s.sort);
     };
-  }, [tag, tagBooks, selected, sort, tagId]);
+  }, [tagId]);
 
   const filterConfigs: FilterConfig[] = useMemo(() => {
     return filterKeys.map(({ key, label }) => ({

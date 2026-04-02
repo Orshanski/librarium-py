@@ -112,20 +112,28 @@ export default function AuthorsPage() {
       .catch(() => setLoading(false));
   }, [paramsKey]);
 
-  // Scroll listener — saves cache on scroll
+  // Save cache on data/filter change and on unmount
+  const stateRef = useRef({ authors, filterOptions, selected });
+  stateRef.current = { authors, filterOptions, selected };
+
+  useEffect(() => {
+    if (authors.length > 0) saveCache(authors, filterOptions, selected);
+  }, [authors, filterOptions, paramsKey]);
+
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
-
     function onScroll() {
-      saveCache(authors, filterOptions, selected);
+      const s = stateRef.current;
+      saveCache(s.authors, s.filterOptions, s.selected);
     }
-
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
+      const s = stateRef.current;
+      if (s.authors.length > 0) saveCache(s.authors, s.filterOptions, s.selected);
     };
-  }, [authors, filterOptions, paramsKey]);
+  }, []);
 
   const filterConfigs: FilterConfig[] = useMemo(() => {
     if (!filterOptions) return [];

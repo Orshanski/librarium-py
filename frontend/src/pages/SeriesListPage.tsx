@@ -110,20 +110,31 @@ export default function SeriesListPage() {
       .catch(() => setLoading(false));
   }, [paramsKey]);
 
+  // Save cache on data/filter change and on unmount
+  const stateRef = useRef({ allSeries, options, selected });
+  stateRef.current = { allSeries, options, selected };
+
+  useEffect(() => {
+    if (allSeries.length > 0) saveCache(allSeries, options, selected);
+  }, [allSeries, options, paramsKey]);
+
   // Scroll listener: save cache on scroll
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
 
     function onScroll() {
-      saveCache(allSeries, options, selected);
+      const s = stateRef.current;
+      saveCache(s.allSeries, s.options, s.selected);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
+      const s = stateRef.current;
+      if (s.allSeries.length > 0) saveCache(s.allSeries, s.options, s.selected);
     };
-  }, [allSeries, options, paramsKey]);
+  }, []);
 
   const filterConfigs: FilterConfig[] = options
     ? [
