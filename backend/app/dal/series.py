@@ -68,9 +68,10 @@ def get_series_by_id(series_id: int):
 def get_or_create_series(name: str, commit: bool = True) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
+    row = db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()
     if commit:
         db.commit()
-    return db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()["id"]
+    return row["id"]
 
 
 def rename_series(series_id: int, name: str):
@@ -87,7 +88,7 @@ def merge_series(target_id: int, source_id: int):
                    {"target": target_id, "source": source_id})
         db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
         db.commit()
-    except:
+    except Exception:
         db.rollback()
         raise
 

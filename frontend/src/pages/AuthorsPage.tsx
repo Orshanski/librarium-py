@@ -6,6 +6,7 @@ import { FilterConfig } from "../components/filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
+import { splitCsv } from "../types";
 
 const CACHE_KEY = "librarium_authors";
 
@@ -155,7 +156,7 @@ export default function AuthorsPage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {authors.map((author) => {
-          const tagList = author.tags ? author.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+          const tagList = splitCsv(author.tags);
           return (
             <Link
               key={author.id}

@@ -29,6 +29,13 @@ def get_db() -> sqlite3.Connection:
     return db
 
 
+def rollback_if_dirty():
+    """Rollback any uncommitted transaction on the current thread's connection."""
+    db = getattr(_local, "db", None)
+    if db is not None and db.in_transaction:
+        db.rollback()
+
+
 def dict_from_row(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None

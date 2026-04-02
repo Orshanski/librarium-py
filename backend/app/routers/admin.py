@@ -92,16 +92,27 @@ def delete_user(user_id: int, request: Request):
 @router.get("/settings")
 def get_settings(request: Request):
     require_admin(request)
-    return settings_dal.get_all_settings()
+    result = settings_dal.get_all_settings()
+    if result.get("smtp_pass"):
+        result["smtp_pass"] = "••••••"
+    return result
 
 
 ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
 
 
+class UpdateSettingsBody(BaseModel):
+    app_name: str | None = None
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_pass: str | None = None
+
+
 @router.put("/settings")
-async def update_settings(request: Request):
+def update_settings(body: UpdateSettingsBody, request: Request):
     user = require_admin(request)
-    data = await request.json()
+    data = body.model_dump(exclude_none=True)
     changed = []
     for key, value in data.items():
         if key in ALLOWED_SETTINGS:

@@ -1,6 +1,8 @@
 import uuid
+from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from ..auth import get_current_user
 from ..dal.reader import (
     get_reader_settings,
@@ -10,6 +12,16 @@ from ..dal.reader import (
 )
 
 router = APIRouter(tags=["reader"])
+
+
+class ReaderSettingsBody(BaseModel):
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReadingProgressBody(BaseModel):
+    position: str
+    last_device: str = ""
+
 
 DEVICE_COOKIE = "device_id"
 DEVICE_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60  # ~10 years
@@ -45,12 +57,10 @@ def api_get_settings(request: Request):
 
 
 @router.put("/api/reader/settings")
-async def api_save_settings(request: Request):
+def api_save_settings(body: ReaderSettingsBody, request: Request):
     user = get_current_user(request)
     device_id = _get_or_create_device_id(request)
-    body = await request.json()
-    settings = body.get("settings", {})
-    save_reader_settings(user["userId"], device_id, settings)
+    save_reader_settings(user["userId"], device_id, body.settings)
     response = JSONResponse({"ok": True})
     _set_device_cookie(response, device_id)
     return response
@@ -64,12 +74,7 @@ def api_get_progress(book_id: int, request: Request):
 
 
 @router.put("/api/reader/progress/{book_id}")
-async def api_save_progress(book_id: int, request: Request):
+def api_save_progress(book_id: int, body: ReadingProgressBody, request: Request):
     user = get_current_user(request)
-    body = await request.json()
-    position = body.get("position")
-    last_device = body.get("last_device", "")
-    if not position:
-        return JSONResponse({"error": "position required"}, status_code=400)
-    save_reading_progress(user["userId"], book_id, position, last_device)
+    save_reading_progress(user["userId"], book_id, body.position, body.last_device)
     return {"ok": True}

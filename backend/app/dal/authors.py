@@ -72,17 +72,31 @@ def get_author_by_id(author_id: int):
     return {"author": author, "books": books}
 
 
+def _generate_sort_name(name: str) -> str:
+    """Generate sort name by inverting 'First Last' -> 'Last, First'."""
+    parts = name.strip().split()
+    if len(parts) <= 1:
+        return name.strip()
+    return f"{parts[-1]}, {' '.join(parts[:-1])}"
+
+
 def get_or_create_author(name: str, commit: bool = True) -> int:
     db = get_db()
-    db.execute("INSERT OR IGNORE INTO authors (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
+    sort_name = _generate_sort_name(name)
+    db.execute(
+        "INSERT OR IGNORE INTO authors (name, sort_name) VALUES (:name, :sort)",
+        {"name": name, "sort": sort_name},
+    )
+    row = db.execute("SELECT id FROM authors WHERE name = :name", {"name": name}).fetchone()
     if commit:
         db.commit()
-    return db.execute("SELECT id FROM authors WHERE name = :name", {"name": name}).fetchone()["id"]
+    return row["id"]
 
 
 def rename_author(author_id: int, name: str):
     db = get_db()
-    db.execute("UPDATE authors SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": author_id})
+    sort_name = _generate_sort_name(name)
+    db.execute("UPDATE authors SET name = :name, sort_name = :sort WHERE id = :id", {"name": name, "sort": sort_name, "id": author_id})
     db.commit()
 
 
@@ -97,7 +111,7 @@ def merge_authors(target_id: int, source_id: int):
         db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id})
         db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
         db.commit()
-    except:
+    except Exception:
         db.rollback()
         raise
 

@@ -132,6 +132,7 @@ def map_tag(tag_id: int, target_name: str) -> dict:
 def get_or_create_tag(name: str, commit: bool = True) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})
+    row = db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()
     if commit:
         db.commit()
-    return db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()["id"]
+    return row["id"]

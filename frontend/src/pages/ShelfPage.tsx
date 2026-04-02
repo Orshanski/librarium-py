@@ -8,6 +8,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
+import { toBook, splitCsv, RawBook } from "../types";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -20,8 +21,8 @@ export default function ShelfPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [shelf, setShelf] = useState<any>(null);
-  const [books, setBooks] = useState<any[]>([]);
+  const [shelf, setShelf] = useState<{ id: number; name: string; is_system: boolean } | null>(null);
+  const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState("added_desc");
 
@@ -41,8 +42,8 @@ export default function ShelfPage() {
     switch (sort) {
       case "title_asc": return list.sort((a, b) => a.title.localeCompare(b.title, "ru"));
       case "author_asc": return list.sort((a, b) => {
-        const aName = (a.authors || "").split(",")[0].trim().split(" ").pop() || "";
-        const bName = (b.authors || "").split(",")[0].trim().split(" ").pop() || "";
+        const aName = splitCsv(a.authors)[0]?.split(" ").pop() || "";
+        const bName = splitCsv(b.authors)[0]?.split(" ").pop() || "";
         return aName.localeCompare(bName, "ru");
       });
       case "rating_desc": return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
@@ -102,28 +103,13 @@ export default function ShelfPage() {
       />
 
       <BookGrid>
-        {sorted.map((b: any) => (
+        {sorted.map((b) => (
           <BookCard
             key={b.id}
-            book={{
-              id: b.id,
-              title: b.title,
-              authors: b.authors ? b.authors.split(",") : [],
-              series: b.series_name,
-              seriesNumber: b.series_number,
-              tags: b.tags ? b.tags.split(",") : [],
-              rating: b.rating,
-              language: b.language || "",
-              coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-              description: b.description,
-              publisher: b.publisher,
-              pubDate: b.pub_date,
-              formats: [],
-              isbn: null,
-            }}
+            book={toBook(b)}
             onRemove={!shelf.is_system ? async () => {
               const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
-              if (res.ok) setBooks(books.filter((x: any) => x.id !== b.id));
+              if (res.ok) setBooks(books.filter((x) => x.id !== b.id));
             } : undefined}
           />
         ))}

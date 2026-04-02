@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { api } from "./api";
 
 interface User {
@@ -64,12 +64,10 @@ export function ProtectedRoute({ children, adminOnly = false }: { children: Reac
 
   if (loading) return <div style={{ textAlign: "center", padding: 48, color: "#666" }}>Загрузка...</div>;
   if (!user) {
-    window.location.href = "/login";
-    return null;
+    return <Navigate to="/login" replace />;
   }
   if (adminOnly && user.role !== "admin") {
-    window.location.href = "/";
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

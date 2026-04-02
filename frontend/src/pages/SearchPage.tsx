@@ -6,12 +6,13 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
+import { toBook, RawBook } from "../types";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") || "";
 
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<{ books: RawBook[]; authors: { id: number; name: string; book_count: number }[]; series: { id: number; name: string; authors: string; book_count: number }[] } | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -112,25 +113,10 @@ function SearchResults() {
         <div>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Книги</h3>
           <BookGrid>
-            {books.map((b: any) => (
+            {books.map((b) => (
               <BookCard
                 key={b.id}
-                book={{
-                  id: b.id,
-                  title: b.title,
-                  authors: b.authors ? b.authors.split(",") : [],
-                  series: b.series_name,
-                  seriesNumber: b.series_number,
-                  tags: [],
-                  rating: null,
-                  language: "",
-                  coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-                  description: null,
-                  publisher: null,
-                  pubDate: null,
-                  formats: [],
-                  isbn: null,
-                }}
+                book={toBook(b)}
               />
             ))}
           </BookGrid>

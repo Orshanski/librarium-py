@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import { sanitizeHtml } from "../utils/sanitize-html";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";
@@ -174,7 +175,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
         const el = anchor(doc);
         if (!el) return;
         footnoteOpenRef.current = true;
-        setFootnoteHtml(el.innerHTML || el.textContent || "");
+        setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
       } catch (err) {
         console.error("Failed to load footnote:", err);
       }

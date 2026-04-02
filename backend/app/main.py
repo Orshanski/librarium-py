@@ -34,6 +34,17 @@ app = FastAPI(title="Librarium", docs_url=None, redoc_url=None)
 _log = logging.getLogger("librarium")
 
 
+@app.middleware("http")
+async def rollback_on_error(request: Request, call_next):
+    """Ensure dirty transactions are rolled back after each request."""
+    from .database import rollback_if_dirty
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        rollback_if_dirty()
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     from fastapi import HTTPException as _HTTPException

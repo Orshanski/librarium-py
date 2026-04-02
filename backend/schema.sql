@@ -100,13 +100,13 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 -- Link tables
 CREATE TABLE IF NOT EXISTS book_authors (
     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-    author_id INTEGER NOT NULL REFERENCES authors(id),
+    author_id INTEGER NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
     PRIMARY KEY (book_id, author_id)
 );
 
 CREATE TABLE IF NOT EXISTS book_tags (
     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-    tag_id INTEGER NOT NULL REFERENCES tags(id),
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (book_id, tag_id)
 );
 
