@@ -186,7 +186,7 @@ def create_book(data: dict, commit: bool = True) -> int:
     return book_id
 
 
-def update_book(book_id: int, data: dict):
+def update_book(book_id: int, data: dict, commit: bool = True):
     db = get_db()
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
@@ -217,7 +217,14 @@ def update_book(book_id: int, data: dict):
         for tid in data["tagIds"]:
             db.execute("INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)", (book_id, tid))
 
-    db.commit()
+    if "isbn" in data:
+        db.execute("DELETE FROM book_identifiers WHERE book_id = ? AND type = 'isbn'", (book_id,))
+        if data["isbn"]:
+            db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
+                       (book_id, data["isbn"]))
+
+    if commit:
+        db.commit()
 
 
 def delete_book(book_id: int):

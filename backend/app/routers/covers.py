@@ -12,6 +12,9 @@ from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 
+# Set once at module level — thread-safe, no toggling per-call
+Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
+
 from ..database import get_db
 from ..dal.books import get_book_by_id
 
@@ -26,15 +29,12 @@ def _get_thumb(book_id: int, cover_path: str) -> str:
     thumb_path = str(THUMBS_DIR / f"{book_id}.jpg")
     if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
         return thumb_path
-    prev = Image.MAX_IMAGE_PIXELS
-    Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
     img = Image.open(cover_path)
     ratio = THUMB_HEIGHT / img.height
     new_size = (int(img.width * ratio), THUMB_HEIGHT)
     img = img.resize(new_size, Image.LANCZOS)
     img = img.convert("RGB")
     img.save(thumb_path, "JPEG", quality=80)
-    Image.MAX_IMAGE_PIXELS = prev
     return thumb_path
 
 
@@ -84,8 +84,6 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 
     # Validate image before saving
     import io
-    prev = Image.MAX_IMAGE_PIXELS
-    Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
     try:
         img = Image.open(io.BytesIO(content))
         fmt = (img.format or "").upper()
@@ -94,8 +92,6 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
         img.load()
     except Exception:
         return JSONResponse({"error": "Файл не является изображением или повреждён"}, status_code=400)
-    finally:
-        Image.MAX_IMAGE_PIXELS = prev
 
     with open(temp_path, "wb") as f:
         f.write(content)
