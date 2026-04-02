@@ -63,6 +63,29 @@ class TestBookUpdate:
         assert updated["language"] == original["language"]
         assert updated["publisher"] == original["publisher"]
 
+    def test_update_isbn(self, admin_client):
+        resp = admin_client.put("/api/books/1", json={"isbn": "978-3-16-148410-0"})
+        assert resp.status_code == 200
+        data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        assert len(isbn_ids) == 1
+        assert isbn_ids[0]["value"] == "978-3-16-148410-0"
+
+    def test_update_isbn_replace(self, admin_client):
+        admin_client.put("/api/books/1", json={"isbn": "111"})
+        admin_client.put("/api/books/1", json={"isbn": "222"})
+        data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        assert len(isbn_ids) == 1
+        assert isbn_ids[0]["value"] == "222"
+
+    def test_update_isbn_clear(self, admin_client):
+        admin_client.put("/api/books/1", json={"isbn": "999"})
+        admin_client.put("/api/books/1", json={"isbn": ""})
+        data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        assert len(isbn_ids) == 0
+
     def test_reader_cannot_update(self, reader_client):
         resp = reader_client.put("/api/books/1", json={"title": "Hacked"})
         assert resp.status_code == 403

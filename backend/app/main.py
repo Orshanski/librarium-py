@@ -1,7 +1,7 @@
 import logging
 import traceback
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
@@ -29,20 +29,16 @@ from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
 
-app = FastAPI(title="Librarium", docs_url=None, redoc_url=None)
+from .database import db_session
+
+app = FastAPI(
+    title="Librarium",
+    docs_url=None,
+    redoc_url=None,
+    dependencies=[Depends(db_session)],
+)
 
 _log = logging.getLogger("librarium")
-
-
-@app.middleware("http")
-async def rollback_on_error(request: Request, call_next):
-    """Ensure dirty transactions are rolled back after each request."""
-    from .database import rollback_if_dirty
-    try:
-        response = await call_next(request)
-        return response
-    finally:
-        rollback_if_dirty()
 
 
 @app.exception_handler(Exception)

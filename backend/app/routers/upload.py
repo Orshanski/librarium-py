@@ -140,15 +140,33 @@ def _validate_temp_id(temp_id: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id))
 
 
+def _find_temp_file(temp_id: str, include_cover: bool = False) -> str | None:
+    """Find temp file by exact tempId match: {tempId}.{ext}"""
+    pattern = re.compile(rf'^{re.escape(temp_id)}\.(\w+)$')
+    for f in os.listdir(str(UPLOADS_DIR)):
+        if pattern.match(f):
+            if not include_cover and "-cover." in f:
+                continue
+            return f
+    return None
+
+
+def _find_temp_covers(temp_id: str) -> list[str]:
+    """Find temp cover files by exact tempId match: {tempId}-cover.{ext}"""
+    pattern = re.compile(rf'^{re.escape(temp_id)}-cover\.(\w+)$')
+    return [f for f in os.listdir(str(UPLOADS_DIR)) if pattern.match(f)]
+
+
 @router.delete("/api/uploads/{temp_id}")
 def cleanup_temp(temp_id: str, request: Request):
     require_admin(request)
     if not _validate_temp_id(temp_id):
         return JSONResponse({"error": "Invalid temp_id"}, status_code=400)
-    for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}.*")):
-        os.remove(f)
-    for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*")):
-        os.remove(f)
+    book_file = _find_temp_file(temp_id)
+    if book_file:
+        os.remove(str(UPLOADS_DIR / book_file))
+    for f in _find_temp_covers(temp_id):
+        os.remove(str(UPLOADS_DIR / f))
     return {"ok": True}
 
 
@@ -162,12 +180,8 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
     if not title:
         return JSONResponse({"error": "Title required"}, status_code=400)
 
-    # Find temp file
-    temp_file = None
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{temp_id}.") and "-cover." not in f:
-            temp_file = f
-            break
+    # Find temp file (exact match)
+    temp_file = _find_temp_file(temp_id)
     if not temp_file:
         return JSONResponse({"error": "Temp file not found"}, status_code=400)
 
@@ -221,10 +235,10 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
             (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
         )
 
-        # Cover
-        cover_files = glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*"))
+        # Cover (exact match)
+        cover_files = _find_temp_covers(temp_id)
         if cover_files:
-            cover_src = cover_files[0]
+            cover_src = str(UPLOADS_DIR / cover_files[0])
             cover_ext_name = cover_src.rsplit(".", 1)[-1]
             cover_dst = os.path.join(book_dir, f"cover.{cover_ext_name}")
             shutil.move(cover_src, cover_dst)
@@ -256,12 +270,8 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
     user = require_admin(request)
     temp_id = body.tempId
 
-    # Find temp file
-    temp_file = None
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{temp_id}.") and "-cover." not in f:
-            temp_file = f
-            break
+    # Find temp file (exact match)
+    temp_file = _find_temp_file(temp_id)
     if not temp_file:
         return JSONResponse({"error": "Temp file not found"}, status_code=400)
 
@@ -299,9 +309,9 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
             os.remove(dst)
         raise
 
-    # Clean temp cover AFTER successful commit
-    for f in glob.glob(str(UPLOADS_DIR / f"{temp_id}-cover.*")):
-        os.remove(f)
+    # Clean temp cover AFTER successful commit (exact match)
+    for f in _find_temp_covers(temp_id):
+        os.remove(str(UPLOADS_DIR / f))
 
     log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True, "format": fmt}

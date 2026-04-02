@@ -5,13 +5,7 @@ from pathlib import Path
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
-# Minimal 1x1 PNG for cover upload
-TINY_PNG = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
-    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
-    b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
-    b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+TINY_PNG = (Path(__file__).resolve().parent / "fixtures" / "test_cover.png").read_bytes()
 
 
 # ── Covers: GET ──
@@ -83,6 +77,23 @@ class TestCoverDiscard:
 
 
 # ── Covers: auth ──
+
+class TestCoverValidation:
+    def test_invalid_image_rejected(self, admin_client):
+        resp = admin_client.post(
+            "/api/books/2/cover",
+            files={"file": ("fake.png", b"not an image at all", "image/png")},
+        )
+        assert resp.status_code == 400
+        assert "изображением" in resp.json()["error"]
+
+    def test_text_file_as_image_rejected(self, admin_client):
+        resp = admin_client.post(
+            "/api/books/2/cover",
+            files={"file": ("cover.jpg", b"<html>hack</html>", "image/jpeg")},
+        )
+        assert resp.status_code == 400
+
 
 class TestCoverAuth:
     def test_reader_cannot_upload_cover(self, reader_client):

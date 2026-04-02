@@ -26,7 +26,7 @@ class UpdateBookBody(BaseModel):
     seriesNumber: Optional[float] = None
     authorIds: Optional[list[int | str]] = None
     tagIds: Optional[list[int | str]] = None
-    rating: Optional[int] = None
+    isbn: Optional[str] = None
 
 
 @router.get("")
@@ -75,7 +75,19 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request):
     if "seriesId" in data and isinstance(data["seriesId"], str):
         data["seriesId"] = get_or_create_series(data["seriesId"])
 
+    # Handle ISBN separately (stored in book_identifiers, not books table)
+    isbn = data.pop("isbn", None)
+
     dal.update_book(book_id, data)
+
+    if isbn is not None:
+        db = get_db()
+        db.execute("DELETE FROM book_identifiers WHERE book_id = ? AND type = 'isbn'", (book_id,))
+        if isbn:
+            db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
+                       (book_id, isbn))
+        db.commit()
+
     log.info("Updated book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}
 
