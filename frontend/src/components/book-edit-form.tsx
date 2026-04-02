@@ -6,6 +6,7 @@ import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
+import { splitCsv } from "../types";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
@@ -64,7 +65,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     if (data.publisher) setPublisher(data.publisher);
     if (data.pubDate) setPubDate(data.pubDate);
     if (data.isbn) setIsbn(data.isbn);
-    if (data.tags) setTags(data.tags.split(",").map((t) => t.trim()).filter(Boolean));
+    if (data.tags) setTags(splitCsv(data.tags));
     if (data.series) setSeriesName(data.series);
     if (data.seriesNumber) setSeriesNumber(data.seriesNumber);
 

@@ -1,8 +1,8 @@
 import DesktopShell from "./desktop/desktop-shell";
 import MobileShell from "./mobile/mobile-shell";
-import { ResponsiveProvider, useIsMobile } from "../responsive";
+import { useIsMobile } from "../responsive";
 
-function ShellLayout({ children }: { children: React.ReactNode }) {
+export default function Shell({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -10,12 +10,4 @@ function ShellLayout({ children }: { children: React.ReactNode }) {
   }
 
   return <DesktopShell>{children}</DesktopShell>;
-}
-
-export default function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <ResponsiveProvider>
-      <ShellLayout>{children}</ShellLayout>
-    </ResponsiveProvider>
-  );
 }

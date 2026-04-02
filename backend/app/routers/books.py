@@ -1,8 +1,10 @@
 import logging
 import os
 import shutil
+from typing import Optional
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 
 log = logging.getLogger("librarium.books")
@@ -12,6 +14,19 @@ from ..dal import books as dal
 from ..dal.books import get_book_by_id
 
 router = APIRouter(prefix="/api/books", tags=["books"])
+
+
+class UpdateBookBody(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    language: Optional[str] = None
+    publisher: Optional[str] = None
+    pubDate: Optional[str] = None
+    seriesId: Optional[int | str] = None
+    seriesNumber: Optional[float] = None
+    authorIds: Optional[list[int | str]] = None
+    tagIds: Optional[list[int | str]] = None
+    rating: Optional[int] = None
 
 
 @router.get("")
@@ -43,14 +58,14 @@ def get_book(book_id: int, request: Request):
 
 
 @router.put("/{book_id}")
-async def update_book(book_id: int, request: Request):
+def update_book(book_id: int, body: UpdateBookBody, request: Request):
     from ..dal.authors import get_or_create_author
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
     user = require_admin(request)
     if not get_book_by_id(book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
-    data = await request.json()
+    data = body.model_dump(exclude_unset=True)
 
     # Resolve string names to IDs
     if "authorIds" in data:

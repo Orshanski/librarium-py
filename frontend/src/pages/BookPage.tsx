@@ -5,13 +5,14 @@ import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
 import { colors } from "../theme";
+import { Book, toBook, RawBook } from "../types";
 
 export default function BookPage() {
   const { id } = useParams();
-  const [book, setBook] = useState<any>(null);
-  const [files, setFiles] = useState<any[]>([]);
-  const [identifiers, setIdentifiers] = useState<any[]>([]);
-  const [seriesBooks, setSeriesBooks] = useState<any[]>([]);
+  const [book, setBook] = useState<RawBook | null>(null);
+  const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
+  const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
+  const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,45 +60,18 @@ export default function BookPage() {
   }
 
   // Transform to component format
-  const isbn = identifiers.find((i: any) => i.type === "isbn")?.value || null;
-  const bookData = {
-    id: book.id,
-    title: book.title,
-    authors: book.authors ? book.authors.split(",") : [],
-    series: book.series_name,
-    seriesNumber: book.series_number,
-    tags: book.tags ? book.tags.split(",") : [],
-    rating: book.rating,
-    language: book.language || "",
-    coverPath: `/api/covers/${book.id}?full=1&t=${book.updated_at || ""}`,
-    description: book.description,
-    publisher: book.publisher,
-    pubDate: book.pub_date,
-    formats: files.map((f: any) => ({
+  const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
+  const bookData: Book = {
+    ...toBook(book, { fullCover: true, isbn }),
+    formats: files.map((f) => ({
       format: f.format,
       size: f.file_size > 1048576
         ? `${(f.file_size / 1048576).toFixed(1)} MB`
         : `${Math.round(f.file_size / 1024)} KB`,
     })),
-    isbn,
   };
 
-  const seriesBooksData = seriesBooks.map((b: any) => ({
-    id: b.id,
-    title: b.title,
-    authors: b.authors ? b.authors.split(",") : [],
-    series: b.series_name,
-    seriesNumber: b.series_number,
-    tags: [],
-    rating: b.rating,
-    language: b.language || "",
-    coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-    description: null,
-    publisher: null,
-    pubDate: null,
-    formats: [],
-    isbn: null,
-  }));
+  const seriesBooksData: Book[] = seriesBooks.map((b) => toBook(b));
 
   return (
     <Shell>

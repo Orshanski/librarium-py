@@ -7,6 +7,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { toBook, RawBook } from "../types";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -225,25 +226,10 @@ export default function CatalogPage() {
       )}
 
       <BookGrid>
-        {books.map((b: any) => (
+        {books.map((b: RawBook) => (
           <BookCard
             key={b.id}
-            book={{
-              id: b.id,
-              title: b.title,
-              authors: b.authors ? b.authors.split(",") : [],
-              series: b.series_name,
-              seriesNumber: b.series_number,
-              tags: b.tags ? b.tags.split(",") : [],
-              rating: b.rating,
-              language: b.language || "",
-              coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-              description: b.description,
-              publisher: b.publisher,
-              pubDate: b.pub_date,
-              formats: [],
-              isbn: null,
-            }}
+            book={toBook(b)}
           />
         ))}
       </BookGrid>

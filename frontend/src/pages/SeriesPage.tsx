@@ -8,6 +8,7 @@ import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
+import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
 
 interface SeriesData {
@@ -121,25 +122,10 @@ export default function SeriesPage() {
       )}
 
       <BookGrid>
-        {books.map((b: any) => (
+        {books.map((b: RawBook) => (
           <BookCard
             key={b.id}
-            book={{
-              id: b.id,
-              title: b.title,
-              authors: b.authors ? b.authors.split(",") : [],
-              series: b.series_name,
-              seriesNumber: b.series_number,
-              tags: b.tags ? b.tags.split(",") : [],
-              rating: b.rating,
-              language: b.language || "",
-              coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-              description: b.description,
-              publisher: b.publisher,
-              pubDate: b.pub_date,
-              formats: [],
-              isbn: null,
-            }}
+            book={toBook(b)}
           />
         ))}
       </BookGrid>

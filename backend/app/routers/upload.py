@@ -8,6 +8,7 @@ import zipfile
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 
+from pydantic import BaseModel, Field
 from ..auth import require_admin
 
 log = logging.getLogger("librarium.upload")
@@ -22,6 +23,29 @@ from ..dal.tags import get_or_create_tag, resolve_tag_names
 router = APIRouter(tags=["upload"])
 
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
+
+
+class CreateBookMetadata(BaseModel):
+    title: str
+    authors: str = ""
+    series: str = ""
+    seriesNumber: str = ""
+    description: str = ""
+    language: str = ""
+    tags: str = ""
+    publisher: str = ""
+    pubDate: str = ""
+    isbn: str = ""
+    coverUrl: str | None = None
+
+
+class CreateBookBody(BaseModel):
+    tempId: str = Field(min_length=1, max_length=20, pattern=r'^[a-zA-Z0-9]+$')
+    metadata: CreateBookMetadata = Field(default_factory=CreateBookMetadata)
+
+
+class AddFormatBody(BaseModel):
+    tempId: str = Field(min_length=1, max_length=20, pattern=r'^[a-zA-Z0-9]+$')
 
 
 @router.post("/api/upload")
@@ -129,15 +153,11 @@ def cleanup_temp(temp_id: str, request: Request):
 
 
 @router.post("/api/books/create")
-async def create_book_from_upload(request: Request):
+def create_book_from_upload(body: CreateBookBody, request: Request):
     user = require_admin(request)
-    data = await request.json()
 
-    temp_id = data.get("tempId")
-    if not temp_id or not _validate_temp_id(temp_id):
-        return JSONResponse({"error": "Invalid tempId"}, status_code=400)
-
-    meta = data.get("metadata", {})
+    temp_id = body.tempId
+    meta = body.metadata.model_dump()
     title = meta.get("title", "").strip()
     if not title:
         return JSONResponse({"error": "Title required"}, status_code=400)
@@ -232,12 +252,9 @@ async def create_book_from_upload(request: Request):
 
 
 @router.post("/api/books/{book_id}/add-format")
-async def add_format(book_id: int, request: Request):
+def add_format(book_id: int, body: AddFormatBody, request: Request):
     user = require_admin(request)
-    data = await request.json()
-    temp_id = data.get("tempId")
-    if not temp_id or not _validate_temp_id(temp_id):
-        return JSONResponse({"error": "Invalid tempId"}, status_code=400)
+    temp_id = body.tempId
 
     # Find temp file
     temp_file = None

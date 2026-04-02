@@ -5,7 +5,7 @@ import Shell from "../components/shell";
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
-import { Book } from "../types";
+import { Book, RawBook, toBook, splitCsv } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { useAuth } from "../auth";
@@ -16,41 +16,6 @@ interface AuthorData {
   sort_name: string;
   book_count: number;
   tags: string[];
-}
-
-interface BookRow {
-  id: number;
-  title: string;
-  authors: string | null;
-  series_name: string | null;
-  series_number: number | null;
-  tags: string | null;
-  rating: number | null;
-  language: string | null;
-  cover_path: string | null;
-  description: string | null;
-  publisher: string | null;
-  pub_date: string | null;
-  updated_at?: string;
-}
-
-function mapBook(b: BookRow): Book {
-  return {
-    id: b.id,
-    title: b.title,
-    authors: b.authors ? b.authors.split(",").map((a) => a.trim()) : [],
-    series: b.series_name,
-    seriesNumber: b.series_number,
-    tags: b.tags ? b.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-    rating: b.rating,
-    language: b.language || "",
-    coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-    description: b.description,
-    publisher: b.publisher,
-    pubDate: b.pub_date,
-    formats: [],
-    isbn: null,
-  };
 }
 
 export default function AuthorPage() {
@@ -77,10 +42,10 @@ export default function AuthorPage() {
       .then((data) => {
         if (!data) return;
         const a = data.author;
-        a.tags = a.tags ? a.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [];
+        a.tags = splitCsv(a.tags);
         a.book_count = data.books?.length || 0;
         setAuthor(a);
-        setBooks((data.books || []).map(mapBook));
+        setBooks((data.books || []).map((b: RawBook) => toBook(b)));
         setLoading(false);
       })
       .catch(() => {

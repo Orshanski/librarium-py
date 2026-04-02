@@ -7,7 +7,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterConfig } from "../components/filter-bar";
-import { Book } from "../types";
+import { RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 
@@ -16,41 +16,6 @@ interface TagData {
   name: string;
   code: string | null;
   book_count: number;
-}
-
-interface ApiBook {
-  id: number;
-  title: string;
-  authors: string | null;
-  series_name: string | null;
-  series_number: number | null;
-  tags: string | null;
-  rating: number | null;
-  language: string;
-  cover_path: string | null;
-  description: string | null;
-  publisher: string | null;
-  pub_date: string | null;
-  updated_at?: string;
-}
-
-function toBook(b: ApiBook): Book {
-  return {
-    id: b.id,
-    title: b.title,
-    authors: b.authors ? b.authors.split(",").map((a) => a.trim()) : [],
-    series: b.series_name || null,
-    seriesNumber: b.series_number || null,
-    tags: b.tags ? b.tags.split(",").map((t) => t.trim()) : [],
-    rating: b.rating || null,
-    language: b.language || "",
-    coverPath: `/api/covers/${b.id}?t=${b.updated_at || ""}`,
-    description: b.description || null,
-    publisher: b.publisher || null,
-    pubDate: b.pub_date || null,
-    formats: [],
-    isbn: null,
-  };
 }
 
 function applyFilters(allBooks: Book[], selected: Record<string, string[]>, excludeKey?: string): Book[] {
