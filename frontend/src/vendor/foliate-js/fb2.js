@@ -219,11 +219,8 @@ body.notesBodyType > section .title {
     margin: 1em 0;
 }
 p {
-    text-indent: 1em;
+    text-indent: 2em;
     margin: 0;
-}
-:not(p) + p, p:first-child {
-    text-indent: 0;
 }
 .poem p {
     text-indent: 0;
