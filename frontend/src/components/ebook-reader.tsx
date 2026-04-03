@@ -256,7 +256,14 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
         if (margin) view.renderer.setAttribute("margin", margin);
         if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
 
-        // Count total characters across all sections (FBReader-style estimation)
+        // Navigate to position first — show book immediately
+        if (initialPosition) {
+          view.goTo(initialPosition);
+        } else {
+          view.renderer.next();
+        }
+
+        // Count total characters in background (FBReader-style estimation)
         try {
           let totalChars = 0;
           for (const section of view.book.sections) {
@@ -268,12 +275,6 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           recalcPages();
         } catch (err) {
           console.warn("Failed to count chars:", err);
-        }
-
-        if (initialPosition) {
-          view.goTo(initialPosition);
-        } else {
-          view.renderer.next();
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
