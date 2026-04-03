@@ -36,6 +36,7 @@ const toggleBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+// Icon sizes: desktop 20-24px, mobile 18-22px (visually balanced per platform)
 const isPWA = window.matchMedia("(display-mode: standalone)").matches
   || (navigator as { standalone?: boolean }).standalone === true;
 
@@ -52,6 +53,11 @@ export default function DesktopReaderToolbar({
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
   const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync local state when settings load from server
+  useEffect(() => { setLocalFontSize(settings.fontSize); }, [settings.fontSize]);
+  useEffect(() => { setLocalLineSpacing(settings.lineSpacing); }, [settings.lineSpacing]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const tocRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -136,7 +142,7 @@ export default function DesktopReaderToolbar({
               position: "absolute", top: "100%", right: 0, marginTop: 4,
               background: colors.sidebar, border: `1px solid ${colors.border}`,
               borderRadius: 8, padding: "16px", zIndex: 200,
-              width: 360, maxHeight: 400, overflowY: "auto",
+              width: "min(360px, 90vw)", maxHeight: 400, overflowY: "auto",
               boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             }}>
               {tocItems.length === 0 && (
@@ -174,7 +180,7 @@ export default function DesktopReaderToolbar({
       <div
         ref={settingsRef}
         style={{
-          position: "fixed",
+          position: "absolute",
           right: 20,
           bottom: 20,
           zIndex: 200,

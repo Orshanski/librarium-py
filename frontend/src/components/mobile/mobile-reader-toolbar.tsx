@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { colors, fonts, layout } from "../../theme";
 import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, flattenToc } from "../reader-toolbar";
 
@@ -15,6 +15,10 @@ export default function MobileReaderToolbar({
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
   const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => { setLocalFontSize(settings.fontSize); }, [settings.fontSize]);
+  useEffect(() => { setLocalLineSpacing(settings.lineSpacing); }, [settings.lineSpacing]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   function update(patch: Partial<ReaderSettings>) {
     onSettingsChange({ ...settings, ...patch });
