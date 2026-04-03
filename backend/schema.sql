@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS shelves (
     name TEXT NOT NULL,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     is_system BOOLEAN NOT NULL DEFAULT 0,
+    system_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -140,6 +141,8 @@ CREATE TABLE IF NOT EXISTS reading_progress (
     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
     position TEXT,
     last_device TEXT,
+    last_format TEXT,
+    fraction REAL,
     last_read_at DATETIME,
     PRIMARY KEY (user_id, book_id)
 );
@@ -160,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_book_files_book ON book_files(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_identifiers_book ON book_identifiers(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_identifiers_type_value ON book_identifiers(type, value);
 CREATE INDEX IF NOT EXISTS idx_shelf_books_book ON shelf_books(book_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shelves_system_code ON shelves(user_id, system_code) WHERE system_code IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_user_books_book ON user_books(book_id);
 CREATE INDEX IF NOT EXISTS idx_authors_sort ON authors(sort_name);
 CREATE INDEX IF NOT EXISTS idx_series_sort ON series(sort_name);

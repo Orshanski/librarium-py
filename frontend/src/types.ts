@@ -35,6 +35,10 @@ export interface RawBook {
   publisher: string | null;
   pub_date: string | null;
   updated_at: string | null;
+  // Reading progress fields (present on "reading_now" shelf)
+  fraction?: number | null;
+  last_format?: string | null;
+  last_read_at?: string | null;
   [key: string]: unknown;
 }
 

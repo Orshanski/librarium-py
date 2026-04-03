@@ -21,6 +21,8 @@ class ReaderSettingsBody(BaseModel):
 class ReadingProgressBody(BaseModel):
     position: str
     last_device: str = ""
+    last_format: str = ""
+    fraction: float = Field(0, ge=0, le=1)
 
 
 DEVICE_COOKIE = "device_id"
@@ -76,5 +78,6 @@ def api_get_progress(book_id: int, request: Request):
 @router.put("/api/reader/progress/{book_id}")
 def api_save_progress(book_id: int, body: ReadingProgressBody, request: Request):
     user = get_current_user(request)
-    save_reading_progress(user["userId"], book_id, body.position, body.last_device)
+    save_reading_progress(user["userId"], book_id, body.position, body.last_device,
+                          body.last_format, body.fraction)
     return {"ok": True}
