@@ -163,17 +163,7 @@ export default function DesktopReaderPage() {
   return (
     <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            transform: toolbarVisible ? "translateY(0)" : "translateY(-100%)",
-            transition: "transform 0.3s ease",
-          }}
-        >
+        <div style={{ opacity: toolbarVisible ? 1 : 0, pointerEvents: toolbarVisible ? "auto" : "none", transition: "opacity 0.25s ease" }}>
           <ReaderToolbar
             bookTitle={bookTitle}
             fraction={fraction}
@@ -197,8 +187,8 @@ export default function DesktopReaderPage() {
           bookBlob={bookBlob}
           initialPosition={initialPosition}
           settings={settings}
-          maxInlineSize="1400px"
-          gap="4%"
+          maxInlineSize="1100px"
+          gap="3%"
           margin="48px"
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}

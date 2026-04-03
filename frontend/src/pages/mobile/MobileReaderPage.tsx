@@ -190,6 +190,7 @@ export default function MobileReaderPage() {
           maxInlineSize="1200px"
           gap="5%"
           margin="5px"
+          showFooter={false}
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />

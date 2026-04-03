@@ -23,6 +23,7 @@ interface EbookReaderProps {
   callbacks?: ReaderCallbacks;
   maxInlineSize?: string;
   gap?: string;
+  showFooter?: boolean;
   margin?: string;
   maxBlockSize?: string;
 }
@@ -107,7 +108,7 @@ function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings):
   return Math.max(Math.round(charsPerLine * linesPerPage / 2), 50);
 }
 
-export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize }: EbookReaderProps) {
+export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
   const callbacksRef = useRef(callbacks);
@@ -158,9 +159,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       const { fraction, cfi, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
 
-      // Fill footer with virtual page number and chapter title
+      // Fill footer with virtual page number and chapter title (desktop only)
       const feet = view.renderer?.feet;
-      if (feet?.length && totalPagesRef.current > 0) {
+      if (showFooter && feet?.length && totalPagesRef.current > 0) {
         const theme = THEME_STYLES[settingsRef.current.theme];
         const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
         const pageText = `${currentPage} / ${totalPagesRef.current}`;

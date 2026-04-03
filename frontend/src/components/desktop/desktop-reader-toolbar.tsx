@@ -4,27 +4,16 @@ import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES, flatten
 
 const btnStyle: React.CSSProperties = {
   background: "none",
-  border: `1px solid ${colors.border}`,
-  borderRadius: 6,
-  padding: "10px 18px",
+  border: "none",
+  padding: "12px 16px",
   fontSize: 17,
   fontFamily: fonts.display,
   color: colors.text,
   cursor: "pointer",
-};
-
-const dropdownStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "100%",
-  right: 0,
-  marginTop: 4,
-  background: colors.sidebar,
-  border: `1px solid ${colors.border}`,
-  borderRadius: 8,
-  padding: "16px",
-  zIndex: 200,
-  minWidth: 260,
-  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  lineHeight: 1,
 };
 
 const labelStyle: React.CSSProperties = {
@@ -47,9 +36,12 @@ const toggleBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+// Icon sizes: desktop 20-24px, mobile 18-22px (visually balanced per platform)
+const isPWA = window.matchMedia("(display-mode: standalone)").matches
+  || (navigator as { standalone?: boolean }).standalone === true;
+
 export default function DesktopReaderToolbar({
   bookTitle,
-  fraction,
   tocItems,
   settings,
   onSettingsChange,
@@ -58,6 +50,14 @@ export default function DesktopReaderToolbar({
 }: ReaderToolbarProps) {
   const [showToc, setShowToc] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
+  const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync local state when settings load from server
+  useEffect(() => { setLocalFontSize(settings.fontSize); }, [settings.fontSize]);
+  useEffect(() => { setLocalLineSpacing(settings.lineSpacing); }, [settings.lineSpacing]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const tocRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -81,104 +81,140 @@ export default function DesktopReaderToolbar({
     onSettingsChange({ ...settings, ...patch });
   }
 
-  const progressPct = Math.round(fraction * 100);
+  function debouncedUpdate(patch: Partial<ReaderSettings>) {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => update(patch), 150);
+  }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "env(safe-area-inset-top) 16px 0",
-        minHeight: 56,
-        background: colors.sidebar,
-        borderBottom: `1px solid ${colors.border}`,
-        position: "relative",
-      }}
-    >
-      {/* Spacer left */}
-      <span style={{ flex: 1 }} />
-
-      {/* Book title — true center */}
-      <span
+    <>
+      {/* Top bar */}
+      <div
         style={{
           position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 18,
-          fontFamily: fonts.display,
-          color: colors.text,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: "40%",
-          pointerEvents: "none",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 8,
+          padding: "env(safe-area-inset-top) 16px 8px",
+          minHeight: 48,
+          background: colors.sidebar,
+          borderBottom: `1px solid ${colors.border}`,
         }}
       >
-        {bookTitle}
-      </span>
-
-      {/* Progress */}
-      <span style={{ fontSize: 17, color: colors.text, whiteSpace: "nowrap" }}>
-        {progressPct}%
-      </span>
-
-      {/* Fullscreen */}
-      <button
-        onClick={() => {
-          if (document.fullscreenElement) document.exitFullscreen();
-          else document.documentElement.requestFullscreen();
-        }}
-        style={btnStyle}
-      >
-        ⛶
-      </button>
-
-      {/* TOC button */}
-      <div ref={tocRef} style={{ position: "relative" }}>
-        <button
-          onClick={() => { setShowToc((v) => !v); setShowSettings(false); }}
-          style={{ ...btnStyle, background: showToc ? colors.border : "none" }}
-        >
-          Содержание
-        </button>
-        {showToc && (
-          <div style={{ ...dropdownStyle, minWidth: 300, maxHeight: 400, overflowY: "auto" }}>
-            {tocItems.length === 0 && (
-              <span style={{ color: colors.textDim, fontSize: 13 }}>Нет содержания</span>
-            )}
-            {flattenToc(tocItems).map((item: any, i: number) => (
-              <div
-                key={i}
-                onClick={() => { onTocSelect(item.href); setShowToc(false); }}
-                style={{
-                  padding: "8px 4px",
-                  fontSize: 13,
-                  color: colors.textSecondary,
-                  cursor: "pointer",
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingLeft: (item.depth ?? 0) * 16 + 4,
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.text; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary; }}
-              >
-                {item.label}
-              </div>
-            ))}
-          </div>
+        {/* Fullscreen — only in browser, not PWA */}
+        {!isPWA && (
+          <button
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else document.documentElement.requestFullscreen();
+            }}
+            style={btnStyle}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
         )}
+
+        {/* Book title — tap to open TOC */}
+        <div ref={tocRef} style={{ position: "relative" }}>
+          <span
+            onClick={() => { setShowToc((v) => !v); setShowSettings(false); }}
+            style={{
+              display: "block",
+              fontSize: 20,
+              fontFamily: fonts.display,
+              color: colors.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              maxWidth: 400,
+            }}
+          >
+            {bookTitle}
+          </span>
+          {showToc && (
+            <div style={{
+              position: "absolute", top: "100%", right: 0, marginTop: 4,
+              background: colors.sidebar, border: `1px solid ${colors.border}`,
+              borderRadius: 8, padding: "16px", zIndex: 200,
+              width: "min(360px, 90vw)", maxHeight: 400, overflowY: "auto",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}>
+              {tocItems.length === 0 && (
+                <span style={{ color: colors.textDim, fontSize: 13 }}>Нет содержания</span>
+              )}
+              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => (
+                <div
+                  key={i}
+                  onClick={() => { onTocSelect(item.href); setShowToc(false); }}
+                  style={{
+                    padding: "8px 4px",
+                    fontSize: 13,
+                    color: colors.textSecondary,
+                    cursor: "pointer",
+                    borderBottom: `1px solid ${colors.border}`,
+                    paddingLeft: (item.depth ?? 0) * 16 + 4,
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.text; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary; }}
+                >
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Close */}
+        <button onClick={onClose} style={btnStyle}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
-      {/* Settings button */}
-      <div ref={settingsRef} style={{ position: "relative" }}>
+      {/* Settings gear — fixed right side */}
+      <div
+        ref={settingsRef}
+        style={{
+          position: "absolute",
+          right: 20,
+          bottom: 20,
+          zIndex: 200,
+        }}
+      >
         <button
           onClick={() => { setShowSettings((v) => !v); setShowToc(false); }}
-          style={{ ...btnStyle, background: showSettings ? colors.border : "none" }}
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            border: `1px solid ${colors.border}`,
+            background: showSettings ? colors.sidebar : "rgba(0,0,0,0.4)",
+            color: colors.accent,
+            fontSize: 26,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: showSettings ? 1 : 0.6,
+            transition: "opacity 0.2s, background 0.2s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { if (!showSettings) e.currentTarget.style.opacity = "0.6"; }}
         >
-          Настройки
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
         {showSettings && (
-          <div style={dropdownStyle}>
+          <div style={{
+            position: "absolute", bottom: "100%", right: 0, marginBottom: 8,
+            background: colors.sidebar, border: `1px solid ${colors.border}`,
+            borderRadius: 8, padding: "16px", zIndex: 200,
+            minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          }}>
             {/* Theme */}
             <span style={labelStyle}>Тема</span>
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
@@ -221,26 +257,20 @@ export default function DesktopReaderToolbar({
             </div>
 
             {/* Font size */}
-            <span style={labelStyle}>Размер шрифта: {settings.fontSize}px</span>
+            <span style={labelStyle}>Размер шрифта: {localFontSize}px</span>
             <input
-              type="range"
-              min={12}
-              max={28}
-              step={1}
-              value={settings.fontSize}
-              onChange={(e) => update({ fontSize: Number(e.target.value) })}
+              type="range" min={12} max={28} step={1}
+              value={localFontSize}
+              onChange={(e) => { const v = Number(e.target.value); setLocalFontSize(v); debouncedUpdate({ fontSize: v }); }}
               style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
             />
 
             {/* Line spacing */}
-            <span style={labelStyle}>Межстрочный интервал: {settings.lineSpacing.toFixed(1)}</span>
+            <span style={labelStyle}>Межстрочный интервал: {localLineSpacing.toFixed(1)}</span>
             <input
-              type="range"
-              min={1}
-              max={2.5}
-              step={0.1}
-              value={settings.lineSpacing}
-              onChange={(e) => update({ lineSpacing: Number(e.target.value) })}
+              type="range" min={1} max={2.5} step={0.1}
+              value={localLineSpacing}
+              onChange={(e) => { const v = Number(e.target.value); setLocalLineSpacing(v); debouncedUpdate({ lineSpacing: v }); }}
               style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
             />
 
@@ -264,13 +294,12 @@ export default function DesktopReaderToolbar({
               ))}
             </div>
 
-            {/* Toggles row */}
+            {/* Toggles */}
             <div style={{ display: "flex", gap: 6 }}>
               <button
                 onClick={() => update({ hyphenate: !settings.hyphenate })}
                 style={{
-                  ...toggleBtnStyle,
-                  flex: 1,
+                  ...toggleBtnStyle, flex: 1,
                   background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
                   color: settings.hyphenate ? colors.accent : colors.textSecondary,
                   borderColor: settings.hyphenate ? colors.accent : colors.border,
@@ -281,8 +310,7 @@ export default function DesktopReaderToolbar({
               <button
                 onClick={() => update({ justify: !settings.justify })}
                 style={{
-                  ...toggleBtnStyle,
-                  flex: 1,
+                  ...toggleBtnStyle, flex: 1,
                   background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
                   color: settings.justify ? colors.accent : colors.textSecondary,
                   borderColor: settings.justify ? colors.accent : colors.border,
@@ -291,15 +319,9 @@ export default function DesktopReaderToolbar({
                 По ширине
               </button>
             </div>
-
           </div>
         )}
       </div>
-
-      {/* Close button — rightmost */}
-      <button onClick={onClose} style={btnStyle}>
-        ✕
-      </button>
-    </div>
+    </>
   );
 }
