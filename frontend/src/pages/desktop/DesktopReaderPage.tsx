@@ -197,8 +197,8 @@ export default function DesktopReaderPage() {
           bookBlob={bookBlob}
           initialPosition={initialPosition}
           settings={settings}
-          maxInlineSize="1400px"
-          gap="4%"
+          maxInlineSize="1100px"
+          gap="3%"
           margin="48px"
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}

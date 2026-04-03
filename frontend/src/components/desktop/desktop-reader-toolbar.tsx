@@ -96,31 +96,20 @@ export default function DesktopReaderToolbar({
         position: "relative",
       }}
     >
-      {/* Spacer left */}
-      <span style={{ flex: 1 }} />
-
-      {/* Book title — true center */}
+      {/* Book title */}
       <span
         style={{
-          position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
+          flex: 1,
           fontSize: 18,
           fontFamily: fonts.display,
           color: colors.text,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          maxWidth: "40%",
-          pointerEvents: "none",
+          minWidth: 0,
         }}
       >
         {bookTitle}
-      </span>
-
-      {/* Progress */}
-      <span style={{ fontSize: 17, color: colors.text, whiteSpace: "nowrap" }}>
-        {progressPct}%
       </span>
 
       {/* Fullscreen */}
