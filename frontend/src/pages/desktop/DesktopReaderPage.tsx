@@ -87,7 +87,7 @@ export default function DesktopReaderPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ position: pos.cfi, last_device: pos.device, last_format: format || "", fraction: pos.fraction }),
+      body: JSON.stringify({ position: pos.cfi, last_device: pos.device, last_format: format || "", fraction: Math.min(1, Math.max(0, pos.fraction || 0)) }),
     }).catch(() => {});
     lastPositionRef.current = null;
   }, [id, format]);
