@@ -30,12 +30,16 @@ export default function MobileReaderToolbar({
   const btnStyle: React.CSSProperties = {
     background: "none",
     border: "none",
-    padding: "10px 12px",
-    fontSize: 14,
+    padding: "12px 16px",
+    fontSize: 21,
     fontFamily: "inherit",
     color: colors.textSecondary,
     cursor: "pointer",
     flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
   };
 
   const toggleBtnStyle: React.CSSProperties = {
@@ -78,14 +82,16 @@ export default function MobileReaderToolbar({
           borderBottom: `1px solid ${colors.border}`,
         }}
       >
-        <button onClick={onClose} style={btnStyle}>✕</button>
+        <button onClick={onClose} style={btnStyle}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
 
         {/* Title — tap to open TOC */}
         <span
           onClick={() => setPanel(panel === "toc" ? null : "toc")}
           style={{
             flex: 1,
-            fontSize: 15,
+            fontSize: 20,
             fontFamily: fonts.display,
             color: colors.text,
             overflow: "hidden",
@@ -97,7 +103,7 @@ export default function MobileReaderToolbar({
           {bookTitle}
         </span>
 
-        <span style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 17, color: colors.textDim, whiteSpace: "nowrap" }}>
           {progressPct}%
         </span>
 
