@@ -55,7 +55,10 @@ export default function ShelfPage() {
 
   async function handleDelete() {
     const res = await fetch(`/api/shelves/${id}`, { method: "DELETE" });
-    if (res.ok) navigate("/");
+    if (res.ok) {
+      window.dispatchEvent(new Event("shelves-changed"));
+      navigate("/");
+    }
   }
 
   useEffect(() => {

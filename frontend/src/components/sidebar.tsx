@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth";
 import { colors, layout } from "../theme";
 
@@ -43,12 +43,19 @@ export function SidebarContent({
   const [newShelfName, setNewShelfName] = useState("");
   const me = { name: user?.displayName || user?.username || "", role: user?.role || "" };
 
-  useEffect(() => {
+  const fetchShelves = useCallback(() => {
     fetch("/api/shelves")
       .then((r) => r.json())
       .then((data) => setShelves(data.shelves || []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchShelves();
+    const handler = () => fetchShelves();
+    window.addEventListener("shelves-changed", handler);
+    return () => window.removeEventListener("shelves-changed", handler);
+  }, [fetchShelves]);
 
   async function createShelf() {
     if (!newShelfName.trim()) return;
