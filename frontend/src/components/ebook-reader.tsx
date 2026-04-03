@@ -69,12 +69,9 @@ function buildCSS(settings: ReaderSettings): string {
     blockquote p {
       text-indent: 0;
     }
-    section > blockquote:first-of-type {
-      font-style: italic;
-    }
-    section > blockquote:first-of-type em,
-    section > blockquote:first-of-type i {
-      font-style: normal;
+    blockquote.epigraph {
+      font-style: italic !important;
+      font-size: 0.85em !important;
     }
     .poem {
       margin: 1em 0 1em 5%;
