@@ -7,7 +7,7 @@ from ..providers import search_metadata
 
 router = APIRouter(prefix="/api/metadata", tags=["metadata"])
 
-ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "cv5.litres.ru", "books.google.com", "encrypted-tbn0.gstatic.com", "books.googleusercontent.com"}
+ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "cv5.litres.ru", "cdn.litres.ru", "books.google.com", "encrypted-tbn0.gstatic.com", "books.googleusercontent.com"}
 
 
 @router.get("/search")
@@ -33,7 +33,11 @@ def cover_proxy(request: Request, url: str = ""):
         return Response(status_code=403)
 
     try:
-        resp = requests.get(url, timeout=15, headers={"User-Agent": "Librarium/1.0"}, allow_redirects=False)
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; Librarium/1.0)"}, allow_redirects=True)
+        # Verify final URL after redirects is still in whitelist
+        final_host = urlparse(resp.url).hostname
+        if final_host not in ALLOWED_COVER_DOMAINS:
+            return Response(status_code=403)
         if resp.status_code != 200:
             return Response(status_code=resp.status_code)
         content_type = resp.headers.get("Content-Type", "image/jpeg")
