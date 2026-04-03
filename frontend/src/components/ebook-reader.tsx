@@ -6,7 +6,12 @@ import { sanitizeHtml } from "../utils/sanitize-html";
 import "../vendor/foliate-js/view.js";
 
 export interface ReaderCallbacks {
-  onRelocate?: (detail: { fraction: number; cfi: string; tocItem?: any }) => void;
+  onRelocate?: (detail: {
+    fraction: number;
+    cfi: string;
+    tocItem?: { label: string };
+    location?: { current: number; total: number };
+  }) => void;
   onLoad?: () => void;
 }
 
@@ -92,6 +97,16 @@ function isFootnoteRef(a: Element): boolean {
   return false;
 }
 
+// Estimate chars per page from font settings and container dimensions
+function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings): number {
+  const rect = container.getBoundingClientRect();
+  const avgCharWidth = settings.fontSize * 0.55;
+  const lineHeight = settings.fontSize * settings.lineSpacing;
+  const charsPerLine = Math.floor(rect.width * 0.85 / avgCharWidth);
+  const linesPerPage = Math.floor(rect.height * 0.9 / lineHeight);
+  return Math.max(Math.round(charsPerLine * linesPerPage / 2), 50);
+}
+
 export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
@@ -104,6 +119,16 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
   const lastClickXRef = useRef(0);
   const footnoteOpenRef = useRef(false);
+  const totalCharsRef = useRef(0);
+  const totalPagesRef = useRef(0);
+
+  // Recalculate total pages from chars and current layout
+  const recalcPages = () => {
+    const container = containerRef.current;
+    if (!container || !totalCharsRef.current) return;
+    const cpp = estimateCharsPerPage(container, settingsRef.current);
+    totalPagesRef.current = Math.max(1, Math.round(totalCharsRef.current / cpp));
+  };
 
   // Apply styles when settings change
   useEffect(() => {
@@ -116,6 +141,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     view.renderer.setAttribute("gap", gap);
     if (margin) view.renderer.setAttribute("margin", margin);
     if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
+    recalcPages();
   }, [settings]);
 
   useEffect(() => {
@@ -129,8 +155,35 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     viewRef.current = view;
 
     view.addEventListener("relocate", (e: CustomEvent) => {
-      const { fraction, cfi, tocItem } = e.detail;
-      callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem });
+      const { fraction, cfi, tocItem, location } = e.detail;
+      callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
+
+      // Fill footer with virtual page number and chapter title
+      const feet = view.renderer?.feet;
+      if (feet?.length && totalPagesRef.current > 0) {
+        const theme = THEME_STYLES[settingsRef.current.theme];
+        const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
+        const pageText = `${currentPage} / ${totalPagesRef.current}`;
+        const chapterText = tocItem?.label || "";
+        const footStyle = {
+          fontSize: "11px",
+          color: theme.text,
+          fontFamily: "'IBM Plex Sans', sans-serif",
+          opacity: "0.4",
+          textOverflow: "ellipsis",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+        };
+        if (feet.length === 1) {
+          Object.assign(feet[0].style, { ...footStyle, textAlign: "center" });
+          feet[0].textContent = chapterText ? `${pageText}  ·  ${chapterText}` : pageText;
+        } else {
+          Object.assign(feet[0].style, { ...footStyle, textAlign: "left" });
+          feet[0].textContent = pageText;
+          Object.assign(feet[feet.length - 1].style, { ...footStyle, textAlign: "right" });
+          feet[feet.length - 1].textContent = chapterText;
+        }
+      }
     });
 
     view.addEventListener("load", (e: CustomEvent) => {
@@ -189,14 +242,33 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       }
     });
 
+    // Resize handler: recalculate pages on window resize
+    const handleResize = () => recalcPages();
+    window.addEventListener("resize", handleResize);
+
     view.open(bookBlob)
-      .then(() => {
+      .then(async () => {
         view.renderer.setStyles?.(buildCSS(settingsRef.current));
         view.renderer.setAttribute("flow", settingsRef.current.flow);
         view.renderer.setAttribute("max-inline-size", maxInlineSize);
         view.renderer.setAttribute("gap", gap);
         if (margin) view.renderer.setAttribute("margin", margin);
         if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
+
+        // Count total characters across all sections (FBReader-style estimation)
+        try {
+          let totalChars = 0;
+          for (const section of view.book.sections) {
+            if (!section.createDocument) continue;
+            const doc = await section.createDocument();
+            totalChars += (doc.body?.textContent?.length || 0);
+          }
+          totalCharsRef.current = totalChars;
+          recalcPages();
+        } catch (err) {
+          console.warn("Failed to count chars:", err);
+        }
+
         if (initialPosition) {
           view.goTo(initialPosition);
         } else {
@@ -207,6 +279,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
       try { view.renderer?.destroy(); } catch {}
       try { view.close(); } catch {}
       view.remove();
