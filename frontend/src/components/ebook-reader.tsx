@@ -31,7 +31,6 @@ interface EbookReaderProps {
 function buildCSS(settings: ReaderSettings): string {
   const theme = THEME_STYLES[settings.theme];
   return `
-    @namespace epub "http://www.idpf.org/2007/ops";
     html {
       background: ${theme.bg} !important;
       color: ${theme.text} !important;
@@ -47,40 +46,11 @@ function buildCSS(settings: ReaderSettings): string {
       -webkit-hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
       hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
     }
-    p, li, blockquote, dd, div, span {
+    p, li, dd, div, span {
       text-align: ${settings.justify ? "justify" : "start"} !important;
-      -webkit-hyphenate-limit-before: 3 !important;
-      -webkit-hyphenate-limit-after: 2 !important;
-      -webkit-hyphenate-limit-lines: 2 !important;
-      hanging-punctuation: allow-end last !important;
       widows: 2 !important;
     }
-    h1, h2, h3, h4, h5, h6 {
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
-      text-align: center !important;
-    }
-    h1 { font-size: 1.5em !important; }
-    h2 { font-size: 1.3em !important; }
-    h3 { font-size: 1.1em !important; }
-    h4 { font-size: 1em !important; }
-    blockquote {
-      margin: 1em 5%;
-    }
-    blockquote p {
-      text-indent: 0;
-    }
-    blockquote.epigraph {
-      font-style: italic !important;
-      font-size: 0.85em !important;
-    }
-    .poem {
-      margin: 1em 0 1em 5%;
-      text-align: left;
-    }
     a:link { color: ${theme.accent}; }
-    [align="left"] { text-align: left; }
-    [align="right"] { text-align: right; }
-    [align="center"] { text-align: center; }
   `;
 }
 

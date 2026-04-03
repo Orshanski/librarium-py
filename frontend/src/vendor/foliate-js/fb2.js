@@ -109,8 +109,14 @@ class FB2Converter {
     anchor(node) {
         const el = this.convert(node, { 'a': ['a', STYLE] })
         el.setAttribute('href', node.getAttributeNS(NS.XLINK, 'href'))
-        if (node.getAttribute('type') === 'note')
+        if (node.getAttribute('type') === 'note') {
             el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
+            // Clean brackets from note text: [178] → 178
+            el.textContent = el.textContent.replace(/^\[|\]$/g, '')
+            const sup = this.doc.createElement('sup')
+            sup.appendChild(el)
+            return sup
+        }
         return el
     }
     stanza(node) {
@@ -124,7 +130,21 @@ class FB2Converter {
             }],
         })
         for (const child of node.children) if (child.nodeName === 'v') {
-            el.append(this.doc.createTextNode(child.textContent))
+            for (const vChild of child.childNodes) {
+                if (vChild.nodeType === 3) el.append(this.doc.createTextNode(vChild.textContent))
+                else if (vChild.nodeName === 'a') el.append(this.anchor(vChild))
+                else if (vChild.nodeName === 'emphasis') {
+                    const em = this.doc.createElement('em')
+                    em.textContent = vChild.textContent
+                    el.append(em)
+                }
+                else if (vChild.nodeName === 'strong') {
+                    const strong = this.doc.createElement('strong')
+                    strong.textContent = vChild.textContent
+                    el.append(strong)
+                }
+                else el.append(this.doc.createTextNode(vChild.textContent))
+            }
             el.append(this.doc.createElement('br'))
         }
         return el
@@ -209,6 +229,12 @@ p {
     text-indent: 0;
     margin: 1em 0;
 }
+.epigraph {
+    font-style: italic;
+    font-size: 0.85em;
+}
+.poem + br { display: none; }
+.poem + br + .poem { margin-top: 0.5em; }
 .text-author, .date {
     text-align: end;
 }
