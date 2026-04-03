@@ -162,28 +162,16 @@ export default function DesktopReaderPage() {
 
   return (
     <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
-      {bookReady && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            transform: toolbarVisible ? "translateY(0)" : "translateY(-100%)",
-            transition: "transform 0.3s ease",
-          }}
-        >
-          <ReaderToolbar
-            bookTitle={bookTitle}
-            fraction={fraction}
-            tocItems={tocItems}
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-            onTocSelect={handleTocSelect}
-            onClose={() => navigate(-1)}
-          />
-        </div>
+      {bookReady && toolbarVisible && (
+        <ReaderToolbar
+          bookTitle={bookTitle}
+          fraction={fraction}
+          tocItems={tocItems}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          onTocSelect={handleTocSelect}
+          onClose={() => navigate(-1)}
+        />
       )}
       {!bookReady && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: colors.textDim, gap: 16, zIndex: 40 }}>

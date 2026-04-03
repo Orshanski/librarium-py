@@ -27,7 +27,6 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
 export const FONT_OPTIONS = [
   { label: "Georgia", value: "Georgia, 'Times New Roman', serif" },
   { label: "Palatino", value: "Palatino, 'Palatino Linotype', 'Book Antiqua', serif" },
-  { label: "Book Antiqua", value: "'Book Antiqua', Palatino, 'Palatino Linotype', serif" },
   { label: "Arial", value: "Arial, Helvetica, sans-serif" },
   { label: "Helvetica Neue", value: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
   { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
