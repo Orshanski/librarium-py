@@ -115,7 +115,7 @@ def seed_baseline():
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (5, 2)")
 
     # --- User data ---
-    db.execute("INSERT INTO shelves (id, name, user_id, is_system) VALUES (1, 'Лучшее', 2, 1)")
+    db.execute("INSERT INTO shelves (id, name, user_id, is_system, system_code) VALUES (1, 'Лучшее', 2, 1, 'best')")
     db.execute("INSERT INTO user_books (user_id, book_id, rating, is_read) VALUES (2, 1, 5, 1)")
 
     db.commit()

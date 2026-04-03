@@ -48,6 +48,12 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
                                                                     → filesystem (data/)
 ```
 
+## Code Rules
+
+- **No `any` in TypeScript.** Never use `as any` or `any` type. Extend interfaces, add optional fields, or create union types instead.
+- **Validate API inputs.** Use Pydantic `Field(ge=..., le=...)` for numeric ranges. Don't trust client data.
+- **DB constraints.** Add UNIQUE indexes for business rules, don't rely only on application logic.
+
 ## Development Process
 
 - **Never work in main.** Always create a feature branch.

@@ -27,21 +27,23 @@ def save_reader_settings(user_id: int, device_type: str, settings: dict):
 def get_reading_progress(user_id: int, book_id: int) -> dict:
     db = get_db()
     row = db.execute(
-        "SELECT position, last_device, last_read_at FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
+        "SELECT position, last_device, last_format, fraction, last_read_at FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
         {"uid": user_id, "bid": book_id},
     ).fetchone()
     if not row:
-        return {"position": None, "last_device": None, "last_read_at": None}
+        return {"position": None, "last_device": None, "last_format": None, "fraction": None, "last_read_at": None}
     return dict_from_row(row)
 
 
-def save_reading_progress(user_id: int, book_id: int, position: str, last_device: str):
+def save_reading_progress(user_id: int, book_id: int, position: str, last_device: str,
+                          last_format: str = "", fraction: float = 0):
     db = get_db()
     now = datetime.now(timezone.utc).isoformat()
     db.execute("""
-        INSERT INTO reading_progress (user_id, book_id, position, last_device, last_read_at)
-        VALUES (:uid, :bid, :pos, :dev, :now)
+        INSERT INTO reading_progress (user_id, book_id, position, last_device, last_format, fraction, last_read_at)
+        VALUES (:uid, :bid, :pos, :dev, :fmt, :frac, :now)
         ON CONFLICT(user_id, book_id) DO UPDATE SET
-            position = :pos, last_device = :dev, last_read_at = :now
-    """, {"uid": user_id, "bid": book_id, "pos": position, "dev": last_device, "now": now})
+            position = :pos, last_device = :dev, last_format = :fmt, fraction = :frac, last_read_at = :now
+    """, {"uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
+          "fmt": last_format, "frac": fraction, "now": now})
     db.commit()

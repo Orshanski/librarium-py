@@ -42,7 +42,7 @@ Searches across book titles, authors, and series names. Results are grouped by t
 
 ### Shelves
 
-A built-in "Best" shelf automatically collects books rated 4–5 stars. Create your own shelves and add books to them. Each user has their own set.
+Two built-in smart shelves: "Best" collects books rated 4–5 stars, "Reading Now" shows books with saved reading progress (tap the cover to jump straight into the reader). Create your own shelves and add books to them. Each user has their own set.
 
 ### Authors, series, genres
 

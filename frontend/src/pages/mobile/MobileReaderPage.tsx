@@ -78,7 +78,7 @@ export default function MobileReaderPage() {
 
   // Save progress on relocate (debounced 3s, flush on unmount)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastPositionRef = useRef<{ cfi: string; device: string } | null>(null);
+  const lastPositionRef = useRef<{ cfi: string; device: string; fraction: number } | null>(null);
 
   const flushProgress = useCallback(() => {
     clearTimeout(saveTimerRef.current);
@@ -88,17 +88,17 @@ export default function MobileReaderPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ position: pos.cfi, last_device: pos.device }),
+      body: JSON.stringify({ position: pos.cfi, last_device: pos.device, last_format: format || "", fraction: pos.fraction }),
     }).catch(() => {});
     lastPositionRef.current = null;
-  }, [id]);
+  }, [id, format]);
 
   useEffect(() => () => flushProgress(), [flushProgress]);
 
   const handleRelocate = useCallback(
     (detail: { fraction: number; cfi: string }) => {
       setFraction(detail.fraction);
-      lastPositionRef.current = { cfi: detail.cfi, device: deviceName };
+      lastPositionRef.current = { cfi: detail.cfi, device: deviceName, fraction: detail.fraction };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         flushProgress();

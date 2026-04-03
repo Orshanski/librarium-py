@@ -2,10 +2,10 @@ import { Link } from "react-router-dom";
 import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
 
-export default function DesktopBookCard({ book, onRemove }: BookCardProps) {
+export default function DesktopBookCard({ book, onRemove, href, progressPercent }: BookCardProps) {
   return (
     <Link
-      to={`/book/${book.id}`}
+      to={href ?? `/book/${book.id}`}
       style={{ textDecoration: "none", color: "inherit" }}
     >
       <div style={{ cursor: "pointer" }}>
@@ -29,6 +29,11 @@ export default function DesktopBookCard({ book, onRemove }: BookCardProps) {
               display: "block",
             }}
           />
+          {progressPercent != null && (
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, backgroundColor: "rgba(0,0,0,0.4)" }}>
+              <div style={{ height: "100%", width: `${progressPercent}%`, backgroundColor: colors.accent, transition: "width 0.2s" }} />
+            </div>
+          )}
           {onRemove && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}

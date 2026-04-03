@@ -21,7 +21,7 @@ export default function ShelfPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [shelf, setShelf] = useState<{ id: number; name: string; is_system: boolean } | null>(null);
+  const [shelf, setShelf] = useState<{ id: number; name: string; is_system: boolean; system_code?: string } | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState("added_desc");
@@ -103,16 +103,23 @@ export default function ShelfPage() {
       />
 
       <BookGrid>
-        {sorted.map((b) => (
-          <BookCard
-            key={b.id}
-            book={toBook(b)}
-            onRemove={!shelf.is_system ? async () => {
-              const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
-              if (res.ok) setBooks(books.filter((x) => x.id !== b.id));
-            } : undefined}
-          />
-        ))}
+        {sorted.map((b) => {
+          const isReadingNow = shelf.system_code === "reading_now";
+          const fmt = b.last_format;
+          const frac = b.fraction;
+          return (
+            <BookCard
+              key={b.id}
+              book={toBook(b)}
+              href={isReadingNow && fmt ? `/book/${b.id}/read/${fmt.toLowerCase()}` : undefined}
+              progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
+              onRemove={!shelf.is_system ? async () => {
+                const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
+                if (res.ok) setBooks(books.filter((x) => x.id !== b.id));
+              } : undefined}
+            />
+          );
+        })}
       </BookGrid>
 
       {!loading && sorted.length === 0 && (

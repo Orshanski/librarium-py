@@ -22,7 +22,7 @@ class ShelfBookBody(BaseModel):
 @router.get("")
 def list_shelves(request: Request, bookId: int | None = None):
     user = get_current_user(request)
-    dal.ensure_system_shelf(user["userId"])
+    dal.ensure_system_shelves(user["userId"])
     shelves = dal.get_shelves(user["userId"])
     result: dict = {"shelves": shelves}
     if bookId is not None:
