@@ -24,7 +24,7 @@ Drag and drop FB2, EPUB, PDF, or ZIP files. Metadata is extracted automatically 
 
 ### Book page
 
-Cover, description, all metadata, download links for each format. If the book belongs to a series, other books in the series are shown alongside. Rate it (1–5 stars), mark as read, or add to a shelf.
+Cover, description, all metadata, read and download links for each format. Find similar books via Litres.ru. If the book belongs to a series, other books in the series are shown alongside. Rate it (1–5 stars), mark as read, or add to a shelf.
 
 ![Book](docs/screenshots/02-book-detail.png)
 
@@ -68,7 +68,21 @@ User management, app settings, SMTP configuration for email notifications.
 
 ### Built-in reader
 
-Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device. Footnotes appear as popups.
+Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device. Footnotes appear as inline popups without leaving the page.
+
+![Reader](docs/screenshots/17-desktop-reader.png)
+
+![Footnote popup](docs/screenshots/18-desktop-reader-footnote.png)
+
+### Mobile
+
+The entire UI adapts to phones and tablets. Bottom tab bar for navigation, swipeable drawer for shelves, and a dedicated mobile reader with optimized margins and safe area support. Install as a PWA from the home screen for a native app experience without browser chrome.
+
+<p>
+  <img src="docs/screenshots/13-mobile-catalog.png" width="240" alt="Mobile catalog" />
+  <img src="docs/screenshots/14-mobile-book-detail.png" width="240" alt="Mobile book detail" />
+  <img src="docs/screenshots/15-mobile-reader.png" width="240" alt="Mobile reader" />
+</p>
 
 ### Security
 
@@ -104,10 +118,11 @@ add_header Content-Security-Policy "
 | Book parsing | lxml (FB2/EPUB), Pillow (covers) |
 | Metadata | Litres.ru, Google Books API |
 | Frontend | React 19, TypeScript, React Router 7 |
-| Responsive | Desktop + mobile layouts (768px breakpoint) |
+| Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, MOBI, CBZ, PDF) |
+| Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
-| Tests | pytest (backend), Vitest (frontend) |
+| Tests | pytest (214 tests) |
 | CI/CD | GitHub Actions |
 
 ## Getting started
