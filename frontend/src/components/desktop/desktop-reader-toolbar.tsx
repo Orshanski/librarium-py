@@ -5,11 +5,15 @@ import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES, flatten
 const btnStyle: React.CSSProperties = {
   background: "none",
   border: "none",
-  padding: "8px 12px",
+  padding: "12px 16px",
   fontSize: 17,
   fontFamily: fonts.display,
   color: colors.text,
   cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  lineHeight: 1,
 };
 
 const labelStyle: React.CSSProperties = {
@@ -88,27 +92,41 @@ export default function DesktopReaderToolbar({
           zIndex: 50,
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          justifyContent: "flex-end",
+          gap: 8,
           padding: "env(safe-area-inset-top) 16px 8px",
           minHeight: 48,
           background: colors.sidebar,
           borderBottom: `1px solid ${colors.border}`,
         }}
       >
+        {/* Fullscreen — only in browser, not PWA */}
+        {!isPWA && (
+          <button
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else document.documentElement.requestFullscreen();
+            }}
+            style={btnStyle}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+        )}
+
         {/* Book title — tap to open TOC */}
-        <div ref={tocRef} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <div ref={tocRef} style={{ position: "relative" }}>
           <span
             onClick={() => { setShowToc((v) => !v); setShowSettings(false); }}
             style={{
               display: "block",
-              fontSize: 18,
+              fontSize: 20,
               fontFamily: fonts.display,
               color: colors.text,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              textAlign: "right",
               cursor: "pointer",
+              maxWidth: 400,
             }}
           >
             {bookTitle}
@@ -146,21 +164,10 @@ export default function DesktopReaderToolbar({
           )}
         </div>
 
-        {/* Fullscreen — only in browser, not PWA */}
-        {!isPWA && (
-          <button
-            onClick={() => {
-              if (document.fullscreenElement) document.exitFullscreen();
-              else document.documentElement.requestFullscreen();
-            }}
-            style={btnStyle}
-          >
-            ⛶
-          </button>
-        )}
-
         {/* Close */}
-        <button onClick={onClose} style={btnStyle}>✕</button>
+        <button onClick={onClose} style={btnStyle}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       {/* Settings gear — fixed right side */}

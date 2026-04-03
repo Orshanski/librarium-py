@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { colors, fonts, layout } from "../../theme";
 import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, flattenToc } from "../reader-toolbar";
 
@@ -12,17 +12,24 @@ export default function MobileReaderToolbar({
   onClose,
 }: ReaderToolbarProps) {
   const [panel, setPanel] = useState<null | "toc" | "settings">(null);
+  const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
+  const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   function update(patch: Partial<ReaderSettings>) {
     onSettingsChange({ ...settings, ...patch });
+  }
+
+  function debouncedUpdate(patch: Partial<ReaderSettings>) {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => update(patch), 150);
   }
 
   const progressPct = Math.round(fraction * 100);
 
   const btnStyle: React.CSSProperties = {
     background: "none",
-    border: `1px solid ${colors.border}`,
-    borderRadius: 6,
+    border: "none",
     padding: "10px 12px",
     fontSize: 14,
     fontFamily: "inherit",
@@ -63,19 +70,19 @@ export default function MobileReaderToolbar({
           zIndex: 200,
           display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: "0 16px",
+          gap: 6,
+          padding: "0 12px 4px",
           paddingTop: "env(safe-area-inset-top)",
-          minHeight: layout.mobileHeaderMinHeight,
+          minHeight: 44,
           background: colors.sidebar,
           borderBottom: `1px solid ${colors.border}`,
         }}
       >
-        <button onClick={onClose} style={btnStyle}>
-          ✕
-        </button>
+        <button onClick={onClose} style={btnStyle}>✕</button>
 
+        {/* Title — tap to open TOC */}
         <span
+          onClick={() => setPanel(panel === "toc" ? null : "toc")}
           style={{
             flex: 1,
             fontSize: 15,
@@ -84,6 +91,7 @@ export default function MobileReaderToolbar({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
+            cursor: "pointer",
           }}
         >
           {bookTitle}
@@ -94,17 +102,10 @@ export default function MobileReaderToolbar({
         </span>
 
         <button
-          onClick={() => setPanel(panel === "toc" ? null : "toc")}
-          style={{ ...btnStyle, background: panel === "toc" ? colors.border : "none" }}
-        >
-          ☰
-        </button>
-
-        <button
           onClick={() => setPanel(panel === "settings" ? null : "settings")}
-          style={{ ...btnStyle, background: panel === "settings" ? colors.border : "none" }}
+          style={btnStyle}
         >
-          ⚙
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
       </div>
 
@@ -156,7 +157,7 @@ export default function MobileReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 14 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item: any, i: number) => (
+              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => (
                 <div
                   key={i}
                   onClick={() => { onTocSelect(item.href); setPanel(null); }}
@@ -199,14 +200,7 @@ export default function MobileReaderToolbar({
 
               {/* Font */}
               <span style={labelStyle}>Шрифт</span>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 6,
-                  marginBottom: 20,
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 20 }}>
                 {FONT_OPTIONS.map((f) => (
                   <button
                     key={f.value}
@@ -226,26 +220,20 @@ export default function MobileReaderToolbar({
               </div>
 
               {/* Font size */}
-              <span style={labelStyle}>Размер шрифта: {settings.fontSize}px</span>
+              <span style={labelStyle}>Размер шрифта: {localFontSize}px</span>
               <input
-                type="range"
-                min={14}
-                max={32}
-                step={1}
-                value={settings.fontSize}
-                onChange={(e) => update({ fontSize: Number(e.target.value) })}
+                type="range" min={14} max={32} step={1}
+                value={localFontSize}
+                onChange={(e) => { const v = Number(e.target.value); setLocalFontSize(v); debouncedUpdate({ fontSize: v }); }}
                 style={{ width: "100%", marginBottom: 20, accentColor: colors.accent }}
               />
 
               {/* Line spacing */}
-              <span style={labelStyle}>Межстрочный интервал: {settings.lineSpacing.toFixed(1)}</span>
+              <span style={labelStyle}>Межстрочный интервал: {localLineSpacing.toFixed(1)}</span>
               <input
-                type="range"
-                min={1}
-                max={2.5}
-                step={0.1}
-                value={settings.lineSpacing}
-                onChange={(e) => update({ lineSpacing: Number(e.target.value) })}
+                type="range" min={1} max={2.5} step={0.1}
+                value={localLineSpacing}
+                onChange={(e) => { const v = Number(e.target.value); setLocalLineSpacing(v); debouncedUpdate({ lineSpacing: v }); }}
                 style={{ width: "100%", marginBottom: 20, accentColor: colors.accent }}
               />
 
@@ -269,13 +257,12 @@ export default function MobileReaderToolbar({
                 ))}
               </div>
 
-              {/* Toggles row */}
+              {/* Toggles */}
               <div style={{ display: "flex", gap: 6, paddingBottom: 8 }}>
                 <button
                   onClick={() => update({ hyphenate: !settings.hyphenate })}
                   style={{
-                    ...toggleBtnStyle,
-                    flex: 1,
+                    ...toggleBtnStyle, flex: 1,
                     background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
                     color: settings.hyphenate ? colors.accent : colors.textSecondary,
                     borderColor: settings.hyphenate ? colors.accent : colors.border,
@@ -286,8 +273,7 @@ export default function MobileReaderToolbar({
                 <button
                   onClick={() => update({ justify: !settings.justify })}
                   style={{
-                    ...toggleBtnStyle,
-                    flex: 1,
+                    ...toggleBtnStyle, flex: 1,
                     background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
                     color: settings.justify ? colors.accent : colors.textSecondary,
                     borderColor: settings.justify ? colors.accent : colors.border,
@@ -296,7 +282,6 @@ export default function MobileReaderToolbar({
                   По ширине
                 </button>
               </div>
-
             </div>
           )}
         </div>
