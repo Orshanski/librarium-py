@@ -64,6 +64,7 @@ export interface ReaderToolbarProps {
   bookTitle: string;
   fraction: number;
   tocItems: any[];
+  currentTocHref: string;
   settings: ReaderSettings;
   onSettingsChange: (s: ReaderSettings) => void;
   onTocSelect: (href: string) => void;

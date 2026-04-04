@@ -21,6 +21,7 @@ export default function MobileReaderPage() {
   const [initialPosition, setInitialPosition] = useState<string | null>(null);
   const [fraction, setFraction] = useState(0);
   const [tocItems, setTocItems] = useState<any[]>([]);
+  const [currentTocHref, setCurrentTocHref] = useState("");
   const [bookReady, setBookReady] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
@@ -96,8 +97,9 @@ export default function MobileReaderPage() {
   useEffect(() => () => flushProgress(), [flushProgress]);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string }) => {
+    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
       setFraction(detail.fraction);
+      if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       lastPositionRef.current = { cfi: detail.cfi, device: deviceName, fraction: detail.fraction };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
@@ -169,6 +171,7 @@ export default function MobileReaderPage() {
           bookTitle={bookTitle}
           fraction={fraction}
           tocItems={tocItems}
+          currentTocHref={currentTocHref}
           settings={settings}
           onSettingsChange={handleSettingsChange}
           onTocSelect={handleTocSelect}

@@ -23,6 +23,7 @@ const isPWA = window.matchMedia("(display-mode: standalone)").matches
 export default function DesktopReaderToolbar({
   bookTitle,
   tocItems,
+  currentTocHref,
   settings,
   onSettingsChange,
   onTocSelect,
@@ -32,7 +33,15 @@ export default function DesktopReaderToolbar({
   const [showSettings, setShowSettings] = useState(false);
 
   const tocRef = useRef<HTMLDivElement>(null);
+  const tocListRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showToc && tocListRef.current) {
+      const active = tocListRef.current.querySelector('[data-active="true"]') as HTMLElement | null;
+      if (active) active.scrollIntoView({ block: "center" });
+    }
+  }, [showToc]);
 
   useEffect(() => {
     function handleClick(e: PointerEvent) {
@@ -101,7 +110,7 @@ export default function DesktopReaderToolbar({
             {bookTitle}
           </span>
           {showToc && (
-            <div style={{
+            <div ref={tocListRef} style={{
               position: "absolute", top: "100%", right: 0, marginTop: 4,
               background: colors.sidebar, border: `1px solid ${colors.border}`,
               borderRadius: 8, padding: "16px", zIndex: 200,
@@ -111,24 +120,29 @@ export default function DesktopReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 13 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => (
+              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => {
+                const isActive = item.href === currentTocHref;
+                return (
                 <div
                   key={i}
+                  data-active={isActive || undefined}
                   onClick={() => { onTocSelect(item.href); setShowToc(false); }}
                   style={{
                     padding: "8px 4px",
                     fontSize: 13,
-                    color: colors.textSecondary,
+                    color: isActive ? colors.accent : colors.textSecondary,
+                    fontWeight: isActive ? 600 : 400,
                     cursor: "pointer",
                     borderBottom: `1px solid ${colors.border}`,
                     paddingLeft: (item.depth ?? 0) * 16 + 4,
                   }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.text; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary; }}
+                  onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.color = colors.text; }}
+                  onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary; }}
                 >
                   {item.label}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
