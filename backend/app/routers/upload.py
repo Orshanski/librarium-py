@@ -102,8 +102,8 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     with open(book_path, "wb") as f:
         f.write(content)
 
-    # Parse
-    meta = parse_book(book_path, ext)
+    # Parse (pass original filename for PDF LLM extraction)
+    meta = parse_book(book_path, ext, original_filename=filename)
 
     # Save cover if extracted
     cover_url = None
