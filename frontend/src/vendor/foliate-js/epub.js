@@ -859,6 +859,37 @@ class Loader {
                 el.setAttribute('style',
                     await this.replaceCSS(el.getAttribute('style'), href, parents))
             // TODO: replace inline scripts? probably not worth the trouble
+
+            // Reader normalize stylesheet — forces user settings via CSS variables
+            const readerStyle = doc.createElement('style')
+            readerStyle.textContent = `
+                html {
+                    -webkit-text-size-adjust: 100% !important;
+                    text-size-adjust: 100% !important;
+                    background: var(--user-bg, #fff) !important;
+                    color: var(--user-color, #000) !important;
+                }
+                body {
+                    background: var(--user-bg, #fff) !important;
+                    color: var(--user-color, #000) !important;
+                    font-family: var(--user-font, Georgia, serif) !important;
+                    font-size: var(--user-font-size, 16px) !important;
+                    line-height: var(--user-line-height, 1.4) !important;
+                }
+                p, li, dd, blockquote {
+                    line-height: var(--user-line-height, 1.4) !important;
+                }
+                p, li, dd {
+                    text-align: var(--user-text-align, start) !important;
+                    -webkit-hyphens: var(--user-hyphens, manual) !important;
+                    hyphens: var(--user-hyphens, manual) !important;
+                }
+                a:link { color: var(--user-accent, #0066cc) !important; }
+                pre, code, kbd, samp { font-size: inherit !important; }
+            `
+            if (doc.head) doc.head.appendChild(readerStyle)
+            else doc.documentElement.appendChild(readerStyle)
+
             const result = new XMLSerializer().serializeToString(doc)
             return this.createURL(href, result, item.mediaType, parent)
         }
