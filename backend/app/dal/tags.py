@@ -81,10 +81,17 @@ def resolve_raw_tag(raw_tag: str, commit: bool = True) -> int:
 
 
 def _capitalize_tag(name: str) -> str:
-    """Capitalize first letter, leave the rest untouched."""
+    """Capitalize first letter, leave the rest untouched.
+
+    Special case: if the string is ALL-CAPS and longer than 4 chars, lowercase
+    everything after the first letter (SCIENCE FICTION -> Science fiction).
+    Acronyms up to 4 chars (AI, SQL, HTTP, REST) are preserved.
+    """
     s = name.strip()
     if not s:
         return s
+    if len(s) > 4 and s == s.upper() and any(c.isalpha() for c in s):
+        return s[0] + s[1:].lower()
     return s[0].upper() + s[1:]
 
 

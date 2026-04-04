@@ -42,6 +42,19 @@ class TestResolveTagNames:
         from app.dal.tags import resolve_tag_names
         assert resolve_tag_names([]) == []
 
+    def test_all_caps_long_lowercased(self, admin_client):
+        # Long ALL-CAPS tags get title-cased (>4 chars)
+        from app.dal.tags import resolve_tag_names
+        names = resolve_tag_names(["SCIENCE FICTION"])
+        assert names == ["Science fiction"]
+
+    def test_acronyms_preserved(self, admin_client):
+        # Short ALL-CAPS acronyms (<=4 chars) preserved
+        from app.dal.tags import resolve_tag_names
+        assert resolve_tag_names(["AI"]) == ["AI"]
+        assert resolve_tag_names(["SQL"]) == ["SQL"]
+        assert resolve_tag_names(["HTTP"]) == ["HTTP"]
+
 
 class TestMapTag:
     def test_rename_to_new_name(self, admin_client):
