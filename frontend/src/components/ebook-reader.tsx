@@ -186,8 +186,8 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             return; // only close, don't navigate
           }
           const rect = container.getBoundingClientRect();
-          const xFrac = lastClickXRef.current / rect.width;
-          const yFrac = lastClickYRef.current / rect.height;
+          const xFrac = (lastClickXRef.current - rect.left) / rect.width;
+          const yFrac = (lastClickYRef.current - rect.top) / rect.height;
 
           if (isMobile) {
             if (xFrac < 0.33) view.prev();
