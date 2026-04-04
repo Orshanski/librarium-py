@@ -1,0 +1,65 @@
+from pathlib import Path
+from unittest.mock import patch
+from app.parsers.pdf import parse_pdf
+from app.parsers.pdf_llm import LlmMetadata
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_parse_pdf_uses_llm_metadata():
+    llm_meta = LlmMetadata(
+        title="Real Title", author="Real Author", publisher="Real Pub",
+        year="2020", isbn="978-0-000-00000-0", annotation="Great book",
+        genre="Fiction", cover_url=""
+    )
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(b"\xff\xd8\xffFAKE", "jpg")):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.title == "Real Title"
+    assert meta.authors == ["Real Author"]
+    assert meta.publisher == "Real Pub"
+    assert meta.pub_date == "2020"
+    assert meta.isbn == "978-0-000-00000-0"
+    assert meta.description == "Great book"
+    assert meta.genres == ["Fiction"]
+    assert meta.cover_data == b"\xff\xd8\xffFAKE"
+    assert meta.cover_ext == "jpg"
+
+
+def test_parse_pdf_uses_cover_url_when_available():
+    llm_meta = LlmMetadata(title="X", author="Y", cover_url="https://example.com/c.jpg")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(b"JPEG_FROM_URL", "jpg")) as mock_fetch, \
+         patch("app.parsers.pdf.render_cover") as mock_render:
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    mock_fetch.assert_called_once_with("https://example.com/c.jpg")
+    mock_render.assert_not_called()
+    assert meta.cover_data == b"JPEG_FROM_URL"
+
+
+def test_parse_pdf_fallback_render_when_fetch_fails():
+    llm_meta = LlmMetadata(title="X", cover_url="https://broken.com/c.jpg")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(b"RENDERED", "jpg")):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.cover_data == b"RENDERED"
+
+
+def test_parse_pdf_fallback_filename_when_llm_empty():
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=LlmMetadata()), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "Some_Book_Name.pdf")
+    assert meta.title == "Some_Book_Name"
+    assert meta.authors == []
+
+
+def test_parse_pdf_splits_multiple_authors():
+    llm_meta = LlmMetadata(title="X", author="John Doe, Jane Smith")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.authors == ["John Doe", "Jane Smith"]

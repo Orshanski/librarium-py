@@ -1,51 +1,49 @@
-import re
 import logging
 from . import ParsedMetadata
+from .pdf_llm import extract_metadata_from_filename
+from .pdf_render import render_cover
+from .cover_fetcher import fetch_cover
 
 log = logging.getLogger(__name__)
 
 
-def parse_pdf(file_path: str) -> ParsedMetadata:
+def parse_pdf(file_path: str, original_filename: str = "") -> ParsedMetadata:
+    """Parse PDF using LLM + web search for metadata, PyMuPDF for cover fallback.
+
+    Args:
+        file_path: local filesystem path to the PDF file
+        original_filename: user-facing filename (used for LLM extraction hint)
+    """
     meta = ParsedMetadata()
-    try:
-        with open(file_path, "rb") as f:
-            # Read first 4KB — Info dictionary is usually near the beginning
-            head = f.read(4096)
-            # Also check end of file
-            f.seek(-min(4096, f.seek(0, 2)), 2)
-            tail = f.read()
-            raw = head + tail
 
-        text = raw.decode("latin-1", errors="ignore")
+    # 1. LLM metadata from filename
+    filename_hint = original_filename or file_path.rsplit("/", 1)[-1]
+    llm = extract_metadata_from_filename(filename_hint)
 
-        title = re.search(r"/Title\s*\(([^)]+)\)", text)
-        if title:
-            meta.title = _decode_pdf_string(title.group(1))
+    meta.title = llm.title
+    meta.authors = [a.strip() for a in llm.author.split(",") if a.strip()] if llm.author else []
+    meta.publisher = llm.publisher or None
+    meta.pub_date = llm.year or None
+    meta.isbn = llm.isbn or None
+    meta.description = llm.annotation or None
+    meta.genres = [llm.genre] if llm.genre else []
 
-        author = re.search(r"/Author\s*\(([^)]+)\)", text)
-        if author:
-            meta.authors = [_decode_pdf_string(author.group(1))]
+    # 2. Cover: try cover_url first, fallback to render
+    if llm.cover_url:
+        cover_bytes, cover_ext = fetch_cover(llm.cover_url)
+        if cover_bytes:
+            meta.cover_data = cover_bytes
+            meta.cover_ext = cover_ext
 
-    except Exception as e:
-        log.warning("Cannot parse PDF: %s", e)
+    if not meta.cover_data:
+        cover_bytes, cover_ext = render_cover(file_path)
+        if cover_bytes:
+            meta.cover_data = cover_bytes
+            meta.cover_ext = cover_ext
 
+    # 3. Title fallback
     if not meta.title:
-        # Fallback: filename
-        name = file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        name = filename_hint.rsplit("/", 1)[-1].rsplit(".", 1)[0]
         meta.title = name
 
     return meta
-
-
-def _decode_pdf_string(s: str) -> str:
-    # Handle PDF octal escapes like \320\237
-    def replace_octal(m):
-        return chr(int(m.group(1), 8))
-
-    decoded = re.sub(r"\\(\d{3})", replace_octal, s)
-    # Try to decode as UTF-8 bytes
-    try:
-        raw = bytes(ord(c) for c in decoded)
-        return raw.decode("utf-8")
-    except (UnicodeDecodeError, ValueError):
-        return decoded
