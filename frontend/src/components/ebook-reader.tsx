@@ -34,6 +34,8 @@ function buildCSS(settings: ReaderSettings): string {
     html {
       background: ${theme.bg} !important;
       color: ${theme.text} !important;
+      -webkit-text-size-adjust: 100% !important;
+      text-size-adjust: 100% !important;
     }
     body {
       background: ${theme.bg} !important;
@@ -103,12 +105,15 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     settingsRef.current = settings;
     const view = viewRef.current;
     if (!view?.renderer) return;
-    view.renderer.setStyles?.(buildCSS(settings));
+    const css = buildCSS(settings);
+    view.renderer.setStyles?.(css);
     view.renderer.setAttribute("flow", settings.flow);
     view.renderer.setAttribute("max-inline-size", maxInlineSize);
     view.renderer.setAttribute("gap", gap);
     if (margin) view.renderer.setAttribute("margin", margin);
     if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
+    // Re-apply after flow change render completes
+    requestAnimationFrame(() => view.renderer.setStyles?.(css));
     recalcPages();
   }, [settings]);
 
