@@ -28,7 +28,7 @@ interface EbookReaderProps {
   maxBlockSize?: string;
 }
 
-function applySettings(doc: Document, settings: ReaderSettings) {
+function applySettings(doc: Document, settings: ReaderSettings, renderer?: { setStyles?: (s: string) => void }) {
   const theme = THEME_STYLES[settings.theme];
   const s = doc.documentElement.style;
   s.setProperty("--user-bg", theme.bg);
@@ -39,6 +39,8 @@ function applySettings(doc: Document, settings: ReaderSettings) {
   s.setProperty("--user-line-height", String(settings.lineSpacing));
   s.setProperty("--user-text-align", settings.justify ? "justify" : "start");
   s.setProperty("--user-hyphens", settings.hyphenate ? "auto" : "manual");
+  // Trigger paginator background update
+  renderer?.setStyles?.("");
 }
 
 // Check if a link is a footnote reference
@@ -95,7 +97,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     const contents = view.renderer.getContents?.();
     if (contents?.length) {
       for (const { doc } of contents) {
-        if (doc) applySettings(doc, settings);
+        if (doc) applySettings(doc, settings, view.renderer);
       }
     }
     // Layout attributes
@@ -154,7 +156,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       const doc = e.detail?.doc;
       if (doc) {
         // Apply user settings to new document
-        applySettings(doc, settingsRef.current);
+        applySettings(doc, settingsRef.current, view.renderer);
         // Capture phase: record click position BEFORE foliate-js handles the link
         doc.addEventListener("click", (ev: MouseEvent) => {
           lastClickXRef.current = ev.screenX - window.screenX;
