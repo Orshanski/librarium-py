@@ -6,6 +6,7 @@ export default function MobileReaderToolbar({
   bookTitle,
   fraction,
   tocItems,
+  currentTocHref,
   settings,
   onSettingsChange,
   onTocSelect,
@@ -15,6 +16,14 @@ export default function MobileReaderToolbar({
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
   const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const tocListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (panel === "toc" && tocListRef.current) {
+      const active = tocListRef.current.querySelector('[data-active="true"]') as HTMLElement | null;
+      if (active) active.scrollIntoView({ block: "center" });
+    }
+  }, [panel]);
 
   useEffect(() => { setLocalFontSize(settings.fontSize); }, [settings.fontSize]);
   useEffect(() => { setLocalLineSpacing(settings.lineSpacing); }, [settings.lineSpacing]);
@@ -162,27 +171,32 @@ export default function MobileReaderToolbar({
           />
 
           {panel === "toc" && (
-            <div>
+            <div ref={tocListRef}>
               <span style={{ ...labelStyle, marginBottom: 12 }}>Содержание</span>
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 14 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => (
-                <div
-                  key={i}
-                  onClick={() => { onTocSelect(item.href); setPanel(null); }}
-                  style={{
-                    padding: "12px 4px",
-                    fontSize: 14,
-                    color: colors.textSecondary,
-                    cursor: "pointer",
-                    borderBottom: `1px solid ${colors.border}`,
-                    paddingLeft: (item.depth ?? 0) * 16 + 4,
-                  }}
-                >
-                  {item.label}
-                </div>
-              ))}
+              {flattenToc(tocItems).map((item, i) => {
+                const isActive = item.href === currentTocHref;
+                return (
+                  <div
+                    key={i}
+                    data-active={isActive || undefined}
+                    onClick={() => { onTocSelect(item.href); setPanel(null); }}
+                    style={{
+                      padding: "12px 4px",
+                      fontSize: 14,
+                      color: isActive ? colors.accent : colors.textSecondary,
+                      fontWeight: isActive ? 600 : 400,
+                      cursor: "pointer",
+                      borderBottom: `1px solid ${colors.border}`,
+                      paddingLeft: (item.depth ?? 0) * 16 + 4,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                );
+              })}
             </div>
           )}
 

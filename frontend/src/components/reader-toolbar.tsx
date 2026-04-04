@@ -60,20 +60,33 @@ export const THEME_STYLES: Record<ReaderTheme, { bg: string; text: string; accen
   light: { bg: "#f4f0e8", text: "#2a2218", accent: "#8b6914" },
 };
 
+export interface TocItem {
+  label: string;
+  href: string;
+  subitems?: TocItem[];
+}
+
+export interface FlatTocItem {
+  label: string;
+  href: string;
+  depth: number;
+}
+
 export interface ReaderToolbarProps {
   bookTitle: string;
   fraction: number;
-  tocItems: any[];
+  tocItems: TocItem[];
+  currentTocHref: string;
   settings: ReaderSettings;
   onSettingsChange: (s: ReaderSettings) => void;
   onTocSelect: (href: string) => void;
   onClose: () => void;
 }
 
-export function flattenToc(items: any[], depth = 0): any[] {
-  const result: any[] = [];
+export function flattenToc(items: TocItem[], depth = 0): FlatTocItem[] {
+  const result: FlatTocItem[] = [];
   for (const item of items) {
-    result.push({ ...item, depth });
+    result.push({ label: item.label, href: item.href, depth });
     if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
   }
   return result;

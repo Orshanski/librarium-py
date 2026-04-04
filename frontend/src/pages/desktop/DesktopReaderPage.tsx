@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import { getDeviceName } from "../../utils/device-info";
 import EbookReader from "../../components/ebook-reader";
-import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES } from "../../components/reader-toolbar";
+import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
@@ -19,7 +19,8 @@ export default function DesktopReaderPage() {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [initialPosition, setInitialPosition] = useState<string | null>(null);
   const [fraction, setFraction] = useState(0);
-  const [tocItems, setTocItems] = useState<any[]>([]);
+  const [tocItems, setTocItems] = useState<TocItem[]>([]);
+  const [currentTocHref, setCurrentTocHref] = useState("");
   const [bookReady, setBookReady] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
@@ -95,8 +96,9 @@ export default function DesktopReaderPage() {
   useEffect(() => () => flushProgress(), [flushProgress]);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string }) => {
+    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
       setFraction(detail.fraction);
+      if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       lastPositionRef.current = { cfi: detail.cfi, device: deviceName, fraction: detail.fraction };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
@@ -133,7 +135,7 @@ export default function DesktopReaderPage() {
 
   const handleLoad = useCallback(() => {
     const view = containerRef.current?.querySelector("foliate-view") as any;
-    setTocItems(view?.book?.toc ?? []);
+    setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
 
@@ -162,18 +164,17 @@ export default function DesktopReaderPage() {
 
   return (
     <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
-      {bookReady && (
-        <div style={{ opacity: toolbarVisible ? 1 : 0, pointerEvents: toolbarVisible ? "auto" : "none", transition: "opacity 0.25s ease" }}>
-          <ReaderToolbar
-            bookTitle={bookTitle}
-            fraction={fraction}
-            tocItems={tocItems}
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-            onTocSelect={handleTocSelect}
-            onClose={() => navigate(-1)}
-          />
-        </div>
+      {bookReady && toolbarVisible && (
+        <ReaderToolbar
+          bookTitle={bookTitle}
+          fraction={fraction}
+          tocItems={tocItems}
+          currentTocHref={currentTocHref}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          onTocSelect={handleTocSelect}
+          onClose={() => navigate(-1)}
+        />
       )}
       {!bookReady && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: colors.textDim, gap: 16, zIndex: 40 }}>

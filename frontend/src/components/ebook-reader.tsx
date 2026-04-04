@@ -9,7 +9,7 @@ export interface ReaderCallbacks {
   onRelocate?: (detail: {
     fraction: number;
     cfi: string;
-    tocItem?: { label: string };
+    tocItem?: { label: string; href: string };
     location?: { current: number; total: number };
   }) => void;
   onLoad?: () => void;
