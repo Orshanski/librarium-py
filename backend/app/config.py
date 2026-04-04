@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Project root — two levels up from this file (backend/app/config.py → librarium-py/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load backend/.env if it exists (for local development)
+load_dotenv(PROJECT_ROOT / "backend" / ".env")
 
 # Data directory — переопределяется через env DATA_DIR для тестов
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(PROJECT_ROOT / "data")))
