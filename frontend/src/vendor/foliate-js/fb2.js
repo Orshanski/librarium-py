@@ -469,8 +469,9 @@ export const makeFB2 = async blob => {
     }
 
     // Step 3: Build render sections with el preserved for anchor mapping
-    const renderSections = mergeHeadingIntros(bodyData[0][0]
-        .flatMap(item => splitSection(item)))
+    // Merge heading intros per original top-level section, not across boundaries
+    const renderSections = bodyData[0][0]
+        .flatMap(item => mergeHeadingIntros(splitSection(item)))
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
