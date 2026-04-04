@@ -76,6 +76,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const footnoteOpenRef = useRef(false);
   const totalCharsRef = useRef(0);
   const totalPagesRef = useRef(0);
+  const charCountTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Recalculate total pages from chars and current layout
   const recalcPages = () => {
@@ -211,9 +212,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     window.addEventListener("resize", handleResize);
 
     const t0 = performance.now();
+    let cleanupAbort = () => {};
     view.open(bookBlob)
       .then(async () => {
-        console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${view.book.sections.length}`);
+        if (location.hostname === 'localhost') console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${view.book.sections.length}`);
         view.renderer.setAttribute("flow", settingsRef.current.flow);
         view.renderer.setAttribute("max-inline-size", maxInlineSize);
         view.renderer.setAttribute("gap", gap);
@@ -236,11 +238,13 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           recalcPages();
         } else {
           // EPUB: count incrementally after first paint
-          setTimeout(async () => {
+          let aborted = false;
+          charCountTimerRef.current = setTimeout(async () => {
             try {
               let totalChars = 0;
               const batch = 3;
               for (let i = 0; i < sections.length; i += batch) {
+                if (aborted) return;
                 for (let j = i; j < Math.min(i + batch, sections.length); j++) {
                   const s = sections[j];
                   if (!s.createDocument) continue;
@@ -249,18 +253,19 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
                 }
                 totalCharsRef.current = totalChars;
                 recalcPages();
-                // Yield to browser between batches
                 await new Promise(r => setTimeout(r, 0));
               }
             } catch (err) {
               console.warn("Failed to count chars:", err);
             }
           }, 100);
+          cleanupAbort = () => { aborted = true; clearTimeout(charCountTimerRef.current); };
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
+      cleanupAbort();
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       try { view.renderer?.destroy(); } catch {}

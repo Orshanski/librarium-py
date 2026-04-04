@@ -379,7 +379,6 @@ export const makeFB2 = async blob => {
                 ?? (el.classList.contains('title') ? el.textContent : '')),
             titles: collectTitles(el),
             topIndex,
-            el,
         }
     })
 
@@ -404,7 +403,7 @@ export const makeFB2 = async blob => {
             segments.push({ el: wrapper, ids: wIds, charCount: wrapper.textContent?.length ?? 0 })
         }
         for (const child of Array.from(el.childNodes)) {
-            if (child.nodeType === 1 && child.tagName === 'section') {
+            if (child.nodeType === 1 && child.tagName?.toLowerCase() === 'section') {
                 flushNodes()
                 currentNodes = []
                 const childIds = [child, ...child.querySelectorAll('[id]')].map(e => e.id)
@@ -426,7 +425,12 @@ export const makeFB2 = async blob => {
     // Post-process: merge heading-only intro segments with next segment
     const HEADING_CLASSES = new Set(['title', 'epigraph', 'subtitle', 'text-author', 'date'])
     const isHeadingOnly = (el) => {
-        for (const child of el.children) {
+        for (const child of el.childNodes) {
+            if (child.nodeType === 3) {
+                if (child.textContent?.trim()) return false
+                continue
+            }
+            if (child.nodeType !== 1) continue
             const tag = child.tagName?.toLowerCase()
             if (tag === 'br') continue
             if (child.classList && [...child.classList].some(c => HEADING_CLASSES.has(c))) continue
@@ -436,27 +440,32 @@ export const makeFB2 = async blob => {
         return true
     }
     const mergeHeadingIntros = (segments) => {
-        const result = []
-        for (let i = 0; i < segments.length; i++) {
-            const seg = segments[i]
-            const next = segments[i + 1]
-            if (next
-                && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
-                && seg.el.querySelectorAll('section').length === 0
-                && isHeadingOnly(seg.el)
-            ) {
-                // Merge: prepend intro children into next segment
-                const beforeFirst = next.el.firstChild
-                for (const child of Array.from(seg.el.childNodes)) {
-                    next.el.insertBefore(child.cloneNode(true), beforeFirst)
+        let merged = true
+        while (merged) {
+            merged = false
+            const result = []
+            for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i]
+                const next = segments[i + 1]
+                if (next
+                    && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
+                    && seg.el.querySelectorAll('section').length === 0
+                    && isHeadingOnly(seg.el)
+                ) {
+                    const beforeFirst = next.el.firstChild
+                    for (const child of Array.from(seg.el.childNodes)) {
+                        next.el.insertBefore(child.cloneNode(true), beforeFirst)
+                    }
+                    next.ids = [...seg.ids, ...next.ids]
+                    next.charCount = next.el.textContent?.length ?? 0
+                    merged = true
+                    continue
                 }
-                next.ids = [...seg.ids, ...next.ids]
-                next.charCount = next.el.textContent?.length ?? 0
-                continue // skip this segment, next will be pushed
+                result.push(seg)
             }
-            result.push(seg)
+            segments = result
         }
-        return result
+        return segments
     }
 
     // Step 3: Build render sections with el preserved for anchor mapping
@@ -503,7 +512,10 @@ export const makeFB2 = async blob => {
         }
     }
 
-    // Step 5: Build book.sections (without el — not needed at runtime)
+    // Release DOM references — no longer needed after mapping
+    for (const s of renderSections) delete s.el
+
+    // Step 5: Build book.sections
     const idMap = new Map()
     book.sections = renderSections.map((section, index) => {
         const { ids, load, createDocument, size, linear, charCount } = section
