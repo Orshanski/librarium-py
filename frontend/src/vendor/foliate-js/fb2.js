@@ -234,7 +234,10 @@ body > img, section > img {
 .title h3 { text-align: center; font-size: 1.1em; }
 .title h4 { text-align: center; font-size: 1em; }
 body > section > .title, body.notesBodyType > .title {
-    margin: 3em 0;
+    margin: 0 0 1em;
+}
+.title + .title {
+    margin-top: 0.5em;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
@@ -274,7 +277,7 @@ a[epub|type~="noteref"] {
     vertical-align: super;
 }
 body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
-    margin: 3em 0;
+    margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
 
