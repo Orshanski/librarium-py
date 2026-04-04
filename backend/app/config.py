@@ -34,3 +34,6 @@ COOKIE_NAME = "librarium_token"
 MAX_BOOK_SIZE = 100 * 1024 * 1024   # 100 MB
 MAX_COVER_SIZE = 10 * 1024 * 1024   # 10 MB
 
+# LLM API (Anthropic Claude) — optional, empty string disables LLM extraction
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
