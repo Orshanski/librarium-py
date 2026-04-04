@@ -33,10 +33,10 @@ class TestResolveTagNames:
         names = resolve_tag_names(["sf_fantasy", "det_classic"])
         assert names == ["Фэнтези", "Классический детектив"]
 
-    def test_unknown_tag_passthrough(self, admin_client):
+    def test_unknown_tag_passthrough_capitalized(self, admin_client):
         from app.dal.tags import resolve_tag_names
         names = resolve_tag_names(["unknown_xyz"])
-        assert names == ["unknown_xyz"]
+        assert names == ["Unknown_xyz"]
 
     def test_empty_list(self, admin_client):
         from app.dal.tags import resolve_tag_names

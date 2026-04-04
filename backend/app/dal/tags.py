@@ -80,9 +80,17 @@ def resolve_raw_tag(raw_tag: str, commit: bool = True) -> int:
     return tag_id
 
 
+def _capitalize_tag(name: str) -> str:
+    """Capitalize first letter, leave the rest untouched."""
+    s = name.strip()
+    if not s:
+        return s
+    return s[0].upper() + s[1:]
+
+
 def resolve_tag_names(raw_tags: list[str]) -> list[str]:
     """Resolve raw genre codes to human-readable tag names.
-    Unknown tags pass through as-is."""
+    Unknown tags pass through as-is (with first letter capitalized)."""
     if not raw_tags:
         return []
     db = get_db()
@@ -92,7 +100,7 @@ def resolve_tag_names(raw_tags: list[str]) -> list[str]:
             "SELECT t.name FROM tag_mappings m JOIN tags t ON m.tag_id = t.id WHERE m.raw_tag = :raw COLLATE NOCASE",
             {"raw": raw},
         ).fetchone()
-        result.append(row["name"] if row else raw)
+        result.append(row["name"] if row else _capitalize_tag(raw))
     return result
 
 
