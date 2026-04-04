@@ -2,15 +2,20 @@ from unittest.mock import MagicMock, patch
 from app.parsers.cover_fetcher import fetch_cover
 
 
-def _mock_stream_response(status_code=200, content_type="image/jpeg", content=b"\xff\xd8\xff\xe0fake", content_length=None):
+def _mock_stream_response(status_code=200, content_type="image/jpeg", content=b"\xff\xd8\xff\xe0fake", content_length=None, is_redirect=False, location=""):
     """Build a mock context manager returning a response-like object for httpx.stream."""
     resp = MagicMock()
     resp.status_code = status_code
-    headers = {"content-type": content_type}
-    if content_length is None:
-        headers["content-length"] = str(len(content))
-    elif content_length != "":
-        headers["content-length"] = str(content_length)
+    resp.is_redirect = is_redirect
+    headers = {}
+    if is_redirect:
+        headers["location"] = location
+    else:
+        headers["content-type"] = content_type
+        if content_length is None:
+            headers["content-length"] = str(len(content))
+        elif content_length != "":
+            headers["content-length"] = str(content_length)
     resp.headers = headers
     resp.iter_bytes = MagicMock(return_value=iter([content]))
     resp.raise_for_status = MagicMock()
@@ -104,6 +109,42 @@ def test_is_safe_url_rejects_link_local():
     from app.parsers.cover_fetcher import _is_safe_url
     # AWS/Hetzner cloud metadata endpoint
     assert _is_safe_url("http://169.254.169.254/metadata") is False
+
+
+def test_fetch_cover_follows_safe_redirect():
+    # Public redirect to another public URL — should work
+    responses = [
+        _mock_stream_response(is_redirect=True, location="https://cdn.example.com/cover.jpg"),
+        _mock_stream_response(content_type="image/jpeg"),
+    ]
+    with patch("app.parsers.cover_fetcher._is_safe_url", return_value=True), \
+         patch("app.parsers.cover_fetcher.httpx.stream") as mock_stream:
+        mock_stream.side_effect = responses
+        data, ext = fetch_cover("https://example.com/r")
+    assert data is not None
+    assert ext == "jpg"
+
+
+def test_fetch_cover_rejects_redirect_to_internal_ip():
+    # Public URL redirects to link-local IP — must be rejected on 2nd hop
+    # _is_safe_url returns True for the initial URL, False for the redirect target
+    safe_url_results = iter([True, False])
+    with patch("app.parsers.cover_fetcher._is_safe_url", side_effect=lambda u: next(safe_url_results)), \
+         patch("app.parsers.cover_fetcher.httpx.stream") as mock_stream:
+        mock_stream.return_value = _mock_stream_response(is_redirect=True, location="http://169.254.169.254/metadata")
+        data, ext = fetch_cover("https://example.com/r")
+    assert data is None
+    assert ext is None
+
+
+def test_fetch_cover_redirect_chain_limit():
+    # Infinite redirect loop — bounded by MAX_REDIRECTS
+    with patch("app.parsers.cover_fetcher._is_safe_url", return_value=True), \
+         patch("app.parsers.cover_fetcher.httpx.stream") as mock_stream:
+        mock_stream.return_value = _mock_stream_response(is_redirect=True, location="https://example.com/loop")
+        data, ext = fetch_cover("https://example.com/loop")
+    assert data is None
+    assert ext is None
 
 
 def test_is_safe_url_rejects_private_ranges():

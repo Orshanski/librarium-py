@@ -1,5 +1,4 @@
 import logging
-import fitz  # PyMuPDF
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +13,15 @@ def render_cover(pdf_path: str, zoom: float = COVER_ZOOM) -> tuple[bytes | None,
 
     Returns (jpeg_bytes, 'jpg') or (None, None) on failure.
     Never raises — individual page errors are logged and skipped.
+    PyMuPDF is imported lazily so absent dependency degrades to (None, None)
+    instead of breaking the whole parser module at import time.
     """
+    try:
+        import fitz  # PyMuPDF (lazy import)
+    except ImportError as e:
+        log.warning("PyMuPDF not installed, cannot render cover: %s", e)
+        return None, None
+
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
