@@ -63,7 +63,7 @@ export default function MobileReaderPage() {
         setBookTitle(bookData.book?.title || "");
         setBookBlob(blob);
         if (settingsData.settings && Object.keys(settingsData.settings).length > 0) {
-          setSettings(settingsData.settings);
+          setSettings({ ...DEFAULT_SETTINGS, ...settingsData.settings });
         }
         if (progressData.position) {
           setInitialPosition(progressData.position);
@@ -191,6 +191,7 @@ export default function MobileReaderPage() {
           gap="5%"
           margin="5px"
           showFooter={false}
+          isMobile={true}
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />

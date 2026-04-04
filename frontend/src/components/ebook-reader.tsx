@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
 
 // Import foliate-js view (registers <foliate-view> custom element)
@@ -26,6 +26,7 @@ interface EbookReaderProps {
   showFooter?: boolean;
   margin?: string;
   maxBlockSize?: string;
+  isMobile?: boolean;
 }
 
 function applySettings(doc: Document, settings: ReaderSettings, renderer?: { setStyles?: (s: string) => void }) {
@@ -54,6 +55,20 @@ function isFootnoteRef(a: Element): boolean {
   return false;
 }
 
+type TapZoneResult = TapAction | "toolbar";
+
+function resolveDesktopZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
+  if (xFrac < 0.33) {
+    return yFrac < 0.5 ? zones.topLeft : zones.bottomLeft;
+  }
+  if (xFrac > 0.67) {
+    return yFrac < 0.5 ? zones.topRight : zones.bottomRight;
+  }
+  if (yFrac < 0.33) return zones.topCenter;
+  if (yFrac > 0.67) return zones.bottomCenter;
+  return "toolbar";
+}
+
 // Estimate chars per page from font settings and container dimensions
 function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings): number {
   const rect = container.getBoundingClientRect();
@@ -64,7 +79,7 @@ function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings):
   return Math.max(Math.round(charsPerLine * linesPerPage / 2), 50);
 }
 
-export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true }: EbookReaderProps) {
+export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true, isMobile = false }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
   const callbacksRef = useRef(callbacks);
@@ -75,6 +90,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
   const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
   const lastClickXRef = useRef(0);
+  const lastClickYRef = useRef(0);
   const footnoteOpenRef = useRef(false);
   const totalCharsRef = useRef(0);
   const totalPagesRef = useRef(0);
@@ -160,6 +176,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
         // Capture phase: record click position BEFORE foliate-js handles the link
         doc.addEventListener("click", (ev: MouseEvent) => {
           lastClickXRef.current = ev.screenX - window.screenX;
+          lastClickYRef.current = ev.screenY - window.screenY;
         }, true);
         doc.addEventListener("click", (ev: MouseEvent) => {
           if ((ev.target as Element)?.closest?.("a[href]")) return; // links handled by foliate-js
@@ -169,10 +186,20 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             return; // only close, don't navigate
           }
           const rect = container.getBoundingClientRect();
-          const x = lastClickXRef.current / rect.width;
-          if (x < 0.33) view.prev();
-          else if (x > 0.67) view.next();
-          else onCenterTapRef.current?.();
+          const xFrac = lastClickXRef.current / rect.width;
+          const yFrac = lastClickYRef.current / rect.height;
+
+          if (isMobile) {
+            if (xFrac < 0.33) view.prev();
+            else if (xFrac > 0.67) view.next();
+            else onCenterTapRef.current?.();
+          } else {
+            const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
+            const action = resolveDesktopZone(xFrac, yFrac, zones);
+            if (action === "prev") view.prev();
+            else if (action === "next") view.next();
+            else onCenterTapRef.current?.();
+          }
         });
       }
     });

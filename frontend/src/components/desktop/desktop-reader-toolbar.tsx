@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { colors, fonts } from "../../theme";
-import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES, flattenToc } from "../reader-toolbar";
+import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, THEME_STYLES, DEFAULT_DESKTOP_TAP_ZONES, flattenToc } from "../reader-toolbar";
+import { DesktopTapZoneEditor } from "../tap-zone-editor";
 
 const btnStyle: React.CSSProperties = {
   background: "none",
@@ -50,6 +51,7 @@ export default function DesktopReaderToolbar({
 }: ReaderToolbarProps) {
   const [showToc, setShowToc] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "zones">("general");
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
   const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -215,110 +217,149 @@ export default function DesktopReaderToolbar({
             borderRadius: 8, padding: "16px", zIndex: 200,
             minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
           }}>
-            {/* Theme */}
-            <span style={labelStyle}>Тема</span>
-            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-              {(["dark", "warm", "light"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => update({ theme: t })}
-                  style={{
-                    ...toggleBtnStyle,
-                    flex: 1,
-                    background: settings.theme === t ? colors.accent : "none",
-                    color: settings.theme === t ? colors.sidebar : colors.textSecondary,
-                    borderColor: settings.theme === t ? colors.accent : colors.border,
-                  }}
-                >
-                  {t === "dark" ? "Тёмная" : t === "warm" ? "Тёплая" : "Светлая"}
-                </button>
-              ))}
-            </div>
-
-            {/* Font */}
-            <span style={labelStyle}>Шрифт</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-              {FONT_OPTIONS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => update({ fontFamily: f.value })}
-                  style={{
-                    ...toggleBtnStyle,
-                    fontFamily: f.value,
-                    textAlign: "left",
-                    background: settings.fontFamily === f.value ? colors.accentBg : "none",
-                    color: settings.fontFamily === f.value ? colors.accent : colors.textSecondary,
-                    borderColor: settings.fontFamily === f.value ? colors.accent : colors.border,
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Font size */}
-            <span style={labelStyle}>Размер шрифта: {localFontSize}px</span>
-            <input
-              type="range" min={12} max={28} step={1}
-              value={localFontSize}
-              onChange={(e) => { const v = Number(e.target.value); setLocalFontSize(v); debouncedUpdate({ fontSize: v }); }}
-              style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
-            />
-
-            {/* Line spacing */}
-            <span style={labelStyle}>Межстрочный интервал: {localLineSpacing.toFixed(1)}</span>
-            <input
-              type="range" min={1} max={2.5} step={0.1}
-              value={localLineSpacing}
-              onChange={(e) => { const v = Number(e.target.value); setLocalLineSpacing(v); debouncedUpdate({ lineSpacing: v }); }}
-              style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
-            />
-
-            {/* Flow mode */}
-            <span style={labelStyle}>Режим</span>
-            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-              {(["paginated", "scrolled"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => update({ flow: mode })}
-                  style={{
-                    ...toggleBtnStyle,
-                    flex: 1,
-                    background: settings.flow === mode ? colors.accent : "none",
-                    color: settings.flow === mode ? colors.sidebar : colors.textSecondary,
-                    borderColor: settings.flow === mode ? colors.accent : colors.border,
-                  }}
-                >
-                  {mode === "paginated" ? "Страницы" : "Скролл"}
-                </button>
-              ))}
-            </div>
-
-            {/* Toggles */}
-            <div style={{ display: "flex", gap: 6 }}>
+            {/* Tab switcher */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: `1px solid ${colors.border}`, paddingBottom: 8 }}>
               <button
-                onClick={() => update({ hyphenate: !settings.hyphenate })}
+                onClick={() => setSettingsTab("general")}
                 style={{
-                  ...toggleBtnStyle, flex: 1,
-                  background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
-                  color: settings.hyphenate ? colors.accent : colors.textSecondary,
-                  borderColor: settings.hyphenate ? colors.accent : colors.border,
+                  ...toggleBtnStyle,
+                  flex: 1,
+                  background: settingsTab === "general" ? colors.accent : "none",
+                  color: settingsTab === "general" ? colors.sidebar : colors.textSecondary,
+                  borderColor: settingsTab === "general" ? colors.accent : colors.border,
                 }}
               >
-                Переносы
+                Общие
               </button>
               <button
-                onClick={() => update({ justify: !settings.justify })}
+                onClick={() => setSettingsTab("zones")}
                 style={{
-                  ...toggleBtnStyle, flex: 1,
-                  background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
-                  color: settings.justify ? colors.accent : colors.textSecondary,
-                  borderColor: settings.justify ? colors.accent : colors.border,
+                  ...toggleBtnStyle,
+                  flex: 1,
+                  background: settingsTab === "zones" ? colors.accent : "none",
+                  color: settingsTab === "zones" ? colors.sidebar : colors.textSecondary,
+                  borderColor: settingsTab === "zones" ? colors.accent : colors.border,
                 }}
               >
-                По ширине
+                Зоны тапа
               </button>
             </div>
+
+            {settingsTab === "general" && (
+              <>
+                {/* Theme */}
+                <span style={labelStyle}>Тема</span>
+                <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                  {(["dark", "warm", "light"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => update({ theme: t })}
+                      style={{
+                        ...toggleBtnStyle,
+                        flex: 1,
+                        background: settings.theme === t ? colors.accent : "none",
+                        color: settings.theme === t ? colors.sidebar : colors.textSecondary,
+                        borderColor: settings.theme === t ? colors.accent : colors.border,
+                      }}
+                    >
+                      {t === "dark" ? "Тёмная" : t === "warm" ? "Тёплая" : "Светлая"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Font */}
+                <span style={labelStyle}>Шрифт</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+                  {FONT_OPTIONS.map((f) => (
+                    <button
+                      key={f.value}
+                      onClick={() => update({ fontFamily: f.value })}
+                      style={{
+                        ...toggleBtnStyle,
+                        fontFamily: f.value,
+                        textAlign: "left",
+                        background: settings.fontFamily === f.value ? colors.accentBg : "none",
+                        color: settings.fontFamily === f.value ? colors.accent : colors.textSecondary,
+                        borderColor: settings.fontFamily === f.value ? colors.accent : colors.border,
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Font size */}
+                <span style={labelStyle}>Размер шрифта: {localFontSize}px</span>
+                <input
+                  type="range" min={12} max={28} step={1}
+                  value={localFontSize}
+                  onChange={(e) => { const v = Number(e.target.value); setLocalFontSize(v); debouncedUpdate({ fontSize: v }); }}
+                  style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
+                />
+
+                {/* Line spacing */}
+                <span style={labelStyle}>Межстрочный интервал: {localLineSpacing.toFixed(1)}</span>
+                <input
+                  type="range" min={1} max={2.5} step={0.1}
+                  value={localLineSpacing}
+                  onChange={(e) => { const v = Number(e.target.value); setLocalLineSpacing(v); debouncedUpdate({ lineSpacing: v }); }}
+                  style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
+                />
+
+                {/* Flow mode */}
+                <span style={labelStyle}>Режим</span>
+                <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                  {(["paginated", "scrolled"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => update({ flow: mode })}
+                      style={{
+                        ...toggleBtnStyle,
+                        flex: 1,
+                        background: settings.flow === mode ? colors.accent : "none",
+                        color: settings.flow === mode ? colors.sidebar : colors.textSecondary,
+                        borderColor: settings.flow === mode ? colors.accent : colors.border,
+                      }}
+                    >
+                      {mode === "paginated" ? "Страницы" : "Скролл"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Toggles */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => update({ hyphenate: !settings.hyphenate })}
+                    style={{
+                      ...toggleBtnStyle, flex: 1,
+                      background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
+                      color: settings.hyphenate ? colors.accent : colors.textSecondary,
+                      borderColor: settings.hyphenate ? colors.accent : colors.border,
+                    }}
+                  >
+                    Переносы
+                  </button>
+                  <button
+                    onClick={() => update({ justify: !settings.justify })}
+                    style={{
+                      ...toggleBtnStyle, flex: 1,
+                      background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
+                      color: settings.justify ? colors.accent : colors.textSecondary,
+                      borderColor: settings.justify ? colors.accent : colors.border,
+                    }}
+                  >
+                    По ширине
+                  </button>
+                </div>
+              </>
+            )}
+
+            {settingsTab === "zones" && (
+              <DesktopTapZoneEditor
+                zones={settings.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES}
+                onChange={(desktopTapZones) => update({ desktopTapZones })}
+              />
+            )}
           </div>
         )}
       </div>

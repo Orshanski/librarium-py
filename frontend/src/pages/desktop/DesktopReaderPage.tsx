@@ -62,7 +62,7 @@ export default function DesktopReaderPage() {
         setBookTitle(bookData.book?.title || "");
         setBookBlob(blob);
         if (settingsData.settings && Object.keys(settingsData.settings).length > 0) {
-          setSettings(settingsData.settings);
+          setSettings({ ...DEFAULT_SETTINGS, ...settingsData.settings });
         }
         if (progressData.position) {
           setInitialPosition(progressData.position);
