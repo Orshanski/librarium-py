@@ -176,7 +176,7 @@ export default function MobileReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 14 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => {
+              {flattenToc(tocItems).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
                   <div

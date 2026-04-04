@@ -120,7 +120,7 @@ export default function DesktopReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 13 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item: { label: string; href: string; depth?: number }, i: number) => {
+              {flattenToc(tocItems).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
                 <div
