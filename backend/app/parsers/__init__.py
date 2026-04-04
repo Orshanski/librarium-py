@@ -17,7 +17,7 @@ class ParsedMetadata:
     cover_ext: str | None = None
 
 
-def parse_book(file_path: str, ext: str) -> ParsedMetadata:
+def parse_book(file_path: str, ext: str, original_filename: str = "") -> ParsedMetadata:
     ext = ext.lower().lstrip(".")
     if ext == "fb2":
         from .fb2 import parse_fb2
@@ -27,6 +27,6 @@ def parse_book(file_path: str, ext: str) -> ParsedMetadata:
         return parse_epub(file_path)
     elif ext == "pdf":
         from .pdf import parse_pdf
-        return parse_pdf(file_path)
+        return parse_pdf(file_path, original_filename)
     else:
         return ParsedMetadata(title=file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0])
