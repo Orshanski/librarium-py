@@ -45,7 +45,7 @@ def parse_pdf(file_path: str, original_filename: str = "") -> ParsedMetadata:
     meta.pub_date = _normalize_year(llm.year)
     meta.isbn = _normalize_isbn(llm.isbn)
     meta.description = llm.annotation or None
-    meta.genres = [llm.genre] if llm.genre else []
+    meta.genres = list(llm.genres)
 
     # 2. Cover: try cover_url first, fallback to render
     if llm.cover_url:

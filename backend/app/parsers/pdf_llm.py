@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import anthropic
 from ..config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_TIMEOUT_SEC
 
@@ -20,14 +20,15 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
   "year": "...",
   "isbn": "...",
   "annotation": "...",
-  "genre": "...",
+  "genres": ["...", "..."],
   "cover_url": "..."
 }
 
 Правила:
-- Если не нашёл книгу — верни пустые строки в соответствующих полях, НЕ придумывай
+- Если не нашёл книгу — верни пустые строки / пустые массивы, НЕ придумывай
 - author: "Имя Фамилия" (на русском если книга русская), несколько авторов через запятую
 - annotation: краткое описание 1-2 предложения
+- genres: массив строк, каждая строка — отдельный жанр/категория (например ["Бизнес-литература", "Анализ данных"])
 - cover_url: прямая ссылка на изображение обложки (jpg/png)
 - Не придумывай имена по инициалам, если не уверен — оставь как есть
 
@@ -86,7 +87,7 @@ class LlmMetadata:
     year: str = ""
     isbn: str = ""
     annotation: str = ""
-    genre: str = ""
+    genres: list[str] = field(default_factory=list)
     cover_url: str = ""
 
 
@@ -122,6 +123,15 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
         log.warning("LLM returned no parseable JSON: %s", text[:200])
         return LlmMetadata()
 
+    # Extract genres — accept list[str] (preferred) or fallback to comma-separated string
+    raw_genres = data.get("genres") or data.get("genre") or []
+    if isinstance(raw_genres, str):
+        raw_genres = [g.strip() for g in raw_genres.split(",") if g.strip()]
+    elif isinstance(raw_genres, list):
+        raw_genres = [str(g).strip() for g in raw_genres if str(g).strip()]
+    else:
+        raw_genres = []
+
     return LlmMetadata(
         title=data.get("title", "") or "",
         author=data.get("author", "") or "",
@@ -129,6 +139,6 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
         year=data.get("year", "") or "",
         isbn=data.get("isbn", "") or "",
         annotation=data.get("annotation", "") or "",
-        genre=data.get("genre", "") or "",
+        genres=raw_genres,
         cover_url=data.get("cover_url", "") or "",
     )

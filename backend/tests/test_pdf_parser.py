@@ -10,7 +10,7 @@ def test_parse_pdf_uses_llm_metadata():
     llm_meta = LlmMetadata(
         title="Real Title", author="Real Author", publisher="Real Pub",
         year="2020", isbn="978-0-000-00000-0", annotation="Great book",
-        genre="Fiction", cover_url=""
+        genres=["Fiction", "Thriller"], cover_url=""
     )
     with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
          patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
@@ -22,7 +22,7 @@ def test_parse_pdf_uses_llm_metadata():
     assert meta.pub_date == "2020"
     assert meta.isbn == "9780000000000"  # hyphens stripped
     assert meta.description == "Great book"
-    assert meta.genres == ["Fiction"]
+    assert meta.genres == ["Fiction", "Thriller"]
     assert meta.cover_data == b"\xff\xd8\xffFAKE"
     assert meta.cover_ext == "jpg"
 
