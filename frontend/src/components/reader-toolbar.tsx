@@ -4,6 +4,26 @@ import MobileReaderToolbar from "./mobile/mobile-reader-toolbar";
 
 export type ReaderTheme = "dark" | "warm" | "light";
 
+export type TapAction = "prev" | "next";
+
+export interface DesktopTapZones {
+  topLeft: TapAction;
+  bottomLeft: TapAction;
+  topCenter: TapAction;
+  bottomCenter: TapAction;
+  topRight: TapAction;
+  bottomRight: TapAction;
+}
+
+export const DEFAULT_DESKTOP_TAP_ZONES: DesktopTapZones = {
+  topLeft: "prev",
+  bottomLeft: "prev",
+  topCenter: "next",
+  bottomCenter: "prev",
+  topRight: "next",
+  bottomRight: "next",
+};
+
 export interface ReaderSettings {
   fontSize: number;
   lineSpacing: number;
@@ -12,6 +32,7 @@ export interface ReaderSettings {
   theme: ReaderTheme;
   hyphenate: boolean;
   justify: boolean;
+  desktopTapZones: DesktopTapZones;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -22,6 +43,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   theme: "light",
   hyphenate: true,
   justify: true,
+  desktopTapZones: DEFAULT_DESKTOP_TAP_ZONES,
 };
 
 export const FONT_OPTIONS = [
