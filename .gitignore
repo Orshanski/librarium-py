@@ -13,3 +13,5 @@ frontend/dist/
 .vscode/
 .claude/*
 !.claude/settings.json
+.env
+backend/.env

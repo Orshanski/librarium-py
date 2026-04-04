@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -69,6 +70,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     content = await file.read()
 
+    # filename_hint for LLM extraction — overridden to inner book name when extracted from ZIP
+    filename_hint = filename
+
     # ZIP: extract single book file
     if ext == "zip":
         zip_path = str(UPLOADS_DIR / f"{temp_id}.zip")
@@ -90,6 +94,8 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
                     os.remove(zip_path)
                     return JSONResponse({"error": "Файл внутри ZIP слишком большой"}, status_code=400)
                 ext = book_name.rsplit(".", 1)[-1].lower()
+                # Use inner book name as hint for LLM — basename strips any zip-internal path
+                filename_hint = os.path.basename(book_name)
                 extracted = zf.read(book_name)
         except zipfile.BadZipFile:
             os.remove(zip_path)
@@ -102,8 +108,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     with open(book_path, "wb") as f:
         f.write(content)
 
-    # Parse
-    meta = parse_book(book_path, ext)
+    # Parse (pass filename hint for PDF LLM extraction — inner book name if from ZIP)
+    # Run in thread pool to avoid blocking event loop (LLM call can take 10-40s)
+    meta = await asyncio.to_thread(parse_book, book_path, ext, filename_hint)
 
     # Save cover if extracted
     cover_url = None

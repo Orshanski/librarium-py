@@ -20,6 +20,8 @@ Books are displayed as a grid of covers. Filters by author, series, genre, and l
 
 Drag and drop FB2, EPUB, PDF, or ZIP files. Metadata is extracted automatically — title, authors, series, description, language, genres, ISBN, cover. Batch uploads work. Before saving, you can edit metadata, search external catalogs (Litres.ru, Google Books), or swap the cover. Duplicates are detected on the fly.
 
+**PDF metadata via LLM.** PDF files don't usually carry useful metadata in the file itself, so Librarium sends the filename to Claude (Anthropic API) with web search enabled, and gets back title, authors, publisher, year, ISBN, annotation, genres, and a direct cover URL. The cover is downloaded from the publisher's CDN; if that fails, the first page of the PDF is rendered as a fallback. Cover URL fetches go through SSRF protection (no redirects to internal IPs). Works even when the filename is mangled or transliterated ("Savelev_Statistika-i-kotiki.pdf" → "Владимир Савельев / Статистика и котики"). Requires `ANTHROPIC_API_KEY` in env; if absent, falls back to filename-as-title and rendered cover.
+
 ![Upload](docs/screenshots/08-upload.png)
 
 ### Book page
@@ -115,8 +117,8 @@ add_header Content-Security-Policy "
 | Backend | Python, FastAPI, Uvicorn |
 | Database | SQLite (WAL mode) |
 | Auth | JWT + bcrypt |
-| Book parsing | lxml (FB2/EPUB), Pillow (covers) |
-| Metadata | Litres.ru, Google Books API |
+| Book parsing | lxml (FB2/EPUB), PyMuPDF (PDF cover render), Pillow (covers) |
+| Metadata | Litres.ru, Google Books API, Anthropic Claude (PDF via web search) |
 | Frontend | React 19, TypeScript, React Router 7 |
 | Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, MOBI, CBZ, PDF) |
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
@@ -142,6 +144,19 @@ pip install -r requirements.txt
 python run.py          # http://localhost:8000
 python run.py --dev    # with auto-reload
 ```
+
+#### Optional: LLM metadata extraction for PDFs
+
+To enable LLM-based metadata extraction for PDF uploads, put your Anthropic API key in `backend/.env`:
+
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+# optional overrides:
+# ANTHROPIC_MODEL=claude-sonnet-4-6
+# ANTHROPIC_TIMEOUT_SEC=60
+```
+
+The file is auto-loaded at startup via `python-dotenv`. Without the key, PDF parsing falls back to filename-as-title and a rendered first-page cover.
 
 ### Frontend
 

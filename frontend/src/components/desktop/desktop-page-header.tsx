@@ -112,12 +112,13 @@ export default function DesktopPageHeader({
           {titleSlot}
         </h1>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <span style={{ fontSize: 13, color: colors.textDim }}>{meName || "..."}</span>
           <div
             style={{
               width: 32,
               height: 32,
+              flexShrink: 0,
               borderRadius: "50%",
               backgroundColor: colors.accent,
               color: colors.sidebar,

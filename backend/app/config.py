@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Project root — two levels up from this file (backend/app/config.py → librarium-py/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load backend/.env if it exists (for local development)
+load_dotenv(PROJECT_ROOT / "backend" / ".env")
 
 # Data directory — переопределяется через env DATA_DIR для тестов
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(PROJECT_ROOT / "data")))
@@ -33,4 +37,9 @@ COOKIE_NAME = "librarium_token"
 # Upload limits
 MAX_BOOK_SIZE = 100 * 1024 * 1024   # 100 MB
 MAX_COVER_SIZE = 10 * 1024 * 1024   # 10 MB
+
+# LLM API (Anthropic Claude) — optional, empty string disables LLM extraction
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+ANTHROPIC_TIMEOUT_SEC = float(os.environ.get("ANTHROPIC_TIMEOUT_SEC", "60"))
 

@@ -56,6 +56,7 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 
 ## Development Process
 
+- **Показывать ВСЕ findings из код-ревью.** Не фильтровать, не помечать "ignored", не предлагать "отложить" самостоятельно. Решение о приоритете — только за Alexey.
 - **Never work in main.** Always create a feature branch.
 - **TDD:** tests first, then implementation.
 - **Commit only with user approval**, after manual testing.

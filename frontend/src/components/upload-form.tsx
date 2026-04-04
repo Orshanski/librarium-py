@@ -354,7 +354,25 @@ export default function UploadForm() {
                   <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 4, backgroundColor: "rgba(255, 255, 255, 0.06)" }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: colors.accent }}>{f.format}</span>
                     <span style={{ fontSize: 12, color: colors.textDim }}>{f.size}</span>
-                    {f.status === "uploading" && <span style={{ fontSize: 11, color: colors.textDim }}>{f.progress}%</span>}
+                    {f.status === "uploading" && (
+                      f.progress >= 99 ? (
+                        <span style={{ fontSize: 11, color: colors.textDim, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                          <span style={{
+                            width: 10,
+                            height: 10,
+                            border: `1.5px solid ${colors.border}`,
+                            borderTopColor: colors.accent,
+                            borderRadius: "50%",
+                            display: "inline-block",
+                            animation: "spin 0.8s linear infinite",
+                          }} />
+                          обработка…
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: colors.textDim }}>{f.progress}%</span>
+                      )
+                    )}
                     {f.status === "error" && <span style={{ fontSize: 11, color: "#ef4444" }}>{f.error}</span>}
                     {g.files.length > 1 && (
                       <button onClick={() => removeFile(f.id)} style={{ background: "none", border: "none", color: colors.textDim, cursor: "pointer", fontSize: 12, padding: 0, marginLeft: 2 }}>✕</button>

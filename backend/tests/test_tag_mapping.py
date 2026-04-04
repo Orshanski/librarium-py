@@ -33,14 +33,27 @@ class TestResolveTagNames:
         names = resolve_tag_names(["sf_fantasy", "det_classic"])
         assert names == ["Фэнтези", "Классический детектив"]
 
-    def test_unknown_tag_passthrough(self, admin_client):
+    def test_unknown_tag_passthrough_capitalized(self, admin_client):
         from app.dal.tags import resolve_tag_names
         names = resolve_tag_names(["unknown_xyz"])
-        assert names == ["unknown_xyz"]
+        assert names == ["Unknown_xyz"]
 
     def test_empty_list(self, admin_client):
         from app.dal.tags import resolve_tag_names
         assert resolve_tag_names([]) == []
+
+    def test_all_caps_long_lowercased(self, admin_client):
+        # Long ALL-CAPS tags get title-cased (>4 chars)
+        from app.dal.tags import resolve_tag_names
+        names = resolve_tag_names(["SCIENCE FICTION"])
+        assert names == ["Science fiction"]
+
+    def test_acronyms_preserved(self, admin_client):
+        # Short ALL-CAPS acronyms (<=4 chars) preserved
+        from app.dal.tags import resolve_tag_names
+        assert resolve_tag_names(["AI"]) == ["AI"]
+        assert resolve_tag_names(["SQL"]) == ["SQL"]
+        assert resolve_tag_names(["HTTP"]) == ["HTTP"]
 
 
 class TestMapTag:
