@@ -8,7 +8,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def test_parse_pdf_uses_llm_metadata():
     llm_meta = LlmMetadata(
-        title="Real Title", author="Real Author", publisher="Real Pub",
+        title="Real Title", authors=["Real Author"], publisher="Real Pub",
         year="2020", isbn="978-0-000-00000-0", annotation="Great book",
         genres=["Fiction", "Thriller"], cover_url=""
     )
@@ -64,7 +64,7 @@ def test_parse_pdf_accepts_isbn10():
 
 
 def test_parse_pdf_uses_cover_url_when_available():
-    llm_meta = LlmMetadata(title="X", author="Y", cover_url="https://example.com/c.jpg")
+    llm_meta = LlmMetadata(title="X", authors=["Y"], cover_url="https://example.com/c.jpg")
     with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
          patch("app.parsers.pdf.fetch_cover", return_value=(b"JPEG_FROM_URL", "jpg")) as mock_fetch, \
          patch("app.parsers.pdf.render_cover") as mock_render:
@@ -92,8 +92,8 @@ def test_parse_pdf_fallback_filename_when_llm_empty():
     assert meta.authors == []
 
 
-def test_parse_pdf_splits_multiple_authors():
-    llm_meta = LlmMetadata(title="X", author="John Doe, Jane Smith")
+def test_parse_pdf_passes_multiple_authors():
+    llm_meta = LlmMetadata(title="X", authors=["John Doe", "Jane Smith"])
     with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
          patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
          patch("app.parsers.pdf.render_cover", return_value=(None, None)):

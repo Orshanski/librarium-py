@@ -40,7 +40,7 @@ def parse_pdf(file_path: str, original_filename: str = "") -> ParsedMetadata:
     llm = extract_metadata_from_filename(filename_hint)
 
     meta.title = llm.title
-    meta.authors = [a.strip() for a in llm.author.split(",") if a.strip()] if llm.author else []
+    meta.authors = list(llm.authors)
     meta.publisher = (llm.publisher or "").strip() or None
     meta.pub_date = _normalize_year(llm.year)
     meta.isbn = _normalize_isbn(llm.isbn)

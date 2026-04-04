@@ -15,7 +15,7 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
 Верни JSON:
 {
   "title": "...",
-  "author": "...",
+  "authors": ["...", "..."],
   "publisher": "...",
   "year": "...",
   "isbn": "...",
@@ -26,7 +26,7 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
 
 Правила:
 - Если не нашёл книгу — верни пустые строки / пустые массивы, НЕ придумывай
-- author: "Имя Фамилия" (на русском если книга русская), несколько авторов через запятую
+- authors: массив строк, каждая строка — один автор в формате "Имя Фамилия" (на русском если книга русская)
 - annotation: краткое описание 1-2 предложения
 - genres: массив строк, каждая строка — отдельный жанр/категория (например ["Бизнес-литература", "Анализ данных"])
 - cover_url: прямая ссылка на изображение обложки (jpg/png)
@@ -82,7 +82,7 @@ def _extract_json_object(text: str) -> dict | None:
 @dataclass
 class LlmMetadata:
     title: str = ""
-    author: str = ""
+    authors: list[str] = field(default_factory=list)
     publisher: str = ""
     year: str = ""
     isbn: str = ""
@@ -132,9 +132,18 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
     else:
         raw_genres = []
 
+    # Extract authors — same logic
+    raw_authors = data.get("authors") or data.get("author") or []
+    if isinstance(raw_authors, str):
+        raw_authors = [a.strip() for a in raw_authors.split(",") if a.strip()]
+    elif isinstance(raw_authors, list):
+        raw_authors = [str(a).strip() for a in raw_authors if str(a).strip()]
+    else:
+        raw_authors = []
+
     return LlmMetadata(
         title=data.get("title", "") or "",
-        author=data.get("author", "") or "",
+        authors=raw_authors,
         publisher=data.get("publisher", "") or "",
         year=data.get("year", "") or "",
         isbn=data.get("isbn", "") or "",
