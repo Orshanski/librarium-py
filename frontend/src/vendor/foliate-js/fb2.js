@@ -234,7 +234,10 @@ body > img, section > img {
 .title h3 { text-align: center; font-size: 1.1em; }
 .title h4 { text-align: center; font-size: 1em; }
 body > section > .title, body.notesBodyType > .title {
-    margin: 3em 0;
+    margin: 0 0 1em;
+}
+.title + .title {
+    margin-top: 0.5em;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
@@ -274,7 +277,7 @@ a[epub|type~="noteref"] {
     vertical-align: super;
 }
 body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
-    margin: 3em 0;
+    margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
 
@@ -343,6 +346,8 @@ export const makeFB2 = async blob => {
     })
 
     const urls = []
+
+    // Step 1: Collect TOC from original structure BEFORE splitting
     let tocCounter = 0
     const collectTitles = (parentEl) => {
         const sections = parentEl.querySelectorAll(':scope > section')
@@ -359,19 +364,120 @@ export const makeFB2 = async blob => {
             }
         }).filter(x => x)
     }
-    const sectionData = bodyData[0][0]
-        // make a separate section for each section in the first body
-        .map(({ el, ids }) => {
-            const titles = collectTitles(el)
-            return { ids, titles, el }
-        })
-        // for additional bodies, only make one section for each body
+    // Collect TOC from each top-level element before any splitting
+    // Assign data-foliate-id to top-level title elements too
+    const originalToc = bodyData[0][0].map(({ el }) => {
+        const titleEl = el.querySelector(':scope > .title')
+        let topIndex = null
+        if (titleEl) {
+            topIndex = tocCounter++
+            titleEl.setAttribute(dataID, topIndex)
+        }
+        return {
+            title: normalizeWhitespace(
+                el.querySelector('.title, .subtitle, p')?.textContent
+                ?? (el.classList.contains('title') ? el.textContent : '')),
+            titles: collectTitles(el),
+            topIndex,
+        }
+    })
+
+    // Step 2: Adaptive section splitting
+    const MAX_CHARS = 180000
+    const splitSection = ({ el, ids }) => {
+        const charCount = el.textContent?.length ?? 0
+        const childSections = el.querySelectorAll(':scope > section')
+        if (charCount <= MAX_CHARS || childSections.length === 0) {
+            return [{ ids, el, charCount }]
+        }
+        // Remember parent's own id to attach to first segment
+        const parentId = el.id
+        const segments = []
+        const ownerDoc = el.ownerDocument
+        let currentNodes = []
+        const flushNodes = () => {
+            if (!currentNodes.some(n => n.textContent?.trim())) return
+            const wrapper = ownerDoc.createElement('section')
+            for (const n of currentNodes) wrapper.appendChild(n.cloneNode(true))
+            const wIds = [wrapper, ...wrapper.querySelectorAll('[id]')].map(e => e.id)
+            segments.push({ el: wrapper, ids: wIds, charCount: wrapper.textContent?.length ?? 0 })
+        }
+        for (const child of Array.from(el.childNodes)) {
+            if (child.nodeType === 1 && child.tagName?.toLowerCase() === 'section') {
+                flushNodes()
+                currentNodes = []
+                const childIds = [child, ...child.querySelectorAll('[id]')].map(e => e.id)
+                segments.push(...splitSection({ el: child, ids: childIds }))
+            } else {
+                currentNodes.push(child)
+            }
+        }
+        flushNodes()
+        // Attach parent's id to first segment so anchors resolve correctly
+        if (parentId && segments.length > 0) {
+            if (!segments[0].ids.includes(parentId)) {
+                segments[0].ids.push(parentId)
+            }
+        }
+        return segments
+    }
+
+    // Post-process: merge heading-only intro segments with next segment
+    const HEADING_CLASSES = new Set(['title', 'epigraph', 'subtitle', 'text-author', 'date'])
+    const isHeadingOnly = (el) => {
+        for (const child of el.childNodes) {
+            if (child.nodeType === 3) {
+                if (child.textContent?.trim()) return false
+                continue
+            }
+            if (child.nodeType !== 1) continue
+            const tag = child.tagName?.toLowerCase()
+            if (tag === 'br') continue
+            if (child.classList && [...child.classList].some(c => HEADING_CLASSES.has(c))) continue
+            if (tag === 'header') continue
+            return false
+        }
+        return true
+    }
+    const mergeHeadingIntros = (segments) => {
+        let merged = true
+        while (merged) {
+            merged = false
+            const result = []
+            for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i]
+                const next = segments[i + 1]
+                if (next
+                    && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
+                    && seg.el.querySelectorAll('section').length === 0
+                    && isHeadingOnly(seg.el)
+                ) {
+                    const beforeFirst = next.el.firstChild
+                    for (const child of Array.from(seg.el.childNodes)) {
+                        next.el.insertBefore(child.cloneNode(true), beforeFirst)
+                    }
+                    next.ids = [...seg.ids, ...next.ids]
+                    next.charCount = next.el.textContent?.length ?? 0
+                    merged = true
+                    continue
+                }
+                result.push(seg)
+            }
+            segments = result
+        }
+        return segments
+    }
+
+    // Step 3: Build render sections with el preserved for anchor mapping
+    // Merge heading intros per original top-level section, not across boundaries
+    const renderSections = bodyData[0][0]
+        .flatMap(item => mergeHeadingIntros(splitSection(item)))
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
             return { ids, el: body, linear: 'no' }
         }))
-        .map(({ ids, titles, el, linear }) => {
+        .map(({ ids, el, linear, charCount }) => {
             const str = template(el.outerHTML)
             const blob = new Blob([str], { type: MIME.XHTML })
             const url = URL.createObjectURL(blob)
@@ -380,45 +486,78 @@ export const makeFB2 = async blob => {
                 el.querySelector('.title, .subtitle, p')?.textContent
                 ?? (el.classList.contains('title') ? el.textContent : ''))
             return {
-                ids, title, titles, load: () => url,
+                ids, el, title, load: () => url,
                 createDocument: () => new DOMParser().parseFromString(str, MIME.XHTML),
-                // doo't count image data as it'd skew the size too much
                 size: blob.size - Array.from(el.querySelectorAll('[src]'),
                     el => el.getAttribute('src')?.length ?? 0)
                     .reduce((a, b) => a + b, 0),
+                charCount: charCount ?? el.textContent?.length ?? 0,
                 linear,
             }
         })
 
+    // Step 4: Build foliateId -> render section index map
+    const foliateIdToSection = new Map()
+    for (let i = 0; i < renderSections.length; i++) {
+        const el = renderSections[i].el
+        if (!el) continue
+        const selfFid = el.getAttribute?.(dataID)
+        if (selfFid && !foliateIdToSection.has(selfFid)) {
+            foliateIdToSection.set(selfFid, i)
+        }
+        for (const titled of el.querySelectorAll(`[${dataID}]`)) {
+            const fid = titled.getAttribute(dataID)
+            if (fid && !foliateIdToSection.has(fid)) {
+                foliateIdToSection.set(fid, i)
+            }
+        }
+    }
+
+    // Release DOM references — no longer needed after mapping
+    for (const s of renderSections) delete s.el
+
+    // Step 5: Build book.sections
     const idMap = new Map()
-    book.sections = sectionData.map((section, index) => {
-        const { ids, load, createDocument, size, linear } = section
+    book.sections = renderSections.map((section, index) => {
+        const { ids, load, createDocument, size, linear, charCount } = section
         for (const id of ids) if (id) idMap.set(id, index)
-        return { id: index, load, createDocument, size, linear }
+        return { id: index, load, createDocument, size, linear, charCount }
     })
 
-    const buildTocItems = (titles, sectionId) =>
-        titles?.map(({ title, index, subitems }) => ({
-            label: title,
-            href: `${sectionId}#${index}`,
-            subitems: subitems?.length ? buildTocItems(subitems, sectionId) : null,
-        })) ?? null
-    book.toc = sectionData.map(({ title, titles }, index) => {
-        const id = index.toString()
+    // Build TOC from original structure, resolving to render section indices
+    const buildTocItems = (titles) =>
+        titles?.map(({ title, index, subitems }) => {
+            const sectionIdx = foliateIdToSection.get(String(index)) ?? 0
+            return {
+                label: title,
+                href: `${sectionIdx}#${index}`,
+                subitems: subitems?.length ? buildTocItems(subitems) : null,
+            }
+        }) ?? null
+
+    book.toc = originalToc.map(({ title, titles, topIndex }) => {
+        const sectionIdx = topIndex != null
+            ? (foliateIdToSection.get(String(topIndex)) ?? 0)
+            : 0
         return {
             label: title,
-            href: id,
-            subitems: buildTocItems(titles, id),
+            href: topIndex != null ? `${sectionIdx}#${topIndex}` : String(sectionIdx),
+            subitems: buildTocItems(titles),
         }
-    }).filter(item => item)
+    }).filter(item => item.label)
 
     book.resolveHref = href => {
         const [a, b] = href.split('#')
-        return a
-            // the link is from the TOC
-            ? { index: Number(a), anchor: doc => doc.querySelector(`[${dataID}="${b}"]`) }
-            // link from within the page
-            : { index: idMap.get(b), anchor: doc => doc.getElementById(b) }
+        if (!a) {
+            // link from within the page: #someId
+            return { index: idMap.get(b), anchor: doc => doc.getElementById(b) }
+        }
+        if (b != null) {
+            // TOC link with fragment: sectionIndex#foliateId
+            return { index: Number(a), anchor: doc => doc.querySelector(`[${dataID}="${b}"]`) }
+        }
+        // TOC link without fragment: just section index
+        return { index: Number(a) }
     }
     book.splitTOCHref = href => href?.split('#')?.map(x => Number(x)) ?? []
     book.getTOCFragment = (doc, id) => doc.querySelector(`[${dataID}="${id}"]`)
