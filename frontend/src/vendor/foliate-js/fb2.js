@@ -359,19 +359,60 @@ export const makeFB2 = async blob => {
             }
         }).filter(x => x)
     }
-    const sectionData = bodyData[0][0]
-        // make a separate section for each section in the first body
-        .map(({ el, ids }) => {
+    // Adaptive section splitting: break giant sections into chapter-sized chunks
+    const MAX_CHARS = 180000
+    const splitSection = ({ el, ids }) => {
+        const charCount = el.textContent?.length ?? 0
+        const childSections = el.querySelectorAll(':scope > section')
+        // Small enough or no children to split by — keep as is
+        if (charCount <= MAX_CHARS || childSections.length === 0) {
             const titles = collectTitles(el)
-            return { ids, titles, el }
-        })
+            return [{ ids, titles, el, charCount }]
+        }
+        // Split into segments: intro + each child section + outro
+        const segments = []
+        const doc = el.ownerDocument
+        // Collect child nodes into groups separated by <section> elements
+        let currentNodes = []
+        for (const child of Array.from(el.childNodes)) {
+            if (child.nodeType === 1 && child.tagName === 'section') {
+                // Flush intro/inter nodes as a segment if non-empty
+                if (currentNodes.some(n => n.textContent?.trim())) {
+                    const wrapper = doc.createElement('section')
+                    for (const n of currentNodes) wrapper.appendChild(n.cloneNode(true))
+                    const wIds = [wrapper, ...wrapper.querySelectorAll('[id]')].map(e => e.id)
+                    const wTitles = collectTitles(wrapper)
+                    segments.push({ el: wrapper, ids: wIds, titles: wTitles, charCount: wrapper.textContent?.length ?? 0 })
+                }
+                currentNodes = []
+                // Recursively split child section
+                const childIds = [child, ...child.querySelectorAll('[id]')].map(e => e.id)
+                const childSegments = splitSection({ el: child, ids: childIds })
+                segments.push(...childSegments)
+            } else {
+                currentNodes.push(child)
+            }
+        }
+        // Flush trailing nodes
+        if (currentNodes.some(n => n.textContent?.trim())) {
+            const wrapper = doc.createElement('section')
+            for (const n of currentNodes) wrapper.appendChild(n.cloneNode(true))
+            const wIds = [wrapper, ...wrapper.querySelectorAll('[id]')].map(e => e.id)
+            const wTitles = collectTitles(wrapper)
+            segments.push({ el: wrapper, ids: wIds, titles: wTitles, charCount: wrapper.textContent?.length ?? 0 })
+        }
+        return segments
+    }
+
+    const sectionData = bodyData[0][0]
+        .flatMap(item => splitSection(item))
         // for additional bodies, only make one section for each body
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
             return { ids, el: body, linear: 'no' }
         }))
-        .map(({ ids, titles, el, linear }) => {
+        .map(({ ids, titles, el, linear, charCount }) => {
             const str = template(el.outerHTML)
             const blob = new Blob([str], { type: MIME.XHTML })
             const url = URL.createObjectURL(blob)
@@ -382,19 +423,20 @@ export const makeFB2 = async blob => {
             return {
                 ids, title, titles, load: () => url,
                 createDocument: () => new DOMParser().parseFromString(str, MIME.XHTML),
-                // doo't count image data as it'd skew the size too much
+                // don't count image data as it'd skew the size too much
                 size: blob.size - Array.from(el.querySelectorAll('[src]'),
                     el => el.getAttribute('src')?.length ?? 0)
                     .reduce((a, b) => a + b, 0),
+                charCount: charCount ?? el.textContent?.length ?? 0,
                 linear,
             }
         })
 
     const idMap = new Map()
     book.sections = sectionData.map((section, index) => {
-        const { ids, load, createDocument, size, linear } = section
+        const { ids, load, createDocument, size, linear, charCount } = section
         for (const id of ids) if (id) idMap.set(id, index)
-        return { id: index, load, createDocument, size, linear }
+        return { id: index, load, createDocument, size, linear, charCount }
     })
 
     const buildTocItems = (titles, sectionId) =>

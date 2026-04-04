@@ -210,8 +210,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     const handleResize = () => recalcPages();
     window.addEventListener("resize", handleResize);
 
+    const t0 = performance.now();
     view.open(bookBlob)
       .then(async () => {
+        console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${view.book.sections.length}`);
         view.renderer.setAttribute("flow", settingsRef.current.flow);
         view.renderer.setAttribute("max-inline-size", maxInlineSize);
         view.renderer.setAttribute("gap", gap);
@@ -225,18 +227,35 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           view.renderer.next();
         }
 
-        // Count total characters in background (FBReader-style estimation)
-        try {
-          let totalChars = 0;
-          for (const section of view.book.sections) {
-            if (!section.createDocument) continue;
-            const doc = await section.createDocument();
-            totalChars += (doc.body?.textContent?.length || 0);
-          }
-          totalCharsRef.current = totalChars;
+        // Count total characters — use pre-computed charCount if available (FB2),
+        // otherwise fall back to incremental createDocument() in batches
+        const sections = view.book.sections;
+        const hasCharCount = sections.some((s: { charCount?: number }) => s.charCount != null);
+        if (hasCharCount) {
+          totalCharsRef.current = sections.reduce((sum: number, s: { charCount?: number }) => sum + (s.charCount || 0), 0);
           recalcPages();
-        } catch (err) {
-          console.warn("Failed to count chars:", err);
+        } else {
+          // EPUB: count incrementally after first paint
+          setTimeout(async () => {
+            try {
+              let totalChars = 0;
+              const batch = 3;
+              for (let i = 0; i < sections.length; i += batch) {
+                for (let j = i; j < Math.min(i + batch, sections.length); j++) {
+                  const s = sections[j];
+                  if (!s.createDocument) continue;
+                  const doc = await s.createDocument();
+                  totalChars += (doc.body?.textContent?.length || 0);
+                }
+                totalCharsRef.current = totalChars;
+                recalcPages();
+                // Yield to browser between batches
+                await new Promise(r => setTimeout(r, 0));
+              }
+            } catch (err) {
+              console.warn("Failed to count chars:", err);
+            }
+          }, 100);
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
