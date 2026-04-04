@@ -20,11 +20,47 @@ def test_parse_pdf_uses_llm_metadata():
     assert meta.authors == ["Real Author"]
     assert meta.publisher == "Real Pub"
     assert meta.pub_date == "2020"
-    assert meta.isbn == "978-0-000-00000-0"
+    assert meta.isbn == "9780000000000"  # hyphens stripped
     assert meta.description == "Great book"
     assert meta.genres == ["Fiction"]
     assert meta.cover_data == b"\xff\xd8\xffFAKE"
     assert meta.cover_ext == "jpg"
+
+
+def test_parse_pdf_normalizes_year_from_prose():
+    llm_meta = LlmMetadata(title="X", year="приблизительно 1985 год")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.pub_date == "1985"
+
+
+def test_parse_pdf_rejects_invalid_year():
+    llm_meta = LlmMetadata(title="X", year="н/д")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.pub_date is None
+
+
+def test_parse_pdf_rejects_short_isbn():
+    llm_meta = LlmMetadata(title="X", isbn="12345")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.isbn is None
+
+
+def test_parse_pdf_accepts_isbn10():
+    llm_meta = LlmMetadata(title="X", isbn="0-306-40615-2")
+    with patch("app.parsers.pdf.extract_metadata_from_filename", return_value=llm_meta), \
+         patch("app.parsers.pdf.fetch_cover", return_value=(None, None)), \
+         patch("app.parsers.pdf.render_cover", return_value=(None, None)):
+        meta = parse_pdf(str(FIXTURES / "tiny.pdf"), "book.pdf")
+    assert meta.isbn == "0306406152"
 
 
 def test_parse_pdf_uses_cover_url_when_available():

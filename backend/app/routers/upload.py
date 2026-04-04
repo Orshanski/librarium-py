@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -103,7 +104,8 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         f.write(content)
 
     # Parse (pass original filename for PDF LLM extraction)
-    meta = parse_book(book_path, ext, original_filename=filename)
+    # Run in thread pool to avoid blocking event loop (LLM call can take 10-40s)
+    meta = await asyncio.to_thread(parse_book, book_path, ext, filename)
 
     # Save cover if extracted
     cover_url = None

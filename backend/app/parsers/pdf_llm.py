@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from dataclasses import dataclass
 import anthropic
 from ..config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_TIMEOUT_SEC
@@ -31,6 +32,50 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
 - Не придумывай имена по инициалам, если не уверен — оставь как есть
 
 Верни только JSON, без markdown и пояснений."""
+
+
+def _extract_json_object(text: str) -> dict | None:
+    """Extract first valid JSON object from text, tolerating markdown fences and surrounding prose."""
+    if not text:
+        return None
+    # Try direct parse first
+    try:
+        result = json.loads(text)
+        return result if isinstance(result, dict) else None
+    except json.JSONDecodeError:
+        pass
+    # Find all brace-balanced candidates; try from the first one
+    starts = [m.start() for m in re.finditer(r"\{", text)]
+    for start in starts:
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_string:
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i + 1]
+                    try:
+                        result = json.loads(candidate)
+                        if isinstance(result, dict):
+                            return result
+                    except json.JSONDecodeError:
+                        break  # try next start position
+    return None
 
 
 @dataclass
@@ -72,22 +117,9 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
     texts = [b.text for b in response.content if b.type == "text"]
     text = "\n".join(texts).strip()
 
-    # Strip markdown code fences
-    if "```" in text:
-        parts = text.split("```")
-        for i, part in enumerate(parts):
-            if i % 2 == 1:  # inside fence
-                p = part.strip()
-                if p.startswith("json"):
-                    p = p[4:].lstrip()
-                if p.startswith("{"):
-                    text = p
-                    break
-
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as e:
-        log.warning("LLM returned non-JSON: %s", e)
+    data = _extract_json_object(text)
+    if data is None:
+        log.warning("LLM returned no parseable JSON: %s", text[:200])
         return LlmMetadata()
 
     return LlmMetadata(

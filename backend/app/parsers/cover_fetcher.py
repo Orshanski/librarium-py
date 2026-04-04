@@ -20,22 +20,64 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     if not url or not url.startswith(("http://", "https://")):
         return None, None
 
+    if not _is_safe_url(url):
+        return None, None
+
     try:
-        response = httpx.get(url, timeout=TIMEOUT_SEC, follow_redirects=True)
-        response.raise_for_status()
+        # Stream to check Content-Length header before downloading body
+        with httpx.stream("GET", url, timeout=TIMEOUT_SEC, follow_redirects=True) as response:
+            response.raise_for_status()
+
+            # Check Content-Length header before consuming body
+            size_hdr = response.headers.get("content-length")
+            if size_hdr:
+                try:
+                    if int(size_hdr) > MAX_COVER_DOWNLOAD_BYTES:
+                        log.warning("Cover too large (Content-Length=%s) for %s", size_hdr, url)
+                        return None, None
+                except ValueError:
+                    pass  # ignore malformed Content-Length
+
+            content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
+            ext = CONTENT_TYPE_TO_EXT.get(content_type)
+            if not ext:
+                log.warning("Non-image content-type for %s: %s", url, content_type)
+                return None, None
+
+            # Stream body with running size cap
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in response.iter_bytes():
+                total += len(chunk)
+                if total > MAX_COVER_DOWNLOAD_BYTES:
+                    log.warning("Cover too large (streamed %d bytes) for %s", total, url)
+                    return None, None
+                chunks.append(chunk)
+            return b"".join(chunks), ext
     except Exception as e:
         log.warning("Cover fetch failed for %s: %s", url, e)
         return None, None
 
-    content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
-    ext = CONTENT_TYPE_TO_EXT.get(content_type)
-    if not ext:
-        log.warning("Non-image content-type for %s: %s", url, content_type)
-        return None, None
 
-    content = response.content
-    if len(content) > MAX_COVER_DOWNLOAD_BYTES:
-        log.warning("Cover too large (%d bytes) for %s", len(content), url)
-        return None, None
+def _is_safe_url(url: str) -> bool:
+    """Reject URLs resolving to private/loopback/link-local IPs (SSRF protection)."""
+    import ipaddress
+    import socket
+    try:
+        host = httpx.URL(url).host
+        if not host:
+            return False
+        addr_info = socket.getaddrinfo(host, None)
+    except Exception as e:
+        log.warning("URL host resolution failed for %s: %s", url, e)
+        return False
 
-    return content, ext
+    for family, _, _, _, sockaddr in addr_info:
+        try:
+            ip = ipaddress.ip_address(sockaddr[0])
+        except (ValueError, IndexError):
+            continue
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            log.warning("Rejected URL with unsafe IP %s: %s", ip, url)
+            return False
+    return True
