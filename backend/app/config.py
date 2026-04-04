@@ -40,4 +40,6 @@ MAX_COVER_SIZE = 10 * 1024 * 1024   # 10 MB
 
 # LLM API (Anthropic Claude) — optional, empty string disables LLM extraction
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+ANTHROPIC_TIMEOUT_SEC = float(os.environ.get("ANTHROPIC_TIMEOUT_SEC", "60"))
 

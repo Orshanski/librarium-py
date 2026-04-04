@@ -2,13 +2,11 @@ import json
 import logging
 from dataclasses import dataclass
 import anthropic
-from ..config import ANTHROPIC_API_KEY
+from ..config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_TIMEOUT_SEC
 
 log = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 2000
-TIMEOUT_SEC = 30.0
 
 SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вход получаешь имя PDF-файла книги.
 Используй web search, чтобы найти полные выходные данные книги.
@@ -54,9 +52,9 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
         return LlmMetadata()
 
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=TIMEOUT_SEC)
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=ANTHROPIC_TIMEOUT_SEC)
         response = client.messages.create(
-            model=MODEL,
+            model=ANTHROPIC_MODEL,
             max_tokens=MAX_TOKENS,
             system=SYSTEM_PROMPT,
             tools=[{
