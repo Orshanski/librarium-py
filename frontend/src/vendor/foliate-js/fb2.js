@@ -420,9 +420,45 @@ export const makeFB2 = async blob => {
         return segments
     }
 
+    // Post-process: merge heading-only intro segments with next segment
+    const HEADING_CLASSES = new Set(['title', 'epigraph', 'subtitle', 'text-author', 'date'])
+    const isHeadingOnly = (el) => {
+        for (const child of el.children) {
+            const tag = child.tagName?.toLowerCase()
+            if (tag === 'br') continue
+            if (child.classList && [...child.classList].some(c => HEADING_CLASSES.has(c))) continue
+            if (tag === 'header') continue
+            return false
+        }
+        return true
+    }
+    const mergeHeadingIntros = (segments) => {
+        const result = []
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i]
+            const next = segments[i + 1]
+            if (next
+                && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
+                && seg.el.querySelectorAll('section').length === 0
+                && isHeadingOnly(seg.el)
+            ) {
+                // Merge: prepend intro children into next segment
+                const beforeFirst = next.el.firstChild
+                for (const child of Array.from(seg.el.childNodes)) {
+                    next.el.insertBefore(child.cloneNode(true), beforeFirst)
+                }
+                next.ids = [...seg.ids, ...next.ids]
+                next.charCount = next.el.textContent?.length ?? 0
+                continue // skip this segment, next will be pushed
+            }
+            result.push(seg)
+        }
+        return result
+    }
+
     // Step 3: Build render sections with el preserved for anchor mapping
-    const renderSections = bodyData[0][0]
-        .flatMap(item => splitSection(item))
+    const renderSections = mergeHeadingIntros(bodyData[0][0]
+        .flatMap(item => splitSection(item)))
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
