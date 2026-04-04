@@ -28,32 +28,17 @@ interface EbookReaderProps {
   maxBlockSize?: string;
 }
 
-function buildCSS(settings: ReaderSettings): string {
+function applySettings(doc: Document, settings: ReaderSettings) {
   const theme = THEME_STYLES[settings.theme];
-  return `
-    html {
-      background: ${theme.bg} !important;
-      color: ${theme.text} !important;
-      -webkit-text-size-adjust: 100% !important;
-      text-size-adjust: 100% !important;
-    }
-    body {
-      background: ${theme.bg} !important;
-      color: ${theme.text} !important;
-      font-family: ${settings.fontFamily} !important;
-      font-size: ${settings.fontSize}px !important;
-    }
-    * {
-      line-height: ${settings.lineSpacing} !important;
-      -webkit-hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
-      hyphens: ${settings.hyphenate ? "auto" : "manual"} !important;
-    }
-    p, li, dd, div, span {
-      text-align: ${settings.justify ? "justify" : "start"} !important;
-      widows: 2 !important;
-    }
-    a:link { color: ${theme.accent}; }
-  `;
+  const s = doc.documentElement.style;
+  s.setProperty("--user-bg", theme.bg);
+  s.setProperty("--user-color", theme.text);
+  s.setProperty("--user-accent", theme.accent);
+  s.setProperty("--user-font", settings.fontFamily);
+  s.setProperty("--user-font-size", `${settings.fontSize}px`);
+  s.setProperty("--user-line-height", String(settings.lineSpacing));
+  s.setProperty("--user-text-align", settings.justify ? "justify" : "start");
+  s.setProperty("--user-hyphens", settings.hyphenate ? "auto" : "manual");
 }
 
 // Check if a link is a footnote reference
@@ -100,20 +85,24 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     totalPagesRef.current = Math.max(1, Math.round(totalCharsRef.current / cpp));
   };
 
-  // Apply styles when settings change
+  // Apply settings when they change
   useEffect(() => {
     settingsRef.current = settings;
     const view = viewRef.current;
     if (!view?.renderer) return;
-    const css = buildCSS(settings);
-    view.renderer.setStyles?.(css);
+    // Apply CSS variables to current document
+    const contents = view.renderer.getContents?.();
+    if (contents?.length) {
+      for (const { doc } of contents) {
+        if (doc) applySettings(doc, settings);
+      }
+    }
+    // Layout attributes
     view.renderer.setAttribute("flow", settings.flow);
     view.renderer.setAttribute("max-inline-size", maxInlineSize);
     view.renderer.setAttribute("gap", gap);
     if (margin) view.renderer.setAttribute("margin", margin);
     if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
-    // Re-apply after flow change render completes
-    requestAnimationFrame(() => view.renderer.setStyles?.(css));
     recalcPages();
   }, [settings]);
 
@@ -163,6 +152,8 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       callbacksRef.current?.onLoad?.();
       const doc = e.detail?.doc;
       if (doc) {
+        // Apply user settings to new document
+        applySettings(doc, settingsRef.current);
         // Capture phase: record click position BEFORE foliate-js handles the link
         doc.addEventListener("click", (ev: MouseEvent) => {
           lastClickXRef.current = ev.screenX - window.screenX;
@@ -221,7 +212,6 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
 
     view.open(bookBlob)
       .then(async () => {
-        view.renderer.setStyles?.(buildCSS(settingsRef.current));
         view.renderer.setAttribute("flow", settingsRef.current.flow);
         view.renderer.setAttribute("max-inline-size", maxInlineSize);
         view.renderer.setAttribute("gap", gap);

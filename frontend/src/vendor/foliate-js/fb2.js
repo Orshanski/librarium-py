@@ -202,13 +202,37 @@ const parseXML = async blob => {
 
 const style = URL.createObjectURL(new Blob([`
 @namespace epub "http://www.idpf.org/2007/ops";
+
+/* User settings via CSS variables */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background: var(--user-bg, #fff);
+    color: var(--user-color, #000);
+}
+body {
+    background: var(--user-bg, #fff);
+    color: var(--user-color, #000);
+    font-family: var(--user-font, Georgia, serif);
+    font-size: var(--user-font-size, 16px);
+    line-height: var(--user-line-height, 1.4);
+}
+p, li, dd {
+    text-align: var(--user-text-align, start);
+    -webkit-hyphens: var(--user-hyphens, manual);
+    hyphens: var(--user-hyphens, manual);
+}
+a:link { color: var(--user-accent, #0066cc); }
+
+/* Structural styles */
 body > img, section > img {
     display: block;
     margin: auto;
 }
-.title h1 {
-    text-align: center;
-}
+.title h1 { text-align: center; font-size: 1.5em; }
+.title h2 { text-align: center; font-size: 1.3em; }
+.title h3 { text-align: center; font-size: 1.1em; }
+.title h4 { text-align: center; font-size: 1em; }
 body > section > .title, body.notesBodyType > .title {
     margin: 3em 0;
 }
@@ -225,6 +249,7 @@ p {
 .poem p {
     text-indent: 0;
     margin: 1em 0;
+    text-align: start;
 }
 .epigraph {
     font-style: italic;
