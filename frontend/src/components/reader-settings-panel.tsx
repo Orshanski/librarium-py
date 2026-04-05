@@ -25,7 +25,9 @@ interface ReaderSettingsPanelProps {
 }
 
 export default function ReaderSettingsPanel({ settings, onChange, hideStyles = false, tapZonesKey = "desktopTapZones", availableActions }: ReaderSettingsPanelProps) {
-  const [tab, setTab] = useState<"general" | "zones">(hideStyles ? "zones" : "general");
+  const [userTab, setUserTab] = useState<"general" | "zones">("general");
+  const tab = hideStyles ? "zones" : userTab;
+  const setTab = setUserTab;
 
   const defaultZones = tapZonesKey === "pdfTapZones" ? DEFAULT_PDF_TAP_ZONES : DEFAULT_DESKTOP_TAP_ZONES;
   const zones = settings[tapZonesKey] ?? defaultZones;
