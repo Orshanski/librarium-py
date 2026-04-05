@@ -67,7 +67,16 @@ export default function MobileReaderPage() {
           setSettings({ ...DEFAULT_SETTINGS, ...settingsData.settings });
         }
         if (progressData.position) {
-          setInitialPosition(progressData.position);
+          try {
+            const parsed = JSON.parse(progressData.position);
+            if (parsed?.kind === "cfi" && typeof parsed.value === "string") {
+              setInitialPosition(parsed.value);
+            } else {
+              setInitialPosition(progressData.position); // legacy CFI
+            }
+          } catch {
+            setInitialPosition(progressData.position); // legacy CFI
+          }
         }
         setLoading(false);
       })
@@ -89,7 +98,7 @@ export default function MobileReaderPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ position: pos.cfi, last_device: pos.device, last_format: format || "", fraction: Math.min(1, Math.max(0, pos.fraction || 0)) }),
+      body: JSON.stringify({ position: JSON.stringify({ kind: "cfi", value: pos.cfi }), last_device: pos.device, last_format: format || "", fraction: Math.min(1, Math.max(0, pos.fraction || 0)) }),
     }).catch(() => {});
     lastPositionRef.current = null;
   }, [id, format]);

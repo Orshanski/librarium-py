@@ -4,7 +4,7 @@ import MobileReaderToolbar from "./mobile/mobile-reader-toolbar";
 
 export type ReaderTheme = "dark" | "warm" | "light";
 
-export type TapAction = "prev" | "next";
+export type TapAction = "prev" | "next" | "zoom_in" | "zoom_out";
 
 export interface DesktopTapZones {
   topLeft: TapAction;
@@ -24,6 +24,15 @@ export const DEFAULT_DESKTOP_TAP_ZONES: DesktopTapZones = {
   bottomRight: "next",
 };
 
+export const DEFAULT_PDF_TAP_ZONES: DesktopTapZones = {
+  topLeft: "prev",
+  bottomLeft: "prev",
+  topCenter: "zoom_in",
+  bottomCenter: "zoom_out",
+  topRight: "next",
+  bottomRight: "next",
+};
+
 export interface ReaderSettings {
   fontSize: number;
   lineSpacing: number;
@@ -33,6 +42,7 @@ export interface ReaderSettings {
   hyphenate: boolean;
   justify: boolean;
   desktopTapZones: DesktopTapZones;
+  pdfTapZones: DesktopTapZones;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -44,6 +54,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   hyphenate: true,
   justify: true,
   desktopTapZones: DEFAULT_DESKTOP_TAP_ZONES,
+  pdfTapZones: DEFAULT_PDF_TAP_ZONES,
 };
 
 export const FONT_OPTIONS = [
