@@ -29,6 +29,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
   const draggingRef = useRef(false);
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
+  const skipCommitRef = useRef(false);
 
   // Sync input with currentPage when not focused
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
     if (e.key === "Enter") {
       e.currentTarget.blur();
     } else if (e.key === "Escape") {
+      skipCommitRef.current = true;
       setInputValue(String(currentPage + 1));
       e.currentTarget.blur();
     }
@@ -175,7 +177,14 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
           aria-label={`Номер страницы, 1–${totalPages}`}
           onChange={(e) => setInputValue(e.target.value.replace(/[^0-9]/g, ""))}
           onFocus={(e) => { setIsFocused(true); e.target.select(); }}
-          onBlur={() => { setIsFocused(false); commitInput(); }}
+          onBlur={() => {
+            setIsFocused(false);
+            if (skipCommitRef.current) {
+              skipCommitRef.current = false;
+              return;
+            }
+            commitInput();
+          }}
           onKeyDown={handleInputKeyDown}
           style={{
             width: inputWidth,

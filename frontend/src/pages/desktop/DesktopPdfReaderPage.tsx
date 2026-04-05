@@ -188,7 +188,7 @@ export default function DesktopPdfReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: "#2a2a2a" }}>
+    <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", backgroundColor: "#2a2a2a" }}>
       {bookReady && toolbarVisible && (
         <>
           <ReaderToolbar
