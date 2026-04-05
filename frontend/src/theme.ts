@@ -5,6 +5,7 @@ export const colors = {
   cardHover: "#33335a",
   accent: "#f9be03",
   accentBg: "rgba(249, 190, 3, 0.1)",
+  accentGlow: "rgba(249, 190, 3, 0.25)",
   text: "#ffffff",
   textSecondary: "#cccccc",
   textDim: "#888888",

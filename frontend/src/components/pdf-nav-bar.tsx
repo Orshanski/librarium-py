@@ -1,16 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { colors } from "../theme";
 
 interface PdfNavBarProps {
-  currentPage: number;  // 0-based
+  /** 0-based page index */
+  currentPage: number;
   totalPages: number;
-  onGoToPage: (index: number) => void;  // 0-based
+  /** 0-based page index */
+  onGoToPage: (index: number) => void;
 }
 
-const ACCENT = "#4a9eff";
-const BORDER = "#333";
-const TEXT = "#e0e0e0";
-const TEXT_DIM = "#888";
-const BG_INPUT = "#1a1a1a";
+// Reader-panel specific darker shades (theme border/card too subtle on black overlay).
+const READER_BORDER = "#333";
+const READER_BG_INPUT = "#1a1a1a";
+const READER_BAR_BG = "rgba(37, 37, 37, 0.95)";
+
+const TRACK_HEIGHT = 4;
+const TRACK_HIT_AREA = 14;  // vertical padding around track for easier tap
+const THUMB_SIZE = 24;
+const BAR_PADDING_X = 16;
+const BAR_PADDING_Y = 14;
 
 export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNavBarProps) {
   // All hooks must be called before any early returns.
@@ -19,6 +27,8 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
   const [dragPage, setDragPage] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const isFocusedRef = useRef(isFocused);
+  isFocusedRef.current = isFocused;
 
   // Sync input with currentPage when not focused
   useEffect(() => {
@@ -34,33 +44,33 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
     }
   }, [currentPage, dragPage]);
 
-  const displayPage = dragPage !== null ? dragPage : currentPage;
-  const fraction = totalPages > 1 ? displayPage / (totalPages - 1) : 0;
-  const fillPercent = fraction * 100;
+  // Cleanup if component unmounts mid-drag (toolbar hiding during drag etc).
+  useEffect(() => () => { draggingRef.current = false; }, []);
 
   const pageFromEvent = useCallback((clientX: number): number => {
     const track = trackRef.current;
-    if (!track) return currentPage;
+    if (!track) return 0;
     const rect = track.getBoundingClientRect();
     const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
     const f = rect.width > 0 ? x / rect.width : 0;
     const idx = Math.round(f * (totalPages - 1));
     return Math.max(0, Math.min(totalPages - 1, idx));
-  }, [currentPage, totalPages]);
+  }, [totalPages]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     draggingRef.current = true;
     const page = pageFromEvent(e.clientX);
     setDragPage(page);
-    setInputValue(String(page + 1));
+    // Don't clobber the input while user is typing.
+    if (!isFocusedRef.current) setInputValue(String(page + 1));
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return;
     const page = pageFromEvent(e.clientX);
     setDragPage(page);
-    setInputValue(String(page + 1));
+    if (!isFocusedRef.current) setInputValue(String(page + 1));
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -85,7 +95,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
     if (clamped - 1 !== currentPage) onGoToPage(clamped - 1);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.currentTarget.blur();
     } else if (e.key === "Escape") {
@@ -94,8 +104,36 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
     }
   };
 
+  const handleSliderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const last = totalPages - 1;
+    const jump = Math.max(1, Math.round(totalPages / 20));
+    let next: number | null = null;
+    switch (e.key) {
+      case "ArrowLeft":
+      case "ArrowDown": next = Math.max(0, displayPage - 1); break;
+      case "ArrowRight":
+      case "ArrowUp": next = Math.min(last, displayPage + 1); break;
+      case "Home": next = 0; break;
+      case "End": next = last; break;
+      case "PageUp": next = Math.max(0, displayPage - jump); break;
+      case "PageDown": next = Math.min(last, displayPage + jump); break;
+    }
+    if (next !== null && next !== currentPage) {
+      e.preventDefault();
+      onGoToPage(next);
+    }
+  };
+
   // Don't render if nothing to navigate
   if (totalPages <= 1) return null;
+
+  // Clamp displayPage — totalPages may change mid-drag.
+  const rawDisplayPage = dragPage !== null ? dragPage : currentPage;
+  const displayPage = Math.max(0, Math.min(totalPages - 1, rawDisplayPage));
+  const fraction = displayPage / (totalPages - 1);
+  const fillPercent = fraction * 100;
+
+  const inputWidth = totalPages >= 10000 ? 70 : totalPages >= 1000 ? 60 : 52;
 
   return (
     <div
@@ -108,13 +146,13 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
         display: "flex",
         alignItems: "center",
         gap: 14,
-        padding: "14px 16px calc(14px + env(safe-area-inset-bottom)) 16px",
-        background: "rgba(37, 37, 37, 0.95)",
+        padding: `${BAR_PADDING_Y}px ${BAR_PADDING_X}px calc(${BAR_PADDING_Y}px + env(safe-area-inset-bottom)) ${BAR_PADDING_X}px`,
+        background: READER_BAR_BG,
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         touchAction: "none",
         overscrollBehavior: "contain",
-        borderTop: `1px solid ${BORDER}`,
+        borderTop: `1px solid ${READER_BORDER}`,
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -122,7 +160,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
       <span
         style={{
           fontSize: 14,
-          color: TEXT,
+          color: colors.text,
           fontVariantNumeric: "tabular-nums",
           whiteSpace: "nowrap",
           display: "flex",
@@ -134,15 +172,16 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
           type="text"
           inputMode="numeric"
           value={inputValue}
+          aria-label={`Номер страницы, 1–${totalPages}`}
           onChange={(e) => setInputValue(e.target.value.replace(/[^0-9]/g, ""))}
           onFocus={(e) => { setIsFocused(true); e.target.select(); }}
           onBlur={() => { setIsFocused(false); commitInput(); }}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleInputKeyDown}
           style={{
-            width: 52,
-            background: BG_INPUT,
-            border: `1px solid ${BORDER}`,
-            color: TEXT,
+            width: inputWidth,
+            background: READER_BG_INPUT,
+            border: `1px solid ${READER_BORDER}`,
+            color: colors.text,
             padding: "6px 8px",
             borderRadius: 4,
             fontFamily: "inherit",
@@ -152,22 +191,31 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
             outline: "none",
           }}
         />
-        <span style={{ color: TEXT_DIM }}>/ {totalPages}</span>
+        <span style={{ color: colors.textDim }}>/ {totalPages}</span>
       </span>
       <div
         ref={trackRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Прокрутка страниц"
+        aria-valuemin={1}
+        aria-valuemax={totalPages}
+        aria-valuenow={displayPage + 1}
+        aria-valuetext={`Страница ${displayPage + 1} из ${totalPages}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onKeyDown={handleSliderKeyDown}
         style={{
           flex: 1,
           position: "relative",
-          height: 4,
-          padding: "14px 0",
-          margin: "-14px 0",
-          cursor: "pointer",
+          height: TRACK_HEIGHT,
+          paddingBlock: `${TRACK_HIT_AREA}px`,
+          marginBlock: `-${TRACK_HIT_AREA}px`,
+          cursor: "ew-resize",
           touchAction: "none",
+          outline: "none",
         }}
       >
         <div
@@ -177,8 +225,8 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
             top: "50%",
             transform: "translateY(-50%)",
             right: 0,
-            height: 4,
-            background: BORDER,
+            height: TRACK_HEIGHT,
+            background: READER_BORDER,
             borderRadius: 2,
           }}
         />
@@ -189,8 +237,8 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
             top: "50%",
             transform: "translateY(-50%)",
             width: `${fillPercent}%`,
-            height: 4,
-            background: ACCENT,
+            height: TRACK_HEIGHT,
+            background: colors.accent,
             borderRadius: 2,
           }}
         />
@@ -200,11 +248,11 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
             left: `${fillPercent}%`,
             top: "50%",
             transform: "translate(-50%, -50%)",
-            width: 24,
-            height: 24,
-            background: ACCENT,
+            width: THUMB_SIZE,
+            height: THUMB_SIZE,
+            background: colors.accent,
             borderRadius: "50%",
-            boxShadow: "0 0 0 4px rgba(74, 158, 255, 0.2)",
+            boxShadow: `0 0 0 4px ${colors.accentGlow}`,
             pointerEvents: "none",
           }}
         />
