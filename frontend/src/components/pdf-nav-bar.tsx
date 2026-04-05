@@ -25,6 +25,15 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
     if (!isFocused) setInputValue(String(currentPage + 1));
   }, [currentPage, isFocused]);
 
+  // Clear dragPage only once currentPage catches up (after relocate from foliate).
+  // Otherwise the thumb would snap back to the old position between pointerup
+  // and the async relocate event.
+  useEffect(() => {
+    if (dragPage !== null && currentPage === dragPage) {
+      setDragPage(null);
+    }
+  }, [currentPage, dragPage]);
+
   const displayPage = dragPage !== null ? dragPage : currentPage;
   const fraction = totalPages > 1 ? displayPage / (totalPages - 1) : 0;
   const fillPercent = fraction * 100;
@@ -61,7 +70,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
       // releasePointerCapture can throw if pointer was already released
     }
     const page = pageFromEvent(e.clientX);
-    setDragPage(null);
+    setDragPage(page);  // keep until currentPage catches up (useEffect will clear)
     onGoToPage(page);
   };
 
@@ -99,10 +108,12 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNa
         display: "flex",
         alignItems: "center",
         gap: 14,
-        padding: "14px 16px",
+        padding: "14px 16px calc(14px + env(safe-area-inset-bottom)) 16px",
         background: "rgba(37, 37, 37, 0.95)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
+        touchAction: "none",
+        overscrollBehavior: "contain",
         borderTop: `1px solid ${BORDER}`,
       }}
       onPointerDown={(e) => e.stopPropagation()}
