@@ -165,6 +165,8 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
         else if (action === "zoom_out") zoomOut();
         else if (action === "toolbar") onCenterTapRef.current?.();
       });
+      // keydown из iframe не всплывает — подписываемся и внутри iframe doc
+      doc.addEventListener("keydown", handleKeyDown);
     });
 
     // Keyboard navigation (ignore when typing in inputs)
