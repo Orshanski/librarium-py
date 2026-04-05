@@ -39,7 +39,11 @@ export interface PdfReaderCallbacks {
     fraction: number;
     tocItem?: { label: string; href: string };
   }) => void;
-  onLoad?: (view: { goTo: (href: string) => void; getToc: () => unknown }) => void;
+  onLoad?: (view: {
+    goTo: (href: string) => void;
+    goToPage: (index: number) => void;
+    getToc: () => unknown;
+  }) => void;
 }
 
 interface PdfReaderProps {
@@ -138,6 +142,7 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
         loadedOnce = true;
         callbacksRef.current?.onLoad?.({
           goTo: (href) => { view.goTo(href); },
+          goToPage: (index) => { view.goTo(index); },
           getToc: () => view.book?.toc,
         });
       }
