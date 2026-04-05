@@ -16,6 +16,7 @@ log = logging.getLogger("librarium.upload")
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE
 from ..database import get_db
 from ..parsers import parse_book
+from ..pdf_linearize import linearize_pdf_in_place
 from ..dal.books import create_book, get_book_files
 from ..dal.authors import get_or_create_author
 from ..dal.series import get_or_create_series
@@ -236,6 +237,9 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
         shutil.move(src_file, dst_file)
         moved_paths.append(dst_file)
 
+        if ext == "pdf":
+            linearize_pdf_in_place(dst_file)
+
         file_size = os.path.getsize(dst_file)
         db.execute(
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
@@ -303,6 +307,9 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
         src = str(UPLOADS_DIR / temp_file)
         dst = os.path.join(book_dir, f"book.{ext}")
         shutil.move(src, dst)
+
+        if ext == "pdf":
+            linearize_pdf_in_place(dst)
 
         file_size = os.path.getsize(dst)
         db.execute(

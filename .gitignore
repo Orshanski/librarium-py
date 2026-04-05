@@ -15,3 +15,4 @@ frontend/dist/
 !.claude/settings.json
 .env
 backend/.env
+backend/scripts/linearize_existing_pdfs.py
