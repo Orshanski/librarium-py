@@ -4,6 +4,34 @@ import { DesktopTapZones, TapAction, DEFAULT_PDF_TAP_ZONES } from "./reader-tool
 // Register <foliate-view> custom element
 import "../vendor/foliate-js/view.js";
 
+// Minimal subset of foliate-view API used by this component.
+interface FoliateBook {
+  sections?: unknown[];
+  toc?: unknown;
+}
+interface FoliateRenderer {
+  setAttribute: (name: string, value: string) => void;
+  destroy?: () => void;
+}
+interface FoliateView extends HTMLElement {
+  renderer: FoliateRenderer;
+  book: FoliateBook;
+  open: (blob: Blob | File) => Promise<void>;
+  close: () => void;
+  goTo: (target: number | string) => Promise<void>;
+  prev: () => Promise<void>;
+  next: () => Promise<void>;
+}
+
+interface RelocateDetail {
+  section?: { current: number; total: number };
+  fraction?: number;
+  tocItem?: { label: string; href: string };
+}
+interface LoadDetail {
+  doc?: Document;
+}
+
 export interface PdfReaderCallbacks {
   onRelocate?: (detail: {
     index: number;
@@ -11,7 +39,7 @@ export interface PdfReaderCallbacks {
     fraction: number;
     tocItem?: { label: string; href: string };
   }) => void;
-  onLoad?: () => void;
+  onLoad?: (view: { goTo: (href: string) => void; getToc: () => unknown }) => void;
 }
 
 interface PdfReaderProps {
@@ -37,11 +65,17 @@ function resolveZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZ
 }
 
 // Zoom steps: "fit-page" (default) → 1.25 → 1.5 → 2.0 → 3.0
-const ZOOM_STEPS: (string | number)[] = ["fit-page", 1.25, 1.5, 2.0, 3.0];
+const ZOOM_STEPS = ["fit-page", 1.25, 1.5, 2.0, 3.0] as const;
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
 
 export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenterTap, callbacks }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<any>(null);
+  const viewRef = useRef<FoliateView | null>(null);
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
   const onCenterTapRef = useRef(onCenterTap);
@@ -51,6 +85,7 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
   const zoomStepRef = useRef(0);
   const lastClickXRef = useRef(0);
   const lastClickYRef = useRef(0);
+  const lastPageRef = useRef<number | null>(null);
 
   const applyZoom = () => {
     const view = viewRef.current;
@@ -73,48 +108,68 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
     const container = containerRef.current;
     if (!container || !bookBlob) return;
 
-    const view = document.createElement("foliate-view") as any;
+    const view = document.createElement("foliate-view") as FoliateView;
     view.style.width = "100%";
     view.style.height = "100%";
     container.appendChild(view);
     viewRef.current = view;
 
-    view.addEventListener("relocate", (e: CustomEvent) => {
-      const { section, fraction, tocItem } = e.detail;
+    let disposed = false;
+
+    view.addEventListener("relocate", (ev) => {
+      if (disposed) return;
+      const { section, fraction, tocItem } = (ev as CustomEvent<RelocateDetail>).detail;
+      if (!section || typeof section.current !== "number") return;
+      // Filter re-relocates on the same page (e.g., zoom-triggered)
+      if (lastPageRef.current === section.current) return;
+      lastPageRef.current = section.current;
       callbacksRef.current?.onRelocate?.({
-        index: section?.current ?? 0,
-        total: section?.total ?? 0,
+        index: section.current,
+        total: section.total,
         fraction: typeof fraction === "number" ? fraction : 0,
         tocItem,
       });
     });
 
-    view.addEventListener("load", (e: CustomEvent) => {
-      callbacksRef.current?.onLoad?.();
-      const doc = e.detail?.doc;
-      if (doc) {
-        // Capture click position for zone resolution
-        doc.addEventListener("click", (ev: MouseEvent) => {
-          lastClickXRef.current = ev.screenX - window.screenX;
-          lastClickYRef.current = ev.screenY - window.screenY;
-        }, true);
-        doc.addEventListener("click", (ev: MouseEvent) => {
-          if ((ev.target as Element)?.closest?.("a[href]")) return; // links handled by foliate
-          const rect = container.getBoundingClientRect();
-          const xFrac = (lastClickXRef.current - rect.left) / rect.width;
-          const yFrac = (lastClickYRef.current - rect.top) / rect.height;
-          const action = resolveZone(xFrac, yFrac, zonesRef.current);
-          if (action === "prev") view.prev();
-          else if (action === "next") view.next();
-          else if (action === "zoom_in") zoomIn();
-          else if (action === "zoom_out") zoomOut();
-          else if (action === "toolbar") onCenterTapRef.current?.();
+    let loadedOnce = false;
+    view.addEventListener("load", (ev) => {
+      if (disposed) return;
+      if (!loadedOnce) {
+        loadedOnce = true;
+        callbacksRef.current?.onLoad?.({
+          goTo: (href) => { view.goTo(href); },
+          getToc: () => view.book?.toc,
         });
       }
+      const doc = (ev as CustomEvent<LoadDetail>).detail?.doc;
+      if (!doc) return;
+      // Capture click position (pageX/Y на iframe doc соответствуют viewport iframe;
+      // складываем с прямоугольником iframe внутри документа-хоста)
+      doc.addEventListener("click", (mev) => {
+        const iframe = doc.defaultView?.frameElement as HTMLIFrameElement | null;
+        const iframeRect = iframe?.getBoundingClientRect();
+        const offsetX = iframeRect?.left ?? 0;
+        const offsetY = iframeRect?.top ?? 0;
+        lastClickXRef.current = mev.clientX + offsetX;
+        lastClickYRef.current = mev.clientY + offsetY;
+      }, true);
+      doc.addEventListener("click", (mev) => {
+        if ((mev.target as Element)?.closest?.("a[href]")) return;
+        const rect = container.getBoundingClientRect();
+        const xFrac = (lastClickXRef.current - rect.left) / rect.width;
+        const yFrac = (lastClickYRef.current - rect.top) / rect.height;
+        const action = resolveZone(xFrac, yFrac, zonesRef.current);
+        if (action === "prev") view.prev();
+        else if (action === "next") view.next();
+        else if (action === "zoom_in") zoomIn();
+        else if (action === "zoom_out") zoomOut();
+        else if (action === "toolbar") onCenterTapRef.current?.();
+      });
     });
 
-    // Keyboard navigation
+    // Keyboard navigation (ignore when typing in inputs)
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") view.prev();
       else if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "PageDown") view.next();
       else if (e.key === "+" || e.key === "=") zoomIn();
@@ -122,26 +177,24 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
     };
     document.addEventListener("keydown", handleKeyDown);
 
-    let disposed = false;
     view.open(bookBlob)
       .then(async () => {
         if (disposed) return;
-        // Initial zoom — fit-page
-        applyZoom();
-        // Navigate to initial page
-        if (typeof initialPage === "number" && initialPage >= 0) {
-          view.goTo(initialPage);
-        } else {
-          view.renderer.next();
-        }
+        // Apply zoom only if user picked non-default step (default "fit-page" is
+        // foliate's fallback — avoid triggering a second #render via setAttribute).
+        if (zoomStepRef.current > 0) applyZoom();
+        // Navigate to initial page (or page 0)
+        const target = typeof initialPage === "number" && initialPage >= 0 ? initialPage : 0;
+        await view.goTo(target);
       })
       .catch((err: Error) => console.error("Failed to open PDF:", err));
 
     return () => {
       disposed = true;
       document.removeEventListener("keydown", handleKeyDown);
-      try { view.renderer?.destroy(); } catch {}
-      try { view.close(); } catch {}
+      try { view.close(); } catch {
+        // view.close() already calls renderer.destroy() and .remove() internally
+      }
       view.remove();
       viewRef.current = null;
     };

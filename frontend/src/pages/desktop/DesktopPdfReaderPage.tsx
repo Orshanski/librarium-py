@@ -143,14 +143,16 @@ export default function DesktopPdfReaderPage() {
 
   useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
 
+  const viewApiRef = useRef<{ goTo: (href: string) => void } | null>(null);
+
   const handleTocSelect = useCallback((href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
-    view?.goTo(href);
+    viewApiRef.current?.goTo(href);
   }, []);
 
-  const handleLoad = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
-    setTocItems((view?.book?.toc ?? []) as TocItem[]);
+  const handleLoad = useCallback((api: { goTo: (href: string) => void; getToc: () => unknown }) => {
+    viewApiRef.current = api;
+    const toc = api.getToc();
+    setTocItems((Array.isArray(toc) ? toc : []) as TocItem[]);
     setBookReady(true);
   }, []);
 

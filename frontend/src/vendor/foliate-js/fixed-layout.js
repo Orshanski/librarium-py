@@ -190,12 +190,16 @@ export class FixedLayout extends HTMLElement {
             f.element.style.inset = '0'
             f.element.style.visibility = 'hidden'
         }
-        await this.#render()
-        for (const el of oldChildren) el.remove()
-        for (const f of newFrames) {
-            f.element.style.position = ''
-            f.element.style.inset = ''
-            f.element.style.visibility = ''
+        try {
+            await this.#render()
+        } finally {
+            // Even if render throws, swap visuals — otherwise old frames linger.
+            for (const el of oldChildren) el.remove()
+            for (const f of newFrames) {
+                f.element.style.position = ''
+                f.element.style.inset = ''
+                f.element.style.visibility = ''
+            }
         }
     }
     #goLeft() {
