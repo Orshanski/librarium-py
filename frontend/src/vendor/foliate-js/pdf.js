@@ -1,6 +1,19 @@
-const pdfjsPath = path => new URL(`./vendor/pdfjs/${path}`, import.meta.url).toString()
+// LOCAL PATCH: PDF.js vendor files moved to frontend/public/pdfjs/ and loaded
+// via a dynamic <script type="module"> tag. Reason: Vite dev server transforms
+// .mjs files and injects its HMR client, which breaks PDF.js workers.
+const pdfjsPath = path => `/pdfjs/${path}`
 
-import './vendor/pdfjs/pdf.mjs'
+if (!globalThis.pdfjsLib) {
+    await new Promise((resolve, reject) => {
+        const script = Object.assign(document.createElement('script'), {
+            type: 'module',
+            src: pdfjsPath('pdf.mjs'),
+            onload: resolve,
+            onerror: () => reject(new Error('Failed to load pdf.mjs')),
+        })
+        document.head.appendChild(script)
+    })
+}
 const pdfjsLib = globalThis.pdfjsLib
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsPath('pdf.worker.mjs')
 

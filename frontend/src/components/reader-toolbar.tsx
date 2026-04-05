@@ -92,13 +92,20 @@ export interface ReaderToolbarProps {
   onSettingsChange: (s: ReaderSettings) => void;
   onTocSelect: (href: string) => void;
   onClose: () => void;
+  maxTocDepth?: number;
+  hideStyles?: boolean;
+  tapZonesKey?: "desktopTapZones" | "pdfTapZones";
+  availableActions?: TapAction[];
 }
 
-export function flattenToc(items: TocItem[], depth = 0): FlatTocItem[] {
+export function flattenToc(items: TocItem[], depth = 0, maxDepth = Infinity): FlatTocItem[] {
   const result: FlatTocItem[] = [];
+  if (depth > maxDepth) return result;
   for (const item of items) {
     result.push({ label: item.label, href: item.href, depth });
-    if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
+    if (item.subitems && depth + 1 <= maxDepth) {
+      result.push(...flattenToc(item.subitems, depth + 1, maxDepth));
+    }
   }
   return result;
 }

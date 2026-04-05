@@ -104,7 +104,7 @@ export default function MobileBookDetail({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         {book.formats
-          .filter((f) => ["EPUB", "FB2", "PDF", "MOBI", "CBZ"].includes(f.format.toUpperCase()))
+          .filter((f) => ["EPUB", "FB2", "MOBI", "CBZ"].includes(f.format.toUpperCase()))
           .map((f) => (
             <Link
               key={`read-${f.format}`}
