@@ -132,10 +132,11 @@ export class FixedLayout extends HTMLElement {
                             right.height ?? blankHeight)))
             ) || 1
 
-        const transform = frame => {
+        const transform = async frame => {
             let { element, iframe, width, height, blank, onZoom } = frame
             if (!iframe) return
-            if (onZoom) onZoom({ doc: frame.iframe.contentDocument, scale })
+            // LOCAL PATCH: await onZoom so caller knows when canvas is rendered
+            if (onZoom) await onZoom({ doc: frame.iframe.contentDocument, scale })
             const iframeScale = onZoom ? scale : 1
             Object.assign(iframe.style, {
                 width: `${width * iframeScale}px`,
@@ -157,27 +158,48 @@ export class FixedLayout extends HTMLElement {
             }
         }
         if (this.#center) {
-            transform(this.#center)
+            return transform(this.#center)
         } else {
-            transform(left)
-            transform(right)
+            return Promise.all([transform(left), transform(right)])
         }
     }
     async #showSpread({ left, right, center, side }) {
-        this.#root.replaceChildren()
+        // LOCAL PATCH: keep old frames visible until new ones finish rendering.
+        // 1) createFrame to load new iframes (old still centered by flex)
+        // 2) position new frames absolute + hidden so they don't affect layout
+        // 3) #render() awaits onZoom (PDF.js canvas render)
+        // 4) remove old children, un-hide new — atomic visual swap
+        const oldChildren = Array.from(this.#root.children)
         this.#left = null
         this.#right = null
         this.#center = null
         if (center) {
             this.#center = await this.#createFrame(center)
             this.#side = 'center'
-            this.#render()
         } else {
             this.#left = await this.#createFrame(left)
             this.#right = await this.#createFrame(right)
             this.#side = this.#left.blank ? 'right'
                 : this.#right.blank ? 'left' : side
-            this.#render()
+        }
+        const newFrames = this.#center
+            ? [this.#center]
+            : [this.#left, this.#right].filter(f => f && !f.blank)
+        for (const f of newFrames) {
+            f.element.style.position = 'absolute'
+            f.element.style.inset = '0'
+            f.element.style.visibility = 'hidden'
+        }
+        try {
+            await this.#render()
+        } finally {
+            // Even if render throws, swap visuals — otherwise old frames linger.
+            for (const el of oldChildren) el.remove()
+            for (const f of newFrames) {
+                f.element.style.position = ''
+                f.element.style.inset = ''
+                f.element.style.visibility = ''
+            }
         }
     }
     #goLeft() {

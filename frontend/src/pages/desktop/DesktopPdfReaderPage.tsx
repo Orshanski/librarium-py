@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import { getDeviceName } from "../../utils/device-info";
-import EbookReader from "../../components/ebook-reader";
-import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
-import { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES, TocItem } from "../../components/reader-toolbar";
+import PdfReader from "../../components/pdf-reader";
+import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, TocItem, TapAction } from "../../components/reader-toolbar";
 
-export default function MobileReaderPage() {
+const PDF_AVAILABLE_ACTIONS: TapAction[] = ["prev", "next", "zoom_in", "zoom_out"];
+
+export default function DesktopPdfReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -18,8 +19,7 @@ export default function MobileReaderPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
-  const [initialPosition, setInitialPosition] = useState<string | null>(null);
-  const [fraction, setFraction] = useState(0);
+  const [initialPage, setInitialPage] = useState<number | undefined>(undefined);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [currentTocHref, setCurrentTocHref] = useState("");
   const [bookReady, setBookReady] = useState(false);
@@ -69,13 +69,12 @@ export default function MobileReaderPage() {
         if (progressData.position) {
           try {
             const parsed = JSON.parse(progressData.position);
-            if (parsed?.kind === "cfi" && typeof parsed.value === "string") {
-              setInitialPosition(parsed.value);
-            } else {
-              setInitialPosition(progressData.position); // legacy CFI
+            if (parsed?.kind === "page" && typeof parsed.value === "number") {
+              setInitialPage(parsed.value);
             }
+            // CFI из flow-ридера игнорируем — для PDF не применимо
           } catch {
-            setInitialPosition(progressData.position); // legacy CFI
+            // legacy CFI — игнор
           }
         }
         setLoading(false);
@@ -88,17 +87,24 @@ export default function MobileReaderPage() {
 
   // Save progress on relocate (debounced 3s, flush on unmount)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastPositionRef = useRef<{ cfi: string; device: string; fraction: number } | null>(null);
+  const lastPositionRef = useRef<{ page: number; fraction: number; device: string } | null>(null);
 
   const flushProgress = useCallback(() => {
     clearTimeout(saveTimerRef.current);
     const pos = lastPositionRef.current;
     if (!pos || !id) return;
+    const page = Number.isFinite(pos.page) ? pos.page : 0;
+    const fraction = Number.isFinite(pos.fraction) ? Math.min(1, Math.max(0, pos.fraction)) : 0;
     fetch(`/api/reader/progress/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ position: JSON.stringify({ kind: "cfi", value: pos.cfi }), last_device: pos.device, last_format: format || "", fraction: Math.min(1, Math.max(0, pos.fraction || 0)) }),
+      body: JSON.stringify({
+        position: JSON.stringify({ kind: "page", value: page }),
+        last_device: pos.device,
+        last_format: format || "",
+        fraction,
+      }),
     }).catch(() => {});
     lastPositionRef.current = null;
   }, [id, format]);
@@ -106,10 +112,9 @@ export default function MobileReaderPage() {
   useEffect(() => () => flushProgress(), [flushProgress]);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
-      setFraction(detail.fraction);
+    (detail: { index: number; total: number; fraction: number; tocItem?: { label: string; href: string } }) => {
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
-      lastPositionRef.current = { cfi: detail.cfi, device: deviceName, fraction: detail.fraction };
+      lastPositionRef.current = { page: detail.index, fraction: detail.fraction, device: deviceName };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         flushProgress();
@@ -138,17 +143,18 @@ export default function MobileReaderPage() {
 
   useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
 
+  const viewApiRef = useRef<{ goTo: (href: string) => void } | null>(null);
+
   const handleTocSelect = useCallback((href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
-    view?.goTo(href);
+    viewApiRef.current?.goTo(href);
   }, []);
 
-  const handleLoad = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
-    setTocItems((view?.book?.toc ?? []) as TocItem[]);
+  const handleLoad = useCallback((api: { goTo: (href: string) => void; getToc: () => unknown }) => {
+    viewApiRef.current = api;
+    const toc = api.getToc();
+    setTocItems((Array.isArray(toc) ? toc : []) as TocItem[]);
     setBookReady(true);
   }, []);
-
 
   if (loading && !bookBlob) {
     return (
@@ -173,18 +179,21 @@ export default function MobileReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
-      {/* Mobile toolbar: header + bottom sheets, visibility controlled directly */}
+    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: "#2a2a2a" }}>
       {bookReady && toolbarVisible && (
-        <MobileReaderToolbar
+        <ReaderToolbar
           bookTitle={bookTitle}
-          fraction={fraction}
+          fraction={0}
           tocItems={tocItems}
           currentTocHref={currentTocHref}
           settings={settings}
           onSettingsChange={handleSettingsChange}
           onTocSelect={handleTocSelect}
           onClose={() => navigate(-1)}
+          maxTocDepth={3}
+          hideStyles
+          tapZonesKey="pdfTapZones"
+          availableActions={PDF_AVAILABLE_ACTIONS}
         />
       )}
       {!bookReady && (
@@ -195,15 +204,10 @@ export default function MobileReaderPage() {
         </div>
       )}
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
-        <EbookReader
+        <PdfReader
           bookBlob={bookBlob}
-          initialPosition={initialPosition}
-          settings={settings}
-          maxInlineSize="1200px"
-          gap="5%"
-          margin="5px"
-          showFooter={false}
-          isMobile={true}
+          initialPage={initialPage}
+          pdfTapZones={settings.pdfTapZones}
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />

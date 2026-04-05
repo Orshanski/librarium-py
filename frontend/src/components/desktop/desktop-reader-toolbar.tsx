@@ -28,6 +28,10 @@ export default function DesktopReaderToolbar({
   onSettingsChange,
   onTocSelect,
   onClose,
+  maxTocDepth,
+  hideStyles,
+  tapZonesKey,
+  availableActions,
 }: ReaderToolbarProps) {
   const [showToc, setShowToc] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -120,7 +124,7 @@ export default function DesktopReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 13 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item, i) => {
+              {flattenToc(tocItems, 0, maxTocDepth).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
                 <div
@@ -192,7 +196,13 @@ export default function DesktopReaderToolbar({
             borderRadius: 8, padding: "16px", zIndex: 200,
             minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
           }}>
-            <ReaderSettingsPanel settings={settings} onChange={onSettingsChange} />
+            <ReaderSettingsPanel
+              settings={settings}
+              onChange={onSettingsChange}
+              hideStyles={hideStyles}
+              tapZonesKey={tapZonesKey}
+              availableActions={availableActions}
+            />
           </div>
         )}
       </div>

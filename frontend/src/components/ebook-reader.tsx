@@ -198,7 +198,8 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             const action = resolveDesktopZone(xFrac, yFrac, zones);
             if (action === "prev") view.prev();
             else if (action === "next") view.next();
-            else onCenterTapRef.current?.();
+            else if (action === "toolbar") onCenterTapRef.current?.();
+            // zoom_in / zoom_out не применимы в flow-ридере — no-op
           }
         });
       }

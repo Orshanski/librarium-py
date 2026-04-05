@@ -11,6 +11,7 @@ export default function MobileReaderToolbar({
   onSettingsChange,
   onTocSelect,
   onClose,
+  maxTocDepth,
 }: ReaderToolbarProps) {
   const [panel, setPanel] = useState<null | "toc" | "settings">(null);
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
@@ -176,7 +177,7 @@ export default function MobileReaderToolbar({
               {tocItems.length === 0 && (
                 <span style={{ color: colors.textDim, fontSize: 14 }}>Нет содержания</span>
               )}
-              {flattenToc(tocItems).map((item, i) => {
+              {flattenToc(tocItems, 0, maxTocDepth).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
                   <div

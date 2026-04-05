@@ -4,7 +4,7 @@ import MobileReaderToolbar from "./mobile/mobile-reader-toolbar";
 
 export type ReaderTheme = "dark" | "warm" | "light";
 
-export type TapAction = "prev" | "next";
+export type TapAction = "prev" | "next" | "zoom_in" | "zoom_out";
 
 export interface DesktopTapZones {
   topLeft: TapAction;
@@ -24,6 +24,15 @@ export const DEFAULT_DESKTOP_TAP_ZONES: DesktopTapZones = {
   bottomRight: "next",
 };
 
+export const DEFAULT_PDF_TAP_ZONES: DesktopTapZones = {
+  topLeft: "prev",
+  bottomLeft: "prev",
+  topCenter: "zoom_in",
+  bottomCenter: "zoom_out",
+  topRight: "next",
+  bottomRight: "next",
+};
+
 export interface ReaderSettings {
   fontSize: number;
   lineSpacing: number;
@@ -33,6 +42,7 @@ export interface ReaderSettings {
   hyphenate: boolean;
   justify: boolean;
   desktopTapZones: DesktopTapZones;
+  pdfTapZones: DesktopTapZones;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -44,6 +54,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   hyphenate: true,
   justify: true,
   desktopTapZones: DEFAULT_DESKTOP_TAP_ZONES,
+  pdfTapZones: DEFAULT_PDF_TAP_ZONES,
 };
 
 export const FONT_OPTIONS = [
@@ -81,13 +92,20 @@ export interface ReaderToolbarProps {
   onSettingsChange: (s: ReaderSettings) => void;
   onTocSelect: (href: string) => void;
   onClose: () => void;
+  maxTocDepth?: number;
+  hideStyles?: boolean;
+  tapZonesKey?: "desktopTapZones" | "pdfTapZones";
+  availableActions?: TapAction[];
 }
 
-export function flattenToc(items: TocItem[], depth = 0): FlatTocItem[] {
+export function flattenToc(items: TocItem[], depth = 0, maxDepth = Infinity): FlatTocItem[] {
   const result: FlatTocItem[] = [];
+  if (depth > maxDepth) return result;
   for (const item of items) {
     result.push({ label: item.label, href: item.href, depth });
-    if (item.subitems) result.push(...flattenToc(item.subitems, depth + 1));
+    if (item.subitems && depth + 1 <= maxDepth) {
+      result.push(...flattenToc(item.subitems, depth + 1, maxDepth));
+    }
   }
   return result;
 }
