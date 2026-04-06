@@ -5,4 +5,5 @@ export interface BookCardProps {
   onRemove?: () => void;
   href?: string;
   progressPercent?: number;
+  isCached?: boolean;
 }

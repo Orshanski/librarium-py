@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
+import CloudBadge from "../cloud-badge";
 
-export default function MobileBookCard({ book, onRemove, href, progressPercent }: BookCardProps) {
+export default function MobileBookCard({ book, onRemove, href, progressPercent, isCached }: BookCardProps) {
   return (
     <Link
       to={href ?? `/book/${book.id}`}
@@ -60,6 +61,22 @@ export default function MobileBookCard({ book, onRemove, href, progressPercent }
               }}
             >
               {"★".repeat(book.rating)}
+            </div>
+          )}
+          {isCached && (
+            <div style={{
+              position: "absolute",
+              bottom: progressPercent != null ? 7 : 4,
+              right: 4,
+              width: 24,
+              height: 24,
+              borderRadius: "50%",
+              background: "rgba(249, 190, 3, 0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <CloudBadge cached size={14} />
             </div>
           )}
         </div>
