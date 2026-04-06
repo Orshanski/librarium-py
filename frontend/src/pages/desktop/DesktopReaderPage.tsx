@@ -1,153 +1,46 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
-import { getDeviceName } from "../../utils/device-info";
 import EbookReader from "../../components/ebook-reader";
-import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, THEME_STYLES, TocItem } from "../../components/reader-toolbar";
+import ReaderToolbar, { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
+import { useReaderStorage } from "../../hooks/useReaderStorage";
 
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [bookBlob, setBookBlob] = useState<Blob | null>(null);
-  const [bookTitle, setBookTitle] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    bookBlob, bookTitle, settings, initialPosition,
+    loading, loadProgress, error,
+    handleRelocate: onStorageRelocate, handleSettingsChange,
+  } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
-  const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
-  const [initialPosition, setInitialPosition] = useState<string | null>(null);
   const [fraction, setFraction] = useState(0);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [currentTocHref, setCurrentTocHref] = useState("");
   const [bookReady, setBookReady] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
-  const deviceName = getDeviceName();
-
-  // Load book data, settings, progress
-  useEffect(() => {
-    if (!id || !format) return;
-
-    Promise.all([
-      fetch(`/api/books/${id}`, { credentials: "include" }).then((r) => r.json()),
-      fetch(`/api/books/${id}/download?format=${format}`, { credentials: "include" }).then(async (r) => {
-        if (!r.ok) throw new Error("Failed to download book");
-        if (!r.body) {
-          const b = await r.blob();
-          return new File([b], `book.${format}`, { type: b.type });
-        }
-        const total = Number(r.headers.get("content-length")) || 0;
-        const reader = r.body.getReader();
-        let received = 0;
-        const chunks: BlobPart[] = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          received += value.length;
-          if (total) {
-            setLoadProgress(Math.round((received / total) * 100));
-          } else {
-            setLoadProgress(-(received)); // negative = bytes without total
-          }
-        }
-        const blob = new Blob(chunks);
-        return new File([blob], `book.${format}`, { type: r.headers.get("content-type") || "" });
-      }),
-      fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.json()),
-      fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()),
-    ])
-      .then(([bookData, blob, settingsData, progressData]) => {
-        setBookTitle(bookData.book?.title || "");
-        setBookBlob(blob);
-        if (settingsData.settings && Object.keys(settingsData.settings).length > 0) {
-          setSettings({ ...DEFAULT_SETTINGS, ...settingsData.settings });
-        }
-        if (progressData.position) {
-          try {
-            const parsed = JSON.parse(progressData.position);
-            if (parsed?.kind === "cfi" && typeof parsed.value === "string") {
-              setInitialPosition(parsed.value);
-            } else {
-              setInitialPosition(progressData.position); // legacy CFI
-            }
-          } catch {
-            setInitialPosition(progressData.position); // legacy CFI
-          }
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [id, format]);
-
-  // Save progress on relocate (debounced 3s, flush on unmount)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastPositionRef = useRef<{ cfi: string; device: string; fraction: number } | null>(null);
-
-  const flushProgress = useCallback(() => {
-    clearTimeout(saveTimerRef.current);
-    const pos = lastPositionRef.current;
-    if (!pos || !id) return;
-    fetch(`/api/reader/progress/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ position: JSON.stringify({ kind: "cfi", value: pos.cfi }), last_device: pos.device, last_format: format || "", fraction: Math.min(1, Math.max(0, pos.fraction || 0)) }),
-    }).catch(() => {});
-    lastPositionRef.current = null;
-  }, [id, format]);
-
-  useEffect(() => () => flushProgress(), [flushProgress]);
-
   const handleRelocate = useCallback(
     (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
       setFraction(detail.fraction);
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
-      lastPositionRef.current = { cfi: detail.cfi, device: deviceName, fraction: detail.fraction };
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        flushProgress();
-      }, 3000);
+      onStorageRelocate(detail.cfi, detail.fraction);
     },
-    [deviceName, flushProgress],
+    [onStorageRelocate],
   );
-
-  // Save settings on change (debounced 1.5s)
-  const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const handleSettingsChange = useCallback(
-    (newSettings: ReaderSettings) => {
-      setSettings(newSettings);
-      clearTimeout(settingsTimerRef.current);
-      settingsTimerRef.current = setTimeout(() => {
-        fetch("/api/reader/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ settings: newSettings }),
-        }).catch(() => {});
-      }, 1500);
-    },
-    [],
-  );
-
-  useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
 
   const handleTocSelect = useCallback((href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
+    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => void };
     view?.goTo(href);
   }, []);
 
   const handleLoad = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as any;
+    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
     setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
-
 
   if (loading && !bookBlob) {
     return (
@@ -195,7 +88,7 @@ export default function DesktopReaderPage() {
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
           bookBlob={bookBlob}
-          initialPosition={initialPosition}
+          initialPosition={initialPosition as string | null}
           settings={settings}
           maxInlineSize="1100px"
           gap="3%"

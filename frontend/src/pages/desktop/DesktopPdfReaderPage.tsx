@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
-import { getDeviceName } from "../../utils/device-info";
 import PdfReader from "../../components/pdf-reader";
 import PdfNavBar from "../../components/pdf-nav-bar";
-import ReaderToolbar, { ReaderSettings, DEFAULT_SETTINGS, TocItem, TapAction } from "../../components/reader-toolbar";
+import ReaderToolbar, { TocItem, TapAction } from "../../components/reader-toolbar";
+import { useReaderStorage } from "../../hooks/useReaderStorage";
 
 const PDF_AVAILABLE_ACTIONS: TapAction[] = ["prev", "next", "zoom_in", "zoom_out"];
 
@@ -13,14 +13,12 @@ export default function DesktopPdfReaderPage() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [bookBlob, setBookBlob] = useState<Blob | null>(null);
-  const [bookTitle, setBookTitle] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    bookBlob, bookTitle, settings, initialPosition,
+    loading, loadProgress, error,
+    handleRelocate: onStorageRelocate, handleSettingsChange,
+  } = useReaderStorage({ bookId: id, format, positionKind: "page" });
 
-  const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
-  const [initialPage, setInitialPage] = useState<number | undefined>(undefined);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [currentTocHref, setCurrentTocHref] = useState("");
   const [bookReady, setBookReady] = useState(false);
@@ -28,127 +26,17 @@ export default function DesktopPdfReaderPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const deviceName = getDeviceName();
-
-  // Load book data, settings, progress
-  useEffect(() => {
-    if (!id || !format) return;
-
-    Promise.all([
-      fetch(`/api/books/${id}`, { credentials: "include" }).then((r) => r.json()),
-      fetch(`/api/books/${id}/download?format=${format}`, { credentials: "include" }).then(async (r) => {
-        if (!r.ok) throw new Error("Failed to download book");
-        if (!r.body) {
-          const b = await r.blob();
-          return new File([b], `book.${format}`, { type: b.type });
-        }
-        const total = Number(r.headers.get("content-length")) || 0;
-        const reader = r.body.getReader();
-        let received = 0;
-        const chunks: BlobPart[] = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          received += value.length;
-          if (total) {
-            setLoadProgress(Math.round((received / total) * 100));
-          } else {
-            setLoadProgress(-(received));
-          }
-        }
-        const blob = new Blob(chunks);
-        return new File([blob], `book.${format}`, { type: r.headers.get("content-type") || "" });
-      }),
-      fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.json()),
-      fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()),
-    ])
-      .then(([bookData, blob, settingsData, progressData]) => {
-        setBookTitle(bookData.book?.title || "");
-        setBookBlob(blob);
-        if (settingsData.settings && Object.keys(settingsData.settings).length > 0) {
-          setSettings({ ...DEFAULT_SETTINGS, ...settingsData.settings });
-        }
-        if (progressData.position) {
-          try {
-            const parsed = JSON.parse(progressData.position);
-            if (parsed?.kind === "page" && typeof parsed.value === "number") {
-              setInitialPage(parsed.value);
-            }
-            // CFI из flow-ридера игнорируем — для PDF не применимо
-          } catch {
-            // legacy CFI — игнор
-          }
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [id, format]);
-
-  // Save progress on relocate (debounced 3s, flush on unmount)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastPositionRef = useRef<{ page: number; fraction: number; device: string } | null>(null);
-
-  const flushProgress = useCallback(() => {
-    clearTimeout(saveTimerRef.current);
-    const pos = lastPositionRef.current;
-    if (!pos || !id) return;
-    const page = Number.isFinite(pos.page) ? pos.page : 0;
-    const fraction = Number.isFinite(pos.fraction) ? Math.min(1, Math.max(0, pos.fraction)) : 0;
-    fetch(`/api/reader/progress/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        position: JSON.stringify({ kind: "page", value: page }),
-        last_device: pos.device,
-        last_format: format || "",
-        fraction,
-      }),
-    }).catch(() => {});
-    lastPositionRef.current = null;
-  }, [id, format]);
-
-  useEffect(() => () => flushProgress(), [flushProgress]);
+  const viewApiRef = useRef<{ goTo: (href: string) => void; goToPage: (index: number) => void } | null>(null);
 
   const handleRelocate = useCallback(
     (detail: { index: number; total: number; fraction: number; tocItem?: { label: string; href: string } }) => {
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       setCurrentPage(detail.index);
       setTotalPages(detail.total);
-      lastPositionRef.current = { page: detail.index, fraction: detail.fraction, device: deviceName };
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        flushProgress();
-      }, 3000);
+      onStorageRelocate(detail.index, detail.fraction);
     },
-    [deviceName, flushProgress],
+    [onStorageRelocate],
   );
-
-  // Save settings on change (debounced 1.5s)
-  const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const handleSettingsChange = useCallback(
-    (newSettings: ReaderSettings) => {
-      setSettings(newSettings);
-      clearTimeout(settingsTimerRef.current);
-      settingsTimerRef.current = setTimeout(() => {
-        fetch("/api/reader/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ settings: newSettings }),
-        }).catch(() => {});
-      }, 1500);
-    },
-    [],
-  );
-
-  useEffect(() => () => clearTimeout(settingsTimerRef.current), []);
-
-  const viewApiRef = useRef<{ goTo: (href: string) => void; goToPage: (index: number) => void } | null>(null);
 
   const handleTocSelect = useCallback((href: string) => {
     viewApiRef.current?.goTo(href);
@@ -222,7 +110,7 @@ export default function DesktopPdfReaderPage() {
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <PdfReader
           bookBlob={bookBlob}
-          initialPage={initialPage}
+          initialPage={typeof initialPosition === "number" ? initialPosition : undefined}
           pdfTapZones={settings.pdfTapZones}
           onCenterTap={() => setToolbarVisible((v) => !v)}
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
