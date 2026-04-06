@@ -1,7 +1,14 @@
-const CACHE_NAME = "librarium-shell-v2";
+const CACHE_NAME = "__CACHE_VERSION__";
 
-self.addEventListener("install", () => {
-  // No pre-cache — Vite uses hashed filenames that we can't predict
+// __PRECACHE_ASSETS__ is replaced at build time by the post-build script
+const PRECACHE_ASSETS = "__PRECACHE_ASSETS__";
+
+self.addEventListener("install", (event) => {
+  if (Array.isArray(PRECACHE_ASSETS)) {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS)),
+    );
+  }
   self.skipWaiting();
 });
 

@@ -119,11 +119,15 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
               blob = new File([fmt.fileBlob], `book.${format}`, { type: "" });
               title = cached.title;
               fromCache = true;
-            } else {
+            } else if (navigator.onLine) {
               blob = await downloadBlob();
+            } else {
+              throw new Error("Формат не найден в кэше");
             }
-          } else {
+          } else if (navigator.onLine) {
             blob = await downloadBlob();
+          } else {
+            throw new Error("Книга не сохранена для оффлайн-чтения");
           }
         } else {
           blob = await downloadBlob();

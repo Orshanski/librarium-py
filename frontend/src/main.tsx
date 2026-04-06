@@ -55,8 +55,8 @@ window.addEventListener("offline", () => {
   evictExpired().catch((err) => console.warn("Failed to evict expired books on offline:", err));
 });
 
-// Register Service Worker for PWA offline support
-if ("serviceWorker" in navigator) {
+// Register Service Worker for PWA offline support (production only)
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed:", err));
   });
