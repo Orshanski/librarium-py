@@ -69,7 +69,7 @@ let dbPromise: Promise<LibrariumDB> | null = null;
 export function initDB(): Promise<LibrariumDB> {
   if (!dbPromise) {
     dbPromise = openDB<LibrariumDBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         if (!db.objectStoreNames.contains("cached_books")) {
           db.createObjectStore("cached_books", { keyPath: "bookId" });
         }
@@ -79,7 +79,10 @@ export function initDB(): Promise<LibrariumDB> {
         if (!db.objectStoreNames.contains("reader_settings")) {
           db.createObjectStore("reader_settings", { keyPath: "deviceType" });
         }
-        // v1→v2: Blob→ArrayBuffer — old cached books are incompatible, will be re-cached
+        // v1→v2: Blob→ArrayBuffer — clear old incompatible cached books
+        if (oldVersion < 2) {
+          transaction.objectStore("cached_books").clear();
+        }
       },
     });
   }
