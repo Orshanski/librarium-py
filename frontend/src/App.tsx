@@ -1,6 +1,9 @@
-import { Routes, Route, Outlet } from "react-router-dom";
+import { Routes, Route, Outlet, useLocation } from "react-router-dom";
 import { ProtectedRoute } from "./auth";
 import Shell from "./components/shell";
+import OfflineShell from "./components/OfflineShell";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
+import { useIsPwa } from "./hooks/useIsPwa";
 
 import CatalogPage from "./pages/CatalogPage";
 import LoginPage from "./pages/LoginPage";
@@ -29,6 +32,16 @@ function ShellLayout() {
 }
 
 export default function App() {
+  const online = useOnlineStatus();
+  const isPwa = useIsPwa();
+  const location = useLocation();
+
+  // PWA offline: show OfflineShell unless already reading a book
+  const isReading = location.pathname.match(/^\/book\/\d+\/read\//);
+  if (isPwa && !online && !isReading) {
+    return <OfflineShell />;
+  }
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

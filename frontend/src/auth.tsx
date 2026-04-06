@@ -29,8 +29,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api("/api/auth/me")
-      .then((data) => setUser(data))
-      .catch(() => setUser(null))
+      .then((data) => {
+        setUser(data);
+        try { localStorage.setItem("librarium_user", JSON.stringify(data)); } catch {}
+      })
+      .catch(() => {
+        if (!navigator.onLine) {
+          try {
+            const cached = localStorage.getItem("librarium_user");
+            if (cached) { setUser(JSON.parse(cached)); return; }
+          } catch {}
+        }
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -42,14 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setUser(data.user);
       return null;
-    } catch (e: any) {
-      return e.message || "Ошибка входа";
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : "Ошибка входа";
     }
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+    await api("/api/auth/logout", { method: "POST" }).catch((err) => console.warn("Logout request failed:", err));
     setUser(null);
+    try { localStorage.removeItem("librarium_user"); } catch {}
   }
 
   return (

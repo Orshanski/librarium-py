@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
 import { removeBookFromCatalogCache } from "../utils/catalog-cache";
+import { useCacheStatus } from "../hooks/useCacheStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
@@ -27,6 +28,26 @@ export default function BookDetail({
   const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
   const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
   const shelfRef = useRef<HTMLDivElement>(null);
+  const { cached: isCached, loading: cacheLoading, toggleCache, evict: evictFromCache, isPwa } = useCacheStatus(book.id);
+
+  const handleToggleCache = useCallback(() => {
+    toggleCache(
+      { title: book.title, authors: book.authors, manuallyAdded: true },
+      async () => {
+        const resp = await fetch(`/api/books/${book.id}`, { credentials: "include" });
+        const data: { files: { format: string; file_size: number }[] } = await resp.json();
+        const allFiles = data.files || [];
+        return Promise.all(allFiles.map(async (f: { format: string; file_size: number }) => {
+          const r = await fetch(`/api/books/${book.id}/download?format=${f.format}`, { credentials: "include" });
+          return { format: f.format, fileBlob: await r.blob(), fileSize: f.file_size };
+        }));
+      },
+      async () => {
+        const r = await fetch(`/api/covers/${book.id}?full=1`, { credentials: "include" });
+        return r.blob();
+      },
+    );
+  }, [book.id, book.title, book.authors, toggleCache]);
 
   useEffect(() => {
     if (!showShelfMenu) return;
@@ -46,7 +67,7 @@ export default function BookDetail({
         if (data.rating !== undefined) setRating(data.rating);
         setIsRead(!!data.is_read);
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to fetch book status:", err));
   }, [book.id]);
 
   async function saveRating(nextRating: number) {
@@ -75,6 +96,7 @@ export default function BookDetail({
         body: JSON.stringify({ isRead: next }),
       });
       if (!res.ok) throw new Error("toggle read failed");
+      if (next) evictFromCache().catch((err) => console.warn("Failed to remove cached book:", err));
     } catch {
       setIsRead(previous);
     }
@@ -139,6 +161,10 @@ export default function BookDetail({
     onToggleShelfMenu: toggleShelfMenu,
     onToggleShelfBook: toggleShelfBook,
     onShowDeleteConfirm: () => setShowDeleteConfirm(true),
+    isCached,
+    cacheLoading,
+    onToggleCache: handleToggleCache,
+    showCacheToggle: isPwa,
   };
 
   return (

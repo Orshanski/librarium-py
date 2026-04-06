@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -8,6 +8,20 @@ import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
+import { useCachedBookIds } from "../hooks/useCachedBookIds";
+
+interface FilterOption {
+  id: number;
+  name: string;
+  count: number;
+}
+
+interface FilterOptions {
+  authors: FilterOption[];
+  series: FilterOption[];
+  tags: FilterOption[];
+  languages: { name: string; count: number }[];
+}
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -21,7 +35,7 @@ const sortOptions = [
   { key: "rating_desc", label: "По рейтингу" },
 ];
 
-function saveCache(books: any[], filterOptions: any, hasMore: boolean, paramsKey: string) {
+function saveCache(books: RawBook[], filterOptions: FilterOptions | null, hasMore: boolean, paramsKey: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -58,8 +72,8 @@ export default function CatalogPage() {
     saveBookOrigin("Каталог", "/");
   }, []);
 
-  const [books, setBooks] = useState<any[]>([]);
-  const [filterOptions, setFilterOptions] = useState<any>(null);
+  const [books, setBooks] = useState<RawBook[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -132,8 +146,8 @@ export default function CatalogPage() {
       .then((data) => {
         const newBooks = data.books || [];
         setBooks((prev) => {
-          const ids = new Set(prev.map((b: any) => b.id));
-          return [...prev, ...newBooks.filter((b: any) => !ids.has(b.id))];
+          const ids = new Set(prev.map((b: RawBook) => b.id));
+          return [...prev, ...newBooks.filter((b: RawBook) => !ids.has(b.id))];
         });
         setHasMore(data.hasMore || false);
         setLoadingMore(false);
@@ -190,10 +204,10 @@ export default function CatalogPage() {
 
   const filterConfigs: FilterConfig[] = filterOptions
     ? [
-        { key: "author", label: "Автор", options: filterOptions.authors.map((a: any) => ({ value: String(a.id), count: a.count, label: a.name })) },
-        { key: "series", label: "Серия", options: filterOptions.series.map((s: any) => ({ value: String(s.id), count: s.count, label: s.name })) },
-        { key: "genre", label: "Жанр", options: filterOptions.tags.map((t: any) => ({ value: String(t.id), count: t.count, label: t.name })) },
-        { key: "language", label: "Язык", options: filterOptions.languages.map((l: any) => ({ value: l.name, count: l.count })) },
+        { key: "author", label: "Автор", options: filterOptions.authors.map((a) => ({ value: String(a.id), count: a.count, label: a.name })) },
+        { key: "series", label: "Серия", options: filterOptions.series.map((s) => ({ value: String(s.id), count: s.count, label: s.name })) },
+        { key: "genre", label: "Жанр", options: filterOptions.tags.map((t) => ({ value: String(t.id), count: t.count, label: t.name })) },
+        { key: "language", label: "Язык", options: filterOptions.languages.map((l) => ({ value: l.name, count: l.count })) },
       ]
     : [];
 
@@ -209,6 +223,9 @@ export default function CatalogPage() {
   }
 
   const filterBarProps = filterConfigs.length > 0 ? { filters: filterConfigs, selected, onSelectionChange, onClearAll: clearAllFilters } : undefined;
+
+  const bookIds = useMemo(() => books.map((b: RawBook) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
 
   return (
     <>
@@ -230,6 +247,7 @@ export default function CatalogPage() {
           <BookCard
             key={b.id}
             book={toBook(b)}
+            isCached={cachedBookIds.has(b.id)}
           />
         ))}
       </BookGrid>

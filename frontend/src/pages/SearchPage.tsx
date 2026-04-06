@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -7,6 +7,7 @@ import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
+import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
@@ -30,6 +31,10 @@ function SearchResults() {
       .catch(() => setLoading(false));
   }, [q]);
 
+  const { books = [], authors = [], series = [] } = results || {};
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   if (!q.trim()) {
     return <div style={{ fontSize: 14, color: colors.textDim, padding: 24 }}>Введите запрос в поле поиска</div>;
   }
@@ -40,7 +45,6 @@ function SearchResults() {
 
   if (!results) return null;
 
-  const { books = [], authors = [], series = [] } = results;
   const total = books.length + authors.length + series.length;
 
   if (total === 0) {
@@ -53,7 +57,7 @@ function SearchResults() {
         <div style={{ marginBottom: 32 }}>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Авторы</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {authors.map((a: any) => (
+            {authors.map((a) => (
               <Link key={a.id} to={`/authors/${a.id}`} style={{ textDecoration: "none" }}>
                 <div
                   style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
@@ -73,7 +77,7 @@ function SearchResults() {
         <div style={{ marginBottom: 32 }}>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Серии</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {series.map((s: any) => (
+            {series.map((s) => (
               <Link key={s.id} to={`/series/${s.id}`} style={{ textDecoration: "none" }}>
                 <div
                   style={{ padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
@@ -117,6 +121,7 @@ function SearchResults() {
               <BookCard
                 key={b.id}
                 book={toBook(b)}
+                isCached={cachedBookIds.has(b.id)}
               />
             ))}
           </BookGrid>

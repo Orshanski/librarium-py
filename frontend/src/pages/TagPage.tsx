@@ -10,6 +10,7 @@ import { FilterConfig } from "../components/filter-bar";
 import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
+import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
 interface TagData {
   id: number;
@@ -203,6 +204,9 @@ export default function TagPage() {
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
 
+  const bookIds = useMemo(() => filtered.map((b) => b.id), [filtered]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   if (loading) {
     return (
       <>
@@ -273,7 +277,7 @@ export default function TagPage() {
 
       <BookGrid>
         {filtered.map((book) => (
-          <BookCard key={book.id} book={book} />
+          <BookCard key={book.id} book={book} isCached={cachedBookIds.has(book.id)} />
         ))}
         {filtered.length === 0 && (
           <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>

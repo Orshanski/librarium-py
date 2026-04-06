@@ -17,6 +17,7 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 | Build | Vite 6 |
 | Styling | Inline CSS, theme in `theme.ts`, no framework |
 | Responsive | Desktop/Mobile layout (breakpoint 820px) |
+| Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
 | Tests | pytest (backend), Vitest (frontend) |
 | CI/CD | GitHub Actions → SSH deploy |
 
@@ -274,16 +275,18 @@ frontend/
 ├── vite.config.ts          # Port 5173, /api proxy to :8000
 ├── package.json
 └── src/
-    ├── main.tsx            # React root, BrowserRouter, AuthProvider
-    ├── App.tsx             # Routes (all behind ProtectedRoute)
-    ├── auth.tsx            # AuthContext, useAuth(), ProtectedRoute
+    ├── main.tsx            # React root, BrowserRouter, AuthProvider, SW registration
+    ├── App.tsx             # Routes (all behind ProtectedRoute), offline shell routing
+    ├── auth.tsx            # AuthContext, useAuth(), ProtectedRoute, offline auth cache
     ├── api.ts              # Fetch wrapper (credentials, JSON)
     ├── types.ts            # TypeScript interfaces
     ├── theme.ts            # Color palette + layout constants (breakpoint 820)
     ├── responsive.ts       # ResponsiveProvider, useIsMobile()
     ├── vendor/foliate-js/  # Local patched copy of foliate-js reader
+    ├── hooks/              # Custom hooks (offline storage, PWA detection, cache status)
+    ├── utils/offline-storage.ts # IndexedDB wrapper (book cache, progress, settings)
     ├── pages/              # 18 page components (desktop/, mobile/ subdirs)
-    ├── components/         # 27 shared components (logic + types)
+    ├── components/         # 29 shared components (logic + types, incl. OfflineShell, CloudBadge)
     ├── components/desktop/ # 10 desktop layout components
     └── components/mobile/  # 13 mobile layout components
 ```
@@ -337,7 +340,7 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 - **Flow reader** (EPUB/FB2) — `EbookReader` + `DesktopReaderPage` / `MobileReaderPage`. Paginated columns with font/theme/hyphenation settings, tap zones, TOC highlighting, progress bar.
 - **PDF reader** — `PdfReader` + `DesktopPdfReaderPage`. fixed-layout paginator, tap zones (prev/next/zoom_in/zoom_out), zoom steps, TOC cutoff at depth 3, bottom nav bar with draggable slider + editable page number input. Mobile shows "not supported" stub.
 - **Position format**: JSON `{kind, value}` — `kind="cfi"` for flow (CFI string), `kind="page"` for PDF (page index).
-- **Progress persistence**: debounced save (3s) on relocate, flush on unmount. Per-device settings + per-book progress.
+- **Progress persistence**: local-first via IndexedDB, debounced save (3s) on relocate, flush on unmount + beforeunload. Background sync with server when online. Per-device settings + per-book progress.
 - **Tap zones**: 6-zone desktop grid (corners × top/bottom) + 2 center zones, configurable per-format. PDF gets zoom actions as defaults.
 - **Keyboard**: arrows (prev/next), +/- (zoom) work both on host doc and inside reader iframe.
 
@@ -351,7 +354,7 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 - **Book detail**: Metadata, series context, available formats, user rating/read/hidden, shelves, similar books
 - **Upload**: Drag-drop, batch processing, duplicate detection, metadata editor, LLM extraction for PDFs with progress spinner
 - **Responsive**: Desktop/mobile layout switch at 820px via `useIsMobile()`, separate layout components
-- **PWA**: manifest, installable, safe-area respected in reader
+- **PWA**: manifest, installable, safe-area respected in reader, offline reading via Service Worker + IndexedDB
 - **Styling**: Inline CSS objects, theme.ts color palette, no CSS framework
 
 ## Features
@@ -369,6 +372,7 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 - In-app reading (FB2/EPUB flow + PDF fixed-layout)
 - Cross-device progress sync per book
 - Per-device reader settings (font, theme, tap zones)
+- Offline reading (PWA): auto-cache on read, manual cache toggle, offline shell
 - Explore by author, series, tag
 
 ### Admin
@@ -392,7 +396,42 @@ Test harness: `conftest.py` (temp DB, admin/reader clients), `seed.py` (factory 
 
 ### Frontend (Vitest)
 
-Unit tests for sanitize-html utility.
+Unit tests for sanitize-html utility and offline-storage module (IndexedDB: cache, progress, settings, eviction — 43 tests).
+
+## Offline PWA
+
+Available only in installed PWA mode (`display-mode: standalone`). In regular browser — no offline features.
+
+### Architecture
+
+- **Service Worker** (`public/sw.js`) — precaches all build assets at install. Network-first for navigation, cache-first for static assets. Cache name includes content hash for automatic invalidation on deploy. Post-build script (`scripts/inject-sw-precache.js`) injects asset list into SW.
+- **IndexedDB** (`idb` library, database `librarium-offline`) — stores cached books (all formats + cover), reading progress, reader settings. Three object stores: `cached_books`, `reading_progress`, `reader_settings`.
+- **Local-first reader** (`useReaderStorage` hook) — progress and settings are saved to IndexedDB first, then synced to server in background. On open: local data applied instantly, server data fetched and merged by timestamp (last-write-wins). Book blob loaded from IndexedDB cache if available, otherwise from network.
+
+### Book Caching
+
+- **Auto-cache**: opening a book in the reader caches all its formats + cover in IndexedDB
+- **Manual cache**: cloud badge toggle on book detail page (next to "Не прочитано")
+- **Cloud badge in catalog**: yellow cloud icon on cached book covers (only in PWA mode)
+- **TTL**: 14 days from last access. Expired books evicted on app startup and on offline transition
+- **LRU eviction**: when storage is full (QuotaExceededError), least-recently-accessed non-manual books are evicted
+- **Mark as read → evict**: marking a book as "Прочитано" removes it from cache
+
+### Offline Shell
+
+When PWA is offline (except during active reading), `OfflineShell` replaces the entire app: logo + "Оффлайн" badge, grid of cached books with progress bars. Tap → reader opens from IndexedDB cache.
+
+### Auth in Offline
+
+User object cached in localStorage on successful login. When offline, `AuthProvider` uses cached user instead of failing on `/api/auth/me`. JWT expiry (72h) checked on reconnect.
+
+### Sync on Reconnect
+
+`online` event triggers sync of all unsynced progress and settings to server. Only marks as synced on `response.ok` — no data loss on 401/500.
+
+### Update Banner
+
+When a new SW activates (deploy), a banner "Доступно обновление" appears in the shell header with an "Обновить" button → page reload.
 
 ## Configuration
 

@@ -68,7 +68,7 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
           }));
         setAllTags(tags);
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to fetch tags:", err));
   }, [tagId]);
 
   const isExisting = allTags.some(
