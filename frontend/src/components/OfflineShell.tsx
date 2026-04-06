@@ -94,8 +94,7 @@ export default function OfflineShell() {
           <div style={{ padding: isMobile ? "8px 16px" : "8px 24px", fontSize: 11, color: colors.textDim, fontFamily: "monospace" }}>
             {books.map((b) => (
               <div key={b.bookId}>
-                #{b.bookId} cover={b.coverBlob?.size ?? "null"}({b.coverBlob?.constructor?.name ?? "?"})
-                {" "}formats={b.formats.map((f) => `${f.format}:${f.fileBlob?.size ?? "null"}(${f.fileBlob?.constructor?.name ?? "?"})`).join(", ")}
+                #{b.bookId} cover={b.coverBlob?.size ?? "null"} type={b.coverBlob?.type ?? "?"} url={b.coverBlob ? URL.createObjectURL(b.coverBlob) : "null"}
               </div>
             ))}
           </div>
