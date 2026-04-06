@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2: ArrayBuffer storage instead of Blob (Safari compat)
 
 interface CachedBookFormat {
   format: string;
@@ -79,6 +79,7 @@ export function initDB(): Promise<LibrariumDB> {
         if (!db.objectStoreNames.contains("reader_settings")) {
           db.createObjectStore("reader_settings", { keyPath: "deviceType" });
         }
+        // v1→v2: Blob→ArrayBuffer — old cached books are incompatible, will be re-cached
       },
     });
   }
