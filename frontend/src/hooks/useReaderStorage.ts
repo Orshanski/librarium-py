@@ -14,7 +14,7 @@ type PositionKind = "cfi" | "page";
 interface BookApiResponse {
   book: {
     title: string;
-    authors_csv: string;
+    authors: string;
     id: number;
     [key: string]: unknown;
   };
@@ -256,7 +256,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       ]).then(async (results) => {
         const cover = results.pop() as Blob;
         const files = results as { format: string; fileBlob: Blob; fileSize: number }[];
-        const authors = (bk.authors_csv || "").split(",").map((a: string) => a.trim()).filter(Boolean);
+        const authors = (bk.authors || "").split(",").map((a: string) => a.trim()).filter(Boolean);
         try {
           await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
         } catch (cacheErr: unknown) {

@@ -38,7 +38,7 @@ export default function OfflineShell() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: colors.bg }}>
+    <div style={{ minHeight: "100vh", backgroundColor: colors.bg, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div style={{
         display: "flex",
         alignItems: "center",
@@ -89,6 +89,15 @@ export default function OfflineShell() {
             color: colors.text,
           }}>
             Читаю сейчас
+          </div>
+          {/* DEBUG: temporary diagnostics for iPad testing */}
+          <div style={{ padding: isMobile ? "8px 16px" : "8px 24px", fontSize: 11, color: colors.textDim, fontFamily: "monospace" }}>
+            {books.map((b) => (
+              <div key={b.bookId}>
+                #{b.bookId} cover={b.coverBlob?.size ?? "null"}({b.coverBlob?.constructor?.name ?? "?"})
+                {" "}formats={b.formats.map((f) => `${f.format}:${f.fileBlob?.size ?? "null"}(${f.fileBlob?.constructor?.name ?? "?"})`).join(", ")}
+              </div>
+            ))}
           </div>
           <div style={{
             display: "grid",
