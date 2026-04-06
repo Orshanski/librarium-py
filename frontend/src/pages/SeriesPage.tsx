@@ -50,6 +50,9 @@ export default function SeriesPage() {
       .catch(() => setLoading(false));
   }, [id]);
 
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   useEffect(() => {
     if (series) saveBookOrigin(series.name, `/series/${series.id}`);
   }, [series]);
@@ -71,9 +74,6 @@ export default function SeriesPage() {
       </>
     );
   }
-
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
 
   if (!series) return null;
 

@@ -204,6 +204,9 @@ export default function TagPage() {
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
 
+  const bookIds = useMemo(() => filtered.map((b) => b.id), [filtered]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   if (loading) {
     return (
       <>
@@ -221,9 +224,6 @@ export default function TagPage() {
       </>
     );
   }
-
-  const bookIds = useMemo(() => filtered.map((b) => b.id), [filtered]);
-  const cachedBookIds = useCachedBookIds(bookIds);
 
   const adminButton = user?.role === "admin" ? (
     <button

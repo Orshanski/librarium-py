@@ -62,6 +62,9 @@ export default function ShelfPage() {
     }
   }
 
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   useEffect(() => {
     if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
   }, [shelf]);
@@ -74,9 +77,6 @@ export default function ShelfPage() {
       </>
     );
   }
-
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
 
   if (!shelf) return null;
 

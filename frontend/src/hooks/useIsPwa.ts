@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 
 export function useIsPwa(): boolean {
   const [isPwa, setIsPwa] = useState(
-    () => window.matchMedia("(display-mode: standalone)").matches,
+    () => window.matchMedia("(display-mode: standalone)").matches
+      || new URLSearchParams(window.location.search).has("pwa"),
   );
 
   useEffect(() => {

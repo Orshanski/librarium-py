@@ -31,6 +31,10 @@ function SearchResults() {
       .catch(() => setLoading(false));
   }, [q]);
 
+  const { books = [], authors = [], series = [] } = results || {};
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   if (!q.trim()) {
     return <div style={{ fontSize: 14, color: colors.textDim, padding: 24 }}>Введите запрос в поле поиска</div>;
   }
@@ -41,11 +45,7 @@ function SearchResults() {
 
   if (!results) return null;
 
-  const { books = [], authors = [], series = [] } = results;
   const total = books.length + authors.length + series.length;
-
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
 
   if (total === 0) {
     return <div style={{ fontSize: 14, color: colors.textDim, padding: 24 }}>По запросу «{q}» ничего не найдено</div>;
