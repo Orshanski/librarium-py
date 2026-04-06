@@ -70,7 +70,9 @@ User management, app settings, SMTP configuration for email notifications.
 
 ### Built-in reader
 
-Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device. Footnotes appear as inline popups without leaving the page.
+Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device — pick up where you left off on any device. Footnotes appear as inline popups without leaving the page. Configurable tap zones: split the page into a 3×2 grid and map each zone to prev/next (or zoom in/out for PDFs).
+
+**PDF reader.** Separate reader for PDFs with a bottom navigation bar — drag the slider or type a page number to jump anywhere in a 500-page book. All PDFs are linearized (Fast Web View) at upload time via pikepdf, so PDF.js can start rendering the first page before the whole file is fetched — critical for large scanned books over a network.
 
 ![Reader](docs/screenshots/17-desktop-reader.png)
 
@@ -117,14 +119,14 @@ add_header Content-Security-Policy "
 | Backend | Python, FastAPI, Uvicorn |
 | Database | SQLite (WAL mode) |
 | Auth | JWT + bcrypt |
-| Book parsing | lxml (FB2/EPUB), PyMuPDF (PDF cover render), Pillow (covers) |
+| Book parsing | lxml (FB2/EPUB), PyMuPDF (PDF cover render), pikepdf (PDF linearize), Pillow (covers) |
 | Metadata | Litres.ru, Google Books API, Anthropic Claude (PDF via web search) |
 | Frontend | React 19, TypeScript, React Router 7 |
 | Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, MOBI, CBZ, PDF) |
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
-| Tests | pytest (214 tests) |
+| Tests | pytest (259 tests), Vitest |
 | CI/CD | GitHub Actions |
 
 ## Getting started
@@ -203,16 +205,19 @@ librarium-py/
 │   ├── run.py              # Uvicorn entry point
 │   ├── schema.sql          # DB schema
 │   ├── requirements.txt
-│   └── app/
-│       ├── main.py         # FastAPI app, SPA fallback
-│       ├── config.py       # Paths, JWT settings, limits
-│       ├── database.py     # SQLite connection pool
-│       ├── auth.py         # JWT + bcrypt
-│       ├── routers/        # API endpoints (14 modules)
-│       ├── dal/            # Data access layer (8 modules)
-│       ├── parsers/        # FB2, EPUB, PDF metadata extraction
-│       ├── providers/      # Litres, Google Books lookup
-│       └── tests/          # pytest suite
+│   ├── app/
+│   │   ├── main.py         # FastAPI app, SPA fallback
+│   │   ├── config.py       # Paths, JWT settings, limits
+│   │   ├── database.py     # SQLite connection pool
+│   │   ├── auth.py         # JWT + bcrypt
+│   │   ├── routers/        # API endpoints (16 modules)
+│   │   ├── dal/            # Data access layer (11 modules)
+│   │   ├── parsers/        # FB2, EPUB, PDF (incl. LLM metadata, PyMuPDF cover render)
+│   │   ├── providers/      # Litres, Google Books lookup
+│   │   ├── pdf_linearize.py # pikepdf linearize for Fast Web View
+│   │   └── cover_embedder.py # Embed cover into FB2/EPUB for exported files
+│   ├── scripts/            # One-off migrations (seed_tag_mappings, normalize_tag_names)
+│   └── tests/              # pytest suite (259 tests)
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/              # Page components
