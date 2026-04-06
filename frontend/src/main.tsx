@@ -17,7 +17,7 @@ window.addEventListener("online", async () => {
   try {
     const unsynced = await getUnsyncedProgress();
     for (const p of unsynced) {
-      await fetch(`/api/reader/progress/${p.bookId}`, {
+      const resp = await fetch(`/api/reader/progress/${p.bookId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -28,7 +28,7 @@ window.addEventListener("online", async () => {
           fraction: p.fraction,
         }),
       });
-      await markProgressSynced(p.bookId);
+      if (resp.ok) await markProgressSynced(p.bookId);
     }
   } catch (err) {
     console.warn("Failed to sync progress on reconnect:", err);
@@ -37,13 +37,13 @@ window.addEventListener("online", async () => {
   try {
     const unsyncedSettings = await getUnsyncedSettings();
     for (const s of unsyncedSettings) {
-      await fetch("/api/reader/settings", {
+      const resp = await fetch("/api/reader/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ settings: s.settings }),
       });
-      await markSettingsSynced(s.deviceType);
+      if (resp.ok) await markSettingsSynced(s.deviceType);
     }
   } catch (err) {
     console.warn("Failed to sync settings on reconnect:", err);

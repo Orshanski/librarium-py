@@ -139,13 +139,19 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           title = bookData.book?.title || "";
         }
 
+        // 3. Sync progress/settings with server BEFORE mounting reader
+        // (reader reads initialPosition only once on mount)
+        if (navigator.onLine) {
+          await syncProgressAndSettings(bookId, localProgress, localSettings);
+        }
+
         setBookTitle(title);
         setBookBlob(blob);
         setLoading(false);
 
-        // 3. Background sync with server
+        // 4. Background: auto-cache book in PWA
         if (navigator.onLine) {
-          await syncWithServer(bookId, localProgress, localSettings, blob, bookData, fromCache);
+          autoCacheBook(bookId, blob, bookData, fromCache);
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Ошибка загрузки");
@@ -168,10 +174,10 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       }
     }
 
-    async function syncWithServer(bookId: number, localProgress: LocalProgress | null, localSettings: LocalSettings | null, blob: Blob, bookData: BookApiResponse | null, fromCache: boolean) {
+    async function syncProgressAndSettings(bookId: number, localProgress: LocalProgress | null, localSettings: LocalSettings | null) {
       const [serverSettings, serverProgress] = await Promise.all([
-        fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.json()).catch(() => null),
-        fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()).catch(() => null),
+        fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.ok ? r.json() : null).catch(() => null),
+        fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       // Settings: compare timestamps, server wins if newer or no local
@@ -184,13 +190,13 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           await saveLocalSettings(deviceName, serverSettings.settings);
           await markSettingsSynced(deviceName);
         } else if (localSettingsTime > serverSettingsTime && localSettings && !localSettings.synced) {
-          // Local is newer - push to server
-          fetch("/api/reader/settings", {
+          const resp = await fetch("/api/reader/settings", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ settings: localSettings.settings }),
-          }).then(() => markSettingsSynced(deviceName)).catch((err) => console.warn("Failed to push settings to server:", err));
+          }).catch(() => null);
+          if (resp && resp.ok) await markSettingsSynced(deviceName);
         }
       }
 
@@ -208,59 +214,61 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           });
           await markProgressSynced(bookId);
         } else if (localTime > serverTime && localProgress) {
-          pushProgressToServer(bookId, localProgress);
+          await pushProgressToServer(bookId, localProgress);
         }
       } else if (localProgress && !localProgress.synced) {
-        pushProgressToServer(bookId, localProgress);
-      }
-
-      // Auto-cache in PWA
-      if (isPwa && !fromCache && bookData) {
-        const bk = bookData.book;
-        const allFiles = bookData.files || [];
-        try {
-          const results = await Promise.all([
-            ...allFiles.map(async (f: { format: string; file_size: number }) => {
-              if (f.format.toLowerCase() === format!.toLowerCase()) {
-                return { format: f.format, fileBlob: blob, fileSize: f.file_size };
-              }
-              const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
-              return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
-            }),
-            fetch(`/api/covers/${id}?full=1`, { credentials: "include" }).then((r) => r.blob()),
-          ]);
-          const cover = results.pop() as Blob;
-          const files = results as { format: string; fileBlob: Blob; fileSize: number }[];
-          const authors = (bk.authors_csv || "").split(",").map((a: string) => a.trim()).filter(Boolean);
-          try {
-            await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
-          } catch (cacheErr: unknown) {
-            if (cacheErr instanceof DOMException && cacheErr.name === "QuotaExceededError") {
-              const totalSize = files.reduce((sum, f) => sum + f.fileSize, 0);
-              await evictLRU(totalSize);
-              await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
-            } else {
-              console.warn("Failed to cache book:", cacheErr);
-            }
-          }
-        } catch (err) {
-          console.warn("Failed to auto-cache book:", err);
-        }
+        await pushProgressToServer(bookId, localProgress);
       }
     }
 
-    function pushProgressToServer(bookId: number, progress: LocalProgress) {
-      fetch(`/api/reader/progress/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          position: progress.position,
-          last_device: deviceName,
-          last_format: progress.lastFormat,
-          fraction: progress.fraction,
+    async function pushProgressToServer(bookId: number, progress: LocalProgress) {
+      try {
+        const resp = await fetch(`/api/reader/progress/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            position: progress.position,
+            last_device: deviceName,
+            last_format: progress.lastFormat,
+            fraction: progress.fraction,
+          }),
+        });
+        if (resp.ok) await markProgressSynced(bookId);
+      } catch (err) {
+        console.warn("Failed to push progress:", err);
+      }
+    }
+
+    function autoCacheBook(bookId: number, blob: Blob, bookData: BookApiResponse | null, fromCache: boolean) {
+      if (!isPwa || fromCache || !bookData) return;
+      const bk = bookData.book;
+      const allFiles = bookData.files || [];
+      Promise.all([
+        ...allFiles.map(async (f: { format: string; file_size: number }) => {
+          if (f.format.toLowerCase() === format!.toLowerCase()) {
+            return { format: f.format, fileBlob: blob, fileSize: f.file_size };
+          }
+          const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
+          return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
         }),
-      }).then(() => markProgressSynced(bookId)).catch((err) => console.warn("Failed to push progress:", err));
+        fetch(`/api/covers/${id}?full=1`, { credentials: "include" }).then((r) => r.blob()),
+      ]).then(async (results) => {
+        const cover = results.pop() as Blob;
+        const files = results as { format: string; fileBlob: Blob; fileSize: number }[];
+        const authors = (bk.authors_csv || "").split(",").map((a: string) => a.trim()).filter(Boolean);
+        try {
+          await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+        } catch (cacheErr: unknown) {
+          if (cacheErr instanceof DOMException && cacheErr.name === "QuotaExceededError") {
+            const totalSize = files.reduce((sum, f) => sum + f.fileSize, 0);
+            await evictLRU(totalSize);
+            await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+          } else {
+            console.warn("Failed to cache book:", cacheErr);
+          }
+        }
+      }).catch((err) => console.warn("Failed to auto-cache book:", err));
     }
   }, [id, format, isPwa, deviceName, positionKind]);
 
@@ -281,7 +289,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ position, last_device: deviceName, last_format: format || "", fraction }),
-      }).then(() => markProgressSynced(bookId)).catch((err) => console.warn("Failed to sync progress:", err));
+      }).then((r) => { if (r.ok) markProgressSynced(bookId); }).catch((err) => console.warn("Failed to sync progress:", err));
     }
     lastPositionRef.current = null;
   }, [id, format, deviceName, positionKind]);
@@ -320,7 +328,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ settings: newSettings }),
-        }).then(() => markSettingsSynced(deviceName)).catch((err) => console.warn("Failed to sync settings:", err));
+        }).then((r) => { if (r.ok) markSettingsSynced(deviceName); }).catch((err) => console.warn("Failed to sync settings:", err));
       }
     }, 1500);
   }, [deviceName]);

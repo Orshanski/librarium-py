@@ -2,11 +2,16 @@ import { useState, useEffect } from "react";
 
 function checkIsPwa(): boolean {
   if (window.matchMedia("(display-mode: standalone)").matches) return true;
-  if (new URLSearchParams(window.location.search).has("pwa")) {
-    try { localStorage.setItem("librarium_pwa_debug", "1"); } catch {}
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("nopwa")) {
+    try { sessionStorage.removeItem("librarium_pwa_debug"); } catch {}
+    return false;
+  }
+  if (params.has("pwa")) {
+    try { sessionStorage.setItem("librarium_pwa_debug", "1"); } catch {}
     return true;
   }
-  try { return localStorage.getItem("librarium_pwa_debug") === "1"; } catch { return false; }
+  try { return sessionStorage.getItem("librarium_pwa_debug") === "1"; } catch { return false; }
 }
 
 export function useIsPwa(): boolean {
