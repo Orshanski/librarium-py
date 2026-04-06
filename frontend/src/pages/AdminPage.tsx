@@ -199,6 +199,7 @@ function UserCard({
               <input
                 autoFocus
                 type="password"
+                autoComplete="new-password"
                 style={inputStyle}
                 value={passValue}
                 onChange={(e) => setPassValue(e.target.value)}
@@ -208,6 +209,7 @@ function UserCard({
               <label style={labelStyle}>Повторите</label>
               <input
                 type="password"
+                autoComplete="new-password"
                 style={inputStyle}
                 value={passConfirm}
                 onChange={(e) => setPassConfirm(e.target.value)}
@@ -379,11 +381,11 @@ export default function AdminPage() {
               <div style={{ display: "flex", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Пароль</label>
-                  <input style={inputStyle} type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+                  <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Повторите</label>
-                  <input style={inputStyle} type="password" value={newUser.passwordConfirm} onChange={(e) => setNewUser({ ...newUser, passwordConfirm: e.target.value })} />
+                  <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.passwordConfirm} onChange={(e) => setNewUser({ ...newUser, passwordConfirm: e.target.value })} />
                 </div>
                 <div style={{ flex: "1 1 100px", minWidth: 100 }}>
                   <label style={labelStyle}>Роль</label>
@@ -468,7 +470,7 @@ export default function AdminPage() {
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Пароль</label>
-              <input style={inputStyle} type="password" value={settings.smtp_pass || ""} onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })} />
+              <input style={inputStyle} type="password" autoComplete="off" value={settings.smtp_pass || ""} onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })} />
             </div>
           </div>
           <button

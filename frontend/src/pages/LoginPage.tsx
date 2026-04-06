@@ -72,6 +72,7 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Имя пользователя"
+              autoComplete="username"
               autoFocus
             />
           </div>
@@ -82,6 +83,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Пароль"
+              autoComplete="current-password"
             />
           </div>
 
