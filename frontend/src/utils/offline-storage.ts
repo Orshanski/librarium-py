@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 2; // v2: ArrayBuffer storage instead of Blob (Safari compat)
+const DB_VERSION = 2;
 
 interface CachedBookFormat {
   format: string;
@@ -136,11 +136,7 @@ export async function cacheBook(
   });
 }
 
-export async function getCachedBook(bookId: number): Promise<CachedBook | null> {
-  const db = await initDB();
-  const stored = await db.get("cached_books", bookId);
-  if (!stored) return null;
-  // Convert ArrayBuffers back to Blobs
+function storedToCachedBook(stored: StoredBook): CachedBook {
   return {
     bookId: stored.bookId,
     title: stored.title,
@@ -157,9 +153,17 @@ export async function getCachedBook(bookId: number): Promise<CachedBook | null> 
   };
 }
 
+export async function getCachedBook(bookId: number): Promise<CachedBook | null> {
+  const db = await initDB();
+  const stored = await db.get("cached_books", bookId);
+  if (!stored) return null;
+  return storedToCachedBook(stored);
+}
+
 export async function getCachedBooks(): Promise<CachedBook[]> {
   const db = await initDB();
-  return db.getAll("cached_books");
+  const all = await db.getAll("cached_books");
+  return all.map(storedToCachedBook);
 }
 
 export async function isCached(bookId: number): Promise<boolean> {
