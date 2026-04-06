@@ -48,6 +48,15 @@ describe("book cache", () => {
     await cacheBook({ bookId: 2, title: "Book 2", authors: ["B"] }, files, cover);
     const books = await getCachedBooks();
     expect(books).toHaveLength(2);
+    // Verify actual Blob reconstruction (not raw ArrayBuffers)
+    for (const book of books) {
+      expect(book.coverBlob).toBeInstanceOf(Blob);
+      expect(book.coverBlob.size).toBeGreaterThan(0);
+      for (const f of book.formats) {
+        expect(f.fileBlob).toBeInstanceOf(Blob);
+        expect(f.fileBlob.size).toBeGreaterThan(0);
+      }
+    }
   });
 
   it("isCached returns true/false", async () => {
