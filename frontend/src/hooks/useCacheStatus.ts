@@ -9,7 +9,10 @@ export function useCacheStatus(bookId: number | undefined) {
 
   useEffect(() => {
     if (!isPwa || !bookId) return;
-    checkCached(bookId).then(setCached);
+    checkCached(bookId).then(setCached).catch((err) => {
+      console.warn("Failed to check cache status:", err);
+      setCached(false);
+    });
   }, [bookId, isPwa]);
 
   const toggleCache = useCallback(async (

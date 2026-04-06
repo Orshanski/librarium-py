@@ -4,6 +4,7 @@ import { AuthProvider } from "./auth";
 import { ResponsiveProvider } from "./responsive";
 import { installFetchCredentials } from "./api";
 import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markProgressSynced, markSettingsSynced } from "./utils/offline-storage";
+import { getDeviceName } from "./utils/device-info";
 import App from "./App";
 
 installFetchCredentials();
@@ -22,7 +23,7 @@ window.addEventListener("online", async () => {
         credentials: "include",
         body: JSON.stringify({
           position: p.position,
-          last_device: "",
+          last_device: getDeviceName(),
           last_format: p.lastFormat,
           fraction: p.fraction,
         }),
