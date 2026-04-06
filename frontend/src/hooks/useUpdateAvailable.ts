@@ -14,15 +14,14 @@ export function useUpdateAvailable(): [boolean, () => void] {
     return stored !== APP_VERSION;
   });
 
-  // SW updated while app is running — new version available without restart
+  // SW sends postMessage after activation — reliable even if React mounts late
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    const hadController = !!navigator.serviceWorker.controller;
-    const handler = () => {
-      if (hadController) setAvailable(true);
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "SW_UPDATED") setAvailable(true);
     };
-    navigator.serviceWorker.addEventListener("controllerchange", handler);
-    return () => navigator.serviceWorker.removeEventListener("controllerchange", handler);
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, []);
 
   const reload = () => {
