@@ -1,32 +1,36 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
-const APP_VERSION = __APP_VERSION__;
+const VERSION_KEY = "librarium_build_version";
 
 export function useUpdateAvailable(): [boolean, () => void] {
-  const key = "librarium_app_version";
+  const [available, setAvailable] = useState(false);
+  const location = useLocation();
 
-  const [available, setAvailable] = useState(() => {
-    const stored = localStorage.getItem(key);
-    if (!stored) {
-      localStorage.setItem(key, APP_VERSION);
-      return false;
-    }
-    return stored !== APP_VERSION;
-  });
-
-  // SW sends postMessage after activation — reliable even if React mounts late
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === "SW_UPDATED") setAvailable(true);
-    };
-    navigator.serviceWorker.addEventListener("message", handler);
-    return () => navigator.serviceWorker.removeEventListener("message", handler);
-  }, []);
+    fetch("/version.txt", { cache: "no-store" })
+      .then((r) => r.ok ? r.text() : null)
+      .then((serverVersion) => {
+        if (!serverVersion) return;
+        const v = serverVersion.trim();
+        const stored = localStorage.getItem(VERSION_KEY);
+        if (!stored) {
+          localStorage.setItem(VERSION_KEY, v);
+        } else if (stored !== v) {
+          setAvailable(true);
+        }
+      })
+      .catch(() => {});
+  }, [location.pathname]);
 
   const reload = () => {
-    localStorage.setItem(key, APP_VERSION);
-    window.location.reload();
+    fetch("/version.txt", { cache: "no-store" })
+      .then((r) => r.ok ? r.text() : null)
+      .then((v) => {
+        if (v) localStorage.setItem(VERSION_KEY, v.trim());
+        window.location.reload();
+      })
+      .catch(() => window.location.reload());
   };
 
   return [available, reload];

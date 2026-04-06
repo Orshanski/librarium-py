@@ -85,6 +85,9 @@ if FRONTEND_DIST.exists():
     async def spa_fallback(path: str):
         file_path = (FRONTEND_DIST / path).resolve()
         if file_path.is_file() and str(file_path).startswith(str(FRONTEND_DIST.resolve())):
-            return FileResponse(str(file_path))
+            response = FileResponse(str(file_path))
+            if path == "version.txt":
+                response.headers["Cache-Control"] = "no-store"
+            return response
 
         return FileResponse(str(FRONTEND_DIST / "index.html"))

@@ -16,19 +16,15 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))),
-    ).then(() => self.clients.claim())
-      .then(() => self.clients.matchAll())
-      .then((clients) => {
-        clients.forEach((client) => client.postMessage({ type: "SW_UPDATED" }));
-      }),
+    ).then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // API requests — network only
-  if (url.pathname.startsWith("/api/")) return;
+  // API requests and version check — network only, never cache
+  if (url.pathname.startsWith("/api/") || url.pathname === "/version.txt") return;
 
   // Only handle same-origin requests
   if (url.origin !== self.location.origin) return;

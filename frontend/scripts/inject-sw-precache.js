@@ -46,4 +46,7 @@ sw = sw.replace('"__PRECACHE_ASSETS__"', JSON.stringify(assets));
 sw = sw.replace('"__CACHE_VERSION__"', JSON.stringify(cacheName));
 writeFileSync(SW_PATH, sw);
 
+// Write version.txt for update detection (fetched by client on navigation)
+writeFileSync(join(DIST, "version.txt"), hash);
+
 console.log(`SW precache: ${assets.length} assets, cache=${cacheName}`);
