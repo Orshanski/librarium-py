@@ -9,6 +9,26 @@ interface CachedBookFormat {
   fileSize: number;
 }
 
+// Internal storage uses ArrayBuffer (Safari IndexedDB corrupts Blobs on restart)
+interface StoredBookFormat {
+  format: string;
+  fileBuffer: ArrayBuffer;
+  fileType: string;
+  fileSize: number;
+}
+
+interface StoredBook {
+  bookId: number;
+  title: string;
+  authors: string[];
+  coverBuffer: ArrayBuffer;
+  coverType: string;
+  formats: StoredBookFormat[];
+  cachedAt: number;
+  lastAccessedAt: number;
+  manuallyAdded: boolean;
+}
+
 export interface CachedBook {
   bookId: number;
   title: string;
@@ -37,7 +57,7 @@ export interface LocalSettings {
 }
 
 interface LibrariumDBSchema {
-  cached_books: { key: number; value: CachedBook };
+  cached_books: { key: number; value: StoredBook };
   reading_progress: { key: number; value: LocalProgress };
   reader_settings: { key: string; value: LocalSettings };
 }
@@ -89,12 +109,23 @@ export async function cacheBook(
 ): Promise<void> {
   const db = await initDB();
   const now = Date.now();
+  // Convert Blobs to ArrayBuffers for Safari compatibility
+  const [coverBuffer, ...fileBuffers] = await Promise.all([
+    cover.arrayBuffer(),
+    ...files.map((f) => f.fileBlob.arrayBuffer()),
+  ]);
   await db.put("cached_books", {
     bookId: meta.bookId,
     title: meta.title,
     authors: meta.authors,
-    coverBlob: cover,
-    formats: files,
+    coverBuffer,
+    coverType: cover.type || "image/jpeg",
+    formats: files.map((f, i) => ({
+      format: f.format,
+      fileBuffer: fileBuffers[i],
+      fileType: f.fileBlob.type || "application/octet-stream",
+      fileSize: f.fileSize,
+    })),
     cachedAt: now,
     lastAccessedAt: now,
     manuallyAdded: meta.manuallyAdded ?? false,
@@ -103,7 +134,23 @@ export async function cacheBook(
 
 export async function getCachedBook(bookId: number): Promise<CachedBook | null> {
   const db = await initDB();
-  return (await db.get("cached_books", bookId)) ?? null;
+  const stored = await db.get("cached_books", bookId);
+  if (!stored) return null;
+  // Convert ArrayBuffers back to Blobs
+  return {
+    bookId: stored.bookId,
+    title: stored.title,
+    authors: stored.authors,
+    coverBlob: new Blob([stored.coverBuffer], { type: stored.coverType }),
+    formats: stored.formats.map((f: StoredBookFormat) => ({
+      format: f.format,
+      fileBlob: new Blob([f.fileBuffer], { type: f.fileType }),
+      fileSize: f.fileSize,
+    })),
+    cachedAt: stored.cachedAt,
+    lastAccessedAt: stored.lastAccessedAt,
+    manuallyAdded: stored.manuallyAdded,
+  };
 }
 
 export async function getCachedBooks(): Promise<CachedBook[]> {
@@ -225,7 +272,7 @@ export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
   const evicted: number[] = [];
   for (const book of candidates) {
     if (targetBytes > 0 && freed >= targetBytes) break;
-    const bookSize = book.formats.reduce((sum: number, f: CachedBookFormat) => sum + f.fileSize, 0);
+    const bookSize = book.formats.reduce((sum: number, f: StoredBookFormat) => sum + f.fileSize, 0);
     await db.delete("cached_books", book.bookId);
     freed += bookSize;
     evicted.push(book.bookId);
