@@ -153,8 +153,22 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         setBookBlob(blob);
         setLoading(false);
 
-        // 4. Background: auto-cache book in PWA
+        // 4. Background tasks (online only)
         if (navigator.onLine) {
+          // Clear is_read if set — opening in reader means re-reading
+          fetch(`/api/books/${id}/status`, { credentials: "include" })
+            .then((r) => r.ok ? r.json() : null)
+            .then((status) => {
+              if (status?.is_read) {
+                fetch(`/api/books/${id}/read`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ isRead: false }),
+                }).catch((err) => console.warn("Failed to clear is_read:", err));
+              }
+            })
+            .catch((err) => console.warn("Failed to check is_read:", err));
           autoCacheBook(bookId, blob, bookData, fromCache);
         }
       } catch (err: unknown) {
