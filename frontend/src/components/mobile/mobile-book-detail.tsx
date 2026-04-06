@@ -4,6 +4,7 @@ import { sanitizeHtml } from "../../utils/sanitize-html";
 import BookCard from "../book-card";
 import BookRail from "../book-rail";
 import BookStarRating from "../book-star-rating";
+import CloudBadge from "../cloud-badge";
 import { BookDetailViewProps } from "../book-detail.types";
 import ShelfDropdownMenu from "../shelf-dropdown-menu";
 
@@ -36,6 +37,10 @@ export default function MobileBookDetail({
   onToggleShelfMenu,
   onToggleShelfBook,
   onShowDeleteConfirm,
+  isCached,
+  cacheLoading,
+  onToggleCache,
+  showCacheToggle,
 }: BookDetailViewProps) {
   const otherSeriesBooks = seriesBooks.filter((item) => item.id !== book.id);
 
@@ -224,7 +229,7 @@ export default function MobileBookDetail({
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <button
           onClick={onToggleRead}
           style={{
@@ -240,6 +245,14 @@ export default function MobileBookDetail({
         >
           {isRead ? "✓ Прочитано" : "Не прочитано"}
         </button>
+        {showCacheToggle && (
+          <CloudBadge
+            cached={isCached}
+            size={18}
+            onClick={cacheLoading ? undefined : onToggleCache}
+            style={cacheLoading ? { opacity: 0.3 } : undefined}
+          />
+        )}
       </div>
 
       {book.description && (

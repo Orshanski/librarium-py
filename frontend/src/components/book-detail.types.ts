@@ -23,4 +23,8 @@ export interface BookDetailViewProps {
   onToggleShelfMenu: () => void;
   onToggleShelfBook: (shelfId: number) => Promise<void>;
   onShowDeleteConfirm: () => void;
+  isCached: boolean;
+  cacheLoading: boolean;
+  onToggleCache: () => void;
+  showCacheToggle: boolean;
 }

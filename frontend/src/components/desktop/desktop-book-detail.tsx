@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { colors, fonts } from "../../theme";
 import { sanitizeHtml } from "../../utils/sanitize-html";
 import BookStarRating from "../book-star-rating";
+import CloudBadge from "../cloud-badge";
 import { BookDetailViewProps } from "../book-detail.types";
 import ShelfDropdownMenu from "../shelf-dropdown-menu";
 
@@ -35,6 +36,10 @@ export default function DesktopBookDetail({
   onToggleShelfMenu,
   onToggleShelfBook,
   onShowDeleteConfirm,
+  isCached,
+  cacheLoading,
+  onToggleCache,
+  showCacheToggle,
 }: BookDetailViewProps) {
   return (
     <div>
@@ -219,6 +224,14 @@ export default function DesktopBookDetail({
             >
               {isRead ? "✓ Прочитано" : "Не прочитано"}
             </button>
+            {showCacheToggle && (
+              <CloudBadge
+                cached={isCached}
+                size={20}
+                onClick={cacheLoading ? undefined : onToggleCache}
+                style={cacheLoading ? { opacity: 0.3 } : undefined}
+              />
+            )}
           </div>
 
           {book.description && (
