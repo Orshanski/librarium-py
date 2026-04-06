@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
 import { removeBookFromCatalogCache } from "../utils/catalog-cache";
-import { removeCachedBook } from "../utils/offline-storage";
 import { useCacheStatus } from "../hooks/useCacheStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
@@ -29,7 +28,7 @@ export default function BookDetail({
   const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
   const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
   const shelfRef = useRef<HTMLDivElement>(null);
-  const { cached: isCached, loading: cacheLoading, toggleCache, isPwa } = useCacheStatus(book.id);
+  const { cached: isCached, loading: cacheLoading, toggleCache, evict: evictFromCache, isPwa } = useCacheStatus(book.id);
 
   const handleToggleCache = useCallback(() => {
     toggleCache(
@@ -97,7 +96,7 @@ export default function BookDetail({
         body: JSON.stringify({ isRead: next }),
       });
       if (!res.ok) throw new Error("toggle read failed");
-      if (next) removeCachedBook(book.id).catch((err) => console.warn("Failed to remove cached book:", err));
+      if (next) evictFromCache().catch((err) => console.warn("Failed to remove cached book:", err));
     } catch {
       setIsRead(previous);
     }

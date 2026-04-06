@@ -36,5 +36,11 @@ export function useCacheStatus(bookId: number | undefined) {
     }
   }, [bookId, cached]);
 
-  return { cached: isPwa && cached, loading, toggleCache, isPwa };
+  const evict = useCallback(async () => {
+    if (!bookId) return;
+    await removeCachedBook(bookId);
+    setCached(false);
+  }, [bookId]);
+
+  return { cached: isPwa && cached, loading, toggleCache, evict, isPwa };
 }
