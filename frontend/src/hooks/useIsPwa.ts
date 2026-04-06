@@ -9,6 +9,10 @@ function checkIsPwa(): boolean {
   }
   if (params.has("pwa")) {
     try { sessionStorage.setItem("librarium_pwa_debug", "1"); } catch {}
+    params.delete("pwa");
+    const qs = params.toString();
+    const newUrl = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+    window.history.replaceState(null, "", newUrl);
     return true;
   }
   try { return sessionStorage.getItem("librarium_pwa_debug") === "1"; } catch { return false; }

@@ -1,3 +1,6 @@
+// navigator.onLine is used directly (not useOnlineStatus hook) throughout this file
+// because we need point-in-time checks inside useEffect callbacks and async functions,
+// not reactive state. The hook would capture a stale closure value.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
 import { getDeviceName } from "../utils/device-info";
@@ -135,6 +138,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
         if (!fromCache) {
           const resp = await fetch(`/api/books/${id}`, { credentials: "include" });
+          if (!resp.ok) throw new Error("Failed to fetch book data");
           bookData = await resp.json() as BookApiResponse;
           title = bookData.book?.title || "";
         }
@@ -244,31 +248,39 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       if (!isPwa || fromCache || !bookData) return;
       const bk = bookData.book;
       const allFiles = bookData.files || [];
-      Promise.all([
-        ...allFiles.map(async (f: { format: string; file_size: number }) => {
-          if (f.format.toLowerCase() === format!.toLowerCase()) {
-            return { format: f.format, fileBlob: blob, fileSize: f.file_size };
-          }
-          const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
-          return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
-        }),
-        fetch(`/api/covers/${id}?full=1`, { credentials: "include" }).then((r) => r.blob()),
-      ]).then(async (results) => {
-        const cover = results.pop() as Blob;
-        const files = results as { format: string; fileBlob: Blob; fileSize: number }[];
+      (async () => {
+        const files = await Promise.all(
+          allFiles.map(async (f: { format: string; file_size: number }) => {
+            if (f.format.toLowerCase() === format!.toLowerCase()) {
+              return { format: f.format, fileBlob: blob, fileSize: f.file_size };
+            }
+            const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
+            if (!resp.ok) { console.warn(`Failed to download format ${f.format}`); return null; }
+            return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
+          }),
+        );
+        const validFiles = files.filter((f): f is { format: string; fileBlob: Blob; fileSize: number } => f !== null);
+        if (validFiles.length === 0) return;
+        const coverResp = await fetch(`/api/covers/${id}?full=1`, { credentials: "include" });
+        if (!coverResp.ok) { console.warn("Failed to fetch cover for caching"); return; }
+        const cover = await coverResp.blob();
         const authors = (bk.authors || "").split(",").map((a: string) => a.trim()).filter(Boolean);
         try {
-          await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+          await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
         } catch (cacheErr: unknown) {
           if (cacheErr instanceof DOMException && cacheErr.name === "QuotaExceededError") {
-            const totalSize = files.reduce((sum, f) => sum + f.fileSize, 0);
+            const totalSize = validFiles.reduce((sum, f) => sum + f.fileSize, 0);
             await evictLRU(totalSize);
-            await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+            try {
+              await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
+            } catch (retryErr) {
+              console.warn("Failed to cache book after eviction:", retryErr);
+            }
           } else {
             console.warn("Failed to cache book:", cacheErr);
           }
         }
-      }).catch((err) => console.warn("Failed to auto-cache book:", err));
+      })().catch((err) => console.warn("Failed to auto-cache book:", err));
     }
   }, [id, format, isPwa, deviceName, positionKind]);
 

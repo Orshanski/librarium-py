@@ -280,7 +280,7 @@ export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
   const evicted: number[] = [];
   for (const book of candidates) {
     if (targetBytes > 0 && freed >= targetBytes) break;
-    const bookSize = book.formats.reduce((sum: number, f: StoredBookFormat) => sum + f.fileSize, 0);
+    const bookSize = book.formats.reduce((sum: number, f: StoredBookFormat) => sum + f.fileSize, 0) + book.coverBuffer.byteLength;
     await db.delete("cached_books", book.bookId);
     freed += bookSize;
     evicted.push(book.bookId);
@@ -299,6 +299,7 @@ export async function getStorageUsage(): Promise<{ bookCount: number; totalBytes
     for (const f of book.formats) {
       totalBytes += f.fileSize;
     }
+    totalBytes += book.coverBuffer.byteLength;
   }
   return { bookCount: all.length, totalBytes };
 }

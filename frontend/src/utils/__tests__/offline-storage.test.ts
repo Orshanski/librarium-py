@@ -244,7 +244,7 @@ describe("getStorageUsage", () => {
 
     const usage = await getStorageUsage();
     expect(usage.bookCount).toBe(2);
-    expect(usage.totalBytes).toBe(600);
+    expect(usage.totalBytes).toBe(602); // 100 + 200 + 300 + 2 covers (1 byte each)
   });
 
   it("returns zero when no books cached", async () => {
