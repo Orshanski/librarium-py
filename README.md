@@ -78,6 +78,20 @@ Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-
 
 ![Footnote popup](docs/screenshots/18-desktop-reader-footnote.png)
 
+### Offline reading (PWA)
+
+Install Librarium as a PWA on your tablet or phone — it works without an internet connection. The entire app shell (HTML, JS, CSS) is precached by a Service Worker on first visit, so the PWA launches instantly even offline.
+
+**How books get cached.** Open any book in the reader while online — all its formats and the cover are automatically saved to IndexedDB on the device. Next time you're on a plane or at a cabin with no Wi-Fi, the book is there. Don't want to wait? Tap the cloud icon on any book's page to download it ahead of time.
+
+**Offline shell.** When the network drops, the app switches to a minimal screen showing only your cached books with reading progress. Tap a cover — the reader opens directly from local storage, no server needed. Reading progress and settings keep saving locally while offline.
+
+**Sync on reconnect.** When the connection returns, accumulated reading positions and settings are pushed to the server automatically. Conflict resolution is timestamp-based (last-write-wins), so reading on multiple devices works naturally.
+
+**Housekeeping.** Books untouched for 14 days are evicted automatically. Marking a book as "read" clears it from the cache immediately. If the device runs low on storage, least-recently-read books are evicted first to make room for new ones. The cloud icon in the catalog shows which books are available offline (yellow = cached).
+
+**Updates.** When a new version is deployed, the Service Worker detects the change and shows an "Update available" banner — tap to reload with the latest code.
+
 ### Mobile
 
 The entire UI adapts to phones and tablets. Bottom tab bar for navigation, swipeable drawer for shelves, and a dedicated mobile reader with optimized margins and safe area support. Install as a PWA from the home screen for a native app experience without browser chrome.
@@ -123,10 +137,11 @@ add_header Content-Security-Policy "
 | Metadata | Litres.ru, Google Books API, Anthropic Claude (PDF via web search) |
 | Frontend | React 19, TypeScript, React Router 7 |
 | Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, MOBI, CBZ, PDF) |
+| Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
-| Tests | pytest (259 tests), Vitest |
+| Tests | pytest (259 tests), Vitest (43 tests) |
 | CI/CD | GitHub Actions |
 
 ## Getting started
@@ -219,11 +234,15 @@ librarium-py/
 │   ├── scripts/            # One-off migrations (seed_tag_mappings, normalize_tag_names)
 │   └── tests/              # pytest suite (259 tests)
 ├── frontend/
+│   ├── public/sw.js            # Service Worker (precache template)
+│   ├── scripts/                # Build scripts (SW asset injection)
 │   ├── src/
 │   │   ├── pages/              # Page components
-│   │   ├── components/         # Shared components
+│   │   ├── components/         # Shared components (incl. OfflineShell)
 │   │   ├── components/desktop/ # Desktop layout
 │   │   ├── components/mobile/  # Mobile layout
+│   │   ├── hooks/              # Custom hooks (offline, PWA, cache)
+│   │   ├── utils/              # Utilities (offline-storage, sanitize, etc.)
 │   │   └── responsive.ts       # Breakpoint provider
 │   └── vite.config.ts
 ├── docs/
