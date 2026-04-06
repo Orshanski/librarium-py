@@ -154,7 +154,7 @@ export default function UploadForm() {
       for (const g of prev) {
         const file = g.files.find((f) => f.id === fileId);
         if (file?.tempId) {
-          fetch(`/api/uploads/${file.tempId}`, { method: "DELETE" }).catch(() => {});
+          fetch(`/api/uploads/${file.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
         }
         const remaining = g.files.filter((f) => f.id !== fileId);
         if (remaining.length > 0) {
@@ -170,7 +170,7 @@ export default function UploadForm() {
       const group = prev.find((g) => g.key === key);
       if (group) {
         for (const f of group.files) {
-          if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch(() => {});
+          if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
         }
       }
       return prev.filter((g) => g.key !== key);
@@ -193,7 +193,7 @@ export default function UploadForm() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tempId: f.tempId }),
-          }).catch(() => {});
+          }).catch((err) => console.warn("Upload cleanup failed:", err));
         }
       } else {
         // First file creates book, rest add as format
@@ -211,7 +211,7 @@ export default function UploadForm() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ tempId: f.tempId }),
-            }).catch(() => {});
+            }).catch((err) => console.warn("Upload cleanup failed:", err));
           }
         }
       }
@@ -262,7 +262,7 @@ export default function UploadForm() {
   function cancelAll() {
     for (const g of groups) {
       for (const f of g.files) {
-        if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch(() => {});
+        if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
       }
     }
     setGroups([]);

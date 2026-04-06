@@ -1,18 +1,30 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { colors, fonts } from "../theme";
-import { getCachedBooks, type CachedBook } from "../utils/offline-storage";
+import { getCachedBooks, getProgress, type CachedBook } from "../utils/offline-storage";
 import { useIsMobile } from "../responsive";
 
 export default function OfflineShell() {
   const [books, setBooks] = useState<CachedBook[]>([]);
+  const [progressMap, setProgressMap] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     getCachedBooks()
-      .then((b) => {
+      .then(async (b) => {
         b.sort((a, c) => c.lastAccessedAt - a.lastAccessedAt);
         setBooks(b);
+
+        // Load reading progress for each cached book
+        const map = new Map<number, number>();
+        for (const book of b) {
+          const p = await getProgress(book.bookId).catch(() => null);
+          if (p && p.fraction > 0) {
+            map.set(book.bookId, Math.round(p.fraction * 100));
+          }
+        }
+        setProgressMap(map);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -85,7 +97,7 @@ export default function OfflineShell() {
             padding: isMobile ? "12px 16px 16px" : "16px 24px 24px",
           }}>
             {books.map((book) => (
-              <OfflineBookCard key={book.bookId} book={book} isMobile={isMobile} />
+              <OfflineBookCard key={book.bookId} book={book} isMobile={isMobile} progressPercent={progressMap.get(book.bookId)} />
             ))}
           </div>
         </>
@@ -94,7 +106,7 @@ export default function OfflineShell() {
   );
 }
 
-function OfflineBookCard({ book, isMobile }: { book: CachedBook; isMobile: boolean }) {
+function OfflineBookCard({ book, isMobile, progressPercent }: { book: CachedBook; isMobile: boolean; progressPercent?: number }) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,11 +120,12 @@ function OfflineBookCard({ book, isMobile }: { book: CachedBook; isMobile: boole
   const fmt = book.formats[0]?.format?.toLowerCase() || "epub";
 
   return (
-    <a
-      href={`/book/${book.bookId}/read/${fmt}`}
+    <Link
+      to={`/book/${book.bookId}/read/${fmt}`}
       style={{ textDecoration: "none", color: "inherit" }}
     >
       <div style={{
+        position: "relative",
         width: "100%",
         aspectRatio: "2 / 3",
         borderRadius: isMobile ? 6 : 4,
@@ -127,6 +140,11 @@ function OfflineBookCard({ book, isMobile }: { book: CachedBook; isMobile: boole
             alt={book.title}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
+        )}
+        {progressPercent != null && progressPercent > 0 && (
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, backgroundColor: "rgba(0,0,0,0.4)" }}>
+            <div style={{ height: "100%", width: `${progressPercent}%`, backgroundColor: colors.accent, transition: "width 0.2s" }} />
+          </div>
         )}
       </div>
       <div style={{
@@ -151,6 +169,6 @@ function OfflineBookCard({ book, isMobile }: { book: CachedBook; isMobile: boole
       }}>
         {book.authors.join(", ")}
       </div>
-    </a>
+    </Link>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
@@ -10,6 +10,7 @@ import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
 import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
+import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
 interface SeriesData {
   id: number;
@@ -25,7 +26,7 @@ export default function SeriesPage() {
   const { user } = useAuth();
 
   const [series, setSeries] = useState<SeriesData | null>(null);
-  const [books, setBooks] = useState<any[]>([]);
+  const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -70,6 +71,9 @@ export default function SeriesPage() {
       </>
     );
   }
+
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
 
   if (!series) return null;
 
@@ -126,6 +130,7 @@ export default function SeriesPage() {
           <BookCard
             key={b.id}
             book={toBook(b)}
+            isCached={cachedBookIds.has(b.id)}
           />
         ))}
       </BookGrid>

@@ -13,7 +13,7 @@ export function useCacheStatus(bookId: number | undefined) {
   }, [bookId, isPwa]);
 
   const toggleCache = useCallback(async (
-    meta: { title: string; authors: string[] },
+    meta: { title: string; authors: string[]; manuallyAdded?: boolean },
     fetchFiles: () => Promise<{ format: string; fileBlob: Blob; fileSize: number }[]>,
     fetchCover: () => Promise<Blob>,
   ) => {

@@ -47,7 +47,7 @@ export function SidebarContent({
     fetch("/api/shelves")
       .then((r) => r.json())
       .then((data) => setShelves(data.shelves || []))
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to fetch shelves:", err));
   }, []);
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, splitCsv, RawBook } from "../types";
+import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -74,6 +75,9 @@ export default function ShelfPage() {
     );
   }
 
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const cachedBookIds = useCachedBookIds(bookIds);
+
   if (!shelf) return null;
 
   return (
@@ -116,6 +120,7 @@ export default function ShelfPage() {
               book={toBook(b)}
               href={isReadingNow && fmt ? `/book/${b.id}/read/${fmt.toLowerCase()}` : undefined}
               progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
+              isCached={cachedBookIds.has(b.id)}
               onRemove={!shelf.is_system ? async () => {
                 const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
                 if (res.ok) setBooks(books.filter((x) => x.id !== b.id));

@@ -2,13 +2,25 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
 import { getDeviceName } from "../utils/device-info";
 import {
+  LocalProgress, LocalSettings,
   getProgress, saveProgress as saveLocalProgress, markProgressSynced,
   getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,
-  cacheBook, touchBook, getCachedBook,
+  cacheBook, touchBook, getCachedBook, evictLRU,
 } from "../utils/offline-storage";
 import { useIsPwa } from "./useIsPwa";
 
 type PositionKind = "cfi" | "page";
+
+interface BookApiResponse {
+  book: {
+    title: string;
+    authors_csv: string;
+    id: number;
+    [key: string]: unknown;
+  };
+  files: { format: string; file_size: number }[];
+  [key: string]: unknown;
+}
 
 interface UseReaderStorageOptions {
   bookId: string | undefined;
@@ -44,6 +56,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPositionRef = useRef<{ value: string | number; fraction: number } | null>(null);
+  const flushRef = useRef<() => void>(() => {});
 
   // Load book, settings, progress
   useEffect(() => {
@@ -95,8 +108,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         let blob: File;
         let title = "";
         let fromCache = false;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let bookData: any = null;
+        let bookData: BookApiResponse | null = null;
 
         if (isPwa) {
           const cached = await getCachedBook(bookId);
@@ -118,7 +130,8 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
 
         if (!fromCache) {
-          bookData = await fetch(`/api/books/${id}`, { credentials: "include" }).then((r) => r.json());
+          const resp = await fetch(`/api/books/${id}`, { credentials: "include" });
+          bookData = await resp.json() as BookApiResponse;
           title = bookData.book?.title || "";
         }
 
@@ -151,20 +164,29 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async function syncWithServer(bookId: number, localProgress: any, localSettings: any, blob: Blob, bookData: any, fromCache: boolean) {
+    async function syncWithServer(bookId: number, localProgress: LocalProgress | null, localSettings: LocalSettings | null, blob: Blob, bookData: BookApiResponse | null, fromCache: boolean) {
       const [serverSettings, serverProgress] = await Promise.all([
         fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.json()).catch(() => null),
         fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.json()).catch(() => null),
       ]);
 
-      // Settings: server wins if no local
+      // Settings: compare timestamps, server wins if newer or no local
       if (serverSettings?.settings && Object.keys(serverSettings.settings).length > 0) {
-        if (!localSettings || !localSettings.settings || Object.keys(localSettings.settings).length === 0) {
+        const serverSettingsTime = serverSettings.updated_at ? new Date(serverSettings.updated_at).getTime() : 0;
+        const localSettingsTime = localSettings?.updatedAt || 0;
+        if (!localSettings || !localSettings.settings || Object.keys(localSettings.settings).length === 0 || serverSettingsTime > localSettingsTime) {
           const merged = { ...DEFAULT_SETTINGS, ...serverSettings.settings } as ReaderSettings;
           setSettings(merged);
           await saveLocalSettings(deviceName, serverSettings.settings);
           await markSettingsSynced(deviceName);
+        } else if (localSettingsTime > serverSettingsTime && localSettings && !localSettings.synced) {
+          // Local is newer - push to server
+          fetch("/api/reader/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ settings: localSettings.settings }),
+          }).then(() => markSettingsSynced(deviceName)).catch((err) => console.warn("Failed to push settings to server:", err));
         }
       }
 
@@ -192,26 +214,38 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       if (isPwa && !fromCache && bookData) {
         const bk = bookData.book;
         const allFiles = bookData.files || [];
-        Promise.all([
-          ...allFiles.map(async (f: { format: string; file_size: number }) => {
-            if (f.format.toLowerCase() === format!.toLowerCase()) {
-              return { format: f.format, fileBlob: blob, fileSize: f.file_size };
-            }
-            const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
-            return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
-          }),
-          fetch(`/api/covers/${id}?full=1`, { credentials: "include" }).then((r) => r.blob()),
-        ]).then((results) => {
+        try {
+          const results = await Promise.all([
+            ...allFiles.map(async (f: { format: string; file_size: number }) => {
+              if (f.format.toLowerCase() === format!.toLowerCase()) {
+                return { format: f.format, fileBlob: blob, fileSize: f.file_size };
+              }
+              const resp = await fetch(`/api/books/${id}/download?format=${f.format}`, { credentials: "include" });
+              return { format: f.format, fileBlob: await resp.blob(), fileSize: f.file_size };
+            }),
+            fetch(`/api/covers/${id}?full=1`, { credentials: "include" }).then((r) => r.blob()),
+          ]);
           const cover = results.pop() as Blob;
           const files = results as { format: string; fileBlob: Blob; fileSize: number }[];
           const authors = (bk.authors_csv || "").split(",").map((a: string) => a.trim()).filter(Boolean);
-          cacheBook({ bookId, title: bk.title, authors }, files, cover);
-        }).catch(() => {});
+          try {
+            await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+          } catch (cacheErr: unknown) {
+            if (cacheErr instanceof DOMException && cacheErr.name === "QuotaExceededError") {
+              const totalSize = files.reduce((sum, f) => sum + f.fileSize, 0);
+              await evictLRU(totalSize);
+              await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, files, cover);
+            } else {
+              console.warn("Failed to cache book:", cacheErr);
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to auto-cache book:", err);
+        }
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function pushProgressToServer(bookId: number, progress: any) {
+    function pushProgressToServer(bookId: number, progress: LocalProgress) {
       fetch(`/api/reader/progress/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -222,7 +256,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           last_format: progress.lastFormat,
           fraction: progress.fraction,
         }),
-      }).then(() => markProgressSynced(bookId)).catch(() => {});
+      }).then(() => markProgressSynced(bookId)).catch((err) => console.warn("Failed to push progress:", err));
     }
   }, [id, format, isPwa, deviceName, positionKind]);
 
@@ -236,19 +270,29 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const fraction = Math.min(1, Math.max(0, pos.fraction || 0));
     const progressData = { position, fraction, lastFormat: format || "", lastReadAt: Date.now() };
 
-    saveLocalProgress(bookId, progressData).catch(() => {});
+    saveLocalProgress(bookId, progressData).catch((err) => console.warn("Failed to save local progress:", err));
     if (navigator.onLine) {
       fetch(`/api/reader/progress/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ position, last_device: deviceName, last_format: format || "", fraction }),
-      }).then(() => markProgressSynced(bookId)).catch(() => {});
+      }).then(() => markProgressSynced(bookId)).catch((err) => console.warn("Failed to sync progress:", err));
     }
     lastPositionRef.current = null;
   }, [id, format, deviceName, positionKind]);
 
+  // Keep flushRef in sync for beforeunload
+  flushRef.current = flushProgress;
+
   useEffect(() => () => flushProgress(), [flushProgress]);
+
+  // S2: flush progress on beforeunload
+  useEffect(() => {
+    const handler = () => flushRef.current();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const handleRelocate = useCallback((positionValue: string | number, fraction: number) => {
     lastPositionRef.current = { value: positionValue, fraction };
@@ -261,14 +305,18 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     setSettings(newSettings);
     clearTimeout(settingsTimerRef.current);
     settingsTimerRef.current = setTimeout(() => {
-      saveLocalSettings(deviceName, newSettings as unknown as Record<string, unknown>).catch(() => {});
+      const settingsRecord: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(newSettings)) {
+        settingsRecord[key] = value;
+      }
+      saveLocalSettings(deviceName, settingsRecord).catch((err) => console.warn("Failed to save local settings:", err));
       if (navigator.onLine) {
         fetch("/api/reader/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ settings: newSettings }),
-        }).then(() => markSettingsSynced(deviceName)).catch(() => {});
+        }).then(() => markSettingsSynced(deviceName)).catch((err) => console.warn("Failed to sync settings:", err));
       }
     }, 1500);
   }, [deviceName]);

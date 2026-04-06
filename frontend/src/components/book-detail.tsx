@@ -33,18 +33,18 @@ export default function BookDetail({
 
   const handleToggleCache = useCallback(() => {
     toggleCache(
-      { title: book.title, authors: book.authors },
+      { title: book.title, authors: book.authors, manuallyAdded: true },
       async () => {
-        const resp = await fetch(`/api/books/${book.id}`);
-        const data = await resp.json();
+        const resp = await fetch(`/api/books/${book.id}`, { credentials: "include" });
+        const data: { files: { format: string; file_size: number }[] } = await resp.json();
         const allFiles = data.files || [];
         return Promise.all(allFiles.map(async (f: { format: string; file_size: number }) => {
-          const r = await fetch(`/api/books/${book.id}/download?format=${f.format}`);
+          const r = await fetch(`/api/books/${book.id}/download?format=${f.format}`, { credentials: "include" });
           return { format: f.format, fileBlob: await r.blob(), fileSize: f.file_size };
         }));
       },
       async () => {
-        const r = await fetch(`/api/covers/${book.id}?full=1`);
+        const r = await fetch(`/api/covers/${book.id}?full=1`, { credentials: "include" });
         return r.blob();
       },
     );
@@ -68,7 +68,7 @@ export default function BookDetail({
         if (data.rating !== undefined) setRating(data.rating);
         setIsRead(!!data.is_read);
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to fetch book status:", err));
   }, [book.id]);
 
   async function saveRating(nextRating: number) {
@@ -97,7 +97,7 @@ export default function BookDetail({
         body: JSON.stringify({ isRead: next }),
       });
       if (!res.ok) throw new Error("toggle read failed");
-      if (next) removeCachedBook(book.id).catch(() => {});
+      if (next) removeCachedBook(book.id).catch((err) => console.warn("Failed to remove cached book:", err));
     } catch {
       setIsRead(previous);
     }

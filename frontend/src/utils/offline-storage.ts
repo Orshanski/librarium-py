@@ -17,6 +17,7 @@ export interface CachedBook {
   formats: CachedBookFormat[];
   cachedAt: number;
   lastAccessedAt: number;
+  manuallyAdded: boolean;
 }
 
 export interface LocalProgress {
@@ -82,7 +83,7 @@ export async function _resetDB(): Promise<void> {
 // ── Book cache ──
 
 export async function cacheBook(
-  meta: { bookId: number; title: string; authors: string[] },
+  meta: { bookId: number; title: string; authors: string[]; manuallyAdded?: boolean },
   files: { format: string; fileBlob: Blob; fileSize: number }[],
   cover: Blob,
 ): Promise<void> {
@@ -96,6 +97,7 @@ export async function cacheBook(
     formats: files,
     cachedAt: now,
     lastAccessedAt: now,
+    manuallyAdded: meta.manuallyAdded ?? false,
   });
 }
 
@@ -188,6 +190,12 @@ export async function markSettingsSynced(deviceType: string): Promise<void> {
   }
 }
 
+export async function getUnsyncedSettings(): Promise<LocalSettings[]> {
+  const db = await initDB();
+  const all = await db.getAll("reader_settings");
+  return all.filter((s) => !s.synced);
+}
+
 // ── Eviction ──
 
 const TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
@@ -206,12 +214,36 @@ export async function evictExpired(ttlMs: number = TTL_MS): Promise<number> {
   return count;
 }
 
-export async function evictLRU(): Promise<number | null> {
+export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
   const db = await initDB();
   const all = await db.getAll("cached_books");
-  if (all.length === 0) return null;
-  all.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-  const oldest = all[0];
-  await db.delete("cached_books", oldest.bookId);
-  return oldest.bookId;
+  if (all.length === 0) return [];
+  // Only evict non-manually-added books, sorted by LRU
+  const candidates = all.filter((b) => !b.manuallyAdded);
+  candidates.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+  let freed = 0;
+  const evicted: number[] = [];
+  for (const book of candidates) {
+    if (targetBytes > 0 && freed >= targetBytes) break;
+    const bookSize = book.formats.reduce((sum: number, f: CachedBookFormat) => sum + f.fileSize, 0);
+    await db.delete("cached_books", book.bookId);
+    freed += bookSize;
+    evicted.push(book.bookId);
+    if (targetBytes === 0) break; // evict at least one if no target
+  }
+  return evicted;
+}
+
+// ── Storage usage ──
+
+export async function getStorageUsage(): Promise<{ bookCount: number; totalBytes: number }> {
+  const db = await initDB();
+  const all = await db.getAll("cached_books");
+  let totalBytes = 0;
+  for (const book of all) {
+    for (const f of book.formats) {
+      totalBytes += f.fileSize;
+    }
+  }
+  return { bookCount: all.length, totalBytes };
 }

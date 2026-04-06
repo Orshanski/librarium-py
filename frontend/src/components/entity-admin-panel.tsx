@@ -132,7 +132,7 @@ export default function EntityAdminPanel({
           book_count: e.book_count || 0,
         })));
       })
-      .catch(() => {});
+      .catch((err) => console.warn(`Failed to fetch ${entityType} list:`, err));
   }, [entityType, entityId]);
 
   const filtered = searchQuery.length >= 2

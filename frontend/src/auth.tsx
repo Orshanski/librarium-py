@@ -53,13 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setUser(data.user);
       return null;
-    } catch (e: any) {
-      return e.message || "Ошибка входа";
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : "Ошибка входа";
     }
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+    await api("/api/auth/logout", { method: "POST" }).catch((err) => console.warn("Logout request failed:", err));
     setUser(null);
     try { localStorage.removeItem("librarium_user"); } catch {}
   }

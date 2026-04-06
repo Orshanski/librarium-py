@@ -1,16 +1,7 @@
-const CACHE_NAME = "librarium-shell-v1";
+const CACHE_NAME = "librarium-shell-v2";
 
-const SHELL_FILES = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/favicon.png",
-];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)),
-  );
+self.addEventListener("install", () => {
+  // No pre-cache — Vite uses hashed filenames that we can't predict
   self.skipWaiting();
 });
 
@@ -29,24 +20,35 @@ self.addEventListener("fetch", (event) => {
   // API requests — network only
   if (url.pathname.startsWith("/api/")) return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin) return;
+
+  if (event.request.mode === "navigate") {
+    // Navigation: network-first with cache fallback
+    event.respondWith(
+      fetch(event.request)
         .then((response) => {
-          if (response.ok && (event.request.mode === "navigate" || url.pathname.match(/\.(js|css|png|jpg|woff2?)$/))) {
+          if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return response;
         })
-        .catch(() => {
-          if (event.request.mode === "navigate") {
-            return caches.match("/index.html");
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/index.html"))),
+    );
+  } else {
+    // Static assets: cache-first with network fallback, opportunistic caching
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
-          return cached;
+          return response;
         });
-
-      return cached || networkFetch;
-    }),
-  );
+      }),
+    );
+  }
 });
