@@ -29,8 +29,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api("/api/auth/me")
-      .then((data) => setUser(data))
-      .catch(() => setUser(null))
+      .then((data) => {
+        setUser(data);
+        try { localStorage.setItem("librarium_user", JSON.stringify(data)); } catch {}
+      })
+      .catch(() => {
+        if (!navigator.onLine) {
+          try {
+            const cached = localStorage.getItem("librarium_user");
+            if (cached) { setUser(JSON.parse(cached)); return; }
+          } catch {}
+        }
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -50,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     setUser(null);
+    try { localStorage.removeItem("librarium_user"); } catch {}
   }
 
   return (
