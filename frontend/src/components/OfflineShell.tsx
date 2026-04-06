@@ -90,14 +90,7 @@ export default function OfflineShell() {
           }}>
             Читаю сейчас
           </div>
-          {/* DEBUG: temporary diagnostics for iPad testing */}
-          <div style={{ padding: isMobile ? "8px 16px" : "8px 24px", fontSize: 11, color: colors.textDim, fontFamily: "monospace" }}>
-            {books.map((b) => (
-              <div key={b.bookId}>
-                #{b.bookId} cover={b.coverBlob?.size ?? "null"} type={b.coverBlob?.type ?? "?"} url={b.coverBlob ? URL.createObjectURL(b.coverBlob) : "null"}
-              </div>
-            ))}
-          </div>
+
           <div style={{
             display: "grid",
             gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fill, 150px)",

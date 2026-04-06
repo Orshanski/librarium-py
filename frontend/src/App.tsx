@@ -1,4 +1,5 @@
-import { Routes, Route, Outlet, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Routes, Route, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ProtectedRoute } from "./auth";
 import Shell from "./components/shell";
 import OfflineShell from "./components/OfflineShell";
@@ -35,10 +36,26 @@ export default function App() {
   const online = useOnlineStatus();
   const isPwa = useIsPwa();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [wasOffline, setWasOffline] = useState(false);
 
-  // PWA offline: show OfflineShell unless already reading a book
   const isReading = location.pathname.match(/^\/book\/\d+\/read\//);
-  if (isPwa && !online && !isReading) {
+  const showOffline = isPwa && !online && !isReading;
+
+  // Track offline state
+  useEffect(() => {
+    if (showOffline) setWasOffline(true);
+  }, [showOffline]);
+
+  // When coming back online from offline shell → go to catalog
+  useEffect(() => {
+    if (online && wasOffline) {
+      setWasOffline(false);
+      navigate("/", { replace: true });
+    }
+  }, [online, wasOffline, navigate]);
+
+  if (showOffline) {
     return <OfflineShell />;
   }
 
