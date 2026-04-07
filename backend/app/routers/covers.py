@@ -78,9 +78,13 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
         os.remove(old)
 
     temp_path = str(UPLOADS_DIR / f"{book_id}-cover.{ext}")
-    content = await file.read()
-    if len(content) > MAX_COVER_SIZE:
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_COVER_SIZE:
         return JSONResponse({"error": "Файл обложки слишком большой"}, status_code=400)
+
+    content = await file.read()
 
     # Validate image before saving
     import io

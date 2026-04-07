@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-from typing import Optional
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,16 +17,16 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 
 
 class UpdateBookBody(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    language: Optional[str] = None
-    publisher: Optional[str] = None
-    pubDate: Optional[str] = None
-    seriesId: Optional[int | str] = None
-    seriesNumber: Optional[float] = None
-    authorIds: Optional[list[int | str]] = None
-    tagIds: Optional[list[int | str]] = None
-    isbn: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pubDate: str | None = None
+    seriesId: int | str | None = None
+    seriesNumber: float | None = None
+    authorIds: list[int | str] | None = None
+    tagIds: list[int | str] | None = None
+    isbn: str | None = None
 
 
 @router.get("")

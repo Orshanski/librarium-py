@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import uuid
-import glob
 import shutil
 import zipfile
 from fastapi import APIRouter, Request, UploadFile, File

@@ -7,9 +7,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from typing import Literal
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
+from ..database import get_db
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 _LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "public" / "logo.png"
@@ -42,7 +44,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 class CreateUserBody(BaseModel):
     username: str = Field(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9_]+$')
     password: str = Field(min_length=4)
-    role: str = "reader"
+    role: Literal["admin", "reader"] = "reader"
     displayName: str | None = None
     email: str | None = None
 
@@ -51,7 +53,7 @@ class UpdateUserBody(BaseModel):
     displayName: str | None = None
     email: str | None = None
     password: str | None = None
-    role: str | None = None
+    role: Literal["admin", "reader"] | None = None
 
 
 @router.get("/users")
@@ -82,6 +84,12 @@ def delete_user(user_id: int, request: Request):
     user = require_admin(request)
     if user["userId"] == user_id:
         return JSONResponse({"error": "Нельзя удалить самого себя"}, status_code=400)
+    db = get_db()
+    target = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if target and target["role"] == "admin":
+        admin_count = db.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").fetchone()["cnt"]
+        if admin_count <= 1:
+            return JSONResponse({"error": "Нельзя удалить последнего админа"}, status_code=400)
     users_dal.delete_user(user_id)
     log.info("Deleted user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
@@ -113,6 +121,9 @@ class UpdateSettingsBody(BaseModel):
 def update_settings(body: UpdateSettingsBody, request: Request):
     user = require_admin(request)
     data = body.model_dump(exclude_none=True)
+    # Don't overwrite real password with the mask shown in UI
+    if data.get("smtp_pass") == "••••••":
+        del data["smtp_pass"]
     changed = []
     for key, value in data.items():
         if key in ALLOWED_SETTINGS:
@@ -154,4 +165,5 @@ def smtp_test(request: Request):
         server.quit()
         return {"ok": True}
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        log.warning("SMTP test failed: %s", e)
+        return JSONResponse({"error": "Не удалось отправить тестовое письмо"}, status_code=500)

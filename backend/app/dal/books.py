@@ -235,7 +235,8 @@ def delete_book(book_id: int):
 
 def search_books(query: str, limit=50):
     db = get_db()
-    pattern = f"%{query.lower()}%"
+    escaped = query.lower().replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
     p = {"pattern": pattern, "limit": limit}
 
     books = dicts_from_rows(db.execute("""
@@ -245,15 +246,15 @@ def search_books(query: str, limit=50):
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
         LEFT JOIN series s ON b.series_id = s.id
-        WHERE lower_utf8(b.title) LIKE :pattern OR lower_utf8(a.name) LIKE :pattern
-            OR lower_utf8(s.name) LIKE :pattern
+        WHERE lower_utf8(b.title) LIKE :pattern ESCAPE '\\' OR lower_utf8(a.name) LIKE :pattern ESCAPE '\\'
+            OR lower_utf8(s.name) LIKE :pattern ESCAPE '\\'
         GROUP BY b.id LIMIT :limit
     """, p).fetchall())
 
     authors = dicts_from_rows(db.execute("""
         SELECT a.id, a.name, COUNT(ba.book_id) as book_count
         FROM authors a JOIN book_authors ba ON a.id = ba.author_id
-        WHERE lower_utf8(a.name) LIKE :pattern
+        WHERE lower_utf8(a.name) LIKE :pattern ESCAPE '\\'
         GROUP BY a.id ORDER BY book_count DESC LIMIT 10
     """, p).fetchall())
 
@@ -261,7 +262,7 @@ def search_books(query: str, limit=50):
         SELECT s.id, s.name, COUNT(b.id) as book_count, GROUP_CONCAT(DISTINCT a.name) as authors
         FROM series s JOIN books b ON b.series_id = s.id
         LEFT JOIN book_authors ba ON b.id = ba.book_id LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE lower_utf8(s.name) LIKE :pattern
+        WHERE lower_utf8(s.name) LIKE :pattern ESCAPE '\\'
         GROUP BY s.id ORDER BY book_count DESC LIMIT 10
     """, p).fetchall())
 
