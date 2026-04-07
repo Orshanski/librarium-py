@@ -90,6 +90,7 @@ export default function UploadForm() {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/upload");
         xhr.withCredentials = true;
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const pct = Math.min(Math.round((e.loaded / e.total) * 100), 99);
