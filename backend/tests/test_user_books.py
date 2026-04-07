@@ -230,3 +230,27 @@ class TestUserBooks:
         resp = reader_client.get("/api/books")
         ids = {b["id"] for b in resp.json()["books"]}
         assert 3 in ids
+
+
+class TestBookResponseIncludesUserData:
+    """GET /api/books/{id} and GET /api/books should include is_read and rating."""
+
+    def test_book_detail_has_is_read(self, reader_client):
+        book = reader_client.get("/api/books/1").json()["book"]
+        assert "is_read" in book
+
+    def test_book_detail_reflects_read(self, reader_client):
+        reader_client.put("/api/books/3/read", json={"isRead": True})
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["is_read"] == 1
+
+    def test_book_detail_has_rating(self, reader_client):
+        reader_client.put("/api/books/3/rating", json={"rating": 4})
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["rating"] == 4
+
+    def test_catalog_has_is_read(self, reader_client):
+        reader_client.put("/api/books/1/read", json={"isRead": True})
+        data = reader_client.get("/api/books").json()
+        book = next(b for b in data["books"] if b["id"] == 1)
+        assert book["is_read"] == 1
