@@ -79,7 +79,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
+      <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад"><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
       <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
         <Route path="/" element={<CatalogPage />} />
         <Route path="/book/:id" element={<BookPage />} />

@@ -14,7 +14,7 @@ def test_parse_fb2():
     assert meta.language == "Русский"
     assert meta.publisher == "Test Publisher"
     assert meta.isbn == "978-0-000-00001-0"
-    assert "Фэнтези" in meta.genres
+    assert "sf_fantasy" in meta.genres  # raw code; resolved in enrich_metadata
 
 
 def test_parse_fb2_with_cover():

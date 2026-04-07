@@ -36,12 +36,6 @@ class ParsedMetadata:
     cover_ext: str | None = None
 
 
-def _resolve_genres(raw_genres: list[str]) -> list[str]:
-    """Resolve raw genre codes to human-readable tag names via tag_mappings."""
-    from ..dal.tags import resolve_tag_names
-    return resolve_tag_names(raw_genres)
-
-
 _PARSERS: dict[str, Callable] = {}
 
 
@@ -53,15 +47,13 @@ def _init_parsers():
 
 
 def parse_book(file_path: str, ext: str) -> ParsedMetadata:
-    """Parse book file and resolve genres. For formats without a parser (e.g. PDF),
-    returns minimal metadata with title from filename — enrichers handle the rest."""
+    """Parse book file structure. For formats without a parser (e.g. PDF),
+    returns minimal metadata with title from filename — enrichers handle the rest.
+    Genre resolution happens in enrich_metadata(), not here."""
     ext = ext.lower().lstrip(".")
     if not _PARSERS:
         _init_parsers()
     parser = _PARSERS.get(ext)
     if parser:
-        meta = parser(file_path)
-    else:
-        meta = ParsedMetadata(title=file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0])
-    meta.genres = _resolve_genres(meta.genres)
-    return meta
+        return parser(file_path)
+    return ParsedMetadata(title=file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0])

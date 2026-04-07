@@ -23,5 +23,5 @@ def enrich_metadata(meta: ParsedMetadata, ext: str, original_filename: str, file
     enricher = _ENRICHERS.get(ext)
     if enricher:
         meta = enricher(meta, original_filename, file_path)
-        meta.genres = _resolve_genres(meta.genres)
+    meta.genres = _resolve_genres(meta.genres)
     return meta

@@ -16,7 +16,8 @@ DB_PATH = DATA_DIR / "db.sqlite"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
 def db_path_for(book_id: int, filename: str) -> str:
-    """Relative path stored in DB for a book file or cover."""
+    """Relative path stored in DB for a book file or cover.
+    Resolved at serve time relative to DATA_DIR's parent (project root)."""
     return f"data/library/{book_id}/{filename}"
 
 
