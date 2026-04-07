@@ -1,5 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_counts
+from .filters import build_book_where
 
 
 def get_tag_cloud(top: int | None = None):
@@ -56,17 +56,17 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
         {where} GROUP BY b.id ORDER BY b.added_at DESC
     """, params).fetchall())
 
-    # Filter counts in context of this tag
-    filters_for_counts = dict(filters)
-    filters_for_counts["tagIds"] = [tag_id]
+    from .authors import get_all_authors
+    from .series import get_all_series
+    from .books import get_all_languages
 
     return {
         "tag": tag,
         "books": books,
         "filterOptions": {
-            "authors": get_filter_counts(filters_for_counts, "author"),
-            "series": get_filter_counts(filters_for_counts, "series"),
-            "languages": get_filter_counts(filters_for_counts, "language"),
+            "authors": get_all_authors(),
+            "series": get_all_series(),
+            "languages": get_all_languages(),
         },
     }
 

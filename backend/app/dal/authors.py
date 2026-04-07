@@ -1,5 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_counts
+from .filters import build_book_where
 
 
 def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
@@ -23,11 +23,14 @@ def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
         {where} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
     """, params).fetchall())
 
+    from .tags import get_all_tags
+    from .books import get_all_languages
+
     return {
         "authors": authors,
         "filterOptions": {
-            "tags": get_filter_counts(filters, "tag"),
-            "languages": get_filter_counts(filters, "language"),
+            "tags": get_all_tags(),
+            "languages": get_all_languages(),
         },
     }
 

@@ -128,15 +128,12 @@ class TestBooksFilters:
         fo = data["filterOptions"]
         assert set(fo.keys()) == {"authors", "series", "tags", "languages"}
 
-    def test_filter_options_recalculated(self, reader_client):
-        data = reader_client.get("/api/books", params={"authorIds": "1"}).json()
-        fo = data["filterOptions"]
-        series_ids = {s["id"] for s in fo["series"]}
-        assert series_ids == {1}
-        tag_ids = {t["id"] for t in fo["tags"]}
-        assert tag_ids == {1}
-        lang_names = {l["name"] for l in fo["languages"]}
-        assert lang_names == {"ru", "en"}
+    def test_filter_options_are_directories(self, reader_client):
+        """filterOptions are full directories (no counts), independent of current filters."""
+        all_data = reader_client.get("/api/books").json()
+        filtered = reader_client.get("/api/books", params={"authorIds": "1"}).json()
+        # Same options regardless of filter
+        assert len(all_data["filterOptions"]["authors"]) == len(filtered["filterOptions"]["authors"])
 
 
 # ── /api/books sorting ──
@@ -187,7 +184,6 @@ class TestAuthorsFilters:
         tag_opt = fo["tags"][0]
         assert "id" in tag_opt
         assert "name" in tag_opt
-        assert "count" in tag_opt
 
 
 # ── /api/series filters ──
@@ -220,15 +216,6 @@ class TestSeriesFilters:
         assert "languages" in fo
         assert len(fo["authors"]) > 0
         assert len(fo["tags"]) > 0
-
-    def test_filter_options_dependent(self, reader_client):
-        """Selecting a tag should narrow author counts."""
-        all_data = reader_client.get("/api/series").json()
-        filtered = reader_client.get("/api/series", params={"tagIds": "2"}).json()
-        all_author_ids = {a["id"] for a in all_data["filterOptions"]["authors"]}
-        filtered_author_ids = {a["id"] for a in filtered["filterOptions"]["authors"]}
-        # Filtered should be subset or equal
-        assert filtered_author_ids <= all_author_ids
 
     def test_series_detail_books_have_series_name(self, reader_client):
         data = reader_client.get("/api/series/1").json()
@@ -276,14 +263,6 @@ class TestTags:
         assert "authors" in fo
         assert "series" in fo
         assert "languages" in fo
-
-    def test_tag_detail_filter_options_dependent(self, reader_client):
-        """Selecting an author should narrow series/languages within tag."""
-        all_data = reader_client.get("/api/tags/1").json()
-        filtered = reader_client.get("/api/tags/1", params={"authorIds": "1"}).json()
-        all_lang_names = {l["name"] for l in all_data["filterOptions"]["languages"]}
-        filt_lang_names = {l["name"] for l in filtered["filterOptions"]["languages"]}
-        assert filt_lang_names <= all_lang_names
 
     def test_tag_not_found(self, reader_client):
         resp = reader_client.get("/api/tags/999")

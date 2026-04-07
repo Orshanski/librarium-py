@@ -1,8 +1,4 @@
-"""Shared WHERE clause builder and filter count aggregation for book queries."""
-from typing import Literal
-from ..database import get_db, dicts_from_rows
-
-FilterEntity = Literal["author", "tag", "series", "language"]
+"""Shared WHERE clause builder for book queries."""
 
 
 def build_book_where(
@@ -61,49 +57,3 @@ def build_book_where(
     if not clauses:
         return "", params
     return "WHERE " + " AND ".join(clauses), params
-
-
-def get_filter_counts(filters: dict, entity: FilterEntity) -> list[dict]:
-    """Count books per entity with current filters, excluding the entity's own filter.
-
-    Args:
-        filters: current active filters
-        entity: 'author' | 'tag' | 'series' | 'language'
-
-    Returns:
-        author/tag/series: [{id, name, count}, ...] sorted alphabetically
-        language: [{name, count}, ...] sorted alphabetically
-    """
-    exclude_key = {"author": "authorIds", "tag": "tagIds", "series": "seriesIds", "language": "language"}[entity]
-    where, params = build_book_where(filters, exclude=exclude_key)
-
-    db = get_db()
-
-    if entity == "author":
-        sql = f"""
-            SELECT a.id, a.name, COUNT(DISTINCT b.id) as count
-            FROM authors a JOIN book_authors ba ON a.id = ba.author_id JOIN books b ON ba.book_id = b.id
-            {where} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
-        """
-    elif entity == "tag":
-        sql = f"""
-            SELECT t.id, t.name, COUNT(DISTINCT b.id) as count
-            FROM tags t JOIN book_tags bt ON t.id = bt.tag_id JOIN books b ON bt.book_id = b.id
-            {where} GROUP BY t.id ORDER BY t.name COLLATE NOCASE
-        """
-    elif entity == "series":
-        sql = f"""
-            SELECT s.id, s.name, COUNT(DISTINCT b.id) as count
-            FROM series s JOIN books b ON b.series_id = s.id
-            {where} GROUP BY s.id ORDER BY s.name COLLATE NOCASE
-        """
-    elif entity == "language":
-        lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"
-        sql = f"""
-            SELECT b.language as name, COUNT(*) as count FROM books b
-            {lang_where} GROUP BY b.language ORDER BY b.language COLLATE NOCASE
-        """
-    else:
-        raise ValueError(f"Unknown entity: {entity}")
-
-    return dicts_from_rows(db.execute(sql, params).fetchall())

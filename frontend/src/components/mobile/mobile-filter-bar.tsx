@@ -278,7 +278,6 @@ export default function MobileFilterBar({
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {option.name}
                       </span>
-                      {option.count != null && <span style={{ fontSize: 11, color: colors.textDim }}>{option.count}</span>}
                     </label>
                   );
                 }),

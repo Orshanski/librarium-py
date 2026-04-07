@@ -4,7 +4,6 @@ import { colors } from "../theme";
 export interface FilterOption {
   id?: number;
   name: string;
-  count?: number;
 }
 
 export interface FilterConfig {
@@ -230,7 +229,6 @@ export default function FilterBar({
                         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {opt.name}
                         </span>
-                        {opt.count != null && <span style={{ fontSize: 11, color: colors.textDim }}>{opt.count}</span>}
                       </label>
                     );
                   })}
