@@ -18,13 +18,6 @@ class HiddenBody(BaseModel):
     isHidden: bool
 
 
-@router.get("/api/books/{book_id}/status")
-def get_status(book_id: int, request: Request):
-    user = get_current_user(request)
-    ub = dal.get_user_book(user["userId"], book_id)
-    return ub or {"is_read": 0, "is_hidden": 0, "rating": None}
-
-
 @router.put("/api/books/{book_id}/rating")
 def set_rating(book_id: int, body: RatingBody, request: Request):
     if body.rating is not None and not (1 <= body.rating <= 5):

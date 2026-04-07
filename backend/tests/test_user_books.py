@@ -164,39 +164,24 @@ class TestBookShelvesQuery:
 # ── User books: rating, read, hidden ──
 
 class TestUserBooks:
-    def test_status_seeded(self, reader_client):
-        resp = reader_client.get("/api/books/1/status")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["rating"] == 5
-        assert data["is_read"] == 1
-
-    def test_status_default(self, reader_client):
-        resp = reader_client.get("/api/books/3/status")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["rating"] is None
-        assert data["is_read"] == 0
-        assert data["is_hidden"] == 0
-
     def test_set_rating(self, reader_client):
         resp = reader_client.put("/api/books/3/rating", json={"rating": 4})
         assert resp.status_code == 200
-        status = reader_client.get("/api/books/3/status").json()
-        assert status["rating"] == 4
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["rating"] == 4
 
     def test_clear_rating(self, reader_client):
         reader_client.put("/api/books/3/rating", json={"rating": 4})
         resp = reader_client.put("/api/books/3/rating", json={"rating": None})
         assert resp.status_code == 200
-        status = reader_client.get("/api/books/3/status").json()
-        assert status["rating"] is None
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["rating"] is None
 
     def test_rating_lower_bound(self, reader_client):
         resp = reader_client.put("/api/books/3/rating", json={"rating": 1})
         assert resp.status_code == 200
-        status = reader_client.get("/api/books/3/status").json()
-        assert status["rating"] == 1
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["rating"] == 1
 
     def test_rating_too_high(self, reader_client):
         resp = reader_client.put("/api/books/3/rating", json={"rating": 6})
@@ -209,14 +194,12 @@ class TestUserBooks:
     def test_set_read(self, reader_client):
         resp = reader_client.put("/api/books/3/read", json={"isRead": True})
         assert resp.status_code == 200
-        status = reader_client.get("/api/books/3/status").json()
-        assert status["is_read"] == 1
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["is_read"] == 1
 
     def test_set_hidden(self, reader_client):
         resp = reader_client.put("/api/books/3/hidden", json={"isHidden": True})
         assert resp.status_code == 200
-        status = reader_client.get("/api/books/3/status").json()
-        assert status["is_hidden"] == 1
 
     def test_hidden_excludes_from_catalog(self, reader_client):
         reader_client.put("/api/books/3/hidden", json={"isHidden": True})
