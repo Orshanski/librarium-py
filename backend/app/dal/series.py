@@ -1,27 +1,18 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
+from .filters import build_book_where, get_filter_options
 
 
 def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
     db = get_db()
-    clauses, params = [], {}
-
+    filters: dict = {}
     if author_ids:
-        ph = ",".join(f":a{i}" for i in range(len(author_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))")
-        for i, v in enumerate(author_ids):
-            params[f"a{i}"] = v
-
+        filters["authorIds"] = author_ids
     if tag_ids:
-        ph = ",".join(f":t{i}" for i in range(len(tag_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))")
-        for i, v in enumerate(tag_ids):
-            params[f"t{i}"] = v
-
+        filters["tagIds"] = tag_ids
     if language:
-        clauses.append("b.language = :lang")
-        params["lang"] = language
+        filters["language"] = language
 
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    where, params = build_book_where(filters)
 
     series = dicts_from_rows(db.execute(f"""
         SELECT s.id, s.name, s.sort_name, COUNT(DISTINCT b.id) as book_count,
@@ -33,7 +24,14 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
         {where} GROUP BY s.id
     """, params).fetchall())
 
-    return {"series": series}
+    return {
+        "series": series,
+        "filterOptions": {
+            "authors": get_filter_options(filters, "author"),
+            "tags": get_filter_options(filters, "tag"),
+            "languages": get_filter_options(filters, "language"),
+        },
+    }
 
 
 def get_series_by_id(series_id: int):
@@ -63,6 +61,8 @@ def get_series_by_id(series_id: int):
     """, {"id": series_id}).fetchall())
 
     return {"series": s, "books": books}
+
+
 
 
 def get_or_create_series(name: str) -> int:

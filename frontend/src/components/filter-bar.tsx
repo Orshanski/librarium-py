@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { colors } from "../theme";
 
 export interface FilterOption {
-  value: string;
-  count: number;
-  label?: string;
+  id?: number;
+  name: string;
+}
+
+export function optVal(opt: FilterOption): string {
+  return opt.id != null ? String(opt.id) : opt.name;
 }
 
 export interface FilterConfig {
@@ -75,8 +78,8 @@ export default function FilterBar({
   const hasAnySelection = filters.some((f) => (selected[f.key] || []).length > 0);
 
   function getLabel(f: FilterConfig, val: string): string {
-    const opt = f.options.find((o) => o.value === val);
-    return opt?.label || opt?.value || val;
+    const opt = f.options.find((o) => optVal(o) === val);
+    return opt?.name || val;
   }
 
   function chipLabel(f: FilterConfig): string {
@@ -175,7 +178,7 @@ export default function FilterBar({
                         setHighlighted((h) => Math.max(h - 1, 0));
                       } else if (e.key === "Enter" && highlighted >= 0 && highlighted < opts.length) {
                         e.preventDefault();
-                        toggleOption(f.key, opts[highlighted].value);
+                        toggleOption(f.key, optVal(opts[highlighted]));
                         setHighlighted(-1);
                       } else if (e.key === "Escape") {
                         setOpenKey(null);
@@ -202,11 +205,12 @@ export default function FilterBar({
                 {/* Options */}
                 <div ref={listRef} style={{ overflow: "auto", flex: 1, padding: "0 4px 8px" }}>
                   {sortedOptions(f.options, selected[f.key] || [], search).map((opt, idx) => {
-                    const isChecked = (selected[f.key] || []).includes(opt.value);
+                    const val = optVal(opt);
+                    const isChecked = (selected[f.key] || []).includes(val);
                     const isHighlighted = idx === highlighted;
                     return (
                       <label
-                        key={opt.value}
+                        key={val}
                         onMouseEnter={() => setHighlighted(idx)}
                         style={{
                           display: "flex",
@@ -223,13 +227,12 @@ export default function FilterBar({
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => toggleOption(f.key, opt.value)}
+                          onChange={() => toggleOption(f.key, val)}
                           style={{ accentColor: colors.accent }}
                         />
                         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {opt.label || opt.value}
+                          {opt.name}
                         </span>
-                        <span style={{ fontSize: 11, color: colors.textDim }}>{opt.count}</span>
                       </label>
                     );
                   })}
@@ -263,10 +266,10 @@ export default function FilterBar({
 
 function sortedOptions(options: FilterOption[], selected: string[], search: string): FilterOption[] {
   const q = search.toLowerCase();
-  const filtered = q ? options.filter((o) => (o.label || o.value).toLowerCase().includes(q)) : options;
+  const filtered = q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
   return [...filtered].sort((a, b) => {
-    const aSelected = selected.includes(a.value) ? 0 : 1;
-    const bSelected = selected.includes(b.value) ? 0 : 1;
+    const aSelected = selected.includes(optVal(a)) ? 0 : 1;
+    const bSelected = selected.includes(optVal(b)) ? 0 : 1;
     if (aSelected !== bSelected) return aSelected - bSelected;
     return 0;
   });

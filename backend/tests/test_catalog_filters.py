@@ -45,41 +45,31 @@ class TestSearch:
         assert data["series"] == []
 
 
-# ── /api/options ──
+# ── Directory endpoints ──
 
-class TestOptions:
-    def test_options_structure(self, reader_client):
-        resp = reader_client.get("/api/options")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert set(data.keys()) == {"authors", "series", "tags", "languages", "publishers"}
-
-    def test_options_tags_have_book_count(self, reader_client):
-        data = reader_client.get("/api/options").json()
+class TestDirectoryEndpoints:
+    def test_tags_directory(self, reader_client):
+        data = reader_client.get("/api/tags").json()
+        assert len(data["tags"]) > 0
         for tag in data["tags"]:
-            assert "book_count" in tag
-            assert tag["book_count"] > 0
+            assert "id" in tag
+            assert "name" in tag
 
-    def test_options_authors_no_book_count(self, reader_client):
-        data = reader_client.get("/api/options").json()
-        for author in data["authors"]:
-            assert "id" in author
-            assert "name" in author
-            assert "book_count" not in author
+    def test_tags_cloud(self, reader_client):
+        data = reader_client.get("/api/tags/cloud").json()
+        assert len(data["tags"]) > 0
+        assert "book_count" in data["tags"][0]
 
-    def test_options_series_no_book_count(self, reader_client):
-        data = reader_client.get("/api/options").json()
-        for s in data["series"]:
-            assert "id" in s
-            assert "name" in s
-            assert "book_count" not in s
+    def test_tags_cloud_top(self, reader_client):
+        data = reader_client.get("/api/tags/cloud", params={"top": "1"}).json()
+        assert len(data["tags"]) == 1
 
-    def test_options_languages_exact(self, reader_client):
-        data = reader_client.get("/api/options").json()
-        assert set(data["languages"]) == {"ru", "en"}
+    def test_languages(self, reader_client):
+        data = reader_client.get("/api/languages").json()
+        assert {l["name"] for l in data["languages"]} == {"ru", "en"}
 
-    def test_options_publishers(self, reader_client):
-        data = reader_client.get("/api/options").json()
+    def test_publishers(self, reader_client):
+        data = reader_client.get("/api/publishers").json()
         assert "Test Publisher" in data["publishers"]
         assert "Cover Press" in data["publishers"]
 
@@ -128,15 +118,13 @@ class TestBooksFilters:
         fo = data["filterOptions"]
         assert set(fo.keys()) == {"authors", "series", "tags", "languages"}
 
-    def test_filter_options_recalculated(self, reader_client):
-        data = reader_client.get("/api/books", params={"authorIds": "1"}).json()
-        fo = data["filterOptions"]
-        series_ids = {s["id"] for s in fo["series"]}
-        assert series_ids == {1}
-        tag_ids = {t["id"] for t in fo["tags"]}
-        assert tag_ids == {1}
-        lang_names = {l["name"] for l in fo["languages"]}
-        assert lang_names == {"ru", "en"}
+    def test_filter_options_dependent(self, reader_client):
+        """filterOptions narrow when filters applied (cross-dimension)."""
+        all_data = reader_client.get("/api/books").json()
+        filtered = reader_client.get("/api/books", params={"authorIds": "1"}).json()
+        all_tag_ids = {t["id"] for t in all_data["filterOptions"]["tags"]}
+        filt_tag_ids = {t["id"] for t in filtered["filterOptions"]["tags"]}
+        assert filt_tag_ids <= all_tag_ids
 
 
 # ── /api/books sorting ──
@@ -184,11 +172,9 @@ class TestAuthorsFilters:
         assert "languages" in fo
         assert len(fo["tags"]) > 0
         assert len(fo["languages"]) > 0
-        # authors filterOptions uses value/label keys (not id/name)
         tag_opt = fo["tags"][0]
-        assert "value" in tag_opt
-        assert "label" in tag_opt
-        assert "count" in tag_opt
+        assert "id" in tag_opt
+        assert "name" in tag_opt
 
 
 # ── /api/series filters ──
@@ -213,6 +199,15 @@ class TestSeriesFilters:
         ids = {s["id"] for s in data["series"]}
         assert ids == {1}
 
+    def test_filter_options_present(self, reader_client):
+        data = reader_client.get("/api/series").json()
+        fo = data["filterOptions"]
+        assert "authors" in fo
+        assert "tags" in fo
+        assert "languages" in fo
+        assert len(fo["authors"]) > 0
+        assert len(fo["tags"]) > 0
+
     def test_series_detail_books_have_series_name(self, reader_client):
         data = reader_client.get("/api/series/1").json()
         books = data["books"]
@@ -229,9 +224,10 @@ class TestTags:
         data = reader_client.get("/api/tags").json()
         assert len(data["tags"]) == 2
 
-    def test_top_1(self, reader_client):
-        data = reader_client.get("/api/tags", params={"top": "1"}).json()
-        assert len(data["tags"]) == 1
+    def test_tags_directory_no_book_count(self, reader_client):
+        data = reader_client.get("/api/tags").json()
+        for tag in data["tags"]:
+            assert "book_count" not in tag
 
     def test_tag_detail_books(self, reader_client):
         data = reader_client.get("/api/tags/1").json()
@@ -252,6 +248,13 @@ class TestTags:
         data = reader_client.get("/api/tags/1", params={"language": "en"}).json()
         ids = {b["id"] for b in data["books"]}
         assert ids == {3, 5}
+
+    def test_tag_detail_filter_options_present(self, reader_client):
+        data = reader_client.get("/api/tags/1").json()
+        fo = data["filterOptions"]
+        assert "authors" in fo
+        assert "series" in fo
+        assert "languages" in fo
 
     def test_tag_not_found(self, reader_client):
         resp = reader_client.get("/api/tags/999")

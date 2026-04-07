@@ -10,17 +10,11 @@ import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
-interface FilterOption {
-  id: number;
-  name: string;
-  count: number;
-}
-
 interface FilterOptions {
-  authors: FilterOption[];
-  series: FilterOption[];
-  tags: FilterOption[];
-  languages: { name: string; count: number }[];
+  authors: { id: number; name: string }[];
+  series: { id: number; name: string }[];
+  tags: { id: number; name: string }[];
+  languages: { name: string }[];
 }
 
 const INITIAL_SIZE = 30;
@@ -45,8 +39,6 @@ function saveCache(books: RawBook[], filterOptions: FilterOptions | null, hasMor
       paramsKey,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", "/");
   } catch {}
 }
 
@@ -99,6 +91,8 @@ export default function CatalogPage() {
 
   // Load: restore from cache or fetch fresh
   useEffect(() => {
+    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
+    saveBookOrigin("Каталог", "/");
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);
@@ -204,10 +198,10 @@ export default function CatalogPage() {
 
   const filterConfigs: FilterConfig[] = filterOptions
     ? [
-        { key: "author", label: "Автор", options: filterOptions.authors.map((a) => ({ value: String(a.id), count: a.count, label: a.name })) },
-        { key: "series", label: "Серия", options: filterOptions.series.map((s) => ({ value: String(s.id), count: s.count, label: s.name })) },
-        { key: "genre", label: "Жанр", options: filterOptions.tags.map((t) => ({ value: String(t.id), count: t.count, label: t.name })) },
-        { key: "language", label: "Язык", options: filterOptions.languages.map((l) => ({ value: l.name, count: l.count })) },
+        { key: "author", label: "Автор", options: filterOptions.authors },
+        { key: "series", label: "Серия", options: filterOptions.series },
+        { key: "genre", label: "Жанр", options: filterOptions.tags },
+        { key: "language", label: "Язык", options: filterOptions.languages },
       ]
     : [];
 

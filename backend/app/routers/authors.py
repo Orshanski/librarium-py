@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..dal import authors as dal
+from .params import parse_ids
 
 log = logging.getLogger("librarium.authors")
 router = APIRouter(prefix="/api/authors", tags=["authors"])
@@ -12,8 +13,7 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 @router.get("")
 def list_authors(request: Request, tagIds: str = "", language: str = ""):
     get_current_user(request)
-    tag_ids = [int(x) for x in tagIds.split(",") if x.strip().isdigit()] if tagIds else None
-    return dal.get_authors(tag_ids, language or None)
+    return dal.get_authors(parse_ids(tagIds), language or None)
 
 
 @router.get("/{author_id}")

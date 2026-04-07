@@ -6,7 +6,7 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
-import { FilterConfig } from "../components/filter-bar";
+import { FilterConfig, FilterOption } from "../components/filter-bar";
 import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
@@ -19,52 +19,21 @@ interface TagData {
   book_count: number;
 }
 
-function applyFilters(allBooks: Book[], selected: Record<string, string[]>, excludeKey?: string): Book[] {
-  return allBooks.filter((book) => {
-    for (const [key, values] of Object.entries(selected)) {
-      if (key === excludeKey || values.length === 0) continue;
-      if (key === "author" && !book.authors.some((a: string) => values.includes(a))) return false;
-      if (key === "series" && (!book.series || !values.includes(book.series))) return false;
-      if (key === "language" && !values.includes(book.language)) return false;
-    }
-    return true;
-  });
+interface FilterOptions {
+  authors: FilterOption[];
+  series: FilterOption[];
+  languages: FilterOption[];
 }
-
-function buildOptions(filteredBooks: Book[], key: string): { value: string; count: number }[] {
-  const map = new Map<string, number>();
-  for (const book of filteredBooks) {
-    if (key === "author") {
-      for (const a of book.authors) map.set(a, (map.get(a) || 0) + 1);
-    } else if (key === "series") {
-      if (book.series) map.set(book.series, (map.get(book.series) || 0) + 1);
-    } else if (key === "language") {
-      map.set(book.language, (map.get(book.language) || 0) + 1);
-    }
-  }
-  return Array.from(map.entries())
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => b.count - a.count);
-}
-
-const filterKeys = [
-  { key: "author", label: "Автор" },
-  { key: "series", label: "Серия" },
-  { key: "language", label: "Язык" },
-];
 
 function cacheKey(tagId: number) {
   return `librarium_tag_${tagId}`;
 }
 
-function saveCache(tagId: number, tag: TagData, tagBooks: Book[], selected: Record<string, string[]>, sort: string) {
+function saveCache(tagId: number, tag: TagData, books: Book[], filterOptions: FilterOptions | null, selected: Record<string, string[]>, sort: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
-      tag,
-      tagBooks,
-      selected,
-      sort,
+      tag, books, filterOptions, selected, sort,
       scrollTop: main?.scrollTop || 0,
     }));
     saveBookOrigin(tag.name, `/tags/${tagId}`);
@@ -76,7 +45,7 @@ function loadCache(tagId: number) {
     const raw = sessionStorage.getItem(cacheKey(tagId));
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data.tag || !data.tagBooks?.length) return null;
+    if (!data.tag || !data.books?.length) return null;
     return data;
   } catch {
     return null;
@@ -90,7 +59,8 @@ export default function TagPage() {
   const { user } = useAuth();
 
   const [tag, setTag] = useState<TagData | null>(null);
-  const [tagBooks, setTagBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
@@ -98,6 +68,12 @@ export default function TagPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   const frozenRef = useRef(false);
+  const restoredRef = useRef(false);
+
+  const authorFilter = selected.author || [];
+  const seriesFilter = selected.series || [];
+  const langFilter = selected.language || [];
+  const paramsKey = `${tagId}|${authorFilter.join(",")}|${seriesFilter.join(",")}|${langFilter.join(",")}`;
 
   useEffect(() => {
     if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
@@ -114,10 +90,12 @@ export default function TagPage() {
     const cached = loadCache(tagId);
     if (cached) {
       setTag(cached.tag);
-      setTagBooks(cached.tagBooks);
+      setBooks(cached.books);
+      setFilterOptions(cached.filterOptions || null);
       if (cached.selected) setSelected(cached.selected);
       if (cached.sort) setSort(cached.sort);
       setLoading(false);
+      restoredRef.current = true;
       frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -126,10 +104,26 @@ export default function TagPage() {
           setTimeout(() => { frozenRef.current = false; }, 200);
         });
       });
+    }
+  }, [tagId]);
+
+  // Fetch on mount or filter change
+  useEffect(() => {
+    if (restoredRef.current) {
+      restoredRef.current = false;
       return;
     }
+    if (isNaN(tagId)) return;
 
-    fetch(`/api/tags/${tagId}`)
+    setLoading(true);
+    sessionStorage.removeItem(cacheKey(tagId));
+
+    const params = new URLSearchParams();
+    if (authorFilter.length > 0) params.set("authorIds", authorFilter.join(","));
+    if (seriesFilter.length > 0) params.set("seriesIds", seriesFilter.join(","));
+    if (langFilter.length > 0) params.set("language", langFilter[0]);
+
+    fetch(`/api/tags/${tagId}?${params.toString()}`)
       .then((r) => {
         if (!r.ok) {
           setNotFound(true);
@@ -140,48 +134,49 @@ export default function TagPage() {
       .then((data) => {
         if (!data) return;
         setTag(data.tag);
-        setTagBooks(data.books.map(toBook));
+        setBooks(data.books.map(toBook));
+        setFilterOptions(data.filterOptions || null);
       })
-      .catch(() => setNotFound(true))
+      .catch((err) => console.warn("Failed to fetch tag:", err))
       .finally(() => setLoading(false));
-  }, [tagId]);
+  }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ tag, tagBooks, selected, sort });
-  stateRef.current = { tag, tagBooks, selected, sort };
+  const stateRef = useRef({ tag, books, filterOptions, selected, sort });
+  stateRef.current = { tag, books, filterOptions, selected, sort };
 
   useEffect(() => {
-    if (tag && tagBooks.length > 0) saveCache(tagId, tag, tagBooks, selected, sort);
-  }, [tag, tagBooks, selected, sort, tagId]);
+    if (tag && books.length > 0) saveCache(tagId, tag, books, filterOptions, selected, sort);
+  }, [tag, books, filterOptions, selected, sort, tagId]);
 
-  // Scroll listener — saves cache on scroll
+  // Scroll listener
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
 
     function onScroll() {
       const s = stateRef.current;
-      if (s.tag) saveCache(tagId, s.tag, s.tagBooks, s.selected, s.sort);
+      if (s.tag) saveCache(tagId, s.tag, s.books, s.filterOptions, s.selected, s.sort);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
       const s = stateRef.current;
-      if (s.tag && s.tagBooks.length > 0) saveCache(tagId, s.tag, s.tagBooks, s.selected, s.sort);
+      if (s.tag && s.books.length > 0) saveCache(tagId, s.tag, s.books, s.filterOptions, s.selected, s.sort);
     };
   }, [tagId]);
 
-  const filterConfigs: FilterConfig[] = useMemo(() => {
-    return filterKeys.map(({ key, label }) => ({
-      key,
-      label,
-      options: buildOptions(applyFilters(tagBooks, selected, key), key),
-    }));
-  }, [selected, tagBooks]);
+  const filterConfigs: FilterConfig[] = filterOptions
+    ? [
+        { key: "author", label: "Автор", options: filterOptions.authors },
+        { key: "series", label: "Серия", options: filterOptions.series },
+        { key: "language", label: "Язык", options: filterOptions.languages },
+      ]
+    : [];
 
-  const filtered = useMemo(() => {
-    const books = applyFilters(tagBooks, selected);
+  // Client-side sort (books already filtered by backend)
+  const sorted = useMemo(() => {
     switch (sort) {
       case "title_asc": return [...books].sort((a, b) => a.title.localeCompare(b.title, "ru"));
       case "title_desc": return [...books].sort((a, b) => b.title.localeCompare(a.title, "ru"));
@@ -189,7 +184,7 @@ export default function TagPage() {
       case "rating_desc": return [...books].sort((a, b) => (b.rating || 0) - (a.rating || 0));
       default: return books;
     }
-  }, [selected, tagBooks, sort]);
+  }, [books, sort]);
 
   const sortOptions = [
     { key: "added_desc", label: "По дате добавления" },
@@ -204,7 +199,7 @@ export default function TagPage() {
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
 
-  const bookIds = useMemo(() => filtered.map((b) => b.id), [filtered]);
+  const bookIds = useMemo(() => sorted.map((b) => b.id), [sorted]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
   if (loading) {
@@ -276,10 +271,10 @@ export default function TagPage() {
       )}
 
       <BookGrid>
-        {filtered.map((book) => (
+        {sorted.map((book) => (
           <BookCard key={book.id} book={book} isCached={cachedBookIds.has(book.id)} />
         ))}
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
             Книги не найдены
           </div>

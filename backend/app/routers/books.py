@@ -10,6 +10,7 @@ log = logging.getLogger("librarium.books")
 from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
 from ..database import get_db
 from ..dal import books as dal
+from .params import parse_ids
 from ..dal.books import get_book_by_id
 from ..pdf_linearize import linearize_pdf_in_place
 
@@ -34,13 +35,13 @@ def list_books(request: Request, sort: str = "added_desc", cursor: int = 0, page
                authorIds: str = "", tagIds: str = "", seriesIds: str = "", language: str = ""):
     pageSize = min(pageSize, 100)
     user = get_current_user(request)
-    filters = {"userId": user["userId"]}
-    if authorIds:
-        filters["authorIds"] = [int(x) for x in authorIds.split(",") if x.strip().isdigit()]
-    if tagIds:
-        filters["tagIds"] = [int(x) for x in tagIds.split(",") if x.strip().isdigit()]
-    if seriesIds:
-        filters["seriesIds"] = [int(x) for x in seriesIds.split(",") if x.strip().isdigit()]
+    filters: dict = {"userId": user["userId"]}
+    if ids := parse_ids(authorIds):
+        filters["authorIds"] = ids
+    if ids := parse_ids(tagIds):
+        filters["tagIds"] = ids
+    if ids := parse_ids(seriesIds):
+        filters["seriesIds"] = ids
     if language:
         filters["language"] = language
     return dal.get_books(filters, sort, cursor, pageSize)

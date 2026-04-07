@@ -12,12 +12,6 @@ interface EntityAdminPanelProps {
   onDeleted: () => void;
 }
 
-interface SearchResult {
-  id: number;
-  name: string;
-  book_count: number;
-}
-
 const panelStyle: React.CSSProperties = {
   maxWidth: 520,
   background: "#252840",
@@ -119,20 +113,17 @@ export default function EntityAdminPanel({
   const label = entityType === "author" ? "автора" : "серию";
   const labelCap = entityType === "author" ? "Автор" : "Серия";
 
-  const [allEntities, setAllEntities] = useState<SearchResult[]>([]);
+  const [allEntities, setAllEntities] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
-    fetch("/api/options", { credentials: "include" })
+    const endpoint = entityType === "author" ? "/api/authors" : "/api/series";
+    fetch(endpoint, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         const list = (entityType === "author" ? data.authors : data.series) || [];
-        setAllEntities(list.filter((e: any) => e.id !== entityId).map((e: any) => ({
-          id: e.id,
-          name: e.name,
-          book_count: e.book_count || 0,
-        })));
+        setAllEntities(list.filter((e: { id: number }) => e.id !== entityId));
       })
-      .catch((err) => console.warn(`Failed to fetch ${entityType} list:`, err));
+      .catch((err) => console.warn("Failed to fetch entities:", err));
   }, [entityType, entityId]);
 
   const filtered = searchQuery.length >= 2
@@ -156,7 +147,7 @@ export default function EntityAdminPanel({
     }
   };
 
-  const handleMerge = (source: SearchResult) => {
+  const handleMerge = (source: { id: number; name: string }) => {
     setConfirmAction({
       message: `Все книги "${source.name}" будут перенесены к "${currentName}". Дубликат будет удалён.`,
       label: "Присоединить",
