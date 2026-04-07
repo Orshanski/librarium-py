@@ -55,13 +55,6 @@ def get_author_by_id(author_id: int):
     return {"author": author, "books": books}
 
 
-def get_all_authors():
-    """Author directory: id + name, sorted by sort_name."""
-    db = get_db()
-    return dicts_from_rows(db.execute(
-        "SELECT id, name FROM authors ORDER BY sort_name COLLATE NOCASE"
-    ).fetchall())
-
 
 def _generate_sort_name(name: str) -> str:
     """Generate sort name by inverting 'First Last' -> 'Last, First'."""

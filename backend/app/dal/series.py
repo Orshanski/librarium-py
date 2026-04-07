@@ -63,12 +63,6 @@ def get_series_by_id(series_id: int):
     return {"series": s, "books": books}
 
 
-def get_all_series():
-    """Series directory: id + name, sorted by sort_name."""
-    db = get_db()
-    return dicts_from_rows(db.execute(
-        "SELECT id, name FROM series ORDER BY sort_name COLLATE NOCASE"
-    ).fetchall())
 
 
 def get_or_create_series(name: str) -> int:

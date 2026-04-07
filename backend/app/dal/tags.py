@@ -14,15 +14,6 @@ def get_tag_cloud(top: int | None = None):
     """, params).fetchall())
 
 
-def get_all_tags():
-    """Tag directory: id + name, sorted alphabetically."""
-    db = get_db()
-    return dicts_from_rows(db.execute("""
-        SELECT t.id, t.name
-        FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
-        GROUP BY t.id ORDER BY t.name COLLATE NOCASE
-    """).fetchall())
-
 
 def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
     db = get_db()
