@@ -63,7 +63,8 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request):
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
     data = body.model_dump(exclude_unset=True)
 
@@ -84,7 +85,8 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request):
 @router.post("/{book_id}/files")
 async def upload_file(book_id: int, request: Request, file: UploadFile = File(...)):
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     allowed = {"fb2", "epub", "pdf"}
@@ -140,7 +142,8 @@ def delete_file(book_id: int, request: Request, format: str = ""):
 @router.delete("/{book_id}")
 def delete_book(book_id: int, request: Request):
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
 
     # Delete files from disk
