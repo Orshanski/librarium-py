@@ -128,12 +128,13 @@ class TestBooksFilters:
         fo = data["filterOptions"]
         assert set(fo.keys()) == {"authors", "series", "tags", "languages"}
 
-    def test_filter_options_are_directories(self, reader_client):
-        """filterOptions are full directories (no counts), independent of current filters."""
+    def test_filter_options_dependent(self, reader_client):
+        """filterOptions narrow when filters applied (cross-dimension)."""
         all_data = reader_client.get("/api/books").json()
         filtered = reader_client.get("/api/books", params={"authorIds": "1"}).json()
-        # Same options regardless of filter
-        assert len(all_data["filterOptions"]["authors"]) == len(filtered["filterOptions"]["authors"])
+        all_tag_ids = {t["id"] for t in all_data["filterOptions"]["tags"]}
+        filt_tag_ids = {t["id"] for t in filtered["filterOptions"]["tags"]}
+        assert filt_tag_ids <= all_tag_ids
 
 
 # ── /api/books sorting ──

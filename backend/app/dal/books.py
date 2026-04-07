@@ -1,8 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where
-from .authors import get_all_authors
-from .series import get_all_series
-from .tags import get_all_tags
+from .filters import build_book_where, get_filter_options
 
 
 ORDER = {
@@ -52,10 +49,10 @@ def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     return {
         "books": books,
         "filterOptions": {
-            "authors": get_all_authors(),
-            "series": get_all_series(),
-            "tags": get_all_tags(),
-            "languages": get_all_languages(),
+            "authors": get_filter_options(filters, "author"),
+            "series": get_filter_options(filters, "series"),
+            "tags": get_filter_options(filters, "tag"),
+            "languages": get_filter_options(filters, "language"),
         },
         "hasMore": has_more,
     }

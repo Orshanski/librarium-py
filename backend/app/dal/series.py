@@ -1,5 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where
+from .filters import build_book_where, get_filter_options
 
 
 def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
@@ -24,16 +24,12 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
         {where} GROUP BY s.id
     """, params).fetchall())
 
-    from .authors import get_all_authors
-    from .tags import get_all_tags
-    from .books import get_all_languages
-
     return {
         "series": series,
         "filterOptions": {
-            "authors": get_all_authors(),
-            "tags": get_all_tags(),
-            "languages": get_all_languages(),
+            "authors": get_filter_options(filters, "author"),
+            "tags": get_filter_options(filters, "tag"),
+            "languages": get_filter_options(filters, "language"),
         },
     }
 
