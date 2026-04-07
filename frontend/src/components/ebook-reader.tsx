@@ -319,7 +319,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       style.id = id;
       document.head.appendChild(style);
     }
-    style.textContent = `.footnote-popup h1,.footnote-popup h2,.footnote-popup h3{font-size:1em;margin:0 0 8px 0;color:var(--footnote-accent)}.footnote-popup p{margin:4px 0}`;
+    style.textContent = `.footnote-popup>h1,.footnote-popup>h2,.footnote-popup>h3{font-size:1em;margin:0 0 8px 0;color:var(--footnote-accent)}.footnote-popup>p{margin:4px 0}`;
     return () => { document.getElementById(id)?.remove(); };
   }, []);
 

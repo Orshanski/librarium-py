@@ -12,7 +12,7 @@ function withDefaultHeaders(init?: RequestInit): RequestInit {
   if (CSRF_METHODS.has(method) && !headers.has("X-Requested-With")) {
     headers.set("X-Requested-With", "XMLHttpRequest");
   }
-  return { credentials: "include", ...init, headers };
+  return { ...init, credentials: "include", headers };
 }
 
 export function installFetchCredentials() {
