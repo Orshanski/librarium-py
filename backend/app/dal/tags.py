@@ -99,13 +99,17 @@ def resolve_tag_names(raw_tags: list[str]) -> list[str]:
     if not raw_tags:
         return []
     db = get_db()
+    seen: set[str] = set()
     result = []
     for raw in raw_tags:
         row = db.execute(
             "SELECT t.name FROM tag_mappings m JOIN tags t ON m.tag_id = t.id WHERE m.raw_tag = :raw COLLATE NOCASE",
             {"raw": raw},
         ).fetchone()
-        result.append(row["name"] if row else _capitalize_tag(raw))
+        name = row["name"] if row else _capitalize_tag(raw)
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
     return result
 
 
