@@ -33,12 +33,12 @@ export default function TagsPage() {
   const [allTags, setAllTags] = useState<Tag[]>([]);
 
   useEffect(() => {
-    fetch(`/api/tags?top=${CLOUD_SIZE}`)
+    fetch(`/api/tags/cloud?top=${CLOUD_SIZE}`)
       .then((r) => r.json())
-      .then((data) => setCloudTags(data.tags || data));
+      .then((data) => setCloudTags(data.tags || []));
     fetch("/api/tags")
       .then((r) => r.json())
-      .then((data) => setAllTags(data.tags || data));
+      .then((data) => setAllTags(data.tags || []));
     saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
   }, []);
 
