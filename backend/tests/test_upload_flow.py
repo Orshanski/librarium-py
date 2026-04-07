@@ -93,6 +93,7 @@ def test_create_book_rollback_on_move_failure(client):
     from starlette.testclient import TestClient
     from app.main import app
     no_raise_client = TestClient(app, raise_server_exceptions=False, cookies=client.cookies)
+    no_raise_client.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
     with patch("app.routers.upload.shutil.move", side_effect=OSError("disk full")):
         resp = no_raise_client.post("/api/books/create", json={

@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from starlette.testclient import TestClient
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE_DIR = PROJECT_ROOT / ".test-data-baseline"
@@ -44,9 +45,10 @@ def reset_test_data():
 @pytest.fixture
 def client():
     """FastAPI TestClient."""
-    from starlette.testclient import TestClient
     from app.main import app
-    return TestClient(app)
+    client = TestClient(app)
+    client.headers.update({"X-Requested-With": "XMLHttpRequest"})
+    return client
 
 
 @pytest.fixture

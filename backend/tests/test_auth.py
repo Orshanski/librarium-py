@@ -28,6 +28,16 @@ def test_login_nonexistent_user(client):
     assert resp.status_code == 401
 
 
+def test_login_requires_csrf_header():
+    from starlette.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    resp = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert resp.status_code == 403
+    assert resp.json()["error"] == "Missing required CSRF header"
+
+
 def test_me_authenticated(admin_client):
     resp = admin_client.get("/api/auth/me")
     assert resp.status_code == 200
