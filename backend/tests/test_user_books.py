@@ -200,6 +200,9 @@ class TestUserBooks:
     def test_set_hidden(self, reader_client):
         resp = reader_client.put("/api/books/3/hidden", json={"isHidden": True})
         assert resp.status_code == 200
+        from app.dal.user_books import get_user_book
+        ub = get_user_book(2, 3)  # reader user_id=2
+        assert ub["is_hidden"] == 1
 
     def test_hidden_excludes_from_catalog(self, reader_client):
         reader_client.put("/api/books/3/hidden", json={"isHidden": True})
@@ -213,6 +216,18 @@ class TestUserBooks:
         resp = reader_client.get("/api/books")
         ids = {b["id"] for b in resp.json()["books"]}
         assert 3 in ids
+
+
+class TestBookResponseDefaults:
+    """GET /api/books/{id} returns sensible defaults for books with no user_books row."""
+
+    def test_default_is_read_null(self, reader_client):
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["is_read"] is None or book["is_read"] == 0
+
+    def test_default_rating_null(self, reader_client):
+        book = reader_client.get("/api/books/3").json()["book"]
+        assert book["rating"] is None
 
 
 class TestBookResponseIncludesUserData:

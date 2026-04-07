@@ -36,6 +36,8 @@ export interface RawBook {
   publisher: string | null;
   pub_date: string | null;
   updated_at: string | null;
+  // User-specific fields (from LEFT JOIN user_books)
+  is_read?: number | null;
   // Reading progress fields (present on "reading_now" shelf)
   fraction?: number | null;
   last_format?: string | null;

@@ -56,12 +56,26 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 
 ## Development Process
 
-- **Показывать ВСЕ findings из код-ревью.** Не фильтровать, не помечать "ignored", не предлагать "отложить" самостоятельно. Решение о приоритете — только за Alexey.
+### Порядок разработки (ОБЯЗАТЕЛЬНЫЙ)
+
+1. **Ветка.** Создать feature branch от main.
+2. **План.** Согласовать подход с Alexey (plan mode для нетривиальных задач).
+3. **Тесты.** Написать тесты ПЕРЕД реализацией (TDD).
+4. **Реализация.** Код, прогон тестов.
+5. **Ручное тестирование.** Alexey проверяет руками. Ждать результат.
+6. **Коммит.** Только после одобрения Alexey.
+7. **Код-ревью.** Запустить ревьюера, показать ВСЕ findings.
+8. **Фикс findings.** Исправить все замечания, повторить тесты.
+9. **Мерж.** ТОЛЬКО по явной команде Alexey ("мержи", "мерж", "да").
+10. **Пуш.** ТОЛЬКО по явной команде Alexey. Мерж ≠ пуш, разрешение на каждое действие отдельно.
+
+### Правила
+
+- **Показывать ВСЕ findings из код-ревью.** Не фильтровать, не предлагать "отложить". Решение о приоритете — только за Alexey.
+- **НИКОГДА не мержить/пушить без явного разрешения.** При любой двусмысленности — переспросить.
 - **Never work in main.** Always create a feature branch.
 - **TDD:** tests first, then implementation.
-- **Commit only with user approval**, after manual testing.
 - CI/CD triggers only on push to `main` on GitHub. Local branch work does not deploy.
-- Never push without explicit confirmation.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
