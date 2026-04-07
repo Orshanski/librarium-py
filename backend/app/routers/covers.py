@@ -7,7 +7,7 @@ from PIL import Image
 from ..auth import get_current_user, require_admin
 
 log = logging.getLogger("librarium.covers")
-from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
+from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE, db_path_for
 
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
@@ -78,9 +78,13 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
         os.remove(old)
 
     temp_path = str(UPLOADS_DIR / f"{book_id}-cover.{ext}")
-    content = await file.read()
-    if len(content) > MAX_COVER_SIZE:
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_COVER_SIZE:
         return JSONResponse({"error": "Файл обложки слишком большой"}, status_code=400)
+
+    content = await file.read()
 
     # Validate image before saving
     import io
@@ -146,8 +150,7 @@ def commit_cover(book_id: int, request: Request):
     # Update DB
     db = get_db()
     db.execute("UPDATE books SET cover_path = :cp, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
-               {"cp": f"data/library/{book_id}/cover.{ext}", "id": book_id})
-    db.commit()
+               {"cp": db_path_for(book_id, f"cover.{ext}"), "id": book_id})
 
     # Invalidate thumb
     thumb = str(THUMBS_DIR / f"{book_id}.jpg")

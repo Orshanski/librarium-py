@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import uuid
-import glob
 import shutil
 import zipfile
 from fastapi import APIRouter, Request, UploadFile, File
@@ -13,7 +12,7 @@ from pydantic import BaseModel, Field
 from ..auth import require_admin
 
 log = logging.getLogger("librarium.upload")
-from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE
+from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE, db_path_for
 from ..database import get_db
 from ..parsers import parse_book
 from ..enrichers import enrich_metadata
@@ -150,13 +149,11 @@ def _validate_temp_id(temp_id: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id))
 
 
-def _find_temp_file(temp_id: str, include_cover: bool = False) -> str | None:
+def _find_temp_file(temp_id: str) -> str | None:
     """Find temp file by exact tempId match: {tempId}.{ext}"""
     pattern = re.compile(rf'^{re.escape(temp_id)}\.(\w+)$')
     for f in os.listdir(str(UPLOADS_DIR)):
         if pattern.match(f):
-            if not include_cover and "-cover." in f:
-                continue
             return f
     return None
 
@@ -210,14 +207,12 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
     moved_paths: list[str] = []
 
     try:
-        # Create authors/series/tags without commit
-        author_ids = [get_or_create_author(a.strip(), commit=False)
+        author_ids = [get_or_create_author(a.strip())
                       for a in meta.get("authors", "").split(",") if a.strip()]
-        series_id = get_or_create_series(meta["series"].strip(), commit=False) if meta.get("series", "").strip() else None
-        tag_ids = [get_or_create_tag(t.strip(), commit=False)
+        series_id = get_or_create_series(meta["series"].strip()) if meta.get("series", "").strip() else None
+        tag_ids = [get_or_create_tag(t.strip())
                    for t in meta.get("tags", "").split(",") if t.strip()]
 
-        # Create book without commit
         book_id = create_book({
             "title": title,
             "description": meta.get("description") or None,
@@ -228,7 +223,7 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
             "seriesNumber": series_number,
             "authorIds": author_ids,
             "tagIds": tag_ids,
-        }, commit=False)
+        })
 
         # File operations
         book_dir = str(LIBRARY_DIR / str(book_id))
@@ -245,7 +240,7 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
         file_size = os.path.getsize(dst_file)
         db.execute(
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
+            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size),
         )
 
         # Cover (exact match)
@@ -257,16 +252,14 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
             shutil.move(cover_src, cover_dst)
             moved_paths.append(cover_dst)
             db.execute("UPDATE books SET cover_path = ? WHERE id = ?",
-                       (f"data/library/{book_id}/cover.{cover_ext_name}", book_id))
+                       (db_path_for(book_id, f"cover.{cover_ext_name}"), book_id))
 
         # ISBN
         if meta.get("isbn"):
             db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
                        (book_id, meta["isbn"]))
 
-        db.commit()
     except Exception:
-        db.rollback()
         for path in moved_paths:
             if os.path.exists(path):
                 os.remove(path)
@@ -316,16 +309,14 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
         file_size = os.path.getsize(dst)
         db.execute(
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, f"data/library/{book_id}/book.{ext}", file_size),
+            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size),
         )
-        db.commit()
     except Exception:
-        db.rollback()
         if dst and os.path.exists(dst):
             os.remove(dst)
         raise
 
-    # Clean temp cover AFTER successful commit (exact match)
+    # Clean temp cover AFTER successful request (exact match)
     for f in _find_temp_covers(temp_id):
         os.remove(str(UPLOADS_DIR / f))
 

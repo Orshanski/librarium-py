@@ -85,7 +85,7 @@ export default function CatalogPage() {
   const language = searchParams.get("language") || "";
   const paramsKey = `${sort}|${authorIds}|${seriesIds}|${tagIds}|${language}`;
 
-  function buildApiUrl(cursor: number, size?: number) {
+  const buildApiUrl = useCallback((cursor: number, size?: number) => {
     const params = new URLSearchParams();
     params.set("pageSize", String(size || (cursor === 0 ? INITIAL_SIZE : PAGE_SIZE)));
     params.set("sort", sort);
@@ -95,7 +95,7 @@ export default function CatalogPage() {
     if (tagIds) params.set("tagIds", tagIds);
     if (language) params.set("language", language);
     return `/api/books?${params.toString()}`;
-  }
+  }, [sort, authorIds, seriesIds, tagIds, language]);
 
   // Load: restore from cache or fetch fresh
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function CatalogPage() {
         frozenRef.current = false;
       })
       .catch(() => setLoading(false));
-  }, [paramsKey]);
+  }, [paramsKey, buildApiUrl]);
 
   // Lazy load
   const loadMore = useCallback(() => {
@@ -153,7 +153,7 @@ export default function CatalogPage() {
         setLoadingMore(false);
       })
       .catch(() => setLoadingMore(false));
-  }, [books.length, hasMore, loadingMore, sort, authorIds, seriesIds, tagIds, language]);
+  }, [books.length, hasMore, loadingMore, buildApiUrl]);
 
   // Scroll listener for lazy load + cache save
   useEffect(() => {

@@ -5,6 +5,23 @@ import PageHeader from "../components/page-header";
 import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
 
+interface AdminUser {
+  id: number;
+  username: string;
+  display_name: string | null;
+  email: string | null;
+  role: string;
+}
+
+interface SmtpSettings {
+  app_name?: string;
+  smtp_host?: string;
+  smtp_port?: string;
+  smtp_user?: string;
+  smtp_pass?: string;
+  [key: string]: string | undefined;
+}
+
 // ─── Styles ─────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -78,7 +95,7 @@ function UserCard({
   onSavePassword,
   onDelete,
 }: {
-  user: any;
+  user: AdminUser;
   onSaveName: (id: number, name: string) => Promise<void>;
   onSavePassword: (id: number, pass: string) => Promise<void>;
   onDelete: (id: number) => void;
@@ -236,8 +253,8 @@ function UserCard({
 
 // ─── Main Page ──────────────────────────────────────
 export default function AdminPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({});
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [settings, setSettings] = useState<SmtpSettings>({});
   const [loading, setLoading] = useState(true);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser] = useState({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });

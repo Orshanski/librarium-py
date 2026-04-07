@@ -80,7 +80,7 @@ def _generate_sort_name(name: str) -> str:
     return f"{parts[-1]}, {' '.join(parts[:-1])}"
 
 
-def get_or_create_author(name: str, commit: bool = True) -> int:
+def get_or_create_author(name: str) -> int:
     db = get_db()
     sort_name = _generate_sort_name(name)
     db.execute(
@@ -88,8 +88,6 @@ def get_or_create_author(name: str, commit: bool = True) -> int:
         {"name": name, "sort": sort_name},
     )
     row = db.execute("SELECT id FROM authors WHERE name = :name", {"name": name}).fetchone()
-    if commit:
-        db.commit()
     return row["id"]
 
 
@@ -97,23 +95,17 @@ def rename_author(author_id: int, name: str):
     db = get_db()
     sort_name = _generate_sort_name(name)
     db.execute("UPDATE authors SET name = :name, sort_name = :sort WHERE id = :id", {"name": name, "sort": sort_name, "id": author_id})
-    db.commit()
 
 
 def merge_authors(target_id: int, source_id: int):
     """Переносит книги source → target, удаляет source."""
     db = get_db()
-    try:
-        db.execute("""
-            INSERT OR IGNORE INTO book_authors (book_id, author_id)
-            SELECT book_id, :target FROM book_authors WHERE author_id = :source
-        """, {"target": target_id, "source": source_id})
-        db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id})
-        db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    db.execute("""
+        INSERT OR IGNORE INTO book_authors (book_id, author_id)
+        SELECT book_id, :target FROM book_authors WHERE author_id = :source
+    """, {"target": target_id, "source": source_id})
+    db.execute("DELETE FROM book_authors WHERE author_id = :source", {"source": source_id})
+    db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
 
 
 def delete_author(author_id: int) -> str | None:
@@ -126,7 +118,6 @@ def delete_author(author_id: int) -> str | None:
     if count > 0:
         return "has_books"
     db.execute("DELETE FROM authors WHERE id = :id", {"id": author_id})
-    db.commit()
     return None
 
 

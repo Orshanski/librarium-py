@@ -1,14 +1,13 @@
 import logging
 import os
 import shutil
-from typing import Optional
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 
 log = logging.getLogger("librarium.books")
-from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE
+from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
 from ..database import get_db
 from ..dal import books as dal
 from ..dal.books import get_book_by_id
@@ -18,16 +17,16 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 
 
 class UpdateBookBody(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    language: Optional[str] = None
-    publisher: Optional[str] = None
-    pubDate: Optional[str] = None
-    seriesId: Optional[int | str] = None
-    seriesNumber: Optional[float] = None
-    authorIds: Optional[list[int | str]] = None
-    tagIds: Optional[list[int | str]] = None
-    isbn: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pubDate: str | None = None
+    seriesId: int | str | None = None
+    seriesNumber: float | None = None
+    authorIds: list[int | str] | None = None
+    tagIds: list[int | str] | None = None
+    isbn: str | None = None
 
 
 @router.get("")
@@ -64,7 +63,8 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request):
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
     data = body.model_dump(exclude_unset=True)
 
@@ -85,7 +85,8 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request):
 @router.post("/{book_id}/files")
 async def upload_file(book_id: int, request: Request, file: UploadFile = File(...)):
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     allowed = {"fb2", "epub", "pdf"}
@@ -109,9 +110,8 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
     try:
         db.execute(
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, f"data/library/{book_id}/book.{ext}", os.path.getsize(file_path)),
+            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path)),
         )
-        db.commit()
     except Exception:
         os.remove(file_path)
         raise
@@ -133,7 +133,6 @@ def delete_file(book_id: int, request: Request, format: str = ""):
     if os.path.isfile(file_path):
         os.remove(file_path)
     db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))
-    db.commit()
     log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True}
 
@@ -141,7 +140,8 @@ def delete_file(book_id: int, request: Request, format: str = ""):
 @router.delete("/{book_id}")
 def delete_book(book_id: int, request: Request):
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    db = get_db()
+    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
         return JSONResponse({"error": "Book not found"}, status_code=404)
 
     # Delete files from disk

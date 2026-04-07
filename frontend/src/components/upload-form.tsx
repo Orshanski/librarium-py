@@ -33,6 +33,13 @@ interface BookGroup {
   hasDuplicateFormat: boolean;
 }
 
+interface UploadResponse {
+  tempId: string;
+  format: string;
+  metadata: BookGroup["metadata"];
+  duplicate: BookGroup["duplicate"];
+}
+
 function formatSize(bytes: number): string {
   if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + " MB";
   return Math.round(bytes / 1024) + " KB";
@@ -79,7 +86,7 @@ export default function UploadForm() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const result = await new Promise<any>((resolve, reject) => {
+      const result = await new Promise<UploadResponse>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/upload");
         xhr.withCredentials = true;

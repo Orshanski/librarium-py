@@ -15,6 +15,11 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.sqlite"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
+def db_path_for(book_id: int, filename: str) -> str:
+    """Relative path stored in DB for a book file or cover."""
+    return f"data/library/{book_id}/{filename}"
+
+
 # Ensure directories exist
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)

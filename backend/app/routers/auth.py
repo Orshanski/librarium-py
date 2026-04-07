@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+from collections import defaultdict
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -12,6 +14,22 @@ log = logging.getLogger("librarium.auth")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+_MAX_ATTEMPTS = 5
+_WINDOW_SEC = 300  # 5 minutes
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Returns True if request is allowed, False if rate-limited."""
+    now = time.monotonic()
+    attempts = _login_attempts[ip]
+    _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SEC]
+    return len(_login_attempts[ip]) < _MAX_ATTEMPTS
+
+
+def _record_attempt(ip: str):
+    _login_attempts[ip].append(time.monotonic())
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -20,6 +38,11 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 def login(body: LoginRequest, request: Request):
+    ip = get_client_ip(request)
+    if not _check_rate_limit(ip):
+        log.warning("Login RATE LIMITED ip=%s", ip)
+        raise HTTPException(status_code=429, detail="Too many login attempts, try again later")
+
     db = get_db()
     row = db.execute(
         "SELECT id, username, display_name, email, password_hash, role FROM users WHERE username = ?",
@@ -27,7 +50,8 @@ def login(body: LoginRequest, request: Request):
     ).fetchone()
 
     if not row or not verify_password(body.password, row["password_hash"]):
-        log.warning("Login FAILED user=%s ip=%s", body.username, get_client_ip(request))
+        _record_attempt(ip)
+        log.warning("Login FAILED user=%s ip=%s", body.username, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     log.info("Login OK user=%s ip=%s", row["username"], get_client_ip(request))

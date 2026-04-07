@@ -21,7 +21,7 @@ def get_options(request: Request):
     tags = dicts_from_rows(db.execute("""
         SELECT t.id, t.name, COUNT(bt.book_id) as book_count
         FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
-        GROUP BY t.id ORDER BY book_count DESC
+        GROUP BY t.id ORDER BY t.name COLLATE NOCASE
     """).fetchall())
 
     languages = [r["language"] for r in db.execute(
