@@ -21,7 +21,6 @@ def save_reader_settings(user_id: int, device_type: str, settings: dict):
         VALUES (:uid, :dt, :s)
         ON CONFLICT(user_id, device_type) DO UPDATE SET settings = :s
     """, {"uid": user_id, "dt": device_type, "s": json.dumps(settings)})
-    db.commit()
 
 
 def get_reading_progress(user_id: int, book_id: int) -> dict:
@@ -46,4 +45,3 @@ def save_reading_progress(user_id: int, book_id: int, position: str, last_device
             position = :pos, last_device = :dev, last_format = :fmt, fraction = :frac, last_read_at = :now
     """, {"uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
           "fmt": last_format, "frac": fraction, "now": now})
-    db.commit()

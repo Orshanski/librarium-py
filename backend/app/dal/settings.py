@@ -10,7 +10,6 @@ def get_setting(key: str) -> str | None:
 def set_setting(key: str, value: str | None):
     db = get_db()
     db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (:k, :v)", {"k": key, "v": value})
-    db.commit()
 
 
 def get_all_settings() -> dict:

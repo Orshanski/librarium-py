@@ -112,7 +112,6 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
             (book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path)),
         )
-        db.commit()
     except Exception:
         os.remove(file_path)
         raise
@@ -134,7 +133,6 @@ def delete_file(book_id: int, request: Request, format: str = ""):
     if os.path.isfile(file_path):
         os.remove(file_path)
     db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))
-    db.commit()
     log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True}
 

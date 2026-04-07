@@ -15,7 +15,6 @@ def set_rating(user_id: int, book_id: int, rating: int | None):
         INSERT INTO user_books (user_id, book_id, rating) VALUES (:uid, :bid, :r)
         ON CONFLICT(user_id, book_id) DO UPDATE SET rating = :r
     """, {"uid": user_id, "bid": book_id, "r": rating})
-    db.commit()
 
     # "Лучшее" — динамический фильтр в get_shelf_by_id, shelf_books не используется
 
@@ -26,7 +25,6 @@ def set_read(user_id: int, book_id: int, is_read: bool):
         INSERT INTO user_books (user_id, book_id, is_read) VALUES (:uid, :bid, :r)
         ON CONFLICT(user_id, book_id) DO UPDATE SET is_read = :r
     """, {"uid": user_id, "bid": book_id, "r": 1 if is_read else 0})
-    db.commit()
 
 
 def set_hidden(user_id: int, book_id: int, is_hidden: bool):
@@ -35,4 +33,3 @@ def set_hidden(user_id: int, book_id: int, is_hidden: bool):
         INSERT INTO user_books (user_id, book_id, is_hidden) VALUES (:uid, :bid, :h)
         ON CONFLICT(user_id, book_id) DO UPDATE SET is_hidden = :h
     """, {"uid": user_id, "bid": book_id, "h": 1 if is_hidden else 0})
-    db.commit()

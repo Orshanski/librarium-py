@@ -160,7 +160,7 @@ def _sort_title(title: str) -> str:
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 
-def create_book(data: dict, commit: bool = True) -> int:
+def create_book(data: dict) -> int:
     db = get_db()
     cur = db.execute("""
         INSERT INTO books (title, sort_title, description, language, publisher, pub_date, series_id, series_number, cover_path)
@@ -181,12 +181,10 @@ def create_book(data: dict, commit: bool = True) -> int:
         db.execute("INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)", (book_id, aid))
     for tid in data.get("tagIds", []):
         db.execute("INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)", (book_id, tid))
-    if commit:
-        db.commit()
     return book_id
 
 
-def update_book(book_id: int, data: dict, commit: bool = True):
+def update_book(book_id: int, data: dict):
     db = get_db()
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
@@ -223,14 +221,11 @@ def update_book(book_id: int, data: dict, commit: bool = True):
             db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
                        (book_id, data["isbn"]))
 
-    if commit:
-        db.commit()
 
 
 def delete_book(book_id: int):
     db = get_db()
     db.execute("DELETE FROM books WHERE id = ?", (book_id,))
-    db.commit()
 
 
 def search_books(query: str, limit=50):

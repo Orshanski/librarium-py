@@ -30,7 +30,6 @@ def create_user(username: str, password: str, role="reader", display_name=None, 
         "INSERT INTO users (username, password_hash, role, display_name, email) VALUES (:u, :h, :r, :d, :e)",
         {"u": username, "h": hash_password(password), "r": role, "d": display_name, "e": email},
     )
-    db.commit()
     return cur.lastrowid
 
 
@@ -51,10 +50,8 @@ def update_user(user_id: int, data: dict):
         params["role"] = data["role"]
     if sets:
         db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = :id", params)
-        db.commit()
-
+    
 
 def delete_user(user_id: int):
     db = get_db()
     db.execute("DELETE FROM users WHERE id = :id", {"id": user_id})
-    db.commit()

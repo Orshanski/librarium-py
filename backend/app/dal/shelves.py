@@ -87,32 +87,32 @@ def get_shelf_by_id(shelf_id: int, user_id: int):
 def create_shelf(user_id: int, name: str) -> int:
     db = get_db()
     cur = db.execute("INSERT INTO shelves (name, user_id) VALUES (:n, :uid)", {"n": name, "uid": user_id})
-    db.commit()
+
     return cur.lastrowid
 
 
 def update_shelf(shelf_id: int, name: str):
     db = get_db()
     db.execute("UPDATE shelves SET name = :n WHERE id = :id AND is_system = 0", {"n": name, "id": shelf_id})
-    db.commit()
+
 
 
 def delete_shelf(shelf_id: int):
     db = get_db()
     db.execute("DELETE FROM shelves WHERE id = :id AND is_system = 0", {"id": shelf_id})
-    db.commit()
+
 
 
 def add_book_to_shelf(shelf_id: int, book_id: int):
     db = get_db()
     db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)", {"sid": shelf_id, "bid": book_id})
-    db.commit()
+
 
 
 def remove_book_from_shelf(shelf_id: int, book_id: int):
     db = get_db()
     db.execute("DELETE FROM shelf_books WHERE shelf_id = :sid AND book_id = :bid", {"sid": shelf_id, "bid": book_id})
-    db.commit()
+
 
 
 _SYSTEM_SHELVES = [
@@ -134,4 +134,4 @@ def ensure_system_shelves(user_id: int):
                 "INSERT INTO shelves (name, user_id, is_system, system_code) VALUES (:name, :uid, 1, :code)",
                 {"name": sh["name"], "uid": user_id, "code": sh["system_code"]},
             )
-    db.commit()
+

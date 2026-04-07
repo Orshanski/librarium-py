@@ -65,32 +65,24 @@ def get_series_by_id(series_id: int):
     return {"series": s, "books": books}
 
 
-def get_or_create_series(name: str, commit: bool = True) -> int:
+def get_or_create_series(name: str) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
     row = db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()
-    if commit:
-        db.commit()
     return row["id"]
 
 
 def rename_series(series_id: int, name: str):
     db = get_db()
     db.execute("UPDATE series SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": series_id})
-    db.commit()
 
 
 def merge_series(target_id: int, source_id: int):
     """Переносит книги source → target, удаляет source."""
     db = get_db()
-    try:
-        db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
-                   {"target": target_id, "source": source_id})
-        db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
+               {"target": target_id, "source": source_id})
+    db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
 
 
 def delete_series(series_id: int) -> str | None:
@@ -103,7 +95,6 @@ def delete_series(series_id: int) -> str | None:
     if count > 0:
         return "has_books"
     db.execute("DELETE FROM series WHERE id = :id", {"id": series_id})
-    db.commit()
     return None
 
 

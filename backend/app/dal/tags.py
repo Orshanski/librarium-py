@@ -60,7 +60,7 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None, 
     return {"tag": tag, "books": books}
 
 
-def resolve_raw_tag(raw_tag: str, commit: bool = True) -> int:
+def resolve_raw_tag(raw_tag: str) -> int:
     """Resolve raw genre code to tag_id via tag_mappings.
     If unknown — create tag + mapping."""
     db = get_db()
@@ -70,13 +70,11 @@ def resolve_raw_tag(raw_tag: str, commit: bool = True) -> int:
     ).fetchone()
     if row:
         return row["tag_id"]
-    tag_id = get_or_create_tag(raw_tag, commit=False)
+    tag_id = get_or_create_tag(raw_tag)
     db.execute(
         "INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (:raw, :tid)",
         {"raw": raw_tag, "tid": tag_id},
     )
-    if commit:
-        db.commit()
     return tag_id
 
 
@@ -123,31 +121,23 @@ def map_tag(tag_id: int, target_name: str) -> dict:
 
     if existing:
         target_id = existing["id"]
-        try:
-            db.execute("""
-                INSERT OR IGNORE INTO book_tags (book_id, tag_id)
-                SELECT book_id, :target FROM book_tags WHERE tag_id = :source
-            """, {"target": target_id, "source": tag_id})
-            db.execute("DELETE FROM book_tags WHERE tag_id = :source", {"source": tag_id})
-            db.execute("UPDATE tag_mappings SET tag_id = :target WHERE tag_id = :source",
-                       {"target": target_id, "source": tag_id})
-            db.execute("DELETE FROM tags WHERE id = :source", {"source": tag_id})
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        db.execute("""
+            INSERT OR IGNORE INTO book_tags (book_id, tag_id)
+            SELECT book_id, :target FROM book_tags WHERE tag_id = :source
+        """, {"target": target_id, "source": tag_id})
+        db.execute("DELETE FROM book_tags WHERE tag_id = :source", {"source": tag_id})
+        db.execute("UPDATE tag_mappings SET tag_id = :target WHERE tag_id = :source",
+                   {"target": target_id, "source": tag_id})
+        db.execute("DELETE FROM tags WHERE id = :source", {"source": tag_id})
         return {"renamed": False, "target_id": target_id}
     else:
         db.execute("UPDATE tags SET name = :name WHERE id = :id",
                    {"name": target_name, "id": tag_id})
-        db.commit()
         return {"renamed": True, "target_id": tag_id}
 
 
-def get_or_create_tag(name: str, commit: bool = True) -> int:
+def get_or_create_tag(name: str) -> int:
     db = get_db()
     db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})
     row = db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()
-    if commit:
-        db.commit()
     return row["id"]

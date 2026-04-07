@@ -151,7 +151,6 @@ def commit_cover(book_id: int, request: Request):
     db = get_db()
     db.execute("UPDATE books SET cover_path = :cp, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
                {"cp": db_path_for(book_id, f"cover.{ext}"), "id": book_id})
-    db.commit()
 
     # Invalidate thumb
     thumb = str(THUMBS_DIR / f"{book_id}.jpg")

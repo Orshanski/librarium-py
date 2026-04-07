@@ -37,7 +37,7 @@ def rollback_if_dirty():
 
 
 def db_session():
-    """FastAPI dependency: ensures clean transaction state per request.
+    """FastAPI dependency: commit on success, rollback on error.
 
     Runs on the same threadpool thread as sync handlers, so it correctly
     accesses the thread-local connection — unlike the async middleware.
@@ -45,9 +45,12 @@ def db_session():
     db = get_db()
     try:
         yield db
-    finally:
+        if db.in_transaction:
+            db.commit()
+    except Exception:
         if db.in_transaction:
             db.rollback()
+        raise
 
 
 def dict_from_row(row: sqlite3.Row | None) -> dict | None:
