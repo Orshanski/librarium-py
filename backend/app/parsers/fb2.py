@@ -47,7 +47,7 @@ def parse_fb2(file_path: str) -> ParsedMetadata:
             except ValueError:
                 pass
 
-    # Genres — raw codes, mapping happens in upload flow via tag_mappings table
+    # Genres
     genres = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:genre/text()", namespaces=NS)
     meta.genres = [g.strip() for g in genres if g.strip()]
 

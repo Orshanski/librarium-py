@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 _LANGUAGE_MAP: dict[str, str] = {
@@ -35,16 +36,32 @@ class ParsedMetadata:
     cover_ext: str | None = None
 
 
-def parse_book(file_path: str, ext: str, original_filename: str = "") -> ParsedMetadata:
+def _resolve_genres(raw_genres: list[str]) -> list[str]:
+    """Resolve raw genre codes to human-readable tag names via tag_mappings."""
+    from ..dal.tags import resolve_tag_names
+    return resolve_tag_names(raw_genres)
+
+
+_PARSERS: dict[str, Callable] = {}
+
+
+def _init_parsers():
+    from .fb2 import parse_fb2
+    from .epub import parse_epub
+    _PARSERS["fb2"] = parse_fb2
+    _PARSERS["epub"] = parse_epub
+
+
+def parse_book(file_path: str, ext: str) -> ParsedMetadata:
+    """Parse book file and resolve genres. For formats without a parser (e.g. PDF),
+    returns minimal metadata with title from filename — enrichers handle the rest."""
     ext = ext.lower().lstrip(".")
-    if ext == "fb2":
-        from .fb2 import parse_fb2
-        return parse_fb2(file_path)
-    elif ext == "epub":
-        from .epub import parse_epub
-        return parse_epub(file_path)
-    elif ext == "pdf":
-        from .pdf import parse_pdf
-        return parse_pdf(file_path, original_filename)
+    if not _PARSERS:
+        _init_parsers()
+    parser = _PARSERS.get(ext)
+    if parser:
+        meta = parser(file_path)
     else:
-        return ParsedMetadata(title=file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0])
+        meta = ParsedMetadata(title=file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    meta.genres = _resolve_genres(meta.genres)
+    return meta

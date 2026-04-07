@@ -1,5 +1,5 @@
 from pathlib import Path
-from app.parsers.pdf_render import render_cover
+from app.enrichers.pdf_render import render_cover
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
