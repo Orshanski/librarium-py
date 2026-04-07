@@ -22,7 +22,7 @@ export default function BookDetail({
   const isMobile = useIsMobile();
   const isAdmin = user?.role === "admin";
   const [rating, setRating] = useState<number | null>(book.rating);
-  const [isRead, setIsRead] = useState(false);
+  const [isRead, setIsRead] = useState(book.isRead);
   const [showShelfMenu, setShowShelfMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
@@ -59,16 +59,6 @@ export default function BookDetail({
     document.addEventListener("pointerdown", handleClick);
     return () => document.removeEventListener("pointerdown", handleClick);
   }, [showShelfMenu]);
-
-  useEffect(() => {
-    fetch(`/api/books/${book.id}/status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.rating !== undefined) setRating(data.rating);
-        setIsRead(!!data.is_read);
-      })
-      .catch((err) => console.warn("Failed to fetch book status:", err));
-  }, [book.id]);
 
   async function saveRating(nextRating: number) {
     const previous = rating;

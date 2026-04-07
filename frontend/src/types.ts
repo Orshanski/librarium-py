@@ -11,6 +11,7 @@ export interface Book {
   seriesNumber: number | null;
   tags: string[];
   rating: number | null; // 1-5
+  isRead: boolean;
   language: string;
   coverPath: string;
   description: string | null;
@@ -35,6 +36,8 @@ export interface RawBook {
   publisher: string | null;
   pub_date: string | null;
   updated_at: string | null;
+  // User-specific fields (from LEFT JOIN user_books)
+  is_read?: number | null;
   // Reading progress fields (present on "reading_now" shelf)
   fraction?: number | null;
   last_format?: string | null;
@@ -58,6 +61,7 @@ export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string |
     seriesNumber: b.series_number ?? null,
     tags: splitCsv(b.tags),
     rating: b.rating ?? null,
+    isRead: !!(b.is_read),
     language: b.language || "",
     coverPath: opts?.fullCover
       ? `/api/covers/${b.id}?full=1&t=${b.updated_at || ""}`
