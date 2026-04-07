@@ -16,3 +16,8 @@ frontend/dist/
 .env
 backend/.env
 backend/scripts/linearize_existing_pdfs.py
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "librarium_py",
+  "project_id": "8ea73f0c-4aae-4c94-b778-dfcfd4999cd4"
+}

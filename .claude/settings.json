@@ -1,16 +1,38 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "PreCompact": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
-            "type": "command",
-            "command": "scripts/security-audit.sh",
-            "timeout": 120,
-            "statusMessage": "Checking security vulnerabilities..."
+            "command": "bd prime",
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "scripts/security-audit.sh",
+            "statusMessage": "Checking security vulnerabilities...",
+            "timeout": 120,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ]
   }
