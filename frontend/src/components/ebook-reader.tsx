@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
@@ -306,9 +307,24 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   }, [bookBlob]);
 
   const theme = THEME_STYLES[settings.theme];
+  const footnotePopupStyle = {
+    "--footnote-accent": theme.accent,
+  } as CSSProperties;
 
   return (
     <>
+      <style>{`
+        .footnote-popup h1,
+        .footnote-popup h2,
+        .footnote-popup h3 {
+          font-size: 1em;
+          margin: 0 0 8px 0;
+          color: var(--footnote-accent);
+        }
+        .footnote-popup p {
+          margin: 4px 0;
+        }
+      `}</style>
       <div
         ref={containerRef}
         style={{
@@ -319,7 +335,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       />
       {footnoteHtml && (
         <div
+          className="footnote-popup"
           style={{
+            ...footnotePopupStyle,
             position: "fixed",
             bottom: 16,
             ...(window.innerWidth > 1000
@@ -338,7 +356,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             fontFamily: settings.fontFamily,
             zIndex: 100,
           }}
-          dangerouslySetInnerHTML={{ __html: `<style>h1,h2,h3{font-size:1em;margin:0 0 8px 0;color:${theme.accent};}p{margin:4px 0;}</style>${footnoteHtml}` }}
+          dangerouslySetInnerHTML={{ __html: footnoteHtml }}
         />
       )}
     </>

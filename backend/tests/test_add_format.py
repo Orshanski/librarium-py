@@ -64,6 +64,7 @@ def test_add_format_rollback_on_move_failure(client):
 
     from app.main import app
     no_raise = TestClient(app, raise_server_exceptions=False, cookies=client.cookies)
+    no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
     with patch("app.routers.upload.shutil.move", side_effect=OSError("disk full")):
         resp = no_raise.post("/api/books/1/add-format", json={"tempId": temp_id})

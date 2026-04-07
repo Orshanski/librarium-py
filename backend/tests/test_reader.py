@@ -95,6 +95,8 @@ class TestReadingProgress:
 
         client1 = TestClient(app)
         client2 = TestClient(app)
+        client1.headers.update({"X-Requested-With": "XMLHttpRequest"})
+        client2.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
         resp = client1.post("/api/auth/login", json={"username": "reader", "password": "reader123"})
         assert resp.status_code == 200
