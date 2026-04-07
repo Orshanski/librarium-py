@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookEditForm from "../components/book-edit-form";
-import { BookEditOptions } from "../components/book-edit-form.types";
+import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.types";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
 
@@ -58,19 +58,19 @@ export default function BookEditPage() {
     })),
   };
 
-  async function handleSave(data: any) {
+  async function handleSave(data: BookSavePayload) {
     // Resolve names to IDs
     const authorIds = splitCsv(data.authors)
       .map((name: string) => {
-        const found = options?.authors?.find((a: any) => a.name === name);
+        const found = options?.authors?.find((a) => a.name === name);
         return found ? found.id : name; // send name if not found — backend will get_or_create
       });
     const tagIds = (data.tags || []).map((name: string) => {
-      const found = options?.tags?.find((t: any) => t.name === name);
+      const found = options?.tags?.find((t) => t.name === name);
       return found ? found.id : name;
     });
     const seriesId = data.series
-      ? options?.series?.find((s: any) => s.name === data.series)?.id || data.series
+      ? options?.series?.find((s) => s.name === data.series)?.id || data.series
       : null;
 
     const body = {

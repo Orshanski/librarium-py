@@ -30,7 +30,7 @@ export default function BookPage() {
               .then((r) => r.json())
               .then((seriesData) => {
                 const sorted = (seriesData.books || []).sort(
-                  (a: any, b: any) => (a.series_number || 0) - (b.series_number || 0)
+                  (a: { series_number?: number }, b: { series_number?: number }) => (a.series_number || 0) - (b.series_number || 0)
                 );
                 setSeriesBooks(sorted);
               });
