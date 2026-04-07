@@ -212,6 +212,24 @@ class TestSeriesFilters:
         ids = {s["id"] for s in data["series"]}
         assert ids == {1}
 
+    def test_filter_options_present(self, reader_client):
+        data = reader_client.get("/api/series").json()
+        fo = data["filterOptions"]
+        assert "authors" in fo
+        assert "tags" in fo
+        assert "languages" in fo
+        assert len(fo["authors"]) > 0
+        assert len(fo["tags"]) > 0
+
+    def test_filter_options_dependent(self, reader_client):
+        """Selecting a tag should narrow author counts."""
+        all_data = reader_client.get("/api/series").json()
+        filtered = reader_client.get("/api/series", params={"tagIds": "2"}).json()
+        all_author_ids = {a["id"] for a in all_data["filterOptions"]["authors"]}
+        filtered_author_ids = {a["id"] for a in filtered["filterOptions"]["authors"]}
+        # Filtered should be subset or equal
+        assert filtered_author_ids <= all_author_ids
+
     def test_series_detail_books_have_series_name(self, reader_client):
         data = reader_client.get("/api/series/1").json()
         books = data["books"]
@@ -251,6 +269,21 @@ class TestTags:
         data = reader_client.get("/api/tags/1", params={"language": "en"}).json()
         ids = {b["id"] for b in data["books"]}
         assert ids == {3, 5}
+
+    def test_tag_detail_filter_options_present(self, reader_client):
+        data = reader_client.get("/api/tags/1").json()
+        fo = data["filterOptions"]
+        assert "authors" in fo
+        assert "series" in fo
+        assert "languages" in fo
+
+    def test_tag_detail_filter_options_dependent(self, reader_client):
+        """Selecting an author should narrow series/languages within tag."""
+        all_data = reader_client.get("/api/tags/1").json()
+        filtered = reader_client.get("/api/tags/1", params={"authorIds": "1"}).json()
+        all_lang_names = {l["name"] for l in all_data["filterOptions"]["languages"]}
+        filt_lang_names = {l["name"] for l in filtered["filterOptions"]["languages"]}
+        assert filt_lang_names <= all_lang_names
 
     def test_tag_not_found(self, reader_client):
         resp = reader_client.get("/api/tags/999")
