@@ -6,7 +6,7 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
-import { FilterConfig } from "../components/filter-bar";
+import { FilterConfig, FilterOption } from "../components/filter-bar";
 import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
@@ -31,7 +31,7 @@ function applyFilters(allBooks: Book[], selected: Record<string, string[]>, excl
   });
 }
 
-function buildOptions(filteredBooks: Book[], key: string): { value: string; count: number }[] {
+function buildOptions(filteredBooks: Book[], key: string): FilterOption[] {
   const map = new Map<string, number>();
   for (const book of filteredBooks) {
     if (key === "author") {
@@ -43,8 +43,8 @@ function buildOptions(filteredBooks: Book[], key: string): { value: string; coun
     }
   }
   return Array.from(map.entries())
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => b.count - a.count);
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
 const filterKeys = [

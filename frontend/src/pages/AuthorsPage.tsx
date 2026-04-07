@@ -138,8 +138,8 @@ export default function AuthorsPage() {
   const filterConfigs: FilterConfig[] = useMemo(() => {
     if (!filterOptions) return [];
     return [
-      { key: "genre", label: "Жанр", options: filterOptions.tags.map((t) => ({ value: String(t.id), count: t.count, label: t.name })) },
-      { key: "language", label: "Язык", options: filterOptions.languages.map((l) => ({ value: l.name, count: l.count })) },
+      { key: "genre", label: "Жанр", options: filterOptions.tags },
+      { key: "language", label: "Язык", options: filterOptions.languages },
     ];
   }, [filterOptions]);
 

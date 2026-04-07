@@ -204,10 +204,10 @@ export default function CatalogPage() {
 
   const filterConfigs: FilterConfig[] = filterOptions
     ? [
-        { key: "author", label: "Автор", options: filterOptions.authors.map((a) => ({ value: String(a.id), count: a.count, label: a.name })) },
-        { key: "series", label: "Серия", options: filterOptions.series.map((s) => ({ value: String(s.id), count: s.count, label: s.name })) },
-        { key: "genre", label: "Жанр", options: filterOptions.tags.map((t) => ({ value: String(t.id), count: t.count, label: t.name })) },
-        { key: "language", label: "Язык", options: filterOptions.languages.map((l) => ({ value: l.name, count: l.count })) },
+        { key: "author", label: "Автор", options: filterOptions.authors },
+        { key: "series", label: "Серия", options: filterOptions.series },
+        { key: "genre", label: "Жанр", options: filterOptions.tags },
+        { key: "language", label: "Язык", options: filterOptions.languages },
       ]
     : [];
 

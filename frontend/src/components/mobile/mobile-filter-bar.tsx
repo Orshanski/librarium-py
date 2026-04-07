@@ -104,9 +104,13 @@ export default function MobileFilterBar({
     setOpenKey(null);
   }
 
+  function optValue(opt: FilterOption): string {
+    return opt.id != null ? String(opt.id) : opt.name;
+  }
+
   function getLabel(filter: FilterConfig, value: string) {
-    const option = filter.options.find((item) => item.value === value);
-    return option?.label || option?.value || value;
+    const option = filter.options.find((item) => optValue(item) === value);
+    return option?.name || value;
   }
 
   function getChipLabel(filter: FilterConfig) {
@@ -221,7 +225,7 @@ export default function MobileFilterBar({
                 }
                 if (e.key === "Enter" && highlighted >= 0 && highlighted < options.length) {
                   e.preventDefault();
-                  toggleOption(filter.key, options[highlighted].value);
+                  toggleOption(filter.key, optValue(options[highlighted]));
                   setHighlighted(-1);
                 }
                 if (e.key === "Escape") {
@@ -250,11 +254,12 @@ export default function MobileFilterBar({
               .filter((filter) => filter.key === openKey)
               .flatMap((filter) =>
                 sortOptions(filter.options, selected[filter.key] || [], search).map((option, index) => {
-                  const isChecked = (selected[filter.key] || []).includes(option.value);
+                  const val = optValue(option);
+                  const isChecked = (selected[filter.key] || []).includes(val);
                   const isHighlighted = index === highlighted;
                   return (
                     <label
-                      key={`${filter.key}-${option.value}`}
+                      key={`${filter.key}-${val}`}
                       onMouseEnter={() => setHighlighted(index)}
                       style={{
                         display: "flex",
@@ -271,13 +276,13 @@ export default function MobileFilterBar({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => toggleOption(filter.key, option.value)}
+                        onChange={() => toggleOption(filter.key, val)}
                         style={{ accentColor: colors.accent }}
                       />
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {option.label || option.value}
+                        {option.name}
                       </span>
-                      <span style={{ fontSize: 11, color: colors.textDim }}>{option.count}</span>
+                      {option.count != null && <span style={{ fontSize: 11, color: colors.textDim }}>{option.count}</span>}
                     </label>
                   );
                 }),
@@ -290,12 +295,16 @@ export default function MobileFilterBar({
   );
 }
 
+function optVal(opt: FilterOption): string {
+  return opt.id != null ? String(opt.id) : opt.name;
+}
+
 function sortOptions(options: FilterOption[], selected: string[], search: string) {
   const q = search.toLowerCase();
-  const filtered = q ? options.filter((option) => (option.label || option.value).toLowerCase().includes(q)) : options;
+  const filtered = q ? options.filter((option) => option.name.toLowerCase().includes(q)) : options;
   return [...filtered].sort((a, b) => {
-    const aSelected = selected.includes(a.value) ? 0 : 1;
-    const bSelected = selected.includes(b.value) ? 0 : 1;
+    const aSelected = selected.includes(optVal(a)) ? 0 : 1;
+    const bSelected = selected.includes(optVal(b)) ? 0 : 1;
     if (aSelected !== bSelected) return aSelected - bSelected;
     return 0;
   });

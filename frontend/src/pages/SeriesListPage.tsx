@@ -138,30 +138,9 @@ export default function SeriesListPage() {
 
   const filterConfigs: FilterConfig[] = options
     ? [
-        {
-          key: "author",
-          label: "Автор",
-          options: (options.authors || []).map((a: any) => ({
-            value: String(a.id),
-            label: a.name,
-          })),
-        },
-        {
-          key: "genre",
-          label: "Жанр",
-          options: (options.tags || []).map((t: any) => ({
-            value: String(t.id),
-            label: t.name,
-            count: t.book_count,
-          })),
-        },
-        {
-          key: "language",
-          label: "Язык",
-          options: (options.languages || []).map((l: string) => ({
-            value: l,
-          })),
-        },
+        { key: "author", label: "Автор", options: options.authors || [] },
+        { key: "genre", label: "Жанр", options: options.tags || [] },
+        { key: "language", label: "Язык", options: (options.languages || []).map((l: string) => ({ name: l })) },
       ]
     : [];
 
