@@ -42,6 +42,25 @@ export default function App() {
   const isReading = location.pathname.match(/^\/book\/\d+\/read\//);
   const showOffline = isPwa && !online && !isReading;
 
+  // Remember reader route for PWA restore after eviction
+  useEffect(() => {
+    if (isReading) {
+      localStorage.setItem("librarium_last_reader", location.pathname);
+    } else {
+      localStorage.removeItem("librarium_last_reader");
+    }
+  }, [location.pathname, isReading]);
+
+  // On PWA startup, restore reader route if evicted
+  useEffect(() => {
+    if (!isPwa) return;
+    const saved = localStorage.getItem("librarium_last_reader");
+    if (saved && !isReading) {
+      navigate(saved, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Track offline→online transition and navigate to catalog
   useEffect(() => {
     if (showOffline) {

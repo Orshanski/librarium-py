@@ -1,5 +1,23 @@
 from dataclasses import dataclass, field
 
+_LANGUAGE_MAP: dict[str, str] = {
+    "ru": "Русский",
+    "русский": "Русский",
+    "en": "English",
+    "english": "English",
+    "fr": "Français",
+    "français": "Français",
+    "pl": "Polski",
+    "polski": "Polski",
+}
+
+
+def normalize_language(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    key = raw.strip().lower().split("-")[0]
+    return _LANGUAGE_MAP.get(key, raw.strip())
+
 
 @dataclass
 class ParsedMetadata:

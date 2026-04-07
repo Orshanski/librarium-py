@@ -2,7 +2,7 @@ import os
 import zipfile
 import logging
 from lxml import etree
-from . import ParsedMetadata
+from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def parse_epub(file_path: str) -> ParsedMetadata:
 
             # Language
             lang = p.xpath("dc:language/text()", namespaces=NS)
-            meta.language = lang[0].split("-")[0].strip() if lang else None
+            meta.language = normalize_language(lang[0]) if lang else None
 
             # Description
             desc = p.xpath("dc:description/text()", namespaces=NS)
