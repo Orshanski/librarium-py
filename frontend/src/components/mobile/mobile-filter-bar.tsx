@@ -297,6 +297,6 @@ function sortOptions(options: FilterOption[], selected: string[], search: string
     const aSelected = selected.includes(a.value) ? 0 : 1;
     const bSelected = selected.includes(b.value) ? 0 : 1;
     if (aSelected !== bSelected) return aSelected - bSelected;
-    return b.count - a.count;
+    return 0;
   });
 }
