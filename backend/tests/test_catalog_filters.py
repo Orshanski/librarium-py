@@ -76,7 +76,7 @@ class TestOptions:
 
     def test_options_languages_exact(self, reader_client):
         data = reader_client.get("/api/options").json()
-        assert set(data["languages"]) == {"ru", "en"}
+        assert {l["name"] for l in data["languages"]} == {"ru", "en"}
 
     def test_options_publishers(self, reader_client):
         data = reader_client.get("/api/options").json()

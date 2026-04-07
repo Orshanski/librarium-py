@@ -95,9 +95,9 @@ def get_book_identifiers(book_id: int):
 
 
 def get_all_languages():
-    """Language directory: sorted alphabetically."""
+    """Language directory: [{name}, ...] sorted alphabetically."""
     db = get_db()
-    return [r["language"] for r in db.execute(
+    return [{"name": r["language"]} for r in db.execute(
         "SELECT DISTINCT language FROM books WHERE language IS NOT NULL ORDER BY language COLLATE NOCASE"
     ).fetchall()]
 

@@ -140,7 +140,7 @@ export default function SeriesListPage() {
     ? [
         { key: "author", label: "Автор", options: options.authors || [] },
         { key: "genre", label: "Жанр", options: options.tags || [] },
-        { key: "language", label: "Язык", options: (options.languages || []).map((l: string) => ({ name: l })) },
+        { key: "language", label: "Язык", options: options.languages || [] },
       ]
     : [];
 
