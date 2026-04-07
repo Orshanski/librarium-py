@@ -8,11 +8,15 @@ import { colors, fonts } from "../theme";
 
 const CLOUD_SIZE = 30;
 
-interface Tag {
+interface CloudTag {
   id: number;
   name: string;
-  code: string | null;
   book_count: number;
+}
+
+interface DirectoryTag {
+  id: number;
+  name: string;
 }
 
 // Stable shuffle based on name — so cloud doesn't jump on re-render
@@ -29,8 +33,8 @@ function shuffled<T extends { name: string }>(arr: T[]): T[] {
 
 export default function TagsPage() {
   const [search, setSearch] = useState("");
-  const [cloudTags, setCloudTags] = useState<Tag[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [cloudTags, setCloudTags] = useState<CloudTag[]>([]);
+  const [allTags, setAllTags] = useState<DirectoryTag[]>([]);
 
   useEffect(() => {
     fetch(`/api/tags/cloud?top=${CLOUD_SIZE}`)
@@ -78,7 +82,7 @@ export default function TagsPage() {
               window.location.href = `/tags/${tag.id}`;
             }
           }}
-          options={[...allTags].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })).map((t) => ({ value: t.name, hint: String(t.book_count) }))}
+          options={allTags.map((t) => ({ value: t.name }))}
           placeholder="Найти жанр..."
         />
       </div>

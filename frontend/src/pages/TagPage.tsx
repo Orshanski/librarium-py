@@ -137,7 +137,7 @@ export default function TagPage() {
         setBooks(data.books.map(toBook));
         setFilterOptions(data.filterOptions || null);
       })
-      .catch(() => {})
+      .catch((err) => console.warn("Failed to fetch tag:", err))
       .finally(() => setLoading(false));
   }, [paramsKey]);
 

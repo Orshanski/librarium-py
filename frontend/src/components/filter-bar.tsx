@@ -6,6 +6,10 @@ export interface FilterOption {
   name: string;
 }
 
+export function optVal(opt: FilterOption): string {
+  return opt.id != null ? String(opt.id) : opt.name;
+}
+
 export interface FilterConfig {
   key: string;
   label: string;
@@ -258,10 +262,6 @@ export default function FilterBar({
       )}
     </div>
   );
-}
-
-function optVal(opt: FilterOption): string {
-  return opt.id != null ? String(opt.id) : opt.name;
 }
 
 function sortedOptions(options: FilterOption[], selected: string[], search: string): FilterOption[] {

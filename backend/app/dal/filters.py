@@ -18,7 +18,8 @@ def build_book_where(
     Args:
         filters: dict with filter keys/values
         exclude: optional key to skip (for cross-dimension filter options)
-        extra_clauses: additional (sql_fragment, params_dict) tuples
+        extra_clauses: additional (sql_fragment, params_dict) tuples.
+            Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.
 
     Returns:
         (where_sql, params) — where_sql includes "WHERE " prefix or is empty string

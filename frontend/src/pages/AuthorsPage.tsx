@@ -19,8 +19,8 @@ interface AuthorRow {
 }
 
 interface FilterOptions {
-  tags: { id: number; name: string; count: number }[];
-  languages: { name: string; count: number }[];
+  tags: { id: number; name: string }[];
+  languages: { name: string }[];
 }
 
 function saveCache(authors: AuthorRow[], filterOptions: FilterOptions | null, selected: Record<string, string[]>) {

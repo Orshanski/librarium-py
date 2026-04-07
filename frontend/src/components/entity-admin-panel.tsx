@@ -123,7 +123,7 @@ export default function EntityAdminPanel({
         const list = (entityType === "author" ? data.authors : data.series) || [];
         setAllEntities(list.filter((e: { id: number }) => e.id !== entityId));
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to fetch entities:", err));
   }, [entityType, entityId]);
 
   const filtered = searchQuery.length >= 2

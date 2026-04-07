@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { colors } from "../../theme";
-import { FilterConfig, FilterOption } from "../filter-bar";
+import { FilterConfig, FilterOption, optVal } from "../filter-bar";
 
 export default function MobileFilterBar({
   filters,
@@ -288,10 +288,6 @@ export default function MobileFilterBar({
       )}
     </div>
   );
-}
-
-function optVal(opt: FilterOption): string {
-  return opt.id != null ? String(opt.id) : opt.name;
 }
 
 function sortOptions(options: FilterOption[], selected: string[], search: string) {
