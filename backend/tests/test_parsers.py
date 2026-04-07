@@ -11,7 +11,7 @@ def test_parse_fb2():
     assert "Test Author" in meta.authors
     assert meta.series == "Test Series"
     assert meta.series_number == 1.0
-    assert meta.language == "ru"
+    assert meta.language == "Русский"
     assert meta.publisher == "Test Publisher"
     assert meta.isbn == "978-0-000-00001-0"
     assert "sf_fantasy" in meta.genres  # raw code, mapping in upload flow
@@ -29,7 +29,7 @@ def test_parse_epub():
     meta = parse_book(str(FIXTURES / "minimal.epub"), "epub")
     assert meta.title == "EPUB Test Book"
     assert "EPUB Author" in meta.authors
-    assert meta.language == "en"
+    assert meta.language == "English"
 
 
 def test_parse_duplicate_same_metadata():
