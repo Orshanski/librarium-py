@@ -88,28 +88,28 @@ def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     author_opts = dicts_from_rows(db.execute(f"""
         SELECT a.id, a.name, COUNT(DISTINCT b.id) as count
         FROM authors a JOIN book_authors ba ON a.id = ba.author_id JOIN books b ON ba.book_id = b.id
-        {aw} GROUP BY a.id ORDER BY count DESC
+        {aw} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
     """, ap).fetchall())
 
     sw, sp = opts("seriesIds")
     series_opts = dicts_from_rows(db.execute(f"""
         SELECT s.id, s.name, COUNT(DISTINCT b.id) as count
         FROM series s JOIN books b ON b.series_id = s.id
-        {sw} GROUP BY s.id ORDER BY count DESC
+        {sw} GROUP BY s.id ORDER BY s.name COLLATE NOCASE
     """, sp).fetchall())
 
     tw, tp = opts("tagIds")
     tag_opts = dicts_from_rows(db.execute(f"""
         SELECT t.id, t.name, COUNT(DISTINCT b.id) as count
         FROM tags t JOIN book_tags bt ON t.id = bt.tag_id JOIN books b ON bt.book_id = b.id
-        {tw} GROUP BY t.id ORDER BY count DESC
+        {tw} GROUP BY t.id ORDER BY t.name COLLATE NOCASE
     """, tp).fetchall())
 
     lw, lp = opts("language")
     lang_where = f"{lw} AND b.language IS NOT NULL" if lw else "WHERE b.language IS NOT NULL"
     lang_opts = dicts_from_rows(db.execute(f"""
         SELECT b.language as name, COUNT(*) as count FROM books b
-        {lang_where} GROUP BY b.language ORDER BY count DESC
+        {lang_where} GROUP BY b.language ORDER BY b.language COLLATE NOCASE
     """, lp).fetchall())
 
     return {

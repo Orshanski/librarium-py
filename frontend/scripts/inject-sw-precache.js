@@ -49,4 +49,10 @@ writeFileSync(SW_PATH, sw);
 // Write version.txt for update detection (fetched by client on navigation)
 writeFileSync(join(DIST, "version.txt"), hash);
 
+// Inject build version into index.html so JS knows its own version
+const INDEX_PATH = join(DIST, "index.html");
+let html = readFileSync(INDEX_PATH, "utf-8");
+html = html.replace("<head>", `<head><script>window.__BUILD_VERSION__="${hash}"</script>`);
+writeFileSync(INDEX_PATH, html);
+
 console.log(`SW precache: ${assets.length} assets, cache=${cacheName}`);
