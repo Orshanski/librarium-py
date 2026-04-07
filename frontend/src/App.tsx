@@ -5,6 +5,7 @@ import Shell from "./components/shell";
 import OfflineShell from "./components/OfflineShell";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useIsPwa } from "./hooks/useIsPwa";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 import CatalogPage from "./pages/CatalogPage";
 import LoginPage from "./pages/LoginPage";
@@ -78,7 +79,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/book/:id/read/:format" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
+      <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
       <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
         <Route path="/" element={<CatalogPage />} />
         <Route path="/book/:id" element={<BookPage />} />
