@@ -137,7 +137,7 @@ export default function TagPage() {
         setBooks(data.books.map(toBook));
         setFilterOptions(data.filterOptions || null);
       })
-      .catch(() => setNotFound(true))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [paramsKey]);
 
