@@ -50,7 +50,7 @@ def update_user(user_id: int, data: dict):
         params["role"] = data["role"]
     if sets:
         db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = :id", params)
-    
+
 
 def delete_user(user_id: int):
     db = get_db()

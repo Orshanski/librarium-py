@@ -74,6 +74,13 @@ def create_user(body: CreateUserBody, request: Request):
 def update_user(user_id: int, body: UpdateUserBody, request: Request):
     user = require_admin(request)
     data = body.model_dump(exclude_none=True)
+    if data.get("role") == "reader":
+        db = get_db()
+        target = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if target and target["role"] == "admin":
+            admin_count = db.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").fetchone()["cnt"]
+            if admin_count <= 1:
+                return JSONResponse({"error": "Нельзя понизить последнего админа"}, status_code=400)
     users_dal.update_user(user_id, data)
     log.info("Updated user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
@@ -97,16 +104,18 @@ def delete_user(user_id: int, request: Request):
 
 # --- Settings ---
 
+_SMTP_PASS_MASK = "••••••"
+
+ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
+
+
 @router.get("/settings")
 def get_settings(request: Request):
     require_admin(request)
     result = settings_dal.get_all_settings()
     if result.get("smtp_pass"):
-        result["smtp_pass"] = "••••••"
+        result["smtp_pass"] = _SMTP_PASS_MASK
     return result
-
-
-ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
 
 
 class UpdateSettingsBody(BaseModel):
@@ -122,7 +131,7 @@ def update_settings(body: UpdateSettingsBody, request: Request):
     user = require_admin(request)
     data = body.model_dump(exclude_none=True)
     # Don't overwrite real password with the mask shown in UI
-    if data.get("smtp_pass") == "••••••":
+    if data.get("smtp_pass") == _SMTP_PASS_MASK:
         del data["smtp_pass"]
     changed = []
     for key, value in data.items():

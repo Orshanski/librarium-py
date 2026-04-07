@@ -24,11 +24,18 @@ def _check_rate_limit(ip: str) -> bool:
     now = time.monotonic()
     attempts = _login_attempts[ip]
     _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SEC]
+    if not _login_attempts[ip]:
+        del _login_attempts[ip]
+        return True
     return len(_login_attempts[ip]) < _MAX_ATTEMPTS
 
 
 def _record_attempt(ip: str):
     _login_attempts[ip].append(time.monotonic())
+
+
+def _clear_attempts(ip: str):
+    _login_attempts.pop(ip, None)
 
 
 class LoginRequest(BaseModel):
@@ -54,7 +61,8 @@ def login(body: LoginRequest, request: Request):
         log.warning("Login FAILED user=%s ip=%s", body.username, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    log.info("Login OK user=%s ip=%s", row["username"], get_client_ip(request))
+    _clear_attempts(ip)
+    log.info("Login OK user=%s ip=%s", row["username"], ip)
     token = create_token(row["id"], row["role"])
     response = JSONResponse({"ok": True, "user": {
         "id": row["id"],

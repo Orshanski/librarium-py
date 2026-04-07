@@ -4,18 +4,19 @@ import { colors } from "../theme";
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  title?: string;
+  backLabel?: string;
 }
 
 interface State {
   hasError: boolean;
-  error: Error | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false };
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
   }
 
   render() {
@@ -33,10 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           color: colors.text,
           textAlign: "center",
         }}>
-          <div style={{ fontSize: 18 }}>Не удалось открыть книгу</div>
-          <div style={{ fontSize: 13, color: colors.textDim, maxWidth: 400 }}>
-            {this.state.error?.message}
-          </div>
+          <div style={{ fontSize: 18 }}>{this.props.title || "Something went wrong"}</div>
           <button
             onClick={() => window.history.back()}
             style={{
@@ -50,7 +48,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               cursor: "pointer",
             }}
           >
-            Назад
+            {this.props.backLabel || "Back"}
           </button>
         </div>
       );
