@@ -78,7 +78,7 @@ export default function TagsPage() {
               window.location.href = `/tags/${tag.id}`;
             }
           }}
-          options={allTags.map((t) => ({ value: t.name, hint: String(t.book_count) }))}
+          options={[...allTags].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })).map((t) => ({ value: t.name, hint: String(t.book_count) }))}
           placeholder="Найти жанр..."
         />
       </div>

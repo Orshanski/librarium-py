@@ -16,11 +16,12 @@ log = logging.getLogger("librarium.upload")
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE
 from ..database import get_db
 from ..parsers import parse_book
+from ..enrichers import enrich_metadata
 from ..pdf_linearize import linearize_pdf_in_place
 from ..dal.books import create_book, get_book_files
 from ..dal.authors import get_or_create_author
 from ..dal.series import get_or_create_series
-from ..dal.tags import get_or_create_tag, resolve_tag_names
+from ..dal.tags import get_or_create_tag
 
 router = APIRouter(tags=["upload"])
 
@@ -109,9 +110,10 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     with open(book_path, "wb") as f:
         f.write(content)
 
-    # Parse (pass filename hint for PDF LLM extraction — inner book name if from ZIP)
+    # Parse file structure (FB2/EPUB), then enrich with external sources (LLM for PDF)
     # Run in thread pool to avoid blocking event loop (LLM call can take 10-40s)
-    meta = await asyncio.to_thread(parse_book, book_path, ext, filename_hint)
+    meta = await asyncio.to_thread(parse_book, book_path, ext)
+    meta = await asyncio.to_thread(enrich_metadata, meta, ext, filename_hint, book_path)
 
     # Save cover if extracted
     cover_url = None
@@ -135,7 +137,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             "seriesNumber": str(meta.series_number).rstrip("0").rstrip(".") if meta.series_number else "",
             "description": meta.description or "",
             "language": meta.language or "",
-            "tags": ", ".join(resolve_tag_names(meta.genres)),
+            "tags": ", ".join(meta.genres),
             "publisher": meta.publisher or "",
             "pubDate": meta.pub_date or "",
             "isbn": meta.isbn or "",
