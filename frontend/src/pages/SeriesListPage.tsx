@@ -32,7 +32,6 @@ function saveCache(allSeries: SeriesItem[], filterOptions: FilterOptions | null,
       selected,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
   } catch {}
 }
 
@@ -65,6 +64,7 @@ export default function SeriesListPage() {
   // Restore from cache on mount
   const restoredRef = useRef(false);
   useEffect(() => {
+    saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);

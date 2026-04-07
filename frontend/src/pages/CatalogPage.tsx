@@ -45,8 +45,6 @@ function saveCache(books: RawBook[], filterOptions: FilterOptions | null, hasMor
       paramsKey,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", "/");
   } catch {}
 }
 
@@ -99,6 +97,8 @@ export default function CatalogPage() {
 
   // Load: restore from cache or fetch fresh
   useEffect(() => {
+    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
+    saveBookOrigin("Каталог", "/");
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);

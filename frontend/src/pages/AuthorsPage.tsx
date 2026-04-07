@@ -32,7 +32,6 @@ function saveCache(authors: AuthorRow[], filterOptions: FilterOptions | null, se
       selected,
       scrollTop: main?.scrollTop || 0,
     }));
-    saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
   } catch {}
 }
 
@@ -64,6 +63,7 @@ export default function AuthorsPage() {
   // Restore from cache on mount
   const restoredRef = useRef(false);
   useEffect(() => {
+    saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);
