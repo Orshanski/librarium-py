@@ -1,7 +1,7 @@
 import base64
 import logging
 from lxml import etree
-from . import ParsedMetadata
+from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def parse_fb2(file_path: str) -> ParsedMetadata:
 
     # Language
     lang = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:lang/text()", namespaces=NS)
-    meta.language = str(lang[0]).strip() if lang else None
+    meta.language = normalize_language(str(lang[0])) if lang else None
 
     # Annotation
     annotation = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:annotation", namespaces=NS)
