@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
-import { removeBookFromCatalogCache } from "../utils/catalog-cache";
+import { invalidateAllCaches } from "../utils/catalog-cache";
 import { useCacheStatus } from "../hooks/useCacheStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
@@ -178,7 +178,7 @@ export default function BookDetail({
           onConfirm={async () => {
             const res = await fetch(`/api/books/${book.id}`, { method: "DELETE" });
             if (res.ok) {
-              removeBookFromCatalogCache(book.id);
+              invalidateAllCaches();
               navigate(-1);
             }
           }}

@@ -121,6 +121,9 @@ def map_tag(tag_id: int, target_name: str) -> dict:
 
     if existing:
         target_id = existing["id"]
+        # Remember source name for tag_mappings before deleting
+        source_row = db.execute("SELECT name FROM tags WHERE id = :id", {"id": tag_id}).fetchone()
+        source_name = source_row["name"] if source_row else None
         db.execute("""
             INSERT OR IGNORE INTO book_tags (book_id, tag_id)
             SELECT book_id, :target FROM book_tags WHERE tag_id = :source
@@ -128,6 +131,10 @@ def map_tag(tag_id: int, target_name: str) -> dict:
         db.execute("DELETE FROM book_tags WHERE tag_id = :source", {"source": tag_id})
         db.execute("UPDATE tag_mappings SET tag_id = :target WHERE tag_id = :source",
                    {"target": target_id, "source": tag_id})
+        # Add mapping from source name so future imports resolve correctly
+        if source_name:
+            db.execute("INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (:raw, :tid)",
+                       {"raw": source_name, "tid": target_id})
         db.execute("DELETE FROM tags WHERE id = :source", {"source": tag_id})
         return {"renamed": False, "target_id": target_id}
     else:
