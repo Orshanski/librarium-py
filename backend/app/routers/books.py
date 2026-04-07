@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 
 log = logging.getLogger("librarium.books")
-from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE
+from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
 from ..database import get_db
 from ..dal import books as dal
 from ..dal.books import get_book_by_id
@@ -108,7 +108,7 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
     try:
         db.execute(
             "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, f"data/library/{book_id}/book.{ext}", os.path.getsize(file_path)),
+            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path)),
         )
         db.commit()
     except Exception:
