@@ -74,12 +74,8 @@ export default function FilterBar({
 
   const hasAnySelection = filters.some((f) => (selected[f.key] || []).length > 0);
 
-  function optValue(opt: FilterOption): string {
-    return opt.id != null ? String(opt.id) : opt.name;
-  }
-
   function getLabel(f: FilterConfig, val: string): string {
-    const opt = f.options.find((o) => optValue(o) === val);
+    const opt = f.options.find((o) => optVal(o) === val);
     return opt?.name || val;
   }
 
@@ -179,7 +175,7 @@ export default function FilterBar({
                         setHighlighted((h) => Math.max(h - 1, 0));
                       } else if (e.key === "Enter" && highlighted >= 0 && highlighted < opts.length) {
                         e.preventDefault();
-                        toggleOption(f.key, optValue(opts[highlighted]));
+                        toggleOption(f.key, optVal(opts[highlighted]));
                         setHighlighted(-1);
                       } else if (e.key === "Escape") {
                         setOpenKey(null);
@@ -206,7 +202,7 @@ export default function FilterBar({
                 {/* Options */}
                 <div ref={listRef} style={{ overflow: "auto", flex: 1, padding: "0 4px 8px" }}>
                   {sortedOptions(f.options, selected[f.key] || [], search).map((opt, idx) => {
-                    const val = optValue(opt);
+                    const val = optVal(opt);
                     const isChecked = (selected[f.key] || []).includes(val);
                     const isHighlighted = idx === highlighted;
                     return (

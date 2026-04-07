@@ -104,12 +104,8 @@ export default function MobileFilterBar({
     setOpenKey(null);
   }
 
-  function optValue(opt: FilterOption): string {
-    return opt.id != null ? String(opt.id) : opt.name;
-  }
-
   function getLabel(filter: FilterConfig, value: string) {
-    const option = filter.options.find((item) => optValue(item) === value);
+    const option = filter.options.find((item) => optVal(item) === value);
     return option?.name || value;
   }
 
@@ -225,7 +221,7 @@ export default function MobileFilterBar({
                 }
                 if (e.key === "Enter" && highlighted >= 0 && highlighted < options.length) {
                   e.preventDefault();
-                  toggleOption(filter.key, optValue(options[highlighted]));
+                  toggleOption(filter.key, optVal(options[highlighted]));
                   setHighlighted(-1);
                 }
                 if (e.key === "Escape") {
@@ -254,7 +250,7 @@ export default function MobileFilterBar({
               .filter((filter) => filter.key === openKey)
               .flatMap((filter) =>
                 sortOptions(filter.options, selected[filter.key] || [], search).map((option, index) => {
-                  const val = optValue(option);
+                  const val = optVal(option);
                   const isChecked = (selected[filter.key] || []).includes(val);
                   const isHighlighted = index === highlighted;
                   return (

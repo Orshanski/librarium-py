@@ -1,5 +1,8 @@
 """Shared WHERE clause builder and filter count aggregation for book queries."""
+from typing import Literal
 from ..database import get_db, dicts_from_rows
+
+FilterEntity = Literal["author", "tag", "series", "language"]
 
 
 def build_book_where(
@@ -60,7 +63,7 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def get_filter_counts(filters: dict, entity: str) -> list[dict]:
+def get_filter_counts(filters: dict, entity: FilterEntity) -> list[dict]:
     """Count books per entity with current filters, excluding the entity's own filter.
 
     Args:

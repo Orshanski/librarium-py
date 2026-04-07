@@ -10,6 +10,7 @@ log = logging.getLogger("librarium.books")
 from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
 from ..database import get_db
 from ..dal import books as dal
+from .params import parse_ids
 from ..dal.books import get_book_by_id
 from ..pdf_linearize import linearize_pdf_in_place
 
@@ -32,7 +33,6 @@ class UpdateBookBody(BaseModel):
 @router.get("")
 def list_books(request: Request, sort: str = "added_desc", cursor: int = 0, pageSize: int = 50,
                authorIds: str = "", tagIds: str = "", seriesIds: str = "", language: str = ""):
-    from .params import parse_ids
     pageSize = min(pageSize, 100)
     user = get_current_user(request)
     filters: dict = {"userId": user["userId"]}

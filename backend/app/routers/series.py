@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..dal import series as dal
+from .params import parse_ids
 
 log = logging.getLogger("librarium.series")
 router = APIRouter(prefix="/api/series", tags=["series"])
@@ -11,7 +12,6 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 @router.get("")
 def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = ""):
-    from .params import parse_ids
     get_current_user(request)
     return dal.get_series(parse_ids(authorIds), parse_ids(tagIds), language or None)
 

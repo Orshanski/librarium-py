@@ -16,7 +16,7 @@ export interface BookEditOptions {
   authors: NamedOption[];
   series: NamedOption[];
   tags: TagOption[];
-  languages: string[];
+  languages: { name: string }[];
   publishers: string[];
 }
 

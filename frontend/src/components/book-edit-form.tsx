@@ -35,7 +35,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const seriesOptions = options?.series.map((s: NamedOption) => ({ value: s.name })) || [];
-  const languageOptions = options?.languages.map((l: string) => ({ value: l })) || [];
+  const languageOptions = options?.languages.map((l) => ({ value: l.name })) || [];
   const publisherOptions = options?.publishers.map((p: string) => ({ value: p })) || [];
   const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: 0 })) || [];
 
