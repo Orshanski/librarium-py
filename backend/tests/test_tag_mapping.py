@@ -55,6 +55,16 @@ class TestResolveTagNames:
         assert resolve_tag_names(["SQL"]) == ["SQL"]
         assert resolve_tag_names(["HTTP"]) == ["HTTP"]
 
+    def test_dedup_after_merge(self, admin_client):
+        """Two raw codes mapped to same tag → deduplicated in result."""
+        from app.dal.tags import resolve_tag_names
+        from app.database import get_db
+        db = get_db()
+        # Map a second raw code to tag 1 (Фэнтези)
+        db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('fantasy_alt', 1)")
+        names = resolve_tag_names(["sf_fantasy", "fantasy_alt"])
+        assert names == ["Фэнтези"]
+
 
 class TestMapTag:
     def test_rename_to_new_name(self, admin_client):
