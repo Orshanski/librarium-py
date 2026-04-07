@@ -65,8 +65,7 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
           .map((t: { name: string; book_count: number }) => ({
             value: t.name,
             hint: `${t.book_count} книг`,
-          }))
-          .sort((a: ComboboxOption, b: ComboboxOption) => a.value.localeCompare(b.value, undefined, { sensitivity: "base" }));
+          }));
         setAllTags(tags);
       })
       .catch((err) => console.warn("Failed to fetch tags:", err));
