@@ -1,37 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-
-
-def _build_where(filters: dict) -> tuple[str, dict]:
-    clauses, params = [], {}
-
-    if uid := filters.get("userId"):
-        clauses.append("b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1)")
-        params["uid"] = uid
-
-    if ids := filters.get("authorIds"):
-        ph = ",".join(f":a{i}" for i in range(len(ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))")
-        for i, v in enumerate(ids):
-            params[f"a{i}"] = v
-
-    if ids := filters.get("tagIds"):
-        ph = ",".join(f":t{i}" for i in range(len(ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))")
-        for i, v in enumerate(ids):
-            params[f"t{i}"] = v
-
-    if ids := filters.get("seriesIds"):
-        ph = ",".join(f":s{i}" for i in range(len(ids)))
-        clauses.append(f"b.series_id IN ({ph})")
-        for i, v in enumerate(ids):
-            params[f"s{i}"] = v
-
-    if lang := filters.get("language"):
-        clauses.append("b.language = :lang")
-        params["lang"] = lang
-
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    return where, params
+from .filters import build_book_where, get_filter_counts
 
 
 ORDER = {
@@ -45,7 +13,7 @@ ORDER = {
 
 def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     db = get_db()
-    where, params = _build_where(filters)
+    where, params = build_book_where(filters)
     uid = filters.get("userId")
     ub_join = f"AND ub.user_id = :uid" if uid else "AND 0"
     order = ORDER.get(sort, ORDER["added_desc"])
@@ -78,43 +46,14 @@ def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     if has_more:
         books = books[:page_size]
 
-    # Filter options — each excludes its own key
-    def opts(exclude_key):
-        f = {k: v for k, v in filters.items() if k != exclude_key}
-        w, p = _build_where(f)
-        return w, p
-
-    aw, ap = opts("authorIds")
-    author_opts = dicts_from_rows(db.execute(f"""
-        SELECT a.id, a.name, COUNT(DISTINCT b.id) as count
-        FROM authors a JOIN book_authors ba ON a.id = ba.author_id JOIN books b ON ba.book_id = b.id
-        {aw} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
-    """, ap).fetchall())
-
-    sw, sp = opts("seriesIds")
-    series_opts = dicts_from_rows(db.execute(f"""
-        SELECT s.id, s.name, COUNT(DISTINCT b.id) as count
-        FROM series s JOIN books b ON b.series_id = s.id
-        {sw} GROUP BY s.id ORDER BY s.name COLLATE NOCASE
-    """, sp).fetchall())
-
-    tw, tp = opts("tagIds")
-    tag_opts = dicts_from_rows(db.execute(f"""
-        SELECT t.id, t.name, COUNT(DISTINCT b.id) as count
-        FROM tags t JOIN book_tags bt ON t.id = bt.tag_id JOIN books b ON bt.book_id = b.id
-        {tw} GROUP BY t.id ORDER BY t.name COLLATE NOCASE
-    """, tp).fetchall())
-
-    lw, lp = opts("language")
-    lang_where = f"{lw} AND b.language IS NOT NULL" if lw else "WHERE b.language IS NOT NULL"
-    lang_opts = dicts_from_rows(db.execute(f"""
-        SELECT b.language as name, COUNT(*) as count FROM books b
-        {lang_where} GROUP BY b.language ORDER BY b.language COLLATE NOCASE
-    """, lp).fetchall())
-
     return {
         "books": books,
-        "filterOptions": {"authors": author_opts, "series": series_opts, "tags": tag_opts, "languages": lang_opts},
+        "filterOptions": {
+            "authors": get_filter_counts(filters, "author"),
+            "series": get_filter_counts(filters, "series"),
+            "tags": get_filter_counts(filters, "tag"),
+            "languages": get_filter_counts(filters, "language"),
+        },
         "hasMore": has_more,
     }
 
@@ -153,6 +92,22 @@ def get_book_identifiers(book_id: int):
     return dicts_from_rows(db.execute(
         "SELECT type, value FROM book_identifiers WHERE book_id = :id", {"id": book_id}
     ).fetchall())
+
+
+def get_all_languages():
+    """Language directory: sorted alphabetically."""
+    db = get_db()
+    return [r["language"] for r in db.execute(
+        "SELECT DISTINCT language FROM books WHERE language IS NOT NULL ORDER BY language COLLATE NOCASE"
+    ).fetchall()]
+
+
+def get_all_publishers():
+    """Publisher directory: sorted alphabetically."""
+    db = get_db()
+    return [r["publisher"] for r in db.execute(
+        "SELECT DISTINCT publisher FROM books WHERE publisher IS NOT NULL AND publisher != '' ORDER BY publisher COLLATE NOCASE"
+    ).fetchall()]
 
 
 def _sort_title(title: str) -> str:

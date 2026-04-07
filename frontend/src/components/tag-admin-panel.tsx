@@ -62,9 +62,8 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
       .then((data) => {
         const tags = (data.tags || [])
           .filter((t: { id: number }) => t.id !== tagId)
-          .map((t: { name: string; book_count: number }) => ({
+          .map((t: { name: string }) => ({
             value: t.name,
-            hint: `${t.book_count} книг`,
           }));
         setAllTags(tags);
       })

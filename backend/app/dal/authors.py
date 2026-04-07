@@ -1,21 +1,16 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
+from .filters import build_book_where, get_filter_counts
 
 
 def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
     db = get_db()
-    clauses, params = [], {}
-
+    filters: dict = {}
     if tag_ids:
-        ph = ",".join(f":t{i}" for i in range(len(tag_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))")
-        for i, v in enumerate(tag_ids):
-            params[f"t{i}"] = v
-
+        filters["tagIds"] = tag_ids
     if language:
-        clauses.append("b.language = :lang")
-        params["lang"] = language
+        filters["language"] = language
 
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    where, params = build_book_where(filters)
 
     authors = dicts_from_rows(db.execute(f"""
         SELECT a.id, a.name, a.sort_name, COUNT(DISTINCT b.id) as book_count,
@@ -28,25 +23,13 @@ def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
         {where} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
     """, params).fetchall())
 
-    # Filter options (excluding own filter)
-    tag_opts = dicts_from_rows(db.execute(f"""
-        SELECT t.id as value, t.name as label, COUNT(DISTINCT b.id) as count
-        FROM tags t JOIN book_tags bt ON t.id = bt.tag_id JOIN books b ON bt.book_id = b.id
-        JOIN book_authors ba ON b.id = ba.book_id
-        {"WHERE b.language = :lang" if language else ""}
-        GROUP BY t.id ORDER BY count DESC
-    """, {"lang": language} if language else {}).fetchall())
-
-    lp = {k: v for k, v in params.items() if k != "lang"}
-    lc = [c for c in clauses if "language" not in c]
-    lw = "WHERE " + " AND ".join(lc) + " AND b.language IS NOT NULL" if lc else "WHERE b.language IS NOT NULL"
-    lang_opts = dicts_from_rows(db.execute(f"""
-        SELECT b.language as value, COUNT(DISTINCT b.id) as count
-        FROM books b JOIN book_authors ba ON b.id = ba.book_id
-        {lw} GROUP BY b.language ORDER BY count DESC
-    """, lp).fetchall())
-
-    return {"authors": authors, "filterOptions": {"tags": tag_opts, "languages": lang_opts}}
+    return {
+        "authors": authors,
+        "filterOptions": {
+            "tags": get_filter_counts(filters, "tag"),
+            "languages": get_filter_counts(filters, "language"),
+        },
+    }
 
 
 def get_author_by_id(author_id: int):
@@ -70,6 +53,14 @@ def get_author_by_id(author_id: int):
     """, {"id": author_id}).fetchall())
 
     return {"author": author, "books": books}
+
+
+def get_all_authors():
+    """Author directory: id + name, sorted by sort_name."""
+    db = get_db()
+    return dicts_from_rows(db.execute(
+        "SELECT id, name FROM authors ORDER BY sort_name COLLATE NOCASE"
+    ).fetchall())
 
 
 def _generate_sort_name(name: str) -> str:

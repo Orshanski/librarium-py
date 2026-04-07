@@ -37,7 +37,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
   const seriesOptions = options?.series.map((s: NamedOption) => ({ value: s.name })) || [];
   const languageOptions = options?.languages.map((l: string) => ({ value: l })) || [];
   const publisherOptions = options?.publishers.map((p: string) => ({ value: p })) || [];
-  const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: t.book_count || 0 })) || [];
+  const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: 0 })) || [];
 
   async function uploadFile(file: File) {
     setUploading(true);

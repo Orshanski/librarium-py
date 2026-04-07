@@ -54,11 +54,11 @@ class TestOptions:
         data = resp.json()
         assert set(data.keys()) == {"authors", "series", "tags", "languages", "publishers"}
 
-    def test_options_tags_have_book_count(self, reader_client):
+    def test_options_tags_are_directory(self, reader_client):
         data = reader_client.get("/api/options").json()
         for tag in data["tags"]:
-            assert "book_count" in tag
-            assert tag["book_count"] > 0
+            assert "id" in tag
+            assert "name" in tag
 
     def test_options_authors_no_book_count(self, reader_client):
         data = reader_client.get("/api/options").json()
@@ -184,10 +184,9 @@ class TestAuthorsFilters:
         assert "languages" in fo
         assert len(fo["tags"]) > 0
         assert len(fo["languages"]) > 0
-        # authors filterOptions uses value/label keys (not id/name)
         tag_opt = fo["tags"][0]
-        assert "value" in tag_opt
-        assert "label" in tag_opt
+        assert "id" in tag_opt
+        assert "name" in tag_opt
         assert "count" in tag_opt
 
 

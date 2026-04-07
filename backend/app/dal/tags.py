@@ -1,47 +1,46 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
+from .filters import build_book_where
 
 
-def get_tags(top: int | None = None):
+def get_tag_cloud(top: int | None = None):
+    """Tag cloud: name + book_count, sorted by count DESC."""
     db = get_db()
-    if top:
-        return dicts_from_rows(db.execute("""
-            SELECT t.id, t.name, COUNT(bt.book_id) as book_count
-            FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
-            GROUP BY t.id ORDER BY book_count DESC LIMIT :top
-        """, {"top": top}).fetchall())
-    return dicts_from_rows(db.execute("""
+    limit = "LIMIT :top" if top else ""
+    params = {"top": top} if top else {}
+    return dicts_from_rows(db.execute(f"""
         SELECT t.id, t.name, COUNT(bt.book_id) as book_count
         FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
-        GROUP BY t.id ORDER BY book_count DESC
+        GROUP BY t.id ORDER BY book_count DESC {limit}
+    """, params).fetchall())
+
+
+def get_all_tags():
+    """Tag directory: id + name, sorted alphabetically."""
+    db = get_db()
+    return dicts_from_rows(db.execute("""
+        SELECT t.id, t.name
+        FROM tags t JOIN book_tags bt ON t.id = bt.tag_id
+        GROUP BY t.id ORDER BY t.name COLLATE NOCASE
     """).fetchall())
 
 
-def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None, sort="added_desc"):
+def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
     db = get_db()
     tag = dict_from_row(db.execute("SELECT * FROM tags WHERE id = :id", {"id": tag_id}).fetchone())
     if not tag:
         return None
 
-    clauses = ["bt2.tag_id = :id"]
-    params: dict = {"id": tag_id}
-
+    filters: dict = {}
     if author_ids:
-        ph = ",".join(f":a{i}" for i in range(len(author_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))")
-        for i, v in enumerate(author_ids):
-            params[f"a{i}"] = v
-
+        filters["authorIds"] = author_ids
     if series_ids:
-        ph = ",".join(f":s{i}" for i in range(len(series_ids)))
-        clauses.append(f"b.series_id IN ({ph})")
-        for i, v in enumerate(series_ids):
-            params[f"s{i}"] = v
-
+        filters["seriesIds"] = series_ids
     if language:
-        clauses.append("b.language = :lang")
-        params["lang"] = language
+        filters["language"] = language
 
-    where = "WHERE " + " AND ".join(clauses)
+    where, params = build_book_where(
+        filters, extra_clauses=[("bt2.tag_id = :id", {"id": tag_id})]
+    )
 
     books = dicts_from_rows(db.execute(f"""
         SELECT b.*, s.name as series_name,
