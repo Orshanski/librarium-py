@@ -14,6 +14,26 @@ def test_create_user(admin_client):
     assert user_id > 0
 
 
+def test_create_user_creates_system_shelves(admin_client):
+    resp = admin_client.post("/api/admin/users", json={
+        "username": "shelfuser",
+        "password": "pass1234",
+        "role": "reader",
+    })
+    user_id = resp.json()["id"]
+
+    # Login as new user and check shelves
+    from starlette.testclient import TestClient
+    from app.main import app
+    c = TestClient(app)
+    c.headers.update({"X-Requested-With": "XMLHttpRequest"})
+    c.post("/api/auth/login", json={"username": "shelfuser", "password": "pass1234"})
+
+    shelves = c.get("/api/shelves").json()["shelves"]
+    system_codes = {s["system_code"] for s in shelves if s["is_system"]}
+    assert system_codes == {"best", "reading_now"}
+
+
 def test_delete_user_cascade(admin_client):
     test_data = os.environ["DATA_DIR"]
 

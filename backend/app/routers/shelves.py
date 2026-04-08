@@ -24,7 +24,6 @@ class ShelfBookBody(BaseModel):
 @router.get("")
 def list_shelves(request: Request, db: sqlite3.Connection = Depends(db_session), bookId: int | None = None):
     user = get_current_user(request)
-    dal.ensure_system_shelves(db, user["userId"])
     shelves = dal.get_shelves(db, user["userId"])
     result: dict = {"shelves": shelves}
     if bookId is not None:

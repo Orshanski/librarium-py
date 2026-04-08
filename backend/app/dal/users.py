@@ -28,7 +28,10 @@ def create_user(db: sqlite3.Connection, username: str, password: str, role="read
         "INSERT INTO users (username, password_hash, role, display_name, email) VALUES (:u, :h, :r, :d, :e)",
         {"u": username, "h": hash_password(password), "r": role, "d": display_name, "e": email},
     )
-    return cur.lastrowid
+    user_id = cur.lastrowid
+    from .shelves import ensure_system_shelves
+    ensure_system_shelves(db, user_id)
+    return user_id
 
 
 def update_user(db: sqlite3.Connection, user_id: int, data: dict):

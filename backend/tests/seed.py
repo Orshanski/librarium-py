@@ -35,20 +35,13 @@ def seed_baseline():
     # БД
     db_path = BASELINE_DIR / "db.sqlite"
     db = sqlite3.connect(str(db_path))
+    db.row_factory = sqlite3.Row
     db.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
 
-    # --- Пользователи ---
-    import bcrypt
-    admin_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode()
-    reader_hash = bcrypt.hashpw(b"reader123", bcrypt.gensalt()).decode()
-    db.execute(
-        "INSERT INTO users (id, username, password_hash, role, display_name, email) VALUES (1, 'admin', ?, 'admin', 'Test Admin', 'admin@test.com')",
-        (admin_hash,),
-    )
-    db.execute(
-        "INSERT INTO users (id, username, password_hash, role, display_name) VALUES (2, 'reader', ?, 'reader', 'Test Reader')",
-        (reader_hash,),
-    )
+    # --- Пользователи (через DAL — создаёт системные полки) ---
+    from app.dal.users import create_user
+    create_user(db, "admin", "admin123", role="admin", display_name="Test Admin", email="admin@test.com")
+    create_user(db, "reader", "reader123", role="reader", display_name="Test Reader")
 
     # --- Справочники ---
     db.execute("INSERT INTO series (id, name, sort_name) VALUES (1, 'Test Series', 'Test Series')")
@@ -115,7 +108,6 @@ def seed_baseline():
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (5, 2)")
 
     # --- User data ---
-    db.execute("INSERT INTO shelves (id, name, user_id, is_system, system_code) VALUES (1, 'Лучшее', 2, 1, 'best')")
     db.execute("INSERT INTO user_books (user_id, book_id, rating, is_read) VALUES (2, 1, 5, 1)")
 
     db.commit()
