@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterConfig, FilterOption } from "../components/filter-bar";
+import { FilterKey } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
@@ -17,18 +17,11 @@ interface SeriesItem {
   authors: string | null;
 }
 
-interface FilterOptions {
-  authors: FilterOption[];
-  tags: FilterOption[];
-  languages: FilterOption[];
-}
-
-function saveCache(allSeries: SeriesItem[], filterOptions: FilterOptions | null, selected: Record<string, string[]>) {
+function saveCache(allSeries: SeriesItem[], selected: Record<string, string[]>) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       allSeries,
-      filterOptions,
       selected,
       scrollTop: main?.scrollTop || 0,
     }));
@@ -52,7 +45,6 @@ export default function SeriesListPage() {
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [allSeries, setAllSeries] = useState<SeriesItem[]>([]);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
@@ -74,7 +66,6 @@ export default function SeriesListPage() {
     const cached = loadCache();
     if (cached) {
       setAllSeries(cached.allSeries);
-      setFilterOptions(cached.filterOptions || null);
       if (cached.selected) setSelected(cached.selected);
       setLoading(false);
       restoredRef.current = true;
@@ -108,19 +99,18 @@ export default function SeriesListPage() {
       .then((r) => r.json())
       .then((data) => {
         setAllSeries(data.series || []);
-        setFilterOptions(data.filterOptions || null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ allSeries, filterOptions, selected });
-  stateRef.current = { allSeries, filterOptions, selected };
+  const stateRef = useRef({ allSeries, selected });
+  stateRef.current = { allSeries, selected };
 
   useEffect(() => {
-    if (allSeries.length > 0) saveCache(allSeries, filterOptions, selected);
-  }, [allSeries, filterOptions, paramsKey]);
+    if (allSeries.length > 0) saveCache(allSeries, selected);
+  }, [allSeries, paramsKey]);
 
   // Scroll listener: save cache on scroll
   useEffect(() => {
@@ -129,24 +119,16 @@ export default function SeriesListPage() {
 
     function onScroll() {
       const s = stateRef.current;
-      saveCache(s.allSeries, s.filterOptions, s.selected);
+      saveCache(s.allSeries, s.selected);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
       const s = stateRef.current;
-      if (s.allSeries.length > 0) saveCache(s.allSeries, s.filterOptions, s.selected);
+      if (s.allSeries.length > 0) saveCache(s.allSeries, s.selected);
     };
   }, []);
-
-  const filterConfigs: FilterConfig[] = filterOptions
-    ? [
-        { key: "author", label: "Автор", options: filterOptions.authors },
-        { key: "genre", label: "Жанр", options: filterOptions.tags },
-        { key: "language", label: "Язык", options: filterOptions.languages },
-      ]
-    : [];
 
   const sorted = useMemo(() => {
     return [...allSeries].sort((a, b) => a.name.localeCompare(b.name, "ru"));
@@ -156,9 +138,9 @@ export default function SeriesListPage() {
     <>
       <PageHeader
         title="Серии"
-        filters={filterConfigs}
+        filterKeys={["author", "genre", "language"]}
         selected={selected}
-        onSelectionChange={(key, values) => {
+        onSelectionChange={(key: FilterKey, values: string[]) => {
           sessionStorage.removeItem(CACHE_KEY);
           setSelected((prev) => ({ ...prev, [key]: values }));
         }}
