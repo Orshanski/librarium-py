@@ -1,6 +1,6 @@
 import sqlite3
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..auth import get_current_user
 from ..database import db_session
 from ..dal import user_books as dal
@@ -9,7 +9,7 @@ router = APIRouter(tags=["user-books"])
 
 
 class RatingBody(BaseModel):
-    rating: int | None
+    rating: int | None = Field(None, ge=1, le=5)
 
 
 class ReadBody(BaseModel):
@@ -22,9 +22,6 @@ class HiddenBody(BaseModel):
 
 @router.put("/api/books/{book_id}/rating")
 def set_rating(book_id: int, body: RatingBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    if body.rating is not None and not (1 <= body.rating <= 5):
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"error": "Rating must be 1-5"}, status_code=400)
     user = get_current_user(request)
     dal.set_rating(db, user["userId"], book_id, body.rating)
     return {"ok": True}

@@ -185,11 +185,11 @@ class TestUserBooks:
 
     def test_rating_too_high(self, reader_client):
         resp = reader_client.put("/api/books/3/rating", json={"rating": 6})
-        assert resp.status_code == 400
+        assert resp.status_code == 422
 
     def test_rating_too_low(self, reader_client):
         resp = reader_client.put("/api/books/3/rating", json={"rating": 0})
-        assert resp.status_code == 400
+        assert resp.status_code == 422
 
     def test_set_read(self, reader_client):
         resp = reader_client.put("/api/books/3/read", json={"isRead": True})
