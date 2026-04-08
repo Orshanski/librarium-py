@@ -141,7 +141,7 @@ add_header Content-Security-Policy "
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
-| Tests | pytest (259 tests), Vitest (43 tests) |
+| Tests | pytest (326 tests), Vitest (43 tests) |
 | CI/CD | GitHub Actions |
 
 ## Getting started
@@ -189,17 +189,8 @@ npm run build          # production build → dist/
 ```bash
 cd backend
 source venv/bin/activate
-python -c "
-from app.database import get_db, init_db
-from app.auth import hash_password
-init_db()
-db = get_db()
-db.execute(
-    'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-    ('admin', hash_password('admin'), 'admin')
-)
-db.commit()
-"
+python scripts/create_admin.py              # admin / admin
+python scripts/create_admin.py myuser pass  # custom credentials
 ```
 
 ### Seed tag mappings
@@ -232,7 +223,7 @@ librarium-py/
 │   │   ├── pdf_linearize.py # pikepdf linearize for Fast Web View
 │   │   └── cover_embedder.py # Embed cover into FB2/EPUB for exported files
 │   ├── scripts/            # One-off migrations (seed_tag_mappings, normalize_tag_names)
-│   └── tests/              # pytest suite (259 tests)
+│   └── tests/              # pytest suite (326 tests)
 ├── frontend/
 │   ├── public/sw.js            # Service Worker (precache template)
 │   ├── scripts/                # Build scripts (SW asset injection)
