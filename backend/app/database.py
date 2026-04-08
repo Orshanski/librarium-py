@@ -9,7 +9,7 @@ _schema_initialized = False
 _init_lock = threading.Lock()
 
 
-def get_db() -> sqlite3.Connection:
+def _get_db() -> sqlite3.Connection:
     global _schema_initialized
     db = getattr(_local, "db", None)
     if db is None:
@@ -29,20 +29,13 @@ def get_db() -> sqlite3.Connection:
     return db
 
 
-def rollback_if_dirty():
-    """Rollback any uncommitted transaction on the current thread's connection."""
-    db = getattr(_local, "db", None)
-    if db is not None and db.in_transaction:
-        db.rollback()
-
-
 def db_session():
     """FastAPI dependency: commit on success, rollback on error.
 
     Runs on the same threadpool thread as sync handlers, so it correctly
     accesses the thread-local connection — unlike the async middleware.
     """
-    db = get_db()
+    db = _get_db()
     try:
         yield db
         if db.in_transaction:
@@ -71,3 +64,7 @@ def reset_db():
         db.close()
         _local.db = None
     _schema_initialized = False
+
+
+# Temporary alias — will be removed after all callers migrated
+get_db = _get_db
