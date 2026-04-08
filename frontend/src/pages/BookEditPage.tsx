@@ -19,10 +19,10 @@ export default function BookEditPage() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/books/${id}`).then((r) => r.json()),
-      fetch("/api/authors").then((r) => r.json()),
-      fetch("/api/series").then((r) => r.json()),
-      fetch("/api/tags").then((r) => r.json()),
-      fetch("/api/languages").then((r) => r.json()),
+      fetch("/api/filter-options/authors").then((r) => r.json()),
+      fetch("/api/filter-options/series").then((r) => r.json()),
+      fetch("/api/filter-options/tags").then((r) => r.json()),
+      fetch("/api/filter-options/languages").then((r) => r.json()),
       fetch("/api/publishers").then((r) => r.json()),
     ]).then(([bookData, authorsData, seriesData, tagsData, langsData, pubsData]) => {
       setBook(bookData.book);

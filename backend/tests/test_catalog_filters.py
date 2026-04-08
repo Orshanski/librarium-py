@@ -49,7 +49,7 @@ class TestSearch:
 
 class TestDirectoryEndpoints:
     def test_tags_directory(self, reader_client):
-        data = reader_client.get("/api/tags").json()
+        data = reader_client.get("/api/filter-options/tags").json()
         assert len(data["tags"]) > 0
         for tag in data["tags"]:
             assert "id" in tag
@@ -65,7 +65,7 @@ class TestDirectoryEndpoints:
         assert len(data["tags"]) == 1
 
     def test_languages(self, reader_client):
-        data = reader_client.get("/api/languages").json()
+        data = reader_client.get("/api/filter-options/languages").json()
         assert {l["name"] for l in data["languages"]} == {"ru", "en"}
 
     def test_publishers(self, reader_client):
@@ -138,7 +138,7 @@ class TestBooksSorting:
 
 class TestAuthorsFilters:
     def test_all_authors(self, reader_client):
-        data = reader_client.get("/api/authors").json()
+        data = reader_client.get("/api/filter-options/authors").json()
         assert len(data["authors"]) == 3
 
     def test_filter_by_tag(self, reader_client):
@@ -187,11 +187,11 @@ class TestSeriesFilters:
 
 class TestTags:
     def test_all_tags(self, reader_client):
-        data = reader_client.get("/api/tags").json()
+        data = reader_client.get("/api/filter-options/tags").json()
         assert len(data["tags"]) == 2
 
     def test_tags_directory_no_book_count(self, reader_client):
-        data = reader_client.get("/api/tags").json()
+        data = reader_client.get("/api/filter-options/tags").json()
         for tag in data["tags"]:
             assert "book_count" not in tag
 
@@ -224,45 +224,45 @@ class TestTags:
 
 class TestDirectoryFiltering:
     def test_tags_filter_by_author(self, reader_client):
-        data = reader_client.get("/api/tags", params={"authorIds": "1"}).json()
+        data = reader_client.get("/api/filter-options/tags", params={"authorIds": "1"}).json()
         tag_ids = {t["id"] for t in data["tags"]}
         # Author 1 has books with tag 1 (Фэнтези), not tag 2
         assert 1 in tag_ids
         assert 2 not in tag_ids
 
     def test_tags_filter_by_language(self, reader_client):
-        data = reader_client.get("/api/tags", params={"language": "ru"}).json()
+        data = reader_client.get("/api/filter-options/tags", params={"language": "ru"}).json()
         tag_ids = {t["id"] for t in data["tags"]}
         # ru books: 1 (tag 1), 4 (tag 2)
         assert tag_ids == {1, 2}
 
     def test_tags_filter_by_series(self, reader_client):
-        data = reader_client.get("/api/tags", params={"seriesIds": "1"}).json()
+        data = reader_client.get("/api/filter-options/tags", params={"seriesIds": "1"}).json()
         tag_ids = {t["id"] for t in data["tags"]}
         # Series 1 books: 1, 3 — both have tag 1
         assert 1 in tag_ids
 
     def test_languages_filter_by_author(self, reader_client):
-        data = reader_client.get("/api/languages", params={"authorIds": "1"}).json()
+        data = reader_client.get("/api/filter-options/languages", params={"authorIds": "1"}).json()
         langs = {l["name"] for l in data["languages"]}
         # Author 1 has books in ru (book 1) and en (book 3)
         assert langs == {"ru", "en"}
 
     def test_languages_filter_by_tag(self, reader_client):
-        data = reader_client.get("/api/languages", params={"tagIds": "2"}).json()
+        data = reader_client.get("/api/filter-options/languages", params={"tagIds": "2"}).json()
         langs = {l["name"] for l in data["languages"]}
         # Tag 2 (Классический детектив): books 2 (en), 4 (ru), 5 (en)
         assert langs == {"ru", "en"}
 
     def test_languages_filter_by_author_narrowing(self, reader_client):
-        data = reader_client.get("/api/languages", params={"authorIds": "3"}).json()
+        data = reader_client.get("/api/filter-options/languages", params={"authorIds": "3"}).json()
         langs = {l["name"] for l in data["languages"]}
         # Author 3 only has book 4 (ru)
         assert langs == {"ru"}
 
-    def test_authors_include_userid(self, reader_client):
-        """Authors endpoint should work with filters (userId handled by router)."""
-        data = reader_client.get("/api/authors", params={"tagIds": "1"}).json()
+    def test_authors_filter_options_with_filters(self, reader_client):
+        """Filter-options authors endpoint should work with filters."""
+        data = reader_client.get("/api/filter-options/authors", params={"tagIds": "1"}).json()
         ids = {a["id"] for a in data["authors"]}
         assert ids == {1, 2}
 
@@ -290,7 +290,7 @@ class TestDirectoryFiltering:
         """Author unique to a hidden book should not appear in options."""
         # Hide book 4 (author 3 "Test Autor", only book for this author)
         reader_client.put("/api/books/4/hidden", json={"isHidden": True})
-        data = reader_client.get("/api/authors").json()
+        data = reader_client.get("/api/filter-options/authors").json()
         author_ids = {a["id"] for a in data["authors"]}
         # Author 3 should be excluded — their only book is hidden
         assert 3 not in author_ids

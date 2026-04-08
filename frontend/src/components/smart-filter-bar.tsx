@@ -23,10 +23,10 @@ interface SmartFilterBarProps {
 }
 
 const FILTER_META: Record<FilterKey, { endpoint: string; apiParam: string; label: string; responseKey: string }> = {
-  author: { endpoint: "/api/authors", apiParam: "authorIds", label: "Автор", responseKey: "authors" },
-  series: { endpoint: "/api/series", apiParam: "seriesIds", label: "Серия", responseKey: "series" },
-  genre: { endpoint: "/api/tags", apiParam: "tagIds", label: "Жанр", responseKey: "tags" },
-  language: { endpoint: "/api/languages", apiParam: "language", label: "Язык", responseKey: "languages" },
+  author: { endpoint: "/api/filter-options/authors", apiParam: "authorIds", label: "Автор", responseKey: "authors" },
+  series: { endpoint: "/api/filter-options/series", apiParam: "seriesIds", label: "Серия", responseKey: "series" },
+  genre: { endpoint: "/api/filter-options/tags", apiParam: "tagIds", label: "Жанр", responseKey: "tags" },
+  language: { endpoint: "/api/filter-options/languages", apiParam: "language", label: "Язык", responseKey: "languages" },
 };
 
 const UI_TO_API: Record<FilterKey, string> = {

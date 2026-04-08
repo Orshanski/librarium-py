@@ -57,7 +57,7 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/tags", { credentials: "include" })
+    fetch("/api/filter-options/tags", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         const tags = (data.tags || [])

@@ -4,24 +4,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..dal import tags as dal
-from ..dal.tags import list_tag_options
 from .params import parse_ids
 
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
-
-
-@router.get("")
-def list_tags(request: Request, authorIds: str = "", seriesIds: str = "", language: str = ""):
-    user = get_current_user(request)
-    filters: dict = {"userId": user["userId"]}
-    if ids := parse_ids(authorIds):
-        filters["authorIds"] = ids
-    if ids := parse_ids(seriesIds):
-        filters["seriesIds"] = ids
-    if language:
-        filters["language"] = language
-    return {"tags": list_tag_options(filters)}
 
 
 @router.get("/cloud")

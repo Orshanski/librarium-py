@@ -21,7 +21,7 @@ from .routers import series as series_router
 from .routers import tags as tags_router
 from .routers import shelves as shelves_router
 from .routers import search as search_router
-from .routers import languages as languages_router
+from .routers import filter_options as filter_options_router
 from .routers import publishers as publishers_router
 from .routers import admin as admin_router
 from .routers import user_books as user_books_router
@@ -72,7 +72,7 @@ app.include_router(series_router.router)
 app.include_router(tags_router.router)
 app.include_router(shelves_router.router)
 app.include_router(search_router.router)
-app.include_router(languages_router.router)
+app.include_router(filter_options_router.router)
 app.include_router(publishers_router.router)
 app.include_router(admin_router.router)
 app.include_router(user_books_router.router)
