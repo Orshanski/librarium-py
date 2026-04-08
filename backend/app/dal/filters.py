@@ -1,5 +1,6 @@
 """Shared WHERE clause builder and filter options for book queries."""
-from ..database import get_db, dicts_from_rows
+import sqlite3
+from ..database import dicts_from_rows
 
 
 def build_book_where(
@@ -19,7 +20,7 @@ def build_book_where(
             Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.
 
     Returns:
-        (where_sql, params) — where_sql includes "WHERE " prefix or is empty string
+        (where_sql, params) -- where_sql includes "WHERE " prefix or is empty string
     """
     effective = {k: v for k, v in filters.items() if k != exclude} if exclude else filters
     clauses: list[str] = []
@@ -61,9 +62,8 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def list_language_options(filters: dict) -> list[dict]:
+def list_language_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """Language options for filter bar, scoped by other filters."""
-    db = get_db()
     where, params = build_book_where(filters, exclude="language")
     lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"
     return dicts_from_rows(db.execute(f"""

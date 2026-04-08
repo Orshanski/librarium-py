@@ -1,21 +1,23 @@
 import os
-from fastapi import APIRouter, Request
+import sqlite3
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, Response
 from ..auth import get_current_user
 from ..config import LIBRARY_DIR
+from ..database import db_session
 from ..dal.books import get_book_by_id, get_book_files
 
 router = APIRouter(tags=["download"])
 
 
 @router.get("/api/books/{book_id}/download")
-def download_book(book_id: int, format: str, request: Request):
+def download_book(book_id: int, format: str, request: Request, db: sqlite3.Connection = Depends(db_session)):
     get_current_user(request)
-    book = get_book_by_id(book_id)
+    book = get_book_by_id(db, book_id)
     if not book:
         return Response(status_code=404)
 
-    files = get_book_files(book_id)
+    files = get_book_files(db, book_id)
     target = next((f for f in files if f["format"].upper() == format.upper()), None)
     if not target:
         return Response(status_code=404)

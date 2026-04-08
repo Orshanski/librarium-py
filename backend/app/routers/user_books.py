@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Request
+import sqlite3
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from ..auth import get_current_user
+from ..database import db_session
 from ..dal import user_books as dal
 
 router = APIRouter(tags=["user-books"])
@@ -19,24 +21,24 @@ class HiddenBody(BaseModel):
 
 
 @router.put("/api/books/{book_id}/rating")
-def set_rating(book_id: int, body: RatingBody, request: Request):
+def set_rating(book_id: int, body: RatingBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     if body.rating is not None and not (1 <= body.rating <= 5):
         from fastapi.responses import JSONResponse
         return JSONResponse({"error": "Rating must be 1-5"}, status_code=400)
     user = get_current_user(request)
-    dal.set_rating(user["userId"], book_id, body.rating)
+    dal.set_rating(db, user["userId"], book_id, body.rating)
     return {"ok": True}
 
 
 @router.put("/api/books/{book_id}/read")
-def set_read(book_id: int, body: ReadBody, request: Request):
+def set_read(book_id: int, body: ReadBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    dal.set_read(user["userId"], book_id, body.isRead)
+    dal.set_read(db, user["userId"], book_id, body.isRead)
     return {"ok": True}
 
 
 @router.put("/api/books/{book_id}/hidden")
-def set_hidden(book_id: int, body: HiddenBody, request: Request):
+def set_hidden(book_id: int, body: HiddenBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    dal.set_hidden(user["userId"], book_id, body.isHidden)
+    dal.set_hidden(db, user["userId"], book_id, body.isHidden)
     return {"ok": True}

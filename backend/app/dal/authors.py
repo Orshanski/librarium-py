@@ -1,9 +1,9 @@
-from ..database import get_db, dicts_from_rows, dict_from_row
+import sqlite3
+from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
-def get_authors(tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    db = get_db()
+def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     filters: dict = {}
     if tag_ids:
         filters["tagIds"] = tag_ids
@@ -28,9 +28,8 @@ def get_authors(tag_ids: list[int] | None = None, language: str | None = None, u
     return {"authors": authors}
 
 
-def list_author_options(filters: dict) -> list[dict]:
+def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """Author options for filter bar, scoped by other filters."""
-    db = get_db()
     where, params = build_book_where(filters, exclude="authorIds")
     return dicts_from_rows(db.execute(f"""
         SELECT DISTINCT a.id, a.name FROM authors a
@@ -40,8 +39,7 @@ def list_author_options(filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_author_by_id(author_id: int):
-    db = get_db()
+def get_author_by_id(db: sqlite3.Connection, author_id: int):
     author = dict_from_row(db.execute("SELECT * FROM authors WHERE id = :id", {"id": author_id}).fetchone())
     if not author:
         return None
@@ -72,8 +70,7 @@ def _generate_sort_name(name: str) -> str:
     return f"{parts[-1]}, {' '.join(parts[:-1])}"
 
 
-def get_or_create_author(name: str) -> int:
-    db = get_db()
+def get_or_create_author(db: sqlite3.Connection, name: str) -> int:
     sort_name = _generate_sort_name(name)
     db.execute(
         "INSERT OR IGNORE INTO authors (name, sort_name) VALUES (:name, :sort)",
@@ -83,15 +80,13 @@ def get_or_create_author(name: str) -> int:
     return row["id"]
 
 
-def rename_author(author_id: int, name: str):
-    db = get_db()
+def rename_author(db: sqlite3.Connection, author_id: int, name: str):
     sort_name = _generate_sort_name(name)
     db.execute("UPDATE authors SET name = :name, sort_name = :sort WHERE id = :id", {"name": name, "sort": sort_name, "id": author_id})
 
 
-def merge_authors(target_id: int, source_id: int):
-    """Переносит книги source → target, удаляет source."""
-    db = get_db()
+def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int):
+    """Переносит книги source -> target, удаляет source."""
     db.execute("""
         INSERT OR IGNORE INTO book_authors (book_id, author_id)
         SELECT book_id, :target FROM book_authors WHERE author_id = :source
@@ -100,9 +95,8 @@ def merge_authors(target_id: int, source_id: int):
     db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
 
 
-def delete_author(author_id: int) -> str | None:
-    """Удаляет автора. Возвращает None если удалён, иначе причину ошибки."""
-    db = get_db()
+def delete_author(db: sqlite3.Connection, author_id: int) -> str | None:
+    """Удаляет автора. Возвращает None если удален, иначе причину ошибки."""
     exists = db.execute("SELECT 1 FROM authors WHERE id = :id", {"id": author_id}).fetchone()
     if not exists:
         return "not_found"
@@ -111,5 +105,3 @@ def delete_author(author_id: int) -> str | None:
         return "has_books"
     db.execute("DELETE FROM authors WHERE id = :id", {"id": author_id})
     return None
-
-

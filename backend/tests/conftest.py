@@ -43,6 +43,13 @@ def reset_test_data():
 
 
 @pytest.fixture
+def db():
+    """SQLite connection for direct DAL calls in tests."""
+    from app.database import _get_db
+    return _get_db()
+
+
+@pytest.fixture
 def client():
     """FastAPI TestClient."""
     from app.main import app

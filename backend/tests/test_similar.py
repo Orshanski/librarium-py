@@ -162,23 +162,23 @@ class TestLitresProviderFetchSimilar:
 # ── Block 3: TestExcludeOwned ──
 
 class TestExcludeOwned:
-    def test_owned_book_filtered(self):
+    def test_owned_book_filtered(self, db):
         candidates = [
             {"title": "Minimal Test Book", "authors": "Test Author", "rating": 5.0},
             {"title": "Unknown Book", "authors": "Nobody", "rating": 4.0},
         ]
-        result = exclude_owned(candidates)
+        result = exclude_owned(db, candidates)
         assert len(result) == 1
         assert result[0]["title"] == "Unknown Book"
 
-    def test_unknown_book_passes(self):
+    def test_unknown_book_passes(self, db):
         candidates = [{"title": "Totally New", "authors": "Fresh Author", "rating": 4.0}]
-        result = exclude_owned(candidates)
+        result = exclude_owned(db, candidates)
         assert len(result) == 1
 
-    def test_same_title_different_author_passes(self):
+    def test_same_title_different_author_passes(self, db):
         candidates = [{"title": "Minimal Test Book", "authors": "Other Author", "rating": 4.0}]
-        result = exclude_owned(candidates)
+        result = exclude_owned(db, candidates)
         assert len(result) == 1
         assert result[0]["authors"] == "Other Author"
 

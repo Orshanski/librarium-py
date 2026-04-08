@@ -1,10 +1,10 @@
 import json
+import sqlite3
 from datetime import datetime, timezone
-from ..database import get_db, dict_from_row
+from ..database import dict_from_row
 
 
-def get_reader_settings(user_id: int, device_type: str) -> dict:
-    db = get_db()
+def get_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str) -> dict:
     row = db.execute(
         "SELECT settings FROM reader_settings WHERE user_id = :uid AND device_type = :dt",
         {"uid": user_id, "dt": device_type},
@@ -14,8 +14,7 @@ def get_reader_settings(user_id: int, device_type: str) -> dict:
     return json.loads(row["settings"])
 
 
-def save_reader_settings(user_id: int, device_type: str, settings: dict):
-    db = get_db()
+def save_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str, settings: dict):
     db.execute("""
         INSERT INTO reader_settings (user_id, device_type, settings)
         VALUES (:uid, :dt, :s)
@@ -23,8 +22,7 @@ def save_reader_settings(user_id: int, device_type: str, settings: dict):
     """, {"uid": user_id, "dt": device_type, "s": json.dumps(settings)})
 
 
-def get_reading_progress(user_id: int, book_id: int) -> dict:
-    db = get_db()
+def get_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> dict:
     row = db.execute(
         "SELECT position, last_device, last_format, fraction, last_read_at FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
         {"uid": user_id, "bid": book_id},
@@ -34,9 +32,8 @@ def get_reading_progress(user_id: int, book_id: int) -> dict:
     return dict_from_row(row)
 
 
-def save_reading_progress(user_id: int, book_id: int, position: str, last_device: str,
+def save_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int, position: str, last_device: str,
                           last_format: str = "", fraction: float = 0):
-    db = get_db()
     now = datetime.now(timezone.utc).isoformat()
     db.execute("""
         INSERT INTO reading_progress (user_id, book_id, position, last_device, last_format, fraction, last_read_at)

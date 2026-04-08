@@ -1,14 +1,15 @@
 import logging
 import os
+import sqlite3
 import shutil
-from fastapi import APIRouter, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 
 log = logging.getLogger("librarium.books")
 from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
-from ..database import get_db
+from ..database import db_session
 from ..dal import books as dal
 from .params import parse_ids
 from ..dal.books import get_book_by_id
@@ -31,7 +32,7 @@ class UpdateBookBody(BaseModel):
 
 
 @router.get("")
-def list_books(request: Request, sort: str = "added_desc", cursor: int = 0, pageSize: int = 50,
+def list_books(request: Request, db: sqlite3.Connection = Depends(db_session), sort: str = "added_desc", cursor: int = 0, pageSize: int = 50,
                authorIds: str = "", tagIds: str = "", seriesIds: str = "", language: str = ""):
     pageSize = min(pageSize, 100)
     user = get_current_user(request)
@@ -44,59 +45,55 @@ def list_books(request: Request, sort: str = "added_desc", cursor: int = 0, page
         filters["seriesIds"] = ids
     if language:
         filters["language"] = language
-    return dal.get_books(filters, sort, cursor, pageSize)
+    return dal.get_books(db, filters, sort, cursor, pageSize)
 
 
 @router.get("/{book_id}")
-def get_book(book_id: int, request: Request):
+def get_book(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    book = dal.get_book_by_id(book_id, user["userId"])
+    book = dal.get_book_by_id(db, book_id, user["userId"])
     if not book:
         return JSONResponse({"error": "Not found"}, status_code=404)
-    files = dal.get_book_files(book_id)
-    identifiers = dal.get_book_identifiers(book_id)
+    files = dal.get_book_files(db, book_id)
+    identifiers = dal.get_book_identifiers(db, book_id)
     return {"book": book, "files": files, "identifiers": identifiers}
 
 
 @router.put("/{book_id}")
-def update_book(book_id: int, body: UpdateBookBody, request: Request):
+def update_book(book_id: int, body: UpdateBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     from ..dal.authors import get_or_create_author
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
     user = require_admin(request)
-    db = get_db()
-    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
+    if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     data = body.model_dump(exclude_unset=True)
 
     # Resolve string names to IDs
     if "authorIds" in data:
-        data["authorIds"] = [get_or_create_author(a) if isinstance(a, str) else a for a in data["authorIds"]]
+        data["authorIds"] = [get_or_create_author(db, a) if isinstance(a, str) else a for a in data["authorIds"]]
     if "tagIds" in data:
-        data["tagIds"] = [get_or_create_tag(t) if isinstance(t, str) else t for t in data["tagIds"]]
+        data["tagIds"] = [get_or_create_tag(db, t) if isinstance(t, str) else t for t in data["tagIds"]]
     if "seriesId" in data and isinstance(data["seriesId"], str):
-        data["seriesId"] = get_or_create_series(data["seriesId"])
+        data["seriesId"] = get_or_create_series(db, data["seriesId"])
 
-    dal.update_book(book_id, data)
+    dal.update_book(db, book_id, data)
 
     log.info("Updated book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}
 
 
 @router.post("/{book_id}/files")
-async def upload_file(book_id: int, request: Request, file: UploadFile = File(...)):
+async def upload_file(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     user = require_admin(request)
-    db = get_db()
-    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
+    if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     allowed = {"fb2", "epub", "pdf"}
     if ext not in allowed:
         return JSONResponse({"error": f"Unsupported format: {ext}"}, status_code=400)
     fmt = ext.upper()
-    db = get_db()
-    existing = db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
-    if existing:
+    if dal.book_file_exists(db, book_id, fmt):
         return JSONResponse({"error": f"Формат {fmt} уже есть"}, status_code=409)
     content = await file.read()
     if len(content) > MAX_BOOK_SIZE:
@@ -109,10 +106,7 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
     if ext == "pdf":
         linearize_pdf_in_place(file_path)
     try:
-        db.execute(
-            "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path)),
-        )
+        dal.add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path))
     except Exception:
         os.remove(file_path)
         raise
@@ -121,28 +115,26 @@ async def upload_file(book_id: int, request: Request, file: UploadFile = File(..
 
 
 @router.delete("/{book_id}/files")
-def delete_file(book_id: int, request: Request, format: str = ""):
+def delete_file(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session), format: str = ""):
     user = require_admin(request)
     fmt = format.upper()
     if not fmt:
         return JSONResponse({"error": "format required"}, status_code=400)
-    db = get_db()
-    row = db.execute("SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
+    row = dal.get_book_file(db, book_id, fmt)
     if not row:
         return JSONResponse({"error": "Not found"}, status_code=404)
     file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
     if os.path.isfile(file_path):
         os.remove(file_path)
-    db.execute("DELETE FROM book_files WHERE id = ?", (dict(row)["id"],))
+    dal.delete_book_file(db, row["id"])
     log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True}
 
 
 @router.delete("/{book_id}")
-def delete_book(book_id: int, request: Request):
+def delete_book(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
-    db = get_db()
-    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
+    if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
 
     # Delete files from disk
@@ -156,6 +148,6 @@ def delete_book(book_id: int, request: Request):
         os.remove(thumb)
 
     # Delete from DB (CASCADE handles book_authors, book_tags, book_files, etc.)
-    dal.delete_book(book_id)
+    dal.delete_book(db, book_id)
     log.info("Deleted book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}

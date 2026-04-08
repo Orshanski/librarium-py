@@ -1,14 +1,16 @@
 import logging
 import os
+import sqlite3
 import time
 from collections import defaultdict
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..auth import verify_password, create_token, get_current_user, get_client_ip, COOKIE_NAME
-from ..database import get_db, dict_from_row
+from ..database import db_session
+from ..dal import users as users_dal
 
 log = logging.getLogger("librarium.auth")
 
@@ -44,31 +46,27 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(body: LoginRequest, request: Request):
+def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends(db_session)):
     ip = get_client_ip(request)
     if not _check_rate_limit(ip):
         log.warning("Login RATE LIMITED ip=%s", ip)
         raise HTTPException(status_code=429, detail="Too many login attempts, try again later")
 
-    db = get_db()
-    row = db.execute(
-        "SELECT id, username, display_name, email, password_hash, role FROM users WHERE username = ?",
-        (body.username,),
-    ).fetchone()
+    user = users_dal.get_user_by_username(db, body.username)
 
-    if not row or not verify_password(body.password, row["password_hash"]):
+    if not user or not verify_password(body.password, user["password_hash"]):
         _record_attempt(ip)
         log.warning("Login FAILED user=%s ip=%s", body.username, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     _clear_attempts(ip)
-    log.info("Login OK user=%s ip=%s", row["username"], ip)
-    token = create_token(row["id"], row["role"])
+    log.info("Login OK user=%s ip=%s", user["username"], ip)
+    token = create_token(user["id"], user["role"])
     response = JSONResponse({"ok": True, "user": {
-        "id": row["id"],
-        "username": row["username"],
-        "displayName": row["display_name"],
-        "role": row["role"],
+        "id": user["id"],
+        "username": user["username"],
+        "displayName": user["display_name"],
+        "role": user["role"],
     }})
     response.set_cookie(
         COOKIE_NAME,
@@ -83,21 +81,17 @@ def login(body: LoginRequest, request: Request):
 
 
 @router.get("/me")
-def me(request: Request):
-    user = get_current_user(request)
-    db = get_db()
-    row = db.execute(
-        "SELECT id, username, display_name, email, role FROM users WHERE id = ?",
-        (user["userId"],),
-    ).fetchone()
-    if not row:
+def me(request: Request, db: sqlite3.Connection = Depends(db_session)):
+    token_data = get_current_user(request)
+    user = users_dal.get_user_by_id(db, token_data["userId"])
+    if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return {
-        "id": row["id"],
-        "username": row["username"],
-        "displayName": row["display_name"],
-        "email": row["email"],
-        "role": row["role"],
+        "id": user["id"],
+        "username": user["username"],
+        "displayName": user["display_name"],
+        "email": user["email"],
+        "role": user["role"],
     }
 
 

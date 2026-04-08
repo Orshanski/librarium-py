@@ -1,7 +1,8 @@
 import logging
 import os
 import glob
-from fastapi import APIRouter, Request, UploadFile, File
+import sqlite3
+from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
 from ..auth import get_current_user, require_admin
@@ -15,8 +16,8 @@ _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 # Set once at module level — thread-safe, no toggling per-call
 Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
 
-from ..database import get_db
-from ..dal.books import get_book_by_id
+from ..database import db_session
+from ..dal.books import get_book_by_id, update_cover_path
 
 router = APIRouter(tags=["covers"])
 
@@ -45,7 +46,7 @@ def _find_cover(book_dir: str) -> str | None:
 
 
 @router.get("/api/covers/{book_id}")
-def get_cover(book_id: int, request: Request, full: int = 0):
+def get_cover(book_id: int, request: Request, full: int = 0, db: sqlite3.Connection = Depends(db_session)):
     get_current_user(request)
     book_dir = str(LIBRARY_DIR / str(book_id))
     cover = _find_cover(book_dir)
@@ -67,9 +68,9 @@ def get_cover(book_id: int, request: Request, full: int = 0):
 
 # --- POST: upload cover to temp ---
 @router.post("/api/books/{book_id}/cover")
-async def upload_cover(book_id: int, request: Request, file: UploadFile = File(...)):
+async def upload_cover(book_id: int, request: Request, file: UploadFile = File(...), db: sqlite3.Connection = Depends(db_session)):
     require_admin(request)
-    if not get_book_by_id(book_id):
+    if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "cover.jpg").split(".")[-1].lower() or "jpg"
 
@@ -118,9 +119,9 @@ def get_temp_cover(book_id: str, request: Request):
 
 # --- PUT: commit temp cover → library ---
 @router.put("/api/books/{book_id}/cover")
-def commit_cover(book_id: int, request: Request):
+def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
-    if not get_book_by_id(book_id):
+    if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
@@ -148,9 +149,7 @@ def commit_cover(book_id: int, request: Request):
     os.rename(src, dst)
 
     # Update DB
-    db = get_db()
-    db.execute("UPDATE books SET cover_path = :cp, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
-               {"cp": db_path_for(book_id, f"cover.{ext}"), "id": book_id})
+    update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
 
     # Invalidate thumb
     thumb = str(THUMBS_DIR / f"{book_id}.jpg")
@@ -161,7 +160,7 @@ def commit_cover(book_id: int, request: Request):
 
     from ..cover_embedder import embed_cover
     try:
-        embed_cover(book_id)
+        embed_cover(db, book_id)
     except Exception as e:
         log.warning("Failed to embed cover into book files: %s", e)
 

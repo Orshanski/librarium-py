@@ -1,4 +1,6 @@
-from ..database import get_db, dicts_from_rows, dict_from_row
+import sqlite3
+
+from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
@@ -11,8 +13,7 @@ ORDER = {
 }
 
 
-def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
-    db = get_db()
+def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0, page_size=50):
     where, params = build_book_where(filters)
     uid = filters.get("userId")
     ub_join = f"AND ub.user_id = :uid" if uid else "AND 0"
@@ -49,8 +50,7 @@ def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     return {"books": books, "hasMore": has_more}
 
 
-def get_book_by_id(book_id: int, user_id: int | None = None):
-    db = get_db()
+def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None):
     ub_join = "AND ub.user_id = :uid" if user_id else "AND 0"
     row = db.execute(f"""
         SELECT b.*, s.name as series_name,
@@ -71,23 +71,20 @@ def get_book_by_id(book_id: int, user_id: int | None = None):
     return dict_from_row(row)
 
 
-def get_book_files(book_id: int):
-    db = get_db()
+def get_book_files(db: sqlite3.Connection, book_id: int):
     return dicts_from_rows(db.execute(
         "SELECT id, format, file_path, file_size FROM book_files WHERE book_id = :id", {"id": book_id}
     ).fetchall())
 
 
-def get_book_identifiers(book_id: int):
-    db = get_db()
+def get_book_identifiers(db: sqlite3.Connection, book_id: int):
     return dicts_from_rows(db.execute(
         "SELECT type, value FROM book_identifiers WHERE book_id = :id", {"id": book_id}
     ).fetchall())
 
 
-def get_all_publishers():
+def get_all_publishers(db: sqlite3.Connection):
     """Publisher directory: sorted alphabetically."""
-    db = get_db()
     return [r["publisher"] for r in db.execute(
         "SELECT DISTINCT publisher FROM books WHERE publisher IS NOT NULL AND publisher != '' ORDER BY publisher COLLATE NOCASE"
     ).fetchall()]
@@ -98,8 +95,7 @@ def _sort_title(title: str) -> str:
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 
-def create_book(data: dict) -> int:
-    db = get_db()
+def create_book(db: sqlite3.Connection, data: dict) -> int:
     cur = db.execute("""
         INSERT INTO books (title, sort_title, description, language, publisher, pub_date, series_id, series_number, cover_path)
         VALUES (:title, :sort_title, :description, :language, :publisher, :pub_date, :series_id, :series_number, :cover_path)
@@ -122,8 +118,7 @@ def create_book(data: dict) -> int:
     return book_id
 
 
-def update_book(book_id: int, data: dict):
-    db = get_db()
+def update_book(db: sqlite3.Connection, book_id: int, data: dict):
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
 
@@ -161,13 +156,11 @@ def update_book(book_id: int, data: dict):
 
 
 
-def delete_book(book_id: int):
-    db = get_db()
+def delete_book(db: sqlite3.Connection, book_id: int):
     db.execute("DELETE FROM books WHERE id = ?", (book_id,))
 
 
-def search_books(query: str, limit=50):
-    db = get_db()
+def search_books(db: sqlite3.Connection, query: str, limit=50):
     escaped = query.lower().replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped}%"
     p = {"pattern": pattern, "limit": limit}
@@ -200,3 +193,53 @@ def search_books(query: str, limit=50):
     """, p).fetchall())
 
     return {"books": books, "authors": authors, "series": series}
+
+
+def book_exists(db: sqlite3.Connection, book_id: int) -> bool:
+    return db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone() is not None
+
+
+def book_file_exists(db: sqlite3.Connection, book_id: int, fmt: str) -> bool:
+    return db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone() is not None
+
+
+def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int):
+    db.execute(
+        "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
+        (book_id, fmt, file_path, file_size),
+    )
+
+
+def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str):
+    return dict_from_row(db.execute(
+        "SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?",
+        (book_id, fmt),
+    ).fetchone())
+
+
+def delete_book_file(db: sqlite3.Connection, file_id: int):
+    db.execute("DELETE FROM book_files WHERE id = ?", (file_id,))
+
+
+def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str):
+    db.execute("UPDATE books SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+               (cover_path, book_id))
+
+
+def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, value: str):
+    db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, ?, ?)",
+               (book_id, id_type, value))
+
+
+def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[dict]:
+    escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    rows = db.execute("""
+        SELECT b.id, b.title, GROUP_CONCAT(DISTINCT a.name) as authors
+        FROM books b
+        LEFT JOIN book_authors ba ON b.id = ba.book_id
+        LEFT JOIN authors a ON ba.author_id = a.id
+        WHERE lower_utf8(b.title) LIKE ? ESCAPE '\\'
+        GROUP BY b.id LIMIT 5
+    """, (pattern,)).fetchall()
+    return dicts_from_rows(rows)
