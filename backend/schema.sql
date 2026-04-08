@@ -89,15 +89,6 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
--- Токены сброса пароля
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT NOT NULL UNIQUE,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Link tables
 CREATE TABLE IF NOT EXISTS book_authors (
     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
