@@ -136,6 +136,20 @@ def test_old_token_refreshed(client):
     assert new_payload["exp"] > (datetime.now(timezone.utc) + timedelta(days=6)).timestamp()
 
 
+def test_old_token_not_refreshed_on_error(client):
+    """Token needing refresh should NOT get refreshed if endpoint returns error."""
+    now = datetime.now(timezone.utc)
+    old_iat = now - timedelta(hours=85)
+    token = pyjwt.encode(
+        {"userId": 1, "role": "admin", "iat": old_iat, "exp": now + timedelta(days=1)},
+        SECRET_KEY, algorithm=JWT_ALGORITHM,
+    )
+    client.cookies.set(COOKIE_NAME, token)
+    resp = client.get("/api/books/999999")  # 404
+    assert resp.status_code == 404
+    assert COOKIE_NAME not in resp.cookies
+
+
 def test_token_without_iat_not_refreshed(client):
     """Legacy token without iat should NOT be refreshed (backward compat)."""
     now = datetime.now(timezone.utc)
