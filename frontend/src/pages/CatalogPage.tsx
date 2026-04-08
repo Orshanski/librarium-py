@@ -52,10 +52,6 @@ export default function CatalogPage() {
   const [searchParams] = useSearchParams();
   const frozenRef = useRef(false); // block lazy load after restore
 
-  useEffect(() => {
-    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
-  }, []);
-
   const [books, setBooks] = useState<RawBook[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);

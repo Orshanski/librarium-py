@@ -29,17 +29,11 @@ const FILTER_META: Record<FilterKey, { endpoint: string; apiParam: string; label
   language: { endpoint: "/api/filter-options/languages", apiParam: "language", label: "Язык", responseKey: "languages" },
 };
 
-const UI_TO_API: Record<FilterKey, string> = {
-  author: "authorIds",
-  series: "seriesIds",
-  genre: "tagIds",
-  language: "language",
-};
-
 const CACHE_PREFIX = "librarium_filter_options_";
 
-function cacheKey(baseFilters?: ApiFilterParams): string {
+function cacheKey(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): string {
   const parts = [
+    filterKeys.join(","),
     baseFilters?.authorIds?.join(",") || "",
     baseFilters?.tagIds?.join(",") || "",
     baseFilters?.seriesIds?.join(",") || "",
@@ -48,18 +42,18 @@ function cacheKey(baseFilters?: ApiFilterParams): string {
   return CACHE_PREFIX + parts.join("|");
 }
 
-function loadCachedOptions(baseFilters?: ApiFilterParams): Record<string, FilterOption[]> {
+function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): Record<string, FilterOption[]> {
   try {
-    const raw = sessionStorage.getItem(cacheKey(baseFilters));
+    const raw = sessionStorage.getItem(cacheKey(filterKeys, baseFilters));
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function saveCachedOptions(options: Record<string, FilterOption[]>, baseFilters?: ApiFilterParams) {
+function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, FilterOption[]>, baseFilters?: ApiFilterParams) {
   try {
-    sessionStorage.setItem(cacheKey(baseFilters), JSON.stringify(options));
+    sessionStorage.setItem(cacheKey(filterKeys, baseFilters), JSON.stringify(options));
   } catch {}
 }
 
@@ -69,7 +63,7 @@ function buildQueryParams(
   baseFilters?: ApiFilterParams,
 ): URLSearchParams {
   const params = new URLSearchParams();
-  const ownApiParam = UI_TO_API[key];
+  const ownApiParam = FILTER_META[key].apiParam;
 
   // baseFilters — always included, never excluded by own dimension
   if (baseFilters) {
@@ -90,7 +84,7 @@ function buildQueryParams(
   // selected — exclude own dimension
   for (const [uiKey, values] of Object.entries(selected)) {
     if (!values?.length) continue;
-    const apiParam = UI_TO_API[uiKey as FilterKey];
+    const apiParam = FILTER_META[uiKey as FilterKey]?.apiParam;
     if (!apiParam || apiParam === ownApiParam) continue;
 
     if (apiParam === "language") {
@@ -117,7 +111,7 @@ export default function SmartFilterBar({
   baseFilters,
 }: SmartFilterBarProps) {
   const isMobile = useIsMobile();
-  const [options, setOptions] = useState<Record<string, FilterOption[]>>(() => loadCachedOptions(baseFilters));
+  const [options, setOptions] = useState<Record<string, FilterOption[]>>(() => loadCachedOptions(filterKeys, baseFilters));
   const abortRef = useRef<AbortController | null>(null);
 
   // Build stable dependency key
@@ -156,7 +150,7 @@ export default function SmartFilterBar({
         newOptions[key] = data;
       }
       setOptions(newOptions);
-      saveCachedOptions(newOptions, baseFilters);
+      saveCachedOptions(filterKeys, newOptions, baseFilters);
     });
 
     return () => controller.abort();
