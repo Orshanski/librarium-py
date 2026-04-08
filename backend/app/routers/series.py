@@ -12,8 +12,8 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 @router.get("")
 def list_series(request: Request, authorIds: str = "", tagIds: str = "", language: str = ""):
-    get_current_user(request)
-    return dal.get_series(parse_ids(authorIds), parse_ids(tagIds), language or None)
+    user = get_current_user(request)
+    return dal.get_series(parse_ids(authorIds), parse_ids(tagIds), language or None, user_id=user["userId"])
 
 
 @router.get("/{series_id}")

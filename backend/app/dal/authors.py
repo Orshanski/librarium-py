@@ -2,13 +2,15 @@ from ..database import get_db, dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
-def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
+def get_authors(tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     db = get_db()
     filters: dict = {}
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
+    if user_id:
+        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 

@@ -13,7 +13,7 @@ def list_series_options(filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
+def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     db = get_db()
     filters: dict = {}
     if author_ids:
@@ -22,6 +22,8 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
+    if user_id:
+        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 

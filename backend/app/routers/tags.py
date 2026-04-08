@@ -12,9 +12,16 @@ router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 
 @router.get("")
-def list_tags(request: Request):
-    get_current_user(request)
-    return {"tags": list_tag_options({})}
+def list_tags(request: Request, authorIds: str = "", seriesIds: str = "", language: str = ""):
+    user = get_current_user(request)
+    filters: dict = {"userId": user["userId"]}
+    if ids := parse_ids(authorIds):
+        filters["authorIds"] = ids
+    if ids := parse_ids(seriesIds):
+        filters["seriesIds"] = ids
+    if language:
+        filters["language"] = language
+    return {"tags": list_tag_options(filters)}
 
 
 @router.get("/cloud")
