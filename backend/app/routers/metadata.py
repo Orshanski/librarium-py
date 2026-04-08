@@ -1,9 +1,12 @@
+import logging
 from urllib.parse import urlparse
 import requests
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from ..auth import get_current_user
 from ..providers import search_metadata
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/metadata", tags=["metadata"])
 
@@ -16,7 +19,11 @@ def search(request: Request, q: str = "", providers: str = "litres"):
     if not q.strip():
         return {"results": []}
     provider_list = [p.strip() for p in providers.split(",") if p.strip()]
-    results = search_metadata(q.strip(), provider_list)
+    try:
+        results = search_metadata(q.strip(), provider_list)
+    except Exception:
+        log.exception("Metadata search failed")
+        return {"results": []}
     return {"results": [r.to_dict() for r in results]}
 
 

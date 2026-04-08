@@ -56,6 +56,13 @@ class TestReaderSettings:
         resp = client.get("/api/reader/settings")
         assert resp.status_code == 401
 
+    def test_settings_upsert(self, reader_client):
+        reader_client.cookies.set("device_id", "device-upsert")
+        reader_client.put("/api/reader/settings", json={"settings": {"theme": "dark"}})
+        reader_client.put("/api/reader/settings", json={"settings": {"theme": "light", "zoom": 120}})
+        data = reader_client.get("/api/reader/settings").json()
+        assert data["settings"] == {"theme": "light", "zoom": 120}
+
 
 class TestReadingProgress:
     def test_get_progress_empty(self, reader_client):
@@ -112,3 +119,43 @@ class TestReadingProgress:
 
         assert reader_data["position"] == "chapter-3"
         assert admin_data["position"] == "chapter-7"
+
+    def test_progress_require_auth_get(self, client):
+        resp = client.get("/api/reader/progress/1")
+        assert resp.status_code == 401
+
+    def test_progress_require_auth_put(self, client):
+        resp = client.put("/api/reader/progress/1", json={"position": "ch1", "last_device": "x"})
+        assert resp.status_code == 401
+
+    def test_fraction_too_high(self, reader_client):
+        resp = reader_client.put("/api/reader/progress/1", json={
+            "position": "ch1", "last_device": "x", "fraction": 1.5,
+        })
+        assert resp.status_code == 422
+
+    def test_fraction_too_low(self, reader_client):
+        resp = reader_client.put("/api/reader/progress/1", json={
+            "position": "ch1", "last_device": "x", "fraction": -0.1,
+        })
+        assert resp.status_code == 422
+
+    def test_last_format_saved(self, reader_client):
+        reader_client.put("/api/reader/progress/1", json={
+            "position": "ch1", "last_device": "desktop", "last_format": "EPUB", "fraction": 0.3,
+        })
+        data = reader_client.get("/api/reader/progress/1").json()
+        assert data["last_format"] == "EPUB"
+        assert data["fraction"] == 0.3
+
+    def test_progress_book_without_prior_progress(self, reader_client):
+        """Book 3 exists but has no reading progress — save and read back."""
+        data = reader_client.get("/api/reader/progress/3").json()
+        assert data["position"] is None
+
+        resp = reader_client.put("/api/reader/progress/3", json={
+            "position": "ch1", "last_device": "test",
+        })
+        assert resp.status_code == 200
+        data = reader_client.get("/api/reader/progress/3").json()
+        assert data["position"] == "ch1"
