@@ -56,7 +56,25 @@ async def csrf_header_middleware(request: Request, call_next):
     if request.url.path.startswith("/api/") and request.method not in _CSRF_SAFE_METHODS:
         if request.headers.get(_CSRF_HEADER) != _CSRF_HEADER_VALUE:
             return JSONResponse({"error": "Missing required CSRF header"}, status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    if (getattr(request.state, "_refresh_token", False)
+            and hasattr(request.state, "_refresh_user_id")
+            and hasattr(request.state, "_refresh_role")
+            and 200 <= response.status_code < 400):
+        import os
+        from .auth import create_token
+        from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
+        token = create_token(request.state._refresh_user_id, request.state._refresh_role)
+        response.set_cookie(
+            COOKIE_NAME,
+            token,
+            httponly=True,
+            samesite="lax",
+            secure=os.environ.get("SECURE_COOKIE", "").lower() in ("1", "true"),
+            max_age=JWT_EXPIRE_HOURS * 3600,
+            path="/",
+        )
+    return response
 
 
 # Routers

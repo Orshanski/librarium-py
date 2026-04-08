@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
 
@@ -98,3 +98,52 @@ def test_tampered_token(client):
 
     resp = client.get("/api/auth/me")
     assert resp.status_code == 401
+
+
+# ── Token refresh ──
+
+
+def test_fresh_token_not_refreshed(client):
+    """Token issued just now should NOT be refreshed."""
+    now = datetime.now(timezone.utc)
+    token = pyjwt.encode(
+        {"userId": 1, "role": "admin", "iat": now, "exp": now + timedelta(days=7)},
+        SECRET_KEY, algorithm=JWT_ALGORITHM,
+    )
+    client.cookies.set(COOKIE_NAME, token)
+    resp = client.get("/api/auth/me")
+    assert resp.status_code == 200
+    assert COOKIE_NAME not in resp.cookies
+
+
+def test_old_token_refreshed(client):
+    """Token older than JWT_REFRESH_AFTER_HOURS should get a new cookie."""
+    now = datetime.now(timezone.utc)
+    old_iat = now - timedelta(hours=85)  # > 84h threshold
+    token = pyjwt.encode(
+        {"userId": 1, "role": "admin", "iat": old_iat, "exp": now + timedelta(days=1)},
+        SECRET_KEY, algorithm=JWT_ALGORITHM,
+    )
+    client.cookies.set(COOKIE_NAME, token)
+    resp = client.get("/api/auth/me")
+    assert resp.status_code == 200
+    assert COOKIE_NAME in resp.cookies
+    # New token should have fresh iat
+    new_token = resp.cookies[COOKIE_NAME]
+    new_payload = pyjwt.decode(new_token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    assert new_payload["iat"] > old_iat.timestamp()
+    # exp should be extended to a full TTL from now
+    assert new_payload["exp"] > (datetime.now(timezone.utc) + timedelta(days=6)).timestamp()
+
+
+def test_token_without_iat_not_refreshed(client):
+    """Legacy token without iat should NOT be refreshed (backward compat)."""
+    now = datetime.now(timezone.utc)
+    token = pyjwt.encode(
+        {"userId": 1, "role": "admin", "exp": now + timedelta(days=7)},
+        SECRET_KEY, algorithm=JWT_ALGORITHM,
+    )
+    client.cookies.set(COOKIE_NAME, token)
+    resp = client.get("/api/auth/me")
+    assert resp.status_code == 200
+    assert COOKIE_NAME not in resp.cookies
