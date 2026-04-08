@@ -109,7 +109,7 @@ export default function AuthorsPage() {
 
   useEffect(() => {
     if (authors.length > 0) saveCache(authors, selected);
-  }, [authors, paramsKey]);
+  }, [authors, selected, paramsKey]);
 
   useEffect(() => {
     const main = document.querySelector("main");

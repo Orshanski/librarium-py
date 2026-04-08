@@ -110,7 +110,7 @@ export default function SeriesListPage() {
 
   useEffect(() => {
     if (allSeries.length > 0) saveCache(allSeries, selected);
-  }, [allSeries, paramsKey]);
+  }, [allSeries, selected, paramsKey]);
 
   // Scroll listener: save cache on scroll
   useEffect(() => {

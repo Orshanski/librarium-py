@@ -53,7 +53,7 @@ export default function CatalogPage() {
   const frozenRef = useRef(false); // block lazy load after restore
 
   useEffect(() => {
-    saveBookOrigin("Каталог", "/");
+    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
   }, []);
 
   const [books, setBooks] = useState<RawBook[]>([]);
@@ -83,7 +83,7 @@ export default function CatalogPage() {
   // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", "/");
+    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);
@@ -175,7 +175,7 @@ export default function CatalogPage() {
       else params.delete(key);
     }
     sessionStorage.removeItem(CACHE_KEY);
-    navigate(`/?${params.toString()}`);
+    navigate(`/?${params.toString().split("%2C").join(",")}`);
   }
 
   // Build selected filters from URL params
