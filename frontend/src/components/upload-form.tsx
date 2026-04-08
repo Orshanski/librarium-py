@@ -30,6 +30,7 @@ interface BookGroup {
   };
   files: UploadEntry[];
   duplicate: { id: number; title: string; authors: string } | null; // from DB
+  duplicateAction: "add-format" | "new-book" | null;
   hasDuplicateFormat: boolean;
 }
 
@@ -76,6 +77,7 @@ export default function UploadForm() {
         metadata: { title: file.name, authors: "", series: "", seriesNumber: "", description: "", language: "", tags: "", publisher: "", pubDate: "", isbn: "", coverUrl: null },
         files: [entry],
         duplicate: null,
+        duplicateAction: null,
         hasDuplicateFormat: false,
       }]);
       uploadFile(id, file);
@@ -144,6 +146,7 @@ export default function UploadForm() {
             metadata: meta,
             files: [updatedEntry],
             duplicate: result.duplicate,
+            duplicateAction: null,
             hasDuplicateFormat: false,
           }];
         }
@@ -194,8 +197,8 @@ export default function UploadForm() {
       const readyFiles = g.files.filter((f) => f.status === "ready");
       if (readyFiles.length === 0) continue;
 
-      if (g.duplicate) {
-        // All files add as format to existing book
+      if (g.duplicate && g.duplicateAction === "add-format") {
+        // User confirmed: add as format to existing book
         for (const f of readyFiles) {
           await fetch(`/api/books/${g.duplicate.id}/add-format`, {
             method: "POST",
@@ -396,10 +399,24 @@ export default function UploadForm() {
                 </div>
               )}
 
-              {/* DB duplicate warning */}
+              {/* DB duplicate — user chooses action */}
               {g.duplicate && (
                 <div style={{ padding: "8px 12px", borderRadius: 6, backgroundColor: "rgba(249, 190, 3, 0.08)", border: "1px solid rgba(249, 190, 3, 0.2)", fontSize: 13, color: colors.accent, marginBottom: 8 }}>
-                  Уже в библиотеке: {g.duplicate.title} ({g.duplicate.authors}) — будет добавлен как формат
+                  <div style={{ marginBottom: 6 }}>Похожая книга: {g.duplicate.title} ({g.duplicate.authors})</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      style={{ padding: "4px 10px", fontSize: 12, borderRadius: 4, border: "1px solid " + colors.accent, background: g.duplicateAction === "add-format" ? colors.accent : "transparent", color: g.duplicateAction === "add-format" ? "#fff" : colors.accent, cursor: "pointer" }}
+                      onClick={() => setGroups((prev) => prev.map((gg) => gg.key === g.key ? { ...gg, duplicateAction: "add-format" } : gg))}
+                    >
+                      Добавить как формат
+                    </button>
+                    <button
+                      style={{ padding: "4px 10px", fontSize: 12, borderRadius: 4, border: "1px solid " + colors.accent, background: g.duplicateAction === "new-book" ? colors.accent : "transparent", color: g.duplicateAction === "new-book" ? "#fff" : colors.accent, cursor: "pointer" }}
+                      onClick={() => setGroups((prev) => prev.map((gg) => gg.key === g.key ? { ...gg, duplicateAction: "new-book" } : gg))}
+                    >
+                      Сохранить как отдельную
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -434,7 +451,7 @@ export default function UploadForm() {
             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
               <button
                 onClick={saveAll}
-                disabled={readyCount === 0 || uploading || saving}
+                disabled={readyCount === 0 || uploading || saving || groups.some((g) => g.duplicate && !g.duplicateAction)}
                 style={{
                   padding: "10px 28px", fontSize: 14, fontFamily: "inherit", borderRadius: 6,
                   border: "none", backgroundColor: readyCount > 0 && !uploading ? colors.accent : colors.border,
