@@ -207,13 +207,13 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
     moved_paths: list[str] = []
 
     try:
-        author_ids = [get_or_create_author(a.strip())
+        author_ids = [get_or_create_author(db, a.strip())
                       for a in meta.get("authors", "").split(",") if a.strip()]
-        series_id = get_or_create_series(meta["series"].strip()) if meta.get("series", "").strip() else None
-        tag_ids = [get_or_create_tag(t.strip())
+        series_id = get_or_create_series(db, meta["series"].strip()) if meta.get("series", "").strip() else None
+        tag_ids = [get_or_create_tag(db, t.strip())
                    for t in meta.get("tags", "").split(",") if t.strip()]
 
-        book_id = create_book({
+        book_id = create_book(db, {
             "title": title,
             "description": meta.get("description") or None,
             "language": meta.get("language") or None,

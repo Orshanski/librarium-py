@@ -201,7 +201,9 @@ class TestUserBooks:
         resp = reader_client.put("/api/books/3/hidden", json={"isHidden": True})
         assert resp.status_code == 200
         from app.dal.user_books import get_user_book
-        ub = get_user_book(2, 3)  # reader user_id=2
+        from app.database import get_db
+        db = get_db()
+        ub = get_user_book(db, 2, 3)  # reader user_id=2
         assert ub["is_hidden"] == 1
 
     def test_hidden_excludes_from_catalog(self, reader_client):

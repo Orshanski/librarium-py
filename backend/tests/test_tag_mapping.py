@@ -1,20 +1,22 @@
-"""Tests for tag mapping (raw genre codes → tags)."""
+"""Tests for tag mapping (raw genre codes -> tags)."""
 
 
 class TestResolveRawTag:
     def test_known_mapping(self, admin_client):
         """sf_fantasy замаплен на тег 1 (Фэнтези) в seed."""
         from app.dal.tags import resolve_raw_tag
-        tag_id = resolve_raw_tag("sf_fantasy")
+        from app.database import get_db
+        db = get_db()
+        tag_id = resolve_raw_tag(db, "sf_fantasy")
         assert tag_id == 1
 
     def test_unknown_creates_tag_and_mapping(self, admin_client):
         """Неизвестный raw_tag создаёт тег и маппинг на себя."""
         from app.dal.tags import resolve_raw_tag
         from app.database import get_db
-        tag_id = resolve_raw_tag("brand_new_genre")
-        assert tag_id is not None
         db = get_db()
+        tag_id = resolve_raw_tag(db, "brand_new_genre")
+        assert tag_id is not None
         tag = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
         assert tag["name"] == "brand_new_genre"
         mapping = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = ?", ("brand_new_genre",)).fetchone()
@@ -23,67 +25,79 @@ class TestResolveRawTag:
     def test_case_insensitive(self, admin_client):
         """Маппинг case-insensitive."""
         from app.dal.tags import resolve_raw_tag
-        tag_id = resolve_raw_tag("SF_Fantasy")
+        from app.database import get_db
+        db = get_db()
+        tag_id = resolve_raw_tag(db, "SF_Fantasy")
         assert tag_id == 1
 
 
 class TestResolveTagNames:
     def test_known_tags(self, admin_client):
         from app.dal.tags import resolve_tag_names
-        names = resolve_tag_names(["sf_fantasy", "det_classic"])
+        from app.database import get_db
+        db = get_db()
+        names = resolve_tag_names(db, ["sf_fantasy", "det_classic"])
         assert names == ["Фэнтези", "Классический детектив"]
 
     def test_unknown_tag_passthrough_capitalized(self, admin_client):
         from app.dal.tags import resolve_tag_names
-        names = resolve_tag_names(["unknown_xyz"])
+        from app.database import get_db
+        db = get_db()
+        names = resolve_tag_names(db, ["unknown_xyz"])
         assert names == ["Unknown_xyz"]
 
     def test_empty_list(self, admin_client):
         from app.dal.tags import resolve_tag_names
-        assert resolve_tag_names([]) == []
+        from app.database import get_db
+        db = get_db()
+        assert resolve_tag_names(db, []) == []
 
     def test_all_caps_long_lowercased(self, admin_client):
         # Long ALL-CAPS tags get title-cased (>4 chars)
         from app.dal.tags import resolve_tag_names
-        names = resolve_tag_names(["SCIENCE FICTION"])
+        from app.database import get_db
+        db = get_db()
+        names = resolve_tag_names(db, ["SCIENCE FICTION"])
         assert names == ["Science fiction"]
 
     def test_acronyms_preserved(self, admin_client):
         # Short ALL-CAPS acronyms (<=4 chars) preserved
         from app.dal.tags import resolve_tag_names
-        assert resolve_tag_names(["AI"]) == ["AI"]
-        assert resolve_tag_names(["SQL"]) == ["SQL"]
-        assert resolve_tag_names(["HTTP"]) == ["HTTP"]
+        from app.database import get_db
+        db = get_db()
+        assert resolve_tag_names(db, ["AI"]) == ["AI"]
+        assert resolve_tag_names(db, ["SQL"]) == ["SQL"]
+        assert resolve_tag_names(db, ["HTTP"]) == ["HTTP"]
 
     def test_dedup_after_merge(self, admin_client):
-        """Two raw codes mapped to same tag → deduplicated in result."""
+        """Two raw codes mapped to same tag -> deduplicated in result."""
         from app.dal.tags import resolve_tag_names
         from app.database import get_db
         db = get_db()
         # Map a second raw code to tag 1 (Фэнтези)
         db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('fantasy_alt', 1)")
-        names = resolve_tag_names(["sf_fantasy", "fantasy_alt"])
+        names = resolve_tag_names(db, ["sf_fantasy", "fantasy_alt"])
         assert names == ["Фэнтези"]
 
 
 class TestMapTag:
     def test_rename_to_new_name(self, admin_client):
-        """Сопоставление с новым именем → переименование."""
+        """Сопоставление с новым именем -> переименование."""
         from app.dal.tags import map_tag
         from app.database import get_db
-        result = map_tag(tag_id=1, target_name="Новое Фэнтези")
+        db = get_db()
+        result = map_tag(db, tag_id=1, target_name="Новое Фэнтези")
         assert result["renamed"] is True
         assert result["target_id"] == 1
-        db = get_db()
         tag = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
         assert tag["name"] == "Новое Фэнтези"
 
     def test_merge_into_existing(self, admin_client):
-        """Сопоставление с существующим тегом → мерж."""
+        """Сопоставление с существующим тегом -> мерж."""
         from app.dal.tags import map_tag
         from app.database import get_db
         db = get_db()
-        result = map_tag(tag_id=1, target_name="Классический детектив")
+        result = map_tag(db, tag_id=1, target_name="Классический детектив")
         assert result["renamed"] is False
         assert result["target_id"] == 2
         rows = db.execute("SELECT book_id FROM book_tags WHERE tag_id = 2 ORDER BY book_id").fetchall()
@@ -95,9 +109,11 @@ class TestMapTag:
         assert m["tag_id"] == 2
 
     def test_merge_self_noop(self, admin_client):
-        """Сопоставление с собой → noop."""
+        """Сопоставление с собой -> noop."""
         from app.dal.tags import map_tag
-        result = map_tag(tag_id=1, target_name="Фэнтези")
+        from app.database import get_db
+        db = get_db()
+        result = map_tag(db, tag_id=1, target_name="Фэнтези")
         assert result["renamed"] is True
         assert result["target_id"] == 1
 
@@ -132,7 +148,7 @@ class TestMapTagEndpoint:
 
 class TestUploadMapping:
     def test_upload_resolves_known_genre(self, admin_client):
-        """Upload FB2 → metadata tags содержит человекочитаемое имя."""
+        """Upload FB2 -> metadata tags содержит человекочитаемое имя."""
         from pathlib import Path
         fixtures = Path(__file__).parent / "fixtures" / "books"
         fb2_path = fixtures / "minimal.fb2"

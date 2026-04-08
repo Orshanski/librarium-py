@@ -1,12 +1,11 @@
-from ..database import get_db
+import sqlite3
 
 
-def exclude_owned(candidates: list[dict]) -> list[dict]:
+def exclude_owned(db: sqlite3.Connection, candidates: list[dict]) -> list[dict]:
     """Filter out books that already exist in the library by title + first author."""
     if not candidates:
         return candidates
 
-    db = get_db()
     # Build lookup set from candidate titles
     placeholders = ",".join(f":t{i}" for i in range(len(candidates)))
     params = {f"t{i}": c["title"].lower() for i, c in enumerate(candidates)}

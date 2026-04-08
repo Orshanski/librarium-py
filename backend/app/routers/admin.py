@@ -106,7 +106,7 @@ ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pas
 @router.get("/settings")
 def get_settings(request: Request, db: sqlite3.Connection = Depends(db_session)):
     require_admin(request)
-    result = settings_dal.get_all_settings()
+    result = settings_dal.get_all_settings(db)
     if result.get("smtp_pass"):
         result["smtp_pass"] = _SMTP_PASS_MASK
     return result
@@ -130,7 +130,7 @@ def update_settings(body: UpdateSettingsBody, request: Request, db: sqlite3.Conn
     changed = []
     for key, value in data.items():
         if key in ALLOWED_SETTINGS:
-            settings_dal.set_setting(key, value)
+            settings_dal.set_setting(db, key, value)
             changed.append(key)
     if changed:
         log.info("Updated settings=%s by user_id=%s", ",".join(changed), user["userId"])
@@ -142,10 +142,10 @@ def update_settings(body: UpdateSettingsBody, request: Request, db: sqlite3.Conn
 @router.post("/smtp-test")
 def smtp_test(request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
-    host = settings_dal.get_setting("smtp_host")
-    port = int(settings_dal.get_setting("smtp_port") or "587")
-    smtp_user = settings_dal.get_setting("smtp_user")
-    smtp_pass = settings_dal.get_setting("smtp_pass")
+    host = settings_dal.get_setting(db, "smtp_host")
+    port = int(settings_dal.get_setting(db, "smtp_port") or "587")
+    smtp_user = settings_dal.get_setting(db, "smtp_user")
+    smtp_pass = settings_dal.get_setting(db, "smtp_pass")
 
     if not host or not smtp_user:
         return JSONResponse({"error": "SMTP не настроен"}, status_code=400)

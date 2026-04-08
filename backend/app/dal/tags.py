@@ -1,10 +1,10 @@
-from ..database import get_db, dicts_from_rows, dict_from_row
+import sqlite3
+from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
-def get_tag_cloud(top: int | None = None):
+def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
     """Tag cloud: name + book_count, sorted by count DESC."""
-    db = get_db()
     limit = "LIMIT :top" if top else ""
     params = {"top": top} if top else {}
     return dicts_from_rows(db.execute(f"""
@@ -15,9 +15,8 @@ def get_tag_cloud(top: int | None = None):
 
 
 
-def list_tag_options(filters: dict) -> list[dict]:
+def list_tag_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """Tag options for filter bar, scoped by other filters."""
-    db = get_db()
     where, params = build_book_where(filters, exclude="tagIds")
     return dicts_from_rows(db.execute(f"""
         SELECT DISTINCT t.id, t.name FROM tags t
@@ -27,8 +26,7 @@ def list_tag_options(filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
-    db = get_db()
+def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_ids=None, language=None):
     tag = dict_from_row(db.execute("SELECT * FROM tags WHERE id = :id", {"id": tag_id}).fetchone())
     if not tag:
         return None
@@ -62,17 +60,16 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
     return {"tag": tag, "books": books}
 
 
-def resolve_raw_tag(raw_tag: str) -> int:
+def resolve_raw_tag(db: sqlite3.Connection, raw_tag: str) -> int:
     """Resolve raw genre code to tag_id via tag_mappings.
-    If unknown — create tag + mapping."""
-    db = get_db()
+    If unknown -- create tag + mapping."""
     row = db.execute(
         "SELECT tag_id FROM tag_mappings WHERE raw_tag = :raw COLLATE NOCASE",
         {"raw": raw_tag},
     ).fetchone()
     if row:
         return row["tag_id"]
-    tag_id = get_or_create_tag(raw_tag)
+    tag_id = get_or_create_tag(db, raw_tag)
     db.execute(
         "INSERT OR IGNORE INTO tag_mappings (raw_tag, tag_id) VALUES (:raw, :tid)",
         {"raw": raw_tag, "tid": tag_id},
@@ -95,12 +92,11 @@ def _capitalize_tag(name: str) -> str:
     return s[0].upper() + s[1:]
 
 
-def resolve_tag_names(raw_tags: list[str]) -> list[str]:
+def resolve_tag_names(db: sqlite3.Connection, raw_tags: list[str]) -> list[str]:
     """Resolve raw genre codes to human-readable tag names.
     Unknown tags pass through as-is (with first letter capitalized)."""
     if not raw_tags:
         return []
-    db = get_db()
     seen: set[str] = set()
     result = []
     for raw in raw_tags:
@@ -115,10 +111,9 @@ def resolve_tag_names(raw_tags: list[str]) -> list[str]:
     return result
 
 
-def map_tag(tag_id: int, target_name: str) -> dict:
+def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> dict:
     """Map tag to target (rename or merge).
     Returns {"renamed": bool, "target_id": int}."""
-    db = get_db()
     target_name = target_name.strip()
     existing = db.execute(
         "SELECT id FROM tags WHERE name = :name AND id != :id",
@@ -149,8 +144,11 @@ def map_tag(tag_id: int, target_name: str) -> dict:
         return {"renamed": True, "target_id": tag_id}
 
 
-def get_or_create_tag(name: str) -> int:
-    db = get_db()
+def get_or_create_tag(db: sqlite3.Connection, name: str) -> int:
     db.execute("INSERT OR IGNORE INTO tags (name) VALUES (:name)", {"name": name})
     row = db.execute("SELECT id FROM tags WHERE name = :name", {"name": name}).fetchone()
     return row["id"]
+
+
+def tag_exists(db: sqlite3.Connection, tag_id: int) -> bool:
+    return db.execute("SELECT id FROM tags WHERE id = :id", {"id": tag_id}).fetchone() is not None

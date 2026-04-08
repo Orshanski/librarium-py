@@ -1,10 +1,10 @@
-from ..database import get_db, dicts_from_rows, dict_from_row
+import sqlite3
+from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
-def list_series_options(filters: dict) -> list[dict]:
+def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """Series options for filter bar, scoped by other filters."""
-    db = get_db()
     where, params = build_book_where(filters, exclude="seriesIds")
     return dicts_from_rows(db.execute(f"""
         SELECT DISTINCT s.id, s.name FROM series s
@@ -13,8 +13,7 @@ def list_series_options(filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    db = get_db()
+def get_series(db: sqlite3.Connection, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     filters: dict = {}
     if author_ids:
         filters["authorIds"] = author_ids
@@ -40,8 +39,7 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
     return {"series": series}
 
 
-def get_series_by_id(series_id: int):
-    db = get_db()
+def get_series_by_id(db: sqlite3.Connection, series_id: int):
     s = dict_from_row(db.execute("""
         SELECT s.*, COUNT(b.id) as book_count
         FROM series s
@@ -71,29 +69,25 @@ def get_series_by_id(series_id: int):
 
 
 
-def get_or_create_series(name: str) -> int:
-    db = get_db()
+def get_or_create_series(db: sqlite3.Connection, name: str) -> int:
     db.execute("INSERT OR IGNORE INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
     row = db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()
     return row["id"]
 
 
-def rename_series(series_id: int, name: str):
-    db = get_db()
+def rename_series(db: sqlite3.Connection, series_id: int, name: str):
     db.execute("UPDATE series SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": series_id})
 
 
-def merge_series(target_id: int, source_id: int):
-    """Переносит книги source → target, удаляет source."""
-    db = get_db()
+def merge_series(db: sqlite3.Connection, target_id: int, source_id: int):
+    """Переносит книги source -> target, удаляет source."""
     db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
                {"target": target_id, "source": source_id})
     db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
 
 
-def delete_series(series_id: int) -> str | None:
+def delete_series(db: sqlite3.Connection, series_id: int) -> str | None:
     """Удаляет серию. Возвращает None если удалена, иначе причину ошибки."""
-    db = get_db()
     exists = db.execute("SELECT 1 FROM series WHERE id = :id", {"id": series_id}).fetchone()
     if not exists:
         return "not_found"
@@ -102,5 +96,3 @@ def delete_series(series_id: int) -> str | None:
         return "has_books"
     db.execute("DELETE FROM series WHERE id = :id", {"id": series_id})
     return None
-
-

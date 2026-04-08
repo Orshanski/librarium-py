@@ -1,7 +1,9 @@
 import logging
-from fastapi import APIRouter, Request
+import sqlite3
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user
+from ..database import db_session
 from ..dal.books import get_book_by_id
 from ..dal.similar import exclude_owned
 from ..providers.litres import find_litres_id, fetch_similar
@@ -11,10 +13,10 @@ router = APIRouter(tags=["similar"])
 
 
 @router.get("/api/books/{book_id}/similar")
-def get_similar(book_id: int, request: Request):
+def get_similar(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     get_current_user(request)
 
-    book = get_book_by_id(book_id)
+    book = get_book_by_id(db, book_id)
     if not book:
         return JSONResponse({"error": "Not found"}, status_code=404)
 
@@ -29,7 +31,7 @@ def get_similar(book_id: int, request: Request):
             return {"books": [], "source": "litres", "error": None}
 
         similar = fetch_similar(litres_id)
-        similar = exclude_owned(similar)
+        similar = exclude_owned(db, similar)
         return {"books": similar, "source": "litres", "error": None}
     except Exception as e:
         log.warning("Similar books error for book_id=%d: %s", book_id, e)

@@ -1,9 +1,11 @@
+import sqlite3
 import uuid
 from typing import Any
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from ..auth import get_current_user
+from ..database import db_session
 from ..dal.reader import (
     get_reader_settings,
     save_reader_settings,
@@ -49,35 +51,35 @@ def _set_device_cookie(response, device_id: str):
 
 
 @router.get("/api/reader/settings")
-def api_get_settings(request: Request):
+def api_get_settings(request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
     device_id = _get_or_create_device_id(request)
-    settings = get_reader_settings(user["userId"], device_id)
+    settings = get_reader_settings(db, user["userId"], device_id)
     response = JSONResponse({"settings": settings})
     _set_device_cookie(response, device_id)
     return response
 
 
 @router.put("/api/reader/settings")
-def api_save_settings(body: ReaderSettingsBody, request: Request):
+def api_save_settings(body: ReaderSettingsBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
     device_id = _get_or_create_device_id(request)
-    save_reader_settings(user["userId"], device_id, body.settings)
+    save_reader_settings(db, user["userId"], device_id, body.settings)
     response = JSONResponse({"ok": True})
     _set_device_cookie(response, device_id)
     return response
 
 
 @router.get("/api/reader/progress/{book_id}")
-def api_get_progress(book_id: int, request: Request):
+def api_get_progress(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    progress = get_reading_progress(user["userId"], book_id)
+    progress = get_reading_progress(db, user["userId"], book_id)
     return progress
 
 
 @router.put("/api/reader/progress/{book_id}")
-def api_save_progress(book_id: int, body: ReadingProgressBody, request: Request):
+def api_save_progress(book_id: int, body: ReadingProgressBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    save_reading_progress(user["userId"], book_id, body.position, body.last_device,
+    save_reading_progress(db, user["userId"], book_id, body.position, body.last_device,
                           body.last_format, body.fraction)
     return {"ok": True}

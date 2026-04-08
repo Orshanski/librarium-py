@@ -71,11 +71,11 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request, db: sqlite
 
     # Resolve string names to IDs
     if "authorIds" in data:
-        data["authorIds"] = [get_or_create_author(a) if isinstance(a, str) else a for a in data["authorIds"]]
+        data["authorIds"] = [get_or_create_author(db, a) if isinstance(a, str) else a for a in data["authorIds"]]
     if "tagIds" in data:
-        data["tagIds"] = [get_or_create_tag(t) if isinstance(t, str) else t for t in data["tagIds"]]
+        data["tagIds"] = [get_or_create_tag(db, t) if isinstance(t, str) else t for t in data["tagIds"]]
     if "seriesId" in data and isinstance(data["seriesId"], str):
-        data["seriesId"] = get_or_create_series(data["seriesId"])
+        data["seriesId"] = get_or_create_series(db, data["seriesId"])
 
     dal.update_book(db, book_id, data)
 

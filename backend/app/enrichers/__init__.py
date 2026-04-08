@@ -12,7 +12,9 @@ def _init_enrichers():
 def _resolve_genres(raw_genres: list[str]) -> list[str]:
     """Resolve genre names/codes via tag_mappings (handles LLM output too)."""
     from ..dal.tags import resolve_tag_names
-    return resolve_tag_names(raw_genres)
+    from ..database import get_db
+    db = get_db()
+    return resolve_tag_names(db, raw_genres)
 
 
 def enrich_metadata(meta: ParsedMetadata, ext: str, original_filename: str, file_path: str) -> ParsedMetadata:
