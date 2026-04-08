@@ -189,3 +189,77 @@ def test_cleanup_temp(admin_client):
 def test_cleanup_temp_idempotent(admin_client):
     resp = admin_client.delete("/api/uploads/nonexist1")
     assert resp.status_code == 200
+
+
+# ── Concurrent uploads ──
+
+
+def _make_admin_client():
+    """Create a fresh TestClient with admin login (thread-safe)."""
+    from starlette.testclient import TestClient
+    from app.main import app
+    c = TestClient(app)
+    c.headers.update({"X-Requested-With": "XMLHttpRequest"})
+    c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    return c
+
+
+def _upload_fb2(client):
+    """Upload minimal.fb2 and return response JSON."""
+    with open(FIXTURES / "minimal.fb2", "rb") as f:
+        resp = client.post("/api/upload", files={"file": ("test.fb2", f, "application/octet-stream")})
+    return resp.json()
+
+
+def _upload_worker():
+    """Worker for concurrent tests: create client, upload, cleanup thread-local DB."""
+    c = _make_admin_client()
+    try:
+        return _upload_fb2(c)
+    finally:
+        from app.database import reset_db
+        reset_db()
+
+
+class TestConcurrentUploads:
+    def test_parallel_uploads_unique_temp_ids(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        # 3 workers: enough to detect collisions, low enough to not overwhelm test SQLite
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            results = list(pool.map(lambda _: _upload_worker(), range(3)))
+
+        temp_ids = [r["tempId"] for r in results]
+        assert len(set(temp_ids)) == 3, f"Expected 3 unique tempIds, got: {temp_ids}"
+
+    def test_parallel_uploads_files_dont_collide(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        def worker():
+            data = _upload_worker()
+            return data["tempId"]
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            temp_ids = list(pool.map(lambda _: worker(), range(3)))
+
+        uploads_dir = os.path.join(os.environ["DATA_DIR"], "uploads")
+        for tid in temp_ids:
+            matching = [f for f in os.listdir(uploads_dir) if f.startswith(tid + ".")]
+            assert len(matching) == 1, f"Expected 1 file for {tid}, found: {matching}"
+
+    def test_cleanup_does_not_affect_other_upload(self, admin_client):
+        with open(FIXTURES / "minimal.fb2", "rb") as f:
+            upload_a = admin_client.post("/api/upload", files={"file": ("a.fb2", f, "application/octet-stream")})
+        with open(FIXTURES / "minimal.fb2", "rb") as f:
+            upload_b = admin_client.post("/api/upload", files={"file": ("b.fb2", f, "application/octet-stream")})
+
+        tid_a = upload_a.json()["tempId"]
+        tid_b = upload_b.json()["tempId"]
+
+        admin_client.delete(f"/api/uploads/{tid_a}")
+
+        uploads_dir = os.path.join(os.environ["DATA_DIR"], "uploads")
+        a_files = [f for f in os.listdir(uploads_dir) if f.startswith(tid_a + ".") or f.startswith(tid_a + "-cover.")]
+        b_files = [f for f in os.listdir(uploads_dir) if f.startswith(tid_b + ".") or f.startswith(tid_b + "-cover.")]
+        assert a_files == [], f"Cleanup should have removed all files for {tid_a}"
+        assert len(b_files) >= 1, f"Files for {tid_b} should still exist"
