@@ -1,10 +1,8 @@
-import sqlite3
 from urllib.parse import urlparse
 import requests
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from ..auth import get_current_user
-from ..database import db_session
 from ..providers import search_metadata
 
 router = APIRouter(prefix="/api/metadata", tags=["metadata"])
@@ -13,7 +11,7 @@ ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "cv5.litres.ru", "cdn.lit
 
 
 @router.get("/search")
-def search(request: Request, q: str = "", providers: str = "litres", db: sqlite3.Connection = Depends(db_session)):
+def search(request: Request, q: str = "", providers: str = "litres"):
     get_current_user(request)
     if not q.strip():
         return {"results": []}
@@ -23,7 +21,7 @@ def search(request: Request, q: str = "", providers: str = "litres", db: sqlite3
 
 
 @router.get("/cover-proxy")
-def cover_proxy(request: Request, url: str = "", db: sqlite3.Connection = Depends(db_session)):
+def cover_proxy(request: Request, url: str = ""):
     get_current_user(request)
     if not url:
         return Response(status_code=400)

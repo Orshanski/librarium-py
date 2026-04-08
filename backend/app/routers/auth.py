@@ -96,7 +96,7 @@ def me(request: Request, db: sqlite3.Connection = Depends(db_session)):
 
 
 @router.post("/logout")
-def logout(request: Request, db: sqlite3.Connection = Depends(db_session)):
+def logout(request: Request):
     try:
         user = get_current_user(request)
         log.info("Logout user_id=%s", user["userId"])

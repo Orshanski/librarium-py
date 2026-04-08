@@ -240,6 +240,6 @@ def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[dict]:
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
         WHERE lower_utf8(b.title) LIKE ? ESCAPE '\\'
-        GROUP BY b.id LIMIT 10
+        GROUP BY b.id LIMIT 5
     """, (pattern,)).fetchall()
     return dicts_from_rows(rows)

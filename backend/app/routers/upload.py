@@ -112,6 +112,7 @@ async def upload_file(request: Request, file: UploadFile = File(...), db: sqlite
 
     # Parse file structure (FB2/EPUB), then enrich with external sources (LLM for PDF)
     # Run in thread pool to avoid blocking event loop (LLM call can take 10-40s)
+    # Safe: await suspends caller, so db is not used concurrently across threads
     meta = await asyncio.to_thread(parse_book, book_path, ext)
     meta = await asyncio.to_thread(enrich_metadata, db, meta, ext, filename_hint, book_path)
 

@@ -106,7 +106,7 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 
 # --- GET: serve temp cover preview ---
 @router.get("/api/uploads/cover/{book_id}")
-def get_temp_cover(book_id: str, request: Request, db: sqlite3.Connection = Depends(db_session)):
+def get_temp_cover(book_id: str, request: Request):
     import re
     get_current_user(request)
     if not re.match(r'^[a-zA-Z0-9]{1,20}$', book_id):
@@ -169,7 +169,7 @@ def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depend
 
 # --- DELETE: discard temp cover ---
 @router.delete("/api/books/{book_id}/cover")
-def discard_cover(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
+def discard_cover(book_id: int, request: Request):
     require_admin(request)
     for f in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
         os.remove(f)
