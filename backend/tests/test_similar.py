@@ -167,18 +167,21 @@ class TestExcludeOwned:
             {"title": "Minimal Test Book", "authors": "Test Author", "rating": 5.0},
             {"title": "Unknown Book", "authors": "Nobody", "rating": 4.0},
         ]
-        result = exclude_owned(candidates)
+        from app.database import _get_db
+        result = exclude_owned(_get_db(), candidates)
         assert len(result) == 1
         assert result[0]["title"] == "Unknown Book"
 
     def test_unknown_book_passes(self):
         candidates = [{"title": "Totally New", "authors": "Fresh Author", "rating": 4.0}]
-        result = exclude_owned(candidates)
+        from app.database import _get_db
+        result = exclude_owned(_get_db(), candidates)
         assert len(result) == 1
 
     def test_same_title_different_author_passes(self):
         candidates = [{"title": "Minimal Test Book", "authors": "Other Author", "rating": 4.0}]
-        result = exclude_owned(candidates)
+        from app.database import _get_db
+        result = exclude_owned(_get_db(), candidates)
         assert len(result) == 1
         assert result[0]["authors"] == "Other Author"
 

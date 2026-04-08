@@ -2,6 +2,7 @@
 import base64
 import logging
 import os
+import sqlite3
 import tempfile
 import zipfile
 from io import BytesIO
@@ -205,7 +206,7 @@ def to_jpeg(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-def embed_cover(book_id: int) -> None:
+def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
     """Orchestrator: find cover on disk, convert to JPEG, embed into all book files."""
     from .config import LIBRARY_DIR
     from .dal.books import get_book_files
@@ -229,7 +230,7 @@ def embed_cover(book_id: int) -> None:
     cover_bytes = (book_dir / cover_file).read_bytes()
     jpeg_bytes = to_jpeg(cover_bytes)
 
-    files = get_book_files(book_id)
+    files = get_book_files(db, book_id)
     for bf in files:
         fmt = bf["format"].upper()
         file_path = LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}"

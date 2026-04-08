@@ -288,7 +288,8 @@ class TestEmbedCover:
         (book_dir / "cover.jpg").write_bytes(cover_bytes)
 
         from app.cover_embedder import embed_cover
-        embed_cover(1)
+        from app.database import _get_db
+        embed_cover(_get_db(), 1)
 
         # Extract cover from the FB2 file and verify
         fb2_path = book_dir / "book.fb2"

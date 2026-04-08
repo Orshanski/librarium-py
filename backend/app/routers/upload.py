@@ -2,10 +2,11 @@ import asyncio
 import logging
 import os
 import re
+import sqlite3
 import uuid
 import shutil
 import zipfile
-from fastapi import APIRouter, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 
 from pydantic import BaseModel, Field
@@ -13,11 +14,11 @@ from ..auth import require_admin
 
 log = logging.getLogger("librarium.upload")
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE, db_path_for
-from ..database import get_db
+from ..database import db_session
 from ..parsers import parse_book
 from ..enrichers import enrich_metadata
 from ..pdf_linearize import linearize_pdf_in_place
-from ..dal.books import create_book, get_book_files
+from ..dal.books import create_book, get_book_files, add_book_file, update_cover_path, add_book_identifier, book_exists, book_file_exists, find_duplicates_by_title
 from ..dal.authors import get_or_create_author
 from ..dal.series import get_or_create_series
 from ..dal.tags import get_or_create_tag
@@ -51,7 +52,7 @@ class AddFormatBody(BaseModel):
 
 
 @router.post("/api/upload")
-async def upload_file(request: Request, file: UploadFile = File(...)):
+async def upload_file(request: Request, file: UploadFile = File(...), db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
 
     filename = file.filename or "unknown"
@@ -123,7 +124,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         cover_url = f"/api/uploads/cover/{temp_id}"
 
     # Deduplication
-    duplicate = _check_duplicate(meta.title, meta.authors)
+    duplicate = _check_duplicate(db, meta.title, meta.authors)
 
     log.info("Uploaded temp_id=%s file=%s by user_id=%s", temp_id, filename, user["userId"])
     return {
@@ -165,7 +166,7 @@ def _find_temp_covers(temp_id: str) -> list[str]:
 
 
 @router.delete("/api/uploads/{temp_id}")
-def cleanup_temp(temp_id: str, request: Request):
+def cleanup_temp(temp_id: str, request: Request, db: sqlite3.Connection = Depends(db_session)):
     require_admin(request)
     if not _validate_temp_id(temp_id):
         return JSONResponse({"error": "Invalid temp_id"}, status_code=400)
@@ -178,7 +179,7 @@ def cleanup_temp(temp_id: str, request: Request):
 
 
 @router.post("/api/books/create")
-def create_book_from_upload(body: CreateBookBody, request: Request):
+def create_book_from_upload(body: CreateBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
 
     temp_id = body.tempId
@@ -202,7 +203,6 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
         except ValueError:
             pass
 
-    db = get_db()
     book_dir = ""
     moved_paths: list[str] = []
 
@@ -238,10 +238,7 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
             linearize_pdf_in_place(dst_file)
 
         file_size = os.path.getsize(dst_file)
-        db.execute(
-            "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size),
-        )
+        add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
 
         # Cover (exact match)
         cover_files = _find_temp_covers(temp_id)
@@ -251,13 +248,11 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
             cover_dst = os.path.join(book_dir, f"cover.{cover_ext_name}")
             shutil.move(cover_src, cover_dst)
             moved_paths.append(cover_dst)
-            db.execute("UPDATE books SET cover_path = ? WHERE id = ?",
-                       (db_path_for(book_id, f"cover.{cover_ext_name}"), book_id))
+            update_cover_path(db, book_id, db_path_for(book_id, f"cover.{cover_ext_name}"))
 
         # ISBN
         if meta.get("isbn"):
-            db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, 'isbn', ?)",
-                       (book_id, meta["isbn"]))
+            add_book_identifier(db, book_id, "isbn", meta["isbn"])
 
     except Exception:
         for path in moved_paths:
@@ -272,7 +267,7 @@ def create_book_from_upload(body: CreateBookBody, request: Request):
 
 
 @router.post("/api/books/{book_id}/add-format")
-def add_format(book_id: int, body: AddFormatBody, request: Request):
+def add_format(book_id: int, body: AddFormatBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = require_admin(request)
     temp_id = body.tempId
 
@@ -284,14 +279,11 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
 
-    db = get_db()
-
     # Проверить что книга существует
-    if not db.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone():
+    if not book_exists(db, book_id):
         return JSONResponse({"error": "Книга не найдена"}, status_code=404)
 
-    existing = db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone()
-    if existing:
+    if book_file_exists(db, book_id, fmt):
         return JSONResponse({"error": f"Формат {fmt} уже есть"}, status_code=409)
 
     book_dir = str(LIBRARY_DIR / str(book_id))
@@ -307,10 +299,7 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
             linearize_pdf_in_place(dst)
 
         file_size = os.path.getsize(dst)
-        db.execute(
-            "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
-            (book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size),
-        )
+        add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
     except Exception:
         if dst and os.path.exists(dst):
             os.remove(dst)
@@ -324,23 +313,12 @@ def add_format(book_id: int, body: AddFormatBody, request: Request):
     return {"ok": True, "format": fmt}
 
 
-def _check_duplicate(title: str, authors: list[str]) -> dict | None:
+def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> dict | None:
     if not title:
         return None
-    db = get_db()
-    escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
-    pattern = f"%{escaped}%"
-    rows = db.execute("""
-        SELECT b.id, b.title, GROUP_CONCAT(DISTINCT a.name) as authors
-        FROM books b
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE lower_utf8(b.title) LIKE ? ESCAPE '\\'
-        GROUP BY b.id LIMIT 5
-    """, (pattern,)).fetchall()
+    rows = find_duplicates_by_title(db, title)
 
-    for row in rows:
-        r = dict(row)
+    for r in rows:
         # Check if any author matches
         if authors:
             r_authors = (r["authors"] or "").lower()

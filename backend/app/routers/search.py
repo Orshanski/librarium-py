@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Request
+import sqlite3
+from fastapi import APIRouter, Depends, Request
 from ..auth import get_current_user
+from ..database import db_session
 from ..dal.books import search_books
 
 router = APIRouter(tags=["search"])
 
 
 @router.get("/api/search")
-def search(request: Request, q: str = "", limit: int = 50):
+def search(request: Request, q: str = "", limit: int = 50, db: sqlite3.Connection = Depends(db_session)):
     get_current_user(request)
     limit = min(limit, 100)
     if not q.strip():
         return {"books": [], "authors": [], "series": []}
-    return search_books(q.strip(), limit)
+    return search_books(db, q.strip(), limit)
