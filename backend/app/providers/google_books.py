@@ -1,19 +1,18 @@
 import logging
-from urllib.parse import quote
+
 import requests
+
 from . import MetadataResult
 
 log = logging.getLogger(__name__)
 
-SEARCH_URL = "https://www.googleapis.com/books/v1/volumes?q="
+SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
 TIMEOUT = 10
 
 
 def search_google(query: str) -> list[MetadataResult]:
     try:
-        tokens = query.strip().split()
-        q = "+".join(quote(t) for t in tokens if t)
-        resp = requests.get(SEARCH_URL + q, timeout=TIMEOUT)
+        resp = requests.get(SEARCH_URL, params={"q": query.strip()}, timeout=TIMEOUT)
         if resp.status_code != 200:
             return []
 
