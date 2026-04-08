@@ -64,7 +64,3 @@ def reset_db():
         db.close()
         _local.db = None
     _schema_initialized = False
-
-
-# Temporary alias — will be removed after all callers migrated
-get_db = _get_db

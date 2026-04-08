@@ -10,10 +10,15 @@ def _init_enrichers():
 
 
 def _resolve_genres(raw_genres: list[str]) -> list[str]:
-    """Resolve genre names/codes via tag_mappings (handles LLM output too)."""
+    """Resolve genre names/codes via tag_mappings.
+
+    Uses _get_db() directly because enrich_metadata runs in asyncio.to_thread
+    (different thread from the request handler), so the request's db connection
+    cannot be shared here.
+    """
     from ..dal.tags import resolve_tag_names
-    from ..database import get_db
-    db = get_db()
+    from ..database import _get_db
+    db = _get_db()
     return resolve_tag_names(db, raw_genres)
 
 

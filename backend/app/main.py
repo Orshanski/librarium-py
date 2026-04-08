@@ -1,7 +1,7 @@
 import logging
 import traceback
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
@@ -30,13 +30,10 @@ from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
 
-from .database import db_session
-
 app = FastAPI(
     title="Librarium",
     docs_url=None,
     redoc_url=None,
-    dependencies=[Depends(db_session)],
 )
 
 _log = logging.getLogger("librarium")
