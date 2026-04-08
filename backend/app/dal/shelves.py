@@ -93,7 +93,6 @@ def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
 
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
     cur = db.execute("INSERT INTO shelves (name, user_id) VALUES (:n, :uid)", {"n": name, "uid": user_id})
-
     return cur.lastrowid
 
 
@@ -101,15 +100,12 @@ def update_shelf(db: sqlite3.Connection, shelf_id: int, name: str):
     db.execute("UPDATE shelves SET name = :n WHERE id = :id AND is_system = 0", {"n": name, "id": shelf_id})
 
 
-
 def delete_shelf(db: sqlite3.Connection, shelf_id: int):
     db.execute("DELETE FROM shelves WHERE id = :id AND is_system = 0", {"id": shelf_id})
 
 
-
 def add_book_to_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int):
     db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)", {"sid": shelf_id, "bid": book_id})
-
 
 
 def remove_book_from_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int):
