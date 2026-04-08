@@ -1,8 +1,5 @@
 """Shared WHERE clause builder and filter options for book queries."""
-from typing import Literal
 from ..database import get_db, dicts_from_rows
-
-FilterEntity = Literal["author", "tag", "series", "language"]
 
 
 def build_book_where(
@@ -64,42 +61,12 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def get_filter_options(filters: dict, entity: FilterEntity) -> list[dict]:
-    """Available filter options for entity, scoped by current filters (excluding own dimension).
-
-    Returns:
-        author/tag/series: [{id, name}, ...] sorted alphabetically
-        language: [{name}, ...] sorted alphabetically
-    """
-    exclude_key = {"author": "authorIds", "tag": "tagIds", "series": "seriesIds", "language": "language"}[entity]
-    where, params = build_book_where(filters, exclude=exclude_key)
+def list_language_options(filters: dict) -> list[dict]:
+    """Language options for filter bar, scoped by other filters."""
     db = get_db()
-
-    if entity == "author":
-        sql = f"""
-            SELECT DISTINCT a.id, a.name FROM authors a
-            JOIN book_authors ba ON a.id = ba.author_id JOIN books b ON ba.book_id = b.id
-            {where} ORDER BY a.sort_name COLLATE NOCASE
-        """
-    elif entity == "tag":
-        sql = f"""
-            SELECT DISTINCT t.id, t.name FROM tags t
-            JOIN book_tags bt ON t.id = bt.tag_id JOIN books b ON bt.book_id = b.id
-            {where} ORDER BY t.name COLLATE NOCASE
-        """
-    elif entity == "series":
-        sql = f"""
-            SELECT DISTINCT s.id, s.name FROM series s
-            JOIN books b ON b.series_id = s.id
-            {where} ORDER BY s.name COLLATE NOCASE
-        """
-    elif entity == "language":
-        lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"
-        sql = f"""
-            SELECT DISTINCT b.language as name FROM books b
-            {lang_where} ORDER BY b.language COLLATE NOCASE
-        """
-    else:
-        raise ValueError(f"Unknown entity: {entity}")
-
-    return dicts_from_rows(db.execute(sql, params).fetchall())
+    where, params = build_book_where(filters, exclude="language")
+    lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"
+    return dicts_from_rows(db.execute(f"""
+        SELECT DISTINCT b.language as name FROM books b
+        {lang_where} ORDER BY b.language COLLATE NOCASE
+    """, params).fetchall())

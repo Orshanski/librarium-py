@@ -1,5 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_options
+from .filters import build_book_where
 
 
 def get_tag_cloud(top: int | None = None):
@@ -13,6 +13,18 @@ def get_tag_cloud(top: int | None = None):
         GROUP BY t.id ORDER BY book_count DESC {limit}
     """, params).fetchall())
 
+
+
+def list_tag_options(filters: dict) -> list[dict]:
+    """Tag options for filter bar, scoped by other filters."""
+    db = get_db()
+    where, params = build_book_where(filters, exclude="tagIds")
+    return dicts_from_rows(db.execute(f"""
+        SELECT DISTINCT t.id, t.name FROM tags t
+        JOIN book_tags bt ON t.id = bt.tag_id
+        JOIN books b ON bt.book_id = b.id
+        {where} ORDER BY t.name COLLATE NOCASE
+    """, params).fetchall())
 
 
 def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
@@ -47,18 +59,7 @@ def get_tag_by_id(tag_id: int, author_ids=None, series_ids=None, language=None):
         {where} GROUP BY b.id ORDER BY b.added_at DESC
     """, params).fetchall())
 
-    filters_for_options = dict(filters)
-    filters_for_options["tagIds"] = [tag_id]
-
-    return {
-        "tag": tag,
-        "books": books,
-        "filterOptions": {
-            "authors": get_filter_options(filters_for_options, "author"),
-            "series": get_filter_options(filters_for_options, "series"),
-            "languages": get_filter_options(filters_for_options, "language"),
-        },
-    }
+    return {"tag": tag, "books": books}
 
 
 def resolve_raw_tag(raw_tag: str) -> int:
