@@ -157,15 +157,21 @@ def smtp_test(request: Request, db: sqlite3.Connection = Depends(db_session)):
     try:
         msg = _build_email("smtp_test.html", "Librarium — тест SMTP", smtp_user, db_user["email"])
 
-        if port == 465:
-            server = smtplib.SMTP_SSL(host, port, timeout=15)
-        else:
-            server = smtplib.SMTP(host, port, timeout=15)
-            server.starttls()
-
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
-        server.quit()
+        server = None
+        try:
+            if port == 465:
+                server = smtplib.SMTP_SSL(host, port, timeout=15)
+            else:
+                server = smtplib.SMTP(host, port, timeout=15)
+                server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
         return {"ok": True}
     except Exception as e:
         log.warning("SMTP test failed: %s", e)
