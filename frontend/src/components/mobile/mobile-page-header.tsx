@@ -2,15 +2,16 @@ import { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { colors, fonts, layout } from "../../theme";
 import { useMobileLayout } from "./layout-context";
-import MobileFilterBar from "./mobile-filter-bar";
+import SmartFilterBar from "../smart-filter-bar";
 import { PageHeaderProps } from "../page-header.types";
 
 export default function MobilePageHeader({
   title,
-  filters,
+  filterKeys,
   selected,
   onSelectionChange,
   onClearAll,
+  baseFilters,
   sortOptions,
   sortValue,
   onSortChange,
@@ -27,7 +28,7 @@ export default function MobilePageHeader({
   // The screen is already crowded, and this prop is desktop-only by product choice.
   void showUpload;
   const hasToolbar =
-    (filters && filters.length > 0) || sortOptions || actionSlot;
+    (filterKeys && filterKeys.length > 0) || sortOptions || actionSlot;
 
   useEffect(() => {
     const element = headerRef.current;
@@ -172,13 +173,14 @@ export default function MobilePageHeader({
               paddingBottom: 2,
             }}
           >
-            {filters && selected && onSelectionChange && (
+            {filterKeys && selected && onSelectionChange && (
               <div style={{ flexShrink: 0 }}>
-                <MobileFilterBar
-                  filters={filters}
+                <SmartFilterBar
+                  filterKeys={filterKeys}
                   selected={selected}
                   onSelectionChange={onSelectionChange}
                   onClearAll={onClearAll}
+                  baseFilters={baseFilters}
                 />
               </div>
             )}

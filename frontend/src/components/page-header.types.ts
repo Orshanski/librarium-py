@@ -1,13 +1,14 @@
-import { FilterConfig } from "./filter-bar";
+import { FilterKey, SelectedFilters, ApiFilterParams } from "./smart-filter-bar";
 import { SortOption } from "./sort-select";
 
 export interface PageHeaderProps {
   title: React.ReactNode;
   titleSlot?: React.ReactNode;
-  filters?: FilterConfig[];
-  selected?: Record<string, string[]>;
-  onSelectionChange?: (key: string, values: string[]) => void;
+  filterKeys?: FilterKey[];
+  selected?: SelectedFilters;
+  onSelectionChange?: (key: FilterKey, values: string[]) => void;
   onClearAll?: () => void;
+  baseFilters?: ApiFilterParams;
   sortOptions?: SortOption[];
   sortValue?: string;
   onSortChange?: (key: string) => void;
