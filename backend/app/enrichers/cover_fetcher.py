@@ -1,5 +1,8 @@
 import logging
+
 import httpx
+
+from ..ssrf import is_safe_url
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     # Follow redirects manually — SSRF check on every hop, including final target
     current_url = url
     for _ in range(MAX_REDIRECTS + 1):
-        if not _is_safe_url(current_url):
+        if not is_safe_url(current_url):
             return None, None
 
         try:
@@ -78,31 +81,3 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     return None, None
 
 
-def _is_safe_url(url: str) -> bool:
-    """Reject URLs resolving to private/loopback/link-local IPs (SSRF protection).
-
-    Must be called on every redirect hop — a public URL can 302 to an internal IP.
-    """
-    import ipaddress
-    import socket
-    if not url.startswith(("http://", "https://")):
-        log.warning("Rejected non-http(s) URL: %s", url)
-        return False
-    try:
-        host = httpx.URL(url).host
-        if not host:
-            return False
-        addr_info = socket.getaddrinfo(host, None)
-    except Exception as e:
-        log.warning("URL host resolution failed for %s: %s", url, e)
-        return False
-
-    for family, _, _, _, sockaddr in addr_info:
-        try:
-            ip = ipaddress.ip_address(sockaddr[0])
-        except (ValueError, IndexError):
-            continue
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            log.warning("Rejected URL with unsafe IP %s: %s", ip, url)
-            return False
-    return True
