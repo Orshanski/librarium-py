@@ -5,6 +5,22 @@ from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
 
 
+_BOOK_SELECT = """
+    SELECT b.*, s.name as series_name,
+        GROUP_CONCAT(DISTINCT a.name) as authors,
+        GROUP_CONCAT(DISTINCT a.id) as author_ids,
+        GROUP_CONCAT(DISTINCT t.name) as tags,
+        GROUP_CONCAT(DISTINCT t.id) as tag_ids,
+        ub.rating, ub.is_read
+    FROM books b
+    LEFT JOIN series s ON b.series_id = s.id
+    LEFT JOIN book_authors ba ON b.id = ba.book_id
+    LEFT JOIN authors a ON ba.author_id = a.id
+    LEFT JOIN book_tags bt ON b.id = bt.book_id
+    LEFT JOIN tags t ON bt.tag_id = t.id
+    LEFT JOIN user_books ub ON b.id = ub.book_id
+"""
+
 ORDER = {
     "title_asc": "ORDER BY COALESCE(b.sort_title, b.title) COLLATE NOCASE ASC, b.id",
     "title_desc": "ORDER BY COALESCE(b.sort_title, b.title) COLLATE NOCASE DESC, b.id",
@@ -27,19 +43,7 @@ def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0
         params["uid"] = uid
 
     rows = db.execute(f"""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a.name) as authors,
-            GROUP_CONCAT(DISTINCT a.id) as author_ids,
-            GROUP_CONCAT(DISTINCT t.name) as tags,
-            GROUP_CONCAT(DISTINCT t.id) as tag_ids,
-            ub.rating, ub.is_read
-        FROM books b
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
-        LEFT JOIN user_books ub ON b.id = ub.book_id {ub_join}
+        {_BOOK_SELECT} {ub_join}
         {where} GROUP BY b.id {order} LIMIT :lim OFFSET :off
     """, params).fetchall()
 
@@ -54,19 +58,7 @@ def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0
 def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None):
     ub_join = "AND ub.user_id = :uid" if user_id else "AND 0"
     row = db.execute(f"""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a.name) as authors,
-            GROUP_CONCAT(DISTINCT a.id) as author_ids,
-            GROUP_CONCAT(DISTINCT t.name) as tags,
-            GROUP_CONCAT(DISTINCT t.id) as tag_ids,
-            ub.rating, ub.is_read
-        FROM books b
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
-        LEFT JOIN user_books ub ON b.id = ub.book_id {ub_join}
+        {_BOOK_SELECT} {ub_join}
         WHERE b.id = :id GROUP BY b.id
     """, {"id": book_id, "uid": user_id or 0}).fetchone()
     return dict_from_row(row)
