@@ -36,8 +36,6 @@ from .routers import reader as reader_router
 
 app = FastAPI(
     title="Librarium",
-    docs_url=None,
-    redoc_url=None,
 )
 
 _log = logging.getLogger("librarium")
