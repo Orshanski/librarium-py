@@ -19,18 +19,28 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 _MAX_ATTEMPTS = 5
 _WINDOW_SEC = 300  # 5 minutes
+_MAX_TRACKED_IPS = 10_000
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 
 
 def _check_rate_limit(ip: str) -> bool:
     """Returns True if request is allowed, False if rate-limited."""
     now = time.monotonic()
+    if len(_login_attempts) > _MAX_TRACKED_IPS:
+        _purge_expired(now)
     attempts = _login_attempts[ip]
     _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SEC]
     if not _login_attempts[ip]:
         del _login_attempts[ip]
         return True
     return len(_login_attempts[ip]) < _MAX_ATTEMPTS
+
+
+def _purge_expired(now: float):
+    expired = [ip for ip, ts in _login_attempts.items()
+               if all(now - t >= _WINDOW_SEC for t in ts)]
+    for ip in expired:
+        del _login_attempts[ip]
 
 
 def _record_attempt(ip: str):

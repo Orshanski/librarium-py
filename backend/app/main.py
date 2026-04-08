@@ -1,10 +1,14 @@
 import logging
+import os
 import traceback
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
+
+from .auth import create_token
+from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,8 +36,6 @@ from .routers import reader as reader_router
 
 app = FastAPI(
     title="Librarium",
-    docs_url=None,
-    redoc_url=None,
 )
 
 _log = logging.getLogger("librarium")
@@ -44,8 +46,7 @@ _CSRF_HEADER_VALUE = "XMLHttpRequest"
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    from fastapi import HTTPException as _HTTPException
-    if isinstance(exc, _HTTPException):
+    if isinstance(exc, HTTPException):
         raise exc
     _log.error("Unhandled exception on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
     return JSONResponse({"error": "Internal server error"}, status_code=500)
@@ -61,9 +62,6 @@ async def csrf_header_middleware(request: Request, call_next):
             and hasattr(request.state, "_refresh_user_id")
             and hasattr(request.state, "_refresh_role")
             and 200 <= response.status_code < 400):
-        import os
-        from .auth import create_token
-        from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
         token = create_token(request.state._refresh_user_id, request.state._refresh_role)
         response.set_cookie(
             COOKIE_NAME,

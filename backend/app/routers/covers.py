@@ -1,14 +1,18 @@
+import glob
+import io
 import logging
 import os
-import glob
+import re
 import sqlite3
+
 from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
+
 from ..auth import get_current_user, require_admin
+from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE, db_path_for
 
 log = logging.getLogger("librarium.covers")
-from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE, db_path_for
 
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
@@ -30,12 +34,21 @@ def _get_thumb(book_id: int, cover_path: str) -> str:
     thumb_path = str(THUMBS_DIR / f"{book_id}.jpg")
     if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
         return thumb_path
-    img = Image.open(cover_path)
-    ratio = THUMB_HEIGHT / img.height
-    new_size = (int(img.width * ratio), THUMB_HEIGHT)
-    img = img.resize(new_size, Image.LANCZOS)
-    img = img.convert("RGB")
-    img.save(thumb_path, "JPEG", quality=80)
+    original = Image.open(cover_path)
+    try:
+        ratio = THUMB_HEIGHT / original.height
+        new_size = (int(original.width * ratio), THUMB_HEIGHT)
+        resized = original.resize(new_size, Image.LANCZOS)
+    finally:
+        original.close()
+    try:
+        converted = resized.convert("RGB")
+    finally:
+        resized.close()
+    try:
+        converted.save(thumb_path, "JPEG", quality=80)
+    finally:
+        converted.close()
     return thumb_path
 
 
@@ -72,7 +85,8 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     require_admin(request)
     if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
-    ext = (file.filename or "cover.jpg").split(".")[-1].lower() or "jpg"
+    parts = (file.filename or "cover.jpg").rsplit(".", 1)
+    ext = parts[-1].lower() if len(parts) > 1 else "jpg"
 
     # Clean old temp covers for this book
     for old in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
@@ -88,7 +102,6 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     content = await file.read()
 
     # Validate image before saving
-    import io
     try:
         img = Image.open(io.BytesIO(content))
         fmt = (img.format or "").upper()
@@ -105,14 +118,13 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 
 
 # --- GET: serve temp cover preview ---
-@router.get("/api/uploads/cover/{book_id}")
-def get_temp_cover(book_id: str, request: Request):
-    import re
+@router.get("/api/uploads/cover/{temp_id}")
+def get_temp_cover(temp_id: str, request: Request):
     get_current_user(request)
-    if not re.match(r'^[a-zA-Z0-9]{1,20}$', book_id):
+    if not re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id):
         return Response(status_code=400)
     for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{book_id}-cover."):
+        if f.startswith(f"{temp_id}-cover."):
             return FileResponse(str(UPLOADS_DIR / f), headers={"Cache-Control": "no-cache"})
     return Response(status_code=404)
 
@@ -136,7 +148,7 @@ def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depend
     if not temp_file:
         return JSONResponse({"ok": True})  # nothing to commit
 
-    ext = temp_file.split(".")[-1]
+    ext = temp_file.rsplit(".", 1)[-1]
     src = str(UPLOADS_DIR / temp_file)
     dst = os.path.join(book_dir, f"cover.{ext}")
 
