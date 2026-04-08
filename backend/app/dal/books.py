@@ -1,3 +1,4 @@
+import re
 import sqlite3
 
 from ..database import dicts_from_rows, dict_from_row
@@ -91,7 +92,6 @@ def get_all_publishers(db: sqlite3.Connection):
 
 
 def _sort_title(title: str) -> str:
-    import re
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 

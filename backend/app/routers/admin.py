@@ -1,19 +1,23 @@
+import logging
 import os
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from pathlib import Path
-
 import sqlite3
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
-from typing import Literal
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
+from ..dal import settings as settings_dal
+from ..dal import users as users_dal
 from ..database import db_session
+
+log = logging.getLogger("librarium.admin")
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 _LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "public" / "logo.png"
@@ -32,12 +36,6 @@ def _build_email(template_name: str, subject: str, from_addr: str, to_addr: str)
         img.add_header("Content-Disposition", "inline")
         msg.attach(img)
     return msg
-import logging
-
-from ..dal import users as users_dal
-from ..dal import settings as settings_dal
-
-log = logging.getLogger("librarium.admin")
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 

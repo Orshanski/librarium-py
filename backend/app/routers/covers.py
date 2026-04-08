@@ -1,14 +1,18 @@
+import glob
+import io
 import logging
 import os
-import glob
+import re
 import sqlite3
+
 from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
+
 from ..auth import get_current_user, require_admin
+from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE, db_path_for
 
 log = logging.getLogger("librarium.covers")
-from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE, db_path_for
 
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
@@ -91,7 +95,6 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     content = await file.read()
 
     # Validate image before saving
-    import io
     try:
         img = Image.open(io.BytesIO(content))
         fmt = (img.format or "").upper()
@@ -110,7 +113,6 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 # --- GET: serve temp cover preview ---
 @router.get("/api/uploads/cover/{book_id}")
 def get_temp_cover(book_id: str, request: Request):
-    import re
     get_current_user(request)
     if not re.match(r'^[a-zA-Z0-9]{1,20}$', book_id):
         return Response(status_code=400)

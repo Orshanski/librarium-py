@@ -1,19 +1,21 @@
 import logging
 import os
-import sqlite3
 import shutil
+import sqlite3
+
 from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
 from ..auth import get_current_user, require_admin
+from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
+from ..dal import books as dal
+from ..dal.books import get_book_by_id
+from ..database import db_session
+from ..pdf_linearize import linearize_pdf_in_place
+from .params import parse_ids
 
 log = logging.getLogger("librarium.books")
-from ..config import LIBRARY_DIR, DATA_DIR, MAX_BOOK_SIZE, db_path_for
-from ..database import db_session
-from ..dal import books as dal
-from .params import parse_ids
-from ..dal.books import get_book_by_id
-from ..pdf_linearize import linearize_pdf_in_place
 
 router = APIRouter(prefix="/api/books", tags=["books"])
 
