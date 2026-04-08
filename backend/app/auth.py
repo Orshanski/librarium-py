@@ -5,7 +5,7 @@ import bcrypt
 import jwt
 from fastapi import Request, HTTPException
 
-from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, COOKIE_NAME
+from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -17,10 +17,12 @@ def hash_password(plain: str) -> str:
 
 
 def create_token(user_id: int, role: str) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "userId": user_id,
         "role": role,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
+        "iat": now,
+        "exp": now + timedelta(hours=JWT_EXPIRE_HOURS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
@@ -34,11 +36,27 @@ def get_current_user(request: Request) -> dict[str, Any]:
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return decode_token(token)
+        payload = decode_token(token)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if token_needs_refresh(payload):
+        request.state._refresh_token = True
+        request.state._refresh_user_id = payload["userId"]
+        request.state._refresh_role = payload["role"]
+    return payload
+
+
+def token_needs_refresh(payload: dict[str, Any]) -> bool:
+    """Check if token is older than JWT_REFRESH_AFTER_HOURS."""
+    iat = payload.get("iat")
+    if not iat:
+        return False
+    # iat is stored as datetime in create_token but PyJWT decodes it as unix timestamp
+    issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+    age = datetime.now(timezone.utc) - issued_at
+    return age > timedelta(hours=JWT_REFRESH_AFTER_HOURS)
 
 
 def get_client_ip(request: Request) -> str:

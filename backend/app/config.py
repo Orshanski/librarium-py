@@ -37,7 +37,8 @@ if not SECRET_KEY:
         _secret_file.write_text(SECRET_KEY)
         os.chmod(str(_secret_file), 0o600)
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_HOURS = 72
+JWT_EXPIRE_HOURS = 168  # 7 days
+JWT_REFRESH_AFTER_HOURS = 84  # refresh if token older than half TTL (3.5 days)
 COOKIE_NAME = "librarium_token"
 
 # Upload limits

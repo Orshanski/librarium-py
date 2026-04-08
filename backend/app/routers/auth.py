@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..auth import verify_password, create_token, get_current_user, get_client_ip, COOKIE_NAME
+from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
 from ..dal import users as users_dal
 
@@ -74,7 +75,7 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
         httponly=True,
         samesite="lax",
         secure=os.environ.get("SECURE_COOKIE", "").lower() in ("1", "true"),
-        max_age=72 * 3600,
+        max_age=JWT_EXPIRE_HOURS * 3600,
         path="/",
     )
     return response
