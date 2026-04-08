@@ -197,7 +197,7 @@ def book_file_exists(db: sqlite3.Connection, book_id: int, fmt: str) -> bool:
 
 def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int):
     db.execute(
-        "INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
         (book_id, fmt, file_path, file_size),
     )
 

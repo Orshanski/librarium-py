@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS book_files (
     format TEXT NOT NULL,
     file_path TEXT NOT NULL,
     file_size INTEGER,
-    file_hash TEXT
+    file_hash TEXT,
+    UNIQUE(book_id, format)
 );
 
 -- Идентификаторы (ISBN, Litres ID, Amazon ID и др.)
