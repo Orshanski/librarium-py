@@ -279,7 +279,7 @@ class TestConvertToJpeg:
 class TestEmbedCover:
     """Task 6: embed_cover orchestrator."""
 
-    def test_embed_cover_fb2(self, admin_client):
+    def test_embed_cover_fb2(self, admin_client, db):
         from app.config import LIBRARY_DIR
 
         # Book 1 has FB2 file (minimal.fb2 → book.fb2). Put a cover on disk.
@@ -288,8 +288,7 @@ class TestEmbedCover:
         (book_dir / "cover.jpg").write_bytes(cover_bytes)
 
         from app.cover_embedder import embed_cover
-        from app.database import _get_db
-        embed_cover(_get_db(), 1)
+        embed_cover(db, 1)
 
         # Extract cover from the FB2 file and verify
         fb2_path = book_dir / "book.fb2"
