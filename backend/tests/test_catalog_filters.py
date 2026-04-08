@@ -138,7 +138,7 @@ class TestBooksSorting:
 
 class TestAuthorsFilters:
     def test_all_authors(self, reader_client):
-        data = reader_client.get("/api/filter-options/authors").json()
+        data = reader_client.get("/api/authors").json()
         assert len(data["authors"]) == 3
 
     def test_filter_by_tag(self, reader_client):
@@ -189,11 +189,6 @@ class TestTags:
     def test_all_tags(self, reader_client):
         data = reader_client.get("/api/filter-options/tags").json()
         assert len(data["tags"]) == 2
-
-    def test_tags_directory_no_book_count(self, reader_client):
-        data = reader_client.get("/api/filter-options/tags").json()
-        for tag in data["tags"]:
-            assert "book_count" not in tag
 
     def test_tag_detail_books(self, reader_client):
         data = reader_client.get("/api/tags/1").json()

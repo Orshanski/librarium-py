@@ -127,6 +127,7 @@ export default function SmartFilterBar({
   const baseKey = baseFilters
     ? `${baseFilters.authorIds?.join(",") || ""}|${baseFilters.tagIds?.join(",") || ""}|${baseFilters.seriesIds?.join(",") || ""}|${baseFilters.language || ""}`
     : "";
+  const filterKeysKey = filterKeys.join(",");
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -159,7 +160,7 @@ export default function SmartFilterBar({
     });
 
     return () => controller.abort();
-  }, [selectedKey, baseKey, filterKeys.join(",")]);
+  }, [selectedKey, baseKey, filterKeysKey]);
 
   const filterConfigs: FilterConfig[] = filterKeys
     .filter((key) => options[key])
