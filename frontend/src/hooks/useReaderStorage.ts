@@ -196,16 +196,15 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         fetch(`/api/reader/progress/${id}`, { credentials: "include" }).then((r) => r.ok ? r.json() : null).catch(() => null),
       ]);
 
-      // Settings: compare timestamps, server wins if newer or no local
+      // Settings: per-device, no cross-device sync.
+      // If no local settings, seed from server; otherwise push local to server if not synced.
       if (serverSettings?.settings && Object.keys(serverSettings.settings).length > 0) {
-        const serverSettingsTime = serverSettings.updated_at ? new Date(serverSettings.updated_at).getTime() : 0;
-        const localSettingsTime = localSettings?.updatedAt || 0;
-        if (!localSettings || !localSettings.settings || Object.keys(localSettings.settings).length === 0 || serverSettingsTime > localSettingsTime) {
+        if (!localSettings || !localSettings.settings || Object.keys(localSettings.settings).length === 0) {
           const merged = { ...DEFAULT_SETTINGS, ...serverSettings.settings } as ReaderSettings;
           setSettings(merged);
           await saveLocalSettings(deviceName, serverSettings.settings);
           await markSettingsSynced(deviceName);
-        } else if (localSettingsTime > serverSettingsTime && localSettings && !localSettings.synced) {
+        } else if (localSettings && !localSettings.synced) {
           const resp = await fetch("/api/reader/settings", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },

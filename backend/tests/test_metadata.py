@@ -10,6 +10,10 @@ class FakeResponse:
         self.headers = headers or {}
         self.url = url or ""
 
+    @property
+    def is_redirect(self):
+        return self.status_code in (301, 302, 303, 307, 308)
+
 
 # ── /api/metadata/search ──
 
@@ -80,19 +84,20 @@ class TestCoverProxy:
         resp = reader_client.get("/api/metadata/cover-proxy", params={"url": "http://169.254.169.254/metadata"})
         assert resp.status_code == 403
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_redirect_to_non_whitelist_rejected(self, mock_get, reader_client):
+    def test_redirect_to_non_whitelist_rejected(self, mock_get, mock_safe, reader_client):
         mock_get.return_value = FakeResponse(
-            status_code=200,
-            content=b"\xff\xd8fake",
-            headers={"Content-Type": "image/jpeg"},
-            url="https://evil.com/redirected.jpg",
+            status_code=302,
+            headers={"Location": "https://evil.com/redirected.jpg"},
+            url="https://cv5.litres.ru/img.jpg",
         )
         resp = reader_client.get("/api/metadata/cover-proxy", params={"url": "https://cv5.litres.ru/img.jpg"})
         assert resp.status_code == 403
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_non_image_content_type_rejected(self, mock_get, reader_client):
+    def test_non_image_content_type_rejected(self, mock_get, mock_safe, reader_client):
         mock_get.return_value = FakeResponse(
             status_code=200,
             content=b"<html>hack</html>",
@@ -102,20 +107,23 @@ class TestCoverProxy:
         resp = reader_client.get("/api/metadata/cover-proxy", params={"url": "https://cv5.litres.ru/page.html"})
         assert resp.status_code == 400
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_network_error_returns_502(self, mock_get, reader_client):
+    def test_network_error_returns_502(self, mock_get, mock_safe, reader_client):
         mock_get.side_effect = ConnectionError("timeout")
         resp = reader_client.get("/api/metadata/cover-proxy", params={"url": "https://cv5.litres.ru/img.jpg"})
         assert resp.status_code == 502
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_upstream_error_forwarded(self, mock_get, reader_client):
+    def test_upstream_error_forwarded(self, mock_get, mock_safe, reader_client):
         mock_get.return_value = FakeResponse(status_code=500, url="https://cv5.litres.ru/img.jpg")
         resp = reader_client.get("/api/metadata/cover-proxy", params={"url": "https://cv5.litres.ru/img.jpg"})
         assert resp.status_code == 500
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_happy_path(self, mock_get, reader_client):
+    def test_happy_path(self, mock_get, mock_safe, reader_client):
         jpeg_bytes = b"\xff\xd8\xff\xe0fake_jpeg_data"
         mock_get.return_value = FakeResponse(
             status_code=200,
@@ -128,8 +136,9 @@ class TestCoverProxy:
         assert resp.content == jpeg_bytes
         assert resp.headers["content-type"] == "image/jpeg"
 
+    @patch("app.routers.metadata.is_safe_url", return_value=True)
     @patch("app.routers.metadata.requests.get")
-    def test_happy_path_png(self, mock_get, reader_client):
+    def test_happy_path_png(self, mock_get, mock_safe, reader_client):
         png_bytes = b"\x89PNG\r\n\x1a\nfake_png_data"
         mock_get.return_value = FakeResponse(
             status_code=200,
