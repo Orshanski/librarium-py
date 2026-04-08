@@ -1,8 +1,19 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_options
+from .filters import build_book_where
 
 
-def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
+def list_series_options(filters: dict) -> list[dict]:
+    """Series options for filter bar, scoped by other filters."""
+    db = get_db()
+    where, params = build_book_where(filters, exclude="seriesIds")
+    return dicts_from_rows(db.execute(f"""
+        SELECT DISTINCT s.id, s.name FROM series s
+        JOIN books b ON b.series_id = s.id
+        {where} ORDER BY s.name COLLATE NOCASE
+    """, params).fetchall())
+
+
+def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     db = get_db()
     filters: dict = {}
     if author_ids:
@@ -11,6 +22,8 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
+    if user_id:
+        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 
@@ -24,14 +37,7 @@ def get_series(author_ids: list[int] | None = None, tag_ids: list[int] | None = 
         {where} GROUP BY s.id
     """, params).fetchall())
 
-    return {
-        "series": series,
-        "filterOptions": {
-            "authors": get_filter_options(filters, "author"),
-            "tags": get_filter_options(filters, "tag"),
-            "languages": get_filter_options(filters, "language"),
-        },
-    }
+    return {"series": series}
 
 
 def get_series_by_id(series_id: int):

@@ -40,7 +40,7 @@ export default function TagsPage() {
     fetch(`/api/tags/cloud?top=${CLOUD_SIZE}`)
       .then((r) => r.json())
       .then((data) => setCloudTags(data.tags || []));
-    fetch("/api/tags")
+    fetch("/api/filter-options/tags")
       .then((r) => r.json())
       .then((data) => setAllTags(data.tags || []));
     saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);

@@ -1,14 +1,16 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_options
+from .filters import build_book_where
 
 
-def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
+def get_authors(tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
     db = get_db()
     filters: dict = {}
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
+    if user_id:
+        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 
@@ -23,13 +25,19 @@ def get_authors(tag_ids: list[int] | None = None, language: str | None = None):
         {where} GROUP BY a.id ORDER BY a.sort_name COLLATE NOCASE
     """, params).fetchall())
 
-    return {
-        "authors": authors,
-        "filterOptions": {
-            "tags": get_filter_options(filters, "tag"),
-            "languages": get_filter_options(filters, "language"),
-        },
-    }
+    return {"authors": authors}
+
+
+def list_author_options(filters: dict) -> list[dict]:
+    """Author options for filter bar, scoped by other filters."""
+    db = get_db()
+    where, params = build_book_where(filters, exclude="authorIds")
+    return dicts_from_rows(db.execute(f"""
+        SELECT DISTINCT a.id, a.name FROM authors a
+        JOIN book_authors ba ON a.id = ba.author_id
+        JOIN books b ON ba.book_id = b.id
+        {where} ORDER BY a.sort_name COLLATE NOCASE
+    """, params).fetchall())
 
 
 def get_author_by_id(author_id: int):

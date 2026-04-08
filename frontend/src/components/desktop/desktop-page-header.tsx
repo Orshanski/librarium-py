@@ -2,17 +2,18 @@ import { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { colors, fonts, layout } from "../../theme";
-import FilterBar, { FilterConfig } from "../filter-bar";
+import SmartFilterBar from "../smart-filter-bar";
 import SortSelect, { SortOption } from "../sort-select";
 import { PageHeaderProps } from "../page-header.types";
 
 export default function DesktopPageHeader({
   title,
   titleSlot,
-  filters,
+  filterKeys,
   selected,
   onSelectionChange,
   onClearAll,
+  baseFilters,
   sortOptions,
   sortValue,
   onSortChange,
@@ -27,7 +28,7 @@ export default function DesktopPageHeader({
   const meName = user?.displayName || user?.username || "";
 
   const hasSecondRow =
-    (filters && filters.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
+    (filterKeys && filterKeys.length > 0) || sortOptions || showUpload || infoSlot || actionSlot;
 
   useEffect(() => {
     const element = headerRef.current;
@@ -136,18 +137,19 @@ export default function DesktopPageHeader({
 
       {hasSecondRow && (
         <div style={{ padding: `0 ${layout.desktopContentPaddingX}px 18px`, display: "flex", alignItems: "center", gap: 8, minHeight: 30 }}>
-          {infoSlot && !filters && <div style={{ flex: 1 }}>{infoSlot}</div>}
-          {filters && selected && onSelectionChange && (
+          {infoSlot && !filterKeys && <div style={{ flex: 1 }}>{infoSlot}</div>}
+          {filterKeys && selected && onSelectionChange && (
             <div style={{ flex: 1 }}>
-              <FilterBar
-                filters={filters}
+              <SmartFilterBar
+                filterKeys={filterKeys}
                 selected={selected}
                 onSelectionChange={onSelectionChange}
                 onClearAll={onClearAll}
+                baseFilters={baseFilters}
               />
             </div>
           )}
-          {!filters && !infoSlot && <div style={{ flex: 1 }} />}
+          {!filterKeys && !infoSlot && <div style={{ flex: 1 }} />}
           {actionSlot}
           {sortOptions && sortValue !== undefined && onSortChange && (
             <SortSelect options={sortOptions} value={sortValue} onChange={onSortChange} />

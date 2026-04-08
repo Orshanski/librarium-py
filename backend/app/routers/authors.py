@@ -12,8 +12,8 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 
 @router.get("")
 def list_authors(request: Request, tagIds: str = "", language: str = ""):
-    get_current_user(request)
-    return dal.get_authors(parse_ids(tagIds), language or None)
+    user = get_current_user(request)
+    return dal.get_authors(parse_ids(tagIds), language or None, user_id=user["userId"])
 
 
 @router.get("/{author_id}")

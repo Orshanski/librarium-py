@@ -6,7 +6,7 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
-import { FilterConfig, FilterOption } from "../components/filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
@@ -19,21 +19,15 @@ interface TagData {
   book_count: number;
 }
 
-interface FilterOptions {
-  authors: FilterOption[];
-  series: FilterOption[];
-  languages: FilterOption[];
-}
-
 function cacheKey(tagId: number) {
   return `librarium_tag_${tagId}`;
 }
 
-function saveCache(tagId: number, tag: TagData, books: Book[], filterOptions: FilterOptions | null, selected: Record<string, string[]>, sort: string) {
+function saveCache(tagId: number, tag: TagData, books: Book[], selected: Record<string, string[]>, sort: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
-      tag, books, filterOptions, selected, sort,
+      tag, books, selected, sort,
       scrollTop: main?.scrollTop || 0,
     }));
     saveBookOrigin(tag.name, `/tags/${tagId}`);
@@ -60,7 +54,6 @@ export default function TagPage() {
 
   const [tag, setTag] = useState<TagData | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
@@ -91,7 +84,6 @@ export default function TagPage() {
     if (cached) {
       setTag(cached.tag);
       setBooks(cached.books);
-      setFilterOptions(cached.filterOptions || null);
       if (cached.selected) setSelected(cached.selected);
       if (cached.sort) setSort(cached.sort);
       setLoading(false);
@@ -135,19 +127,18 @@ export default function TagPage() {
         if (!data) return;
         setTag(data.tag);
         setBooks(data.books.map(toBook));
-        setFilterOptions(data.filterOptions || null);
       })
       .catch((err) => console.warn("Failed to fetch tag:", err))
       .finally(() => setLoading(false));
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ tag, books, filterOptions, selected, sort });
-  stateRef.current = { tag, books, filterOptions, selected, sort };
+  const stateRef = useRef({ tag, books, selected, sort });
+  stateRef.current = { tag, books, selected, sort };
 
   useEffect(() => {
-    if (tag && books.length > 0) saveCache(tagId, tag, books, filterOptions, selected, sort);
-  }, [tag, books, filterOptions, selected, sort, tagId]);
+    if (tag && books.length > 0) saveCache(tagId, tag, books, selected, sort);
+  }, [tag, books, selected, sort, tagId]);
 
   // Scroll listener
   useEffect(() => {
@@ -156,24 +147,16 @@ export default function TagPage() {
 
     function onScroll() {
       const s = stateRef.current;
-      if (s.tag) saveCache(tagId, s.tag, s.books, s.filterOptions, s.selected, s.sort);
+      if (s.tag) saveCache(tagId, s.tag, s.books, s.selected, s.sort);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
       const s = stateRef.current;
-      if (s.tag && s.books.length > 0) saveCache(tagId, s.tag, s.books, s.filterOptions, s.selected, s.sort);
+      if (s.tag && s.books.length > 0) saveCache(tagId, s.tag, s.books, s.selected, s.sort);
     };
   }, [tagId]);
-
-  const filterConfigs: FilterConfig[] = filterOptions
-    ? [
-        { key: "author", label: "Автор", options: filterOptions.authors },
-        { key: "series", label: "Серия", options: filterOptions.series },
-        { key: "language", label: "Язык", options: filterOptions.languages },
-      ]
-    : [];
 
   // Client-side sort (books already filtered by backend)
   const sorted = useMemo(() => {
@@ -194,7 +177,7 @@ export default function TagPage() {
     { key: "rating_desc", label: "По рейтингу" },
   ];
 
-  function onSelectionChange(key: string, values: string[]) {
+  function onSelectionChange(key: FilterKey, values: string[]) {
     sessionStorage.removeItem(cacheKey(tagId));
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
@@ -244,7 +227,8 @@ export default function TagPage() {
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
-        filters={filterConfigs}
+        filterKeys={["author", "series", "language"]}
+        baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
         onSelectionChange={onSelectionChange}
         sortOptions={sortOptions}

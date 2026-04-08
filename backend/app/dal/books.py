@@ -1,5 +1,5 @@
 from ..database import get_db, dicts_from_rows, dict_from_row
-from .filters import build_book_where, get_filter_options
+from .filters import build_book_where
 
 
 ORDER = {
@@ -46,16 +46,7 @@ def get_books(filters: dict, sort="added_desc", cursor=0, page_size=50):
     if has_more:
         books = books[:page_size]
 
-    return {
-        "books": books,
-        "filterOptions": {
-            "authors": get_filter_options(filters, "author"),
-            "series": get_filter_options(filters, "series"),
-            "tags": get_filter_options(filters, "tag"),
-            "languages": get_filter_options(filters, "language"),
-        },
-        "hasMore": has_more,
-    }
+    return {"books": books, "hasMore": has_more}
 
 
 def get_book_by_id(book_id: int, user_id: int | None = None):

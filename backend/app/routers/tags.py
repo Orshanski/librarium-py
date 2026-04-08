@@ -4,17 +4,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..dal import tags as dal
-from ..dal.filters import get_filter_options
 from .params import parse_ids
 
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
-
-
-@router.get("")
-def list_tags(request: Request):
-    get_current_user(request)
-    return {"tags": get_filter_options({}, "tag")}
 
 
 @router.get("/cloud")

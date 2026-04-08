@@ -2,20 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterConfig } from "../components/filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-
-interface FilterOptions {
-  authors: { id: number; name: string }[];
-  series: { id: number; name: string }[];
-  tags: { id: number; name: string }[];
-  languages: { name: string }[];
-}
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -29,12 +22,11 @@ const sortOptions = [
   { key: "rating_desc", label: "По рейтингу" },
 ];
 
-function saveCache(books: RawBook[], filterOptions: FilterOptions | null, hasMore: boolean, paramsKey: string) {
+function saveCache(books: RawBook[], hasMore: boolean, paramsKey: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       books,
-      filterOptions,
       hasMore,
       paramsKey,
       scrollTop: main?.scrollTop || 0,
@@ -60,12 +52,7 @@ export default function CatalogPage() {
   const [searchParams] = useSearchParams();
   const frozenRef = useRef(false); // block lazy load after restore
 
-  useEffect(() => {
-    saveBookOrigin("Каталог", "/");
-  }, []);
-
   const [books, setBooks] = useState<RawBook[]>([]);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -92,7 +79,7 @@ export default function CatalogPage() {
   // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", "/");
+    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
     if (fresh) {
       sessionStorage.removeItem(CACHE_KEY);
@@ -101,7 +88,6 @@ export default function CatalogPage() {
     const cached = fresh ? null : loadCache(paramsKey);
     if (cached) {
       setBooks(cached.books);
-      setFilterOptions(cached.filterOptions);
       setHasMore(cached.hasMore);
       setLoading(false);
       frozenRef.current = true;
@@ -123,7 +109,6 @@ export default function CatalogPage() {
       .then((r) => r.json())
       .then((data) => {
         setBooks(data.books || []);
-        setFilterOptions(data.filterOptions || null);
         setHasMore(data.hasMore || false);
         setLoading(false);
         frozenRef.current = false;
@@ -156,7 +141,7 @@ export default function CatalogPage() {
 
     function onScroll() {
       // Save scroll position to cache
-      saveCache(books, filterOptions, hasMore, paramsKey);
+      saveCache(books, hasMore, paramsKey);
 
       // Lazy load trigger
       if (!frozenRef.current && main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
@@ -176,7 +161,7 @@ export default function CatalogPage() {
       main.removeEventListener("scroll", onScroll);
       clearTimeout(timer);
     };
-  }, [loadMore, books, filterOptions, hasMore, paramsKey]);
+  }, [loadMore, books, hasMore, paramsKey]);
 
   // URL param helpers
   function updateParams(updates: Record<string, string | undefined>) {
@@ -186,26 +171,17 @@ export default function CatalogPage() {
       else params.delete(key);
     }
     sessionStorage.removeItem(CACHE_KEY);
-    navigate(`/?${params.toString()}`);
+    navigate(`/?${params.toString().split("%2C").join(",")}`);
   }
 
-  // Build filter configs
-  const selected: Record<string, string[]> = {};
+  // Build selected filters from URL params
+  const selected: SelectedFilters = {};
   if (authorIds) selected.author = authorIds.split(",");
   if (seriesIds) selected.series = seriesIds.split(",");
   if (tagIds) selected.genre = tagIds.split(",");
   if (language) selected.language = [language];
 
-  const filterConfigs: FilterConfig[] = filterOptions
-    ? [
-        { key: "author", label: "Автор", options: filterOptions.authors },
-        { key: "series", label: "Серия", options: filterOptions.series },
-        { key: "genre", label: "Жанр", options: filterOptions.tags },
-        { key: "language", label: "Язык", options: filterOptions.languages },
-      ]
-    : [];
-
-  function onSelectionChange(key: string, values: string[]) {
+  function onSelectionChange(key: FilterKey, values: string[]) {
     const paramMap: Record<string, string> = { author: "authorIds", series: "seriesIds", genre: "tagIds", language: "language" };
     const paramKey = paramMap[key];
     updateParams({ [paramKey]: paramKey === "language" ? (values[0] || undefined) : (values.length > 0 ? values.join(",") : undefined) });
@@ -216,8 +192,6 @@ export default function CatalogPage() {
     navigate("/");
   }
 
-  const filterBarProps = filterConfigs.length > 0 ? { filters: filterConfigs, selected, onSelectionChange, onClearAll: clearAllFilters } : undefined;
-
   const bookIds = useMemo(() => books.map((b: RawBook) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
@@ -225,7 +199,10 @@ export default function CatalogPage() {
     <>
       <PageHeader
         title="Книги"
-        {...filterBarProps}
+        filterKeys={["author", "series", "genre", "language"]}
+        selected={selected}
+        onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         sortOptions={sortOptions}
         sortValue={sort}
         onSortChange={(s) => updateParams({ sort: s })}

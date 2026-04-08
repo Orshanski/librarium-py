@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterConfig } from "../components/filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
@@ -18,17 +18,11 @@ interface AuthorRow {
   tags: string | null;
 }
 
-interface FilterOptions {
-  tags: { id: number; name: string }[];
-  languages: { name: string }[];
-}
-
-function saveCache(authors: AuthorRow[], filterOptions: FilterOptions | null, selected: Record<string, string[]>) {
+function saveCache(authors: AuthorRow[], selected: Record<string, string[]>) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       authors,
-      filterOptions,
       selected,
       scrollTop: main?.scrollTop || 0,
     }));
@@ -52,7 +46,6 @@ export default function AuthorsPage() {
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [authors, setAuthors] = useState<AuthorRow[]>([]);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
@@ -73,7 +66,6 @@ export default function AuthorsPage() {
     const cached = loadCache();
     if (cached) {
       setAuthors(cached.authors);
-      setFilterOptions(cached.filterOptions);
       if (cached.selected) setSelected(cached.selected);
       setLoading(false);
       restoredRef.current = true;
@@ -106,44 +98,35 @@ export default function AuthorsPage() {
       .then((r) => r.json())
       .then((data) => {
         setAuthors(data.authors || []);
-        setFilterOptions(data.filterOptions || null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ authors, filterOptions, selected });
-  stateRef.current = { authors, filterOptions, selected };
+  const stateRef = useRef({ authors, selected });
+  stateRef.current = { authors, selected };
 
   useEffect(() => {
-    if (authors.length > 0) saveCache(authors, filterOptions, selected);
-  }, [authors, filterOptions, paramsKey]);
+    if (authors.length > 0) saveCache(authors, selected);
+  }, [authors, selected, paramsKey]);
 
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
     function onScroll() {
       const s = stateRef.current;
-      saveCache(s.authors, s.filterOptions, s.selected);
+      saveCache(s.authors, s.selected);
     }
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
       const s = stateRef.current;
-      if (s.authors.length > 0) saveCache(s.authors, s.filterOptions, s.selected);
+      if (s.authors.length > 0) saveCache(s.authors, s.selected);
     };
   }, []);
 
-  const filterConfigs: FilterConfig[] = useMemo(() => {
-    if (!filterOptions) return [];
-    return [
-      { key: "genre", label: "Жанр", options: filterOptions.tags },
-      { key: "language", label: "Язык", options: filterOptions.languages },
-    ];
-  }, [filterOptions]);
-
-  function onSelectionChange(key: string, values: string[]) {
+  function onSelectionChange(key: FilterKey, values: string[]) {
     sessionStorage.removeItem(CACHE_KEY);
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
@@ -152,7 +135,7 @@ export default function AuthorsPage() {
     <>
       <PageHeader
         title="Авторы"
-        filters={filterConfigs}
+        filterKeys={["genre", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
         showUpload
