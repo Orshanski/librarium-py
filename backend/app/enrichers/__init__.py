@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Callable
 from ..parsers import ParsedMetadata
 
@@ -9,20 +10,13 @@ def _init_enrichers():
     _ENRICHERS["pdf"] = enrich_pdf
 
 
-def _resolve_genres(raw_genres: list[str]) -> list[str]:
-    """Resolve genre names/codes via tag_mappings.
-
-    Uses _get_db() directly because enrich_metadata runs in asyncio.to_thread
-    (different thread from the request handler), so the request's db connection
-    cannot be shared here.
-    """
+def _resolve_genres(db: sqlite3.Connection, raw_genres: list[str]) -> list[str]:
+    """Resolve genre names/codes via tag_mappings."""
     from ..dal.tags import resolve_tag_names
-    from ..database import _get_db
-    db = _get_db()
     return resolve_tag_names(db, raw_genres)
 
 
-def enrich_metadata(meta: ParsedMetadata, ext: str, original_filename: str, file_path: str) -> ParsedMetadata:
+def enrich_metadata(db: sqlite3.Connection, meta: ParsedMetadata, ext: str, original_filename: str, file_path: str) -> ParsedMetadata:
     """Enrich parsed metadata with external sources (LLM, cover search, etc.)."""
     ext = ext.lower().lstrip(".")
     if not _ENRICHERS:
@@ -30,5 +24,5 @@ def enrich_metadata(meta: ParsedMetadata, ext: str, original_filename: str, file
     enricher = _ENRICHERS.get(ext)
     if enricher:
         meta = enricher(meta, original_filename, file_path)
-    meta.genres = _resolve_genres(meta.genres)
+    meta.genres = _resolve_genres(db, meta.genres)
     return meta
