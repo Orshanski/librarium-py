@@ -31,11 +31,14 @@ def _get_thumb(book_id: int, cover_path: str) -> str:
     if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
         return thumb_path
     img = Image.open(cover_path)
-    ratio = THUMB_HEIGHT / img.height
-    new_size = (int(img.width * ratio), THUMB_HEIGHT)
-    img = img.resize(new_size, Image.LANCZOS)
-    img = img.convert("RGB")
-    img.save(thumb_path, "JPEG", quality=80)
+    try:
+        ratio = THUMB_HEIGHT / img.height
+        new_size = (int(img.width * ratio), THUMB_HEIGHT)
+        img = img.resize(new_size, Image.LANCZOS)
+        img = img.convert("RGB")
+        img.save(thumb_path, "JPEG", quality=80)
+    finally:
+        img.close()
     return thumb_path
 
 
