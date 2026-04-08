@@ -79,7 +79,8 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
     require_admin(request)
     if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
-    ext = (file.filename or "cover.jpg").split(".")[-1].lower() or "jpg"
+    parts = (file.filename or "cover.jpg").rsplit(".", 1)
+    ext = parts[-1].lower() if len(parts) > 1 else "jpg"
 
     # Clean old temp covers for this book
     for old in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
