@@ -83,6 +83,14 @@ def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int):
     return {"shelf": shelf, "books": books}
 
 
+def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
+    row = db.execute(
+        "SELECT 1 FROM shelves WHERE id = :id AND user_id = :uid",
+        {"id": shelf_id, "uid": user_id},
+    ).fetchone()
+    return row is not None
+
+
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
     cur = db.execute("INSERT INTO shelves (name, user_id) VALUES (:n, :uid)", {"n": name, "uid": user_id})
 

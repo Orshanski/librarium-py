@@ -52,7 +52,7 @@ def get_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depends(
 @router.put("/{shelf_id}")
 def update_shelf(shelf_id: int, body: ShelfBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    if not dal.get_shelf_by_id(db, shelf_id, user["userId"]):
+    if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.update_shelf(db, shelf_id, body.name)
     return {"ok": True}
@@ -61,7 +61,7 @@ def update_shelf(shelf_id: int, body: ShelfBody, request: Request, db: sqlite3.C
 @router.delete("/{shelf_id}")
 def delete_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    if not dal.get_shelf_by_id(db, shelf_id, user["userId"]):
+    if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.delete_shelf(db, shelf_id)
     log.info("Deleted shelf=%d by user_id=%s", shelf_id, user["userId"])
@@ -71,7 +71,7 @@ def delete_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depen
 @router.post("/{shelf_id}/books")
 def add_book(shelf_id: int, body: ShelfBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    if not dal.get_shelf_by_id(db, shelf_id, user["userId"]):
+    if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.add_book_to_shelf(db, shelf_id, body.bookId)
     return {"ok": True}
@@ -80,7 +80,7 @@ def add_book(shelf_id: int, body: ShelfBookBody, request: Request, db: sqlite3.C
 @router.delete("/{shelf_id}/books/{book_id}")
 def remove_book(shelf_id: int, book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
     user = get_current_user(request)
-    if not dal.get_shelf_by_id(db, shelf_id, user["userId"]):
+    if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.remove_book_from_shelf(db, shelf_id, book_id)
     return {"ok": True}
