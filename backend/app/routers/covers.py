@@ -34,15 +34,21 @@ def _get_thumb(book_id: int, cover_path: str) -> str:
     thumb_path = str(THUMBS_DIR / f"{book_id}.jpg")
     if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
         return thumb_path
-    img = Image.open(cover_path)
+    original = Image.open(cover_path)
     try:
-        ratio = THUMB_HEIGHT / img.height
-        new_size = (int(img.width * ratio), THUMB_HEIGHT)
-        img = img.resize(new_size, Image.LANCZOS)
-        img = img.convert("RGB")
-        img.save(thumb_path, "JPEG", quality=80)
+        ratio = THUMB_HEIGHT / original.height
+        new_size = (int(original.width * ratio), THUMB_HEIGHT)
+        resized = original.resize(new_size, Image.LANCZOS)
     finally:
-        img.close()
+        original.close()
+    try:
+        converted = resized.convert("RGB")
+    finally:
+        resized.close()
+    try:
+        converted.save(thumb_path, "JPEG", quality=80)
+    finally:
+        converted.close()
     return thumb_path
 
 
@@ -142,7 +148,7 @@ def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depend
     if not temp_file:
         return JSONResponse({"ok": True})  # nothing to commit
 
-    ext = temp_file.split(".")[-1]
+    ext = temp_file.rsplit(".", 1)[-1]
     src = str(UPLOADS_DIR / temp_file)
     dst = os.path.join(book_dir, f"cover.{ext}")
 

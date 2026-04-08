@@ -10,7 +10,7 @@ def _init_enrichers():
     _ENRICHERS["pdf"] = enrich_pdf
 
 
-def _resolve_genres(db: sqlite3.Connection, raw_genres: list[str]) -> list[str]:
+def resolve_genres(db: sqlite3.Connection, raw_genres: list[str]) -> list[str]:
     """Resolve genre names/codes via tag_mappings."""
     from ..dal.tags import resolve_tag_names
     return resolve_tag_names(db, raw_genres)
