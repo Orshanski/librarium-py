@@ -36,13 +36,17 @@ interface UseReaderStorageResult {
   bookTitle: string;
   settings: ReaderSettings;
   initialPosition: string | number | null;
+  resumePosition: string | number | null;
   loading: boolean;
   loadProgress: number;
   error: string | null;
   flushProgress: () => void;
+  clearResumePosition: () => void;
   handleRelocate: (position: string | number, fraction: number) => void;
   handleSettingsChange: (newSettings: ReaderSettings) => void;
 }
+
+const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
 export function useReaderStorage({ bookId: id, format, positionKind }: UseReaderStorageOptions): UseReaderStorageResult {
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
@@ -52,6 +56,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [initialPosition, setInitialPosition] = useState<string | number | null>(null);
+  const [resumePosition, setResumePosition] = useState<string | number | null>(null);
 
   const deviceName = getDeviceName();
   const isPwa = useIsPwa();
@@ -59,7 +64,91 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPositionRef = useRef<{ value: string | number; fraction: number } | null>(null);
+  const lastSavedPositionRef = useRef<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
+  const applyPositionRef = useRef<(raw: string) => void>(() => {});
+  const pushProgressToServerRef = useRef<(bookId: number, progress: LocalProgress, keepalive?: boolean) => Promise<boolean>>(async () => false);
+  const adoptServerProgressRef = useRef<(
+    bookId: number,
+    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
+    options?: { resume?: boolean },
+  ) => Promise<void>>(async () => {});
+
+  const parsePositionValue = useCallback((raw: string): string | number | null => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (positionKind === "cfi" && parsed?.kind === "cfi" && typeof parsed.value === "string") {
+        return parsed.value;
+      }
+      if (positionKind === "page" && parsed?.kind === "page" && typeof parsed.value === "number") {
+        return parsed.value;
+      }
+      if (positionKind === "cfi" && typeof raw === "string") {
+        return raw;
+      }
+      return null;
+    } catch {
+      return positionKind === "cfi" ? raw : null;
+    }
+  }, [positionKind]);
+
+  const applyPosition = useCallback((raw: string) => {
+    const parsed = parsePositionValue(raw);
+    if (parsed != null) {
+      setInitialPosition(parsed);
+    }
+  }, [parsePositionValue]);
+
+  const pushProgressToServer = useCallback(async (bookId: number, progress: LocalProgress, keepalive = false) => {
+    try {
+      const resp = await fetch(`/api/reader/progress/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        keepalive,
+        body: JSON.stringify({
+          position: progress.position,
+          last_device: deviceName,
+          last_format: progress.lastFormat,
+          fraction: progress.fraction,
+        }),
+      });
+      if (resp.ok) {
+        lastSavedPositionRef.current = progress.position;
+        await markProgressSynced(bookId);
+        return true;
+      }
+    } catch (err) {
+      console.warn("Failed to push progress:", err);
+    }
+    return false;
+  }, [deviceName, id]);
+
+  const adoptServerProgress = useCallback(async (
+    bookId: number,
+    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
+    options?: { resume?: boolean },
+  ) => {
+    const parsed = parsePositionValue(server.position);
+    if (parsed == null) return;
+    lastSavedPositionRef.current = server.position;
+    await saveLocalProgress(bookId, {
+      position: server.position,
+      fraction: server.fraction || 0,
+      lastFormat: server.last_format || format || "",
+      lastReadAt: server.last_read_at ? new Date(server.last_read_at).getTime() : Date.now(),
+    });
+    await markProgressSynced(bookId);
+    if (options?.resume) {
+      setResumePosition(parsed);
+    } else {
+      setInitialPosition(parsed);
+    }
+  }, [format, parsePositionValue]);
+
+  applyPositionRef.current = applyPosition;
+  pushProgressToServerRef.current = pushProgressToServer;
+  adoptServerProgressRef.current = adoptServerProgress;
 
   // Load book, settings, progress
   useEffect(() => {
@@ -104,7 +193,8 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           setSettings({ ...DEFAULT_SETTINGS, ...localSettings.settings } as ReaderSettings);
         }
         if (localProgress?.position) {
-          applyPosition(localProgress.position);
+          lastSavedPositionRef.current = localProgress.position;
+          applyPositionRef.current(localProgress.position);
         }
 
         // 2. Book blob (cache or network)
@@ -175,21 +265,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       }
     })();
 
-    function applyPosition(raw: string) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (positionKind === "cfi" && parsed?.kind === "cfi" && typeof parsed.value === "string") {
-          setInitialPosition(parsed.value);
-        } else if (positionKind === "page" && parsed?.kind === "page" && typeof parsed.value === "number") {
-          setInitialPosition(parsed.value);
-        } else if (positionKind === "cfi" && typeof raw === "string") {
-          setInitialPosition(raw); // legacy CFI
-        }
-      } catch {
-        if (positionKind === "cfi") setInitialPosition(raw); // legacy CFI
-      }
-    }
-
     async function syncProgressAndSettings(bookId: number, localProgress: LocalProgress | null, localSettings: LocalSettings | null) {
       const [serverSettings, serverProgress] = await Promise.all([
         fetch("/api/reader/settings", { credentials: "include" }).then((r) => r.ok ? r.json() : null).catch(() => null),
@@ -215,43 +290,22 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
       }
 
-      // Progress: compare timestamps
-      if (serverProgress?.position) {
-        const serverTime = serverProgress.last_read_at ? new Date(serverProgress.last_read_at).getTime() : 0;
-        const localTime = localProgress?.lastReadAt || 0;
-        if (serverTime > localTime) {
-          applyPosition(serverProgress.position);
-          await saveLocalProgress(bookId, {
-            position: serverProgress.position,
-            fraction: serverProgress.fraction || 0,
-            lastFormat: serverProgress.last_format || format!,
-            lastReadAt: serverTime,
-          });
-          await markProgressSynced(bookId);
-        } else if (localTime > serverTime && localProgress) {
-          await pushProgressToServer(bookId, localProgress);
-        }
-      } else if (localProgress && !localProgress.synced) {
-        await pushProgressToServer(bookId, localProgress);
-      }
-    }
+      const localPosition = localProgress?.position ?? null;
+      const hasUnsyncedLocal = Boolean(localProgress && !localProgress.synced);
+      const serverPosition = serverProgress?.position ?? null;
+      const serverTime = serverProgress?.last_read_at ? new Date(serverProgress.last_read_at).getTime() : 0;
+      const localTime = localProgress?.lastReadAt ?? 0;
 
-    async function pushProgressToServer(bookId: number, progress: LocalProgress) {
-      try {
-        const resp = await fetch(`/api/reader/progress/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            position: progress.position,
-            last_device: deviceName,
-            last_format: progress.lastFormat,
-            fraction: progress.fraction,
-          }),
-        });
-        if (resp.ok) await markProgressSynced(bookId);
-      } catch (err) {
-        console.warn("Failed to push progress:", err);
+      if (hasUnsyncedLocal && localProgress) {
+        if (serverPosition && serverPosition !== localPosition && serverTime > localTime) {
+          await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
+        } else {
+          await pushProgressToServerRef.current(bookId, localProgress);
+        }
+      } else if (serverPosition && serverPosition !== localPosition) {
+        await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
+      } else if (!serverProgress?.position && localProgress) {
+        lastSavedPositionRef.current = localProgress.position;
       }
     }
 
@@ -293,7 +347,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
       })().catch((err) => console.warn("Failed to auto-cache book:", err));
     }
-  }, [id, format, isPwa, deviceName, positionKind]);
+  }, [deviceName, format, id, isPwa, positionKind]);
 
   // Save progress (local-first, debounced)
   const flushProgress = useCallback(() => {
@@ -305,12 +359,14 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const fraction = Math.min(1, Math.max(0, pos.fraction || 0));
     const progressData = { position, fraction, lastFormat: format || "", lastReadAt: Date.now() };
 
+    lastSavedPositionRef.current = position;
     saveLocalProgress(bookId, progressData).catch((err) => console.warn("Failed to save local progress:", err));
     if (navigator.onLine) {
       fetch(`/api/reader/progress/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        keepalive: true,
         body: JSON.stringify({ position, last_device: deviceName, last_format: format || "", fraction }),
       }).then((r) => { if (r.ok) markProgressSynced(bookId); }).catch((err) => console.warn("Failed to sync progress:", err));
     }
@@ -322,18 +378,99 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
   useEffect(() => () => flushProgress(), [flushProgress]);
 
-  // S2: flush progress on beforeunload
   useEffect(() => {
-    const handler = () => flushRef.current();
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    const onBeforeUnload = () => flushRef.current();
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        flushRef.current();
+      }
+    };
+    const onPageHide = () => {
+      flushRef.current();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const bookId = Number(id);
+    const resume = async () => {
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+
+      const localProgress = await getProgress(bookId).catch(() => null);
+      try {
+        const resp = await fetch(`/api/reader/progress/${id}`, { credentials: "include" });
+        if (!resp.ok) return;
+        const server = await resp.json();
+
+        const currentLocalPosition = lastPositionRef.current
+          ? JSON.stringify({ kind: positionKind, value: lastPositionRef.current.value })
+          : lastSavedPositionRef.current ?? localProgress?.position ?? null;
+
+        if (!server?.position) {
+          if (localProgress && !localProgress.synced) {
+            await pushProgressToServer(bookId, localProgress);
+          }
+          return;
+        }
+
+        if (server.position !== currentLocalPosition) {
+          await adoptServerProgress(bookId, server, { resume: true });
+        } else if (localProgress && !localProgress.synced) {
+          await pushProgressToServer(bookId, localProgress);
+        }
+      } catch (err) {
+        console.warn("Failed to refresh progress on resume:", err);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void resume();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [adoptServerProgress, id, positionKind, pushProgressToServer]);
 
   const handleRelocate = useCallback((positionValue: string | number, fraction: number) => {
     lastPositionRef.current = { value: positionValue, fraction };
+    const bookId = id ? Number(id) : 0;
+    const position = JSON.stringify({ kind: positionKind, value: positionValue });
+    if (bookId) {
+      saveLocalProgress(bookId, {
+        position,
+        fraction: Math.min(1, Math.max(0, fraction || 0)),
+        lastFormat: format || "",
+        lastReadAt: Date.now(),
+      }).catch((err) => console.warn("Failed to save local progress:", err));
+    }
     clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(flushProgress, 3000);
-  }, [flushProgress]);
+    saveTimerRef.current = setTimeout(flushProgress, 1000);
+  }, [flushProgress, format, id, positionKind]);
+
+  const clearResumePosition = useCallback(() => {
+    setResumePosition(null);
+  }, []);
+
+  useEffect(() => {
+    readerWindow.__librariumReaderActiveCount = (readerWindow.__librariumReaderActiveCount ?? 0) + 1;
+    return () => {
+      const next = (readerWindow.__librariumReaderActiveCount ?? 1) - 1;
+      readerWindow.__librariumReaderActiveCount = Math.max(0, next);
+    };
+  }, []);
 
   // Save settings (local-first, debounced)
   const handleSettingsChange = useCallback((newSettings: ReaderSettings) => {
@@ -363,10 +500,12 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     bookTitle,
     settings,
     initialPosition,
+    resumePosition,
     loading,
     loadProgress,
     error,
     flushProgress,
+    clearResumePosition,
     handleRelocate,
     handleSettingsChange,
   };

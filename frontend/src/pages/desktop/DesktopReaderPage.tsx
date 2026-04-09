@@ -4,6 +4,7 @@ import { colors } from "../../theme";
 import EbookReader from "../../components/ebook-reader";
 import ReaderToolbar, { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
+import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
 
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
@@ -11,9 +12,9 @@ export default function DesktopReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
-    bookBlob, bookTitle, settings, initialPosition,
+    bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
-    handleRelocate: onStorageRelocate, handleSettingsChange,
+    clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
   const [fraction, setFraction] = useState(0);
@@ -41,6 +42,8 @@ export default function DesktopReaderPage() {
     setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
+
+  useReaderLifecycle(containerRef, bookReady, resumePosition, clearResumePosition);
 
   if (loading && !bookBlob) {
     return (

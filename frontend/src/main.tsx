@@ -9,11 +9,13 @@ import App from "./App";
 
 installFetchCredentials();
 
-// Evict expired cached books on startup (14-day TTL)
-evictExpired().catch((err) => console.warn("Failed to evict expired books:", err));
+const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
-// Sync unsynced reading progress and settings when coming back online
-window.addEventListener("online", async () => {
+function isReaderActive() {
+  return (readerWindow.__librariumReaderActiveCount ?? 0) > 0;
+}
+
+async function syncUnsyncedProgress() {
   try {
     const unsynced = await getUnsyncedProgress();
     for (const p of unsynced) {
@@ -31,9 +33,11 @@ window.addEventListener("online", async () => {
       if (resp.ok) await markProgressSynced(p.bookId);
     }
   } catch (err) {
-    console.warn("Failed to sync progress on reconnect:", err);
+    console.warn("Failed to sync progress:", err);
   }
+}
 
+async function syncUnsyncedSettings() {
   try {
     const unsyncedSettings = await getUnsyncedSettings();
     for (const s of unsyncedSettings) {
@@ -46,8 +50,27 @@ window.addEventListener("online", async () => {
       if (resp.ok) await markSettingsSynced(s.deviceType);
     }
   } catch (err) {
-    console.warn("Failed to sync settings on reconnect:", err);
+    console.warn("Failed to sync settings:", err);
   }
+}
+
+// Evict expired cached books on startup (14-day TTL)
+evictExpired().catch((err) => console.warn("Failed to evict expired books:", err));
+
+// Sync unsynced reading progress and settings when coming back online
+window.addEventListener("online", async () => {
+  if (!isReaderActive()) {
+    await syncUnsyncedProgress();
+  }
+  await syncUnsyncedSettings();
+});
+
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !navigator.onLine) return;
+  if (!isReaderActive()) {
+    await syncUnsyncedProgress();
+  }
+  await syncUnsyncedSettings();
 });
 
 // Evict expired books when going offline to free space

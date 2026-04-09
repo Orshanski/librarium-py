@@ -212,6 +212,7 @@ export async function markProgressSynced(bookId: number): Promise<void> {
   const p = await db.get("reading_progress", bookId);
   if (p) {
     p.synced = true;
+    p.lastReadAt = Date.now();
     await db.put("reading_progress", p);
   }
 }
