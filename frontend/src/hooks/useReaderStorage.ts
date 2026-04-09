@@ -37,7 +37,6 @@ interface UseReaderStorageResult {
   settings: ReaderSettings;
   initialPosition: string | number | null;
   resumePosition: string | number | null;
-  debugLines: string[];
   loading: boolean;
   loadProgress: number;
   error: string | null;
@@ -46,8 +45,6 @@ interface UseReaderStorageResult {
   handleRelocate: (position: string | number, fraction: number) => void;
   handleSettingsChange: (newSettings: ReaderSettings) => void;
 }
-
-const DEBUG_READER_LIFECYCLE = true;
 
 export function useReaderStorage({ bookId: id, format, positionKind }: UseReaderStorageOptions): UseReaderStorageResult {
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
@@ -58,7 +55,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [initialPosition, setInitialPosition] = useState<string | number | null>(null);
   const [resumePosition, setResumePosition] = useState<string | number | null>(null);
-  const [debugLines, setDebugLines] = useState<string[]>([]);
 
   const deviceName = getDeviceName();
   const isPwa = useIsPwa();
@@ -70,12 +66,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const flushRef = useRef<() => void>(() => {});
 
   const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
-
-  const pushDebug = useCallback((line: string) => {
-    if (!DEBUG_READER_LIFECYCLE) return;
-    const stamp = new Date().toLocaleTimeString("en-GB", { hour12: false });
-    setDebugLines((prev) => [`${stamp} ${line}`, ...prev].slice(0, 8));
-  }, []);
 
   const shortPos = useCallback((value: string | null | undefined) => {
     if (!value) return "null";
@@ -109,7 +99,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
   const pushProgressToServer = useCallback(async (bookId: number, progress: LocalProgress, keepalive = false) => {
     try {
-      pushDebug(`PUT start keepalive=${keepalive} pos=${shortPos(progress.position)}`);
       const resp = await fetch(`/api/reader/progress/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -123,18 +112,15 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }),
       });
       if (resp.ok) {
-        pushDebug("PUT ok");
         lastSavedPositionRef.current = progress.position;
         await markProgressSynced(bookId);
         return true;
       }
-      pushDebug(`PUT fail status=${resp.status}`);
     } catch (err) {
-      pushDebug(`PUT err=${err instanceof Error ? err.message : String(err)}`);
       console.warn("Failed to push progress:", err);
     }
     return false;
-  }, [deviceName, id, pushDebug, shortPos]);
+  }, [deviceName, id]);
 
   const adoptServerProgress = useCallback(async (
     bookId: number,
@@ -151,13 +137,12 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       lastReadAt: server.last_read_at ? new Date(server.last_read_at).getTime() : Date.now(),
     });
     await markProgressSynced(bookId);
-    pushDebug(`ADOPT server resume=${Boolean(options?.resume)} pos=${shortPos(server.position)}`);
     if (options?.resume) {
       setResumePosition(parsed);
     } else {
       setInitialPosition(parsed);
     }
-  }, [format, parsePositionValue, pushDebug, shortPos]);
+  }, [format, parsePositionValue]);
 
   // Load book, settings, progress
   useEffect(() => {
@@ -395,12 +380,10 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.hidden) {
-        pushDebug("EVENT hidden -> flush");
         flushRef.current();
       }
     };
     const onPageHide = () => {
-      pushDebug("EVENT pagehide -> flush");
       flushRef.current();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -409,64 +392,44 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [pushDebug]);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
 
     const bookId = Number(id);
     const resume = async () => {
-      pushDebug(`RESUME state=${document.visibilityState} online=${navigator.onLine}`);
-      if (document.visibilityState === "hidden" || !navigator.onLine) {
-        pushDebug("RESUME blocked by guard");
-        return;
-      }
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
 
       const localProgress = await getProgress(bookId).catch(() => null);
       try {
-        pushDebug("GET start");
         const resp = await fetch(`/api/reader/progress/${id}`, { credentials: "include" });
-        if (!resp.ok) {
-          pushDebug(`GET fail status=${resp.status}`);
-          return;
-        }
+        if (!resp.ok) return;
         const server = await resp.json();
-        pushDebug(`GET ok serverPos=${server?.position ? "yes" : "no"} serverTime=${server?.last_read_at ?? "null"}`);
 
         const currentLocalPosition = lastPositionRef.current
           ? JSON.stringify({ kind: positionKind, value: lastPositionRef.current.value })
           : lastSavedPositionRef.current ?? localProgress?.position ?? null;
-        const localTime = localProgress?.lastReadAt ?? 0;
-        const serverTime = server?.last_read_at ? new Date(server.last_read_at).getTime() : 0;
-        pushDebug(`CMP local=${shortPos(currentLocalPosition)} server=${shortPos(server?.position)}`);
-        pushDebug(`META synced=${localProgress?.synced ?? "null"} localTime=${localTime} serverTime=${serverTime}`);
 
         if (!server?.position) {
           if (localProgress && !localProgress.synced) {
-            pushDebug("GET no server pos -> push local");
             await pushProgressToServer(bookId, localProgress);
           }
           return;
         }
 
         if (server.position !== currentLocalPosition) {
-          pushDebug("DIFF -> adopt server");
           await adoptServerProgress(bookId, server, { resume: true });
         } else if (localProgress && !localProgress.synced) {
-          pushDebug("SAME -> push unsynced local");
           await pushProgressToServer(bookId, localProgress);
-        } else {
-          pushDebug("SAME -> no-op");
         }
       } catch (err) {
-        pushDebug(`GET err=${err instanceof Error ? err.message : String(err)}`);
         console.warn("Failed to refresh progress on resume:", err);
       }
     };
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        pushDebug("EVENT visibilitychange visible");
         void resume();
       }
     };
@@ -475,7 +438,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [adoptServerProgress, id, positionKind, pushDebug, pushProgressToServer, shortPos]);
+  }, [adoptServerProgress, id, positionKind, pushProgressToServer]);
 
   const handleRelocate = useCallback((positionValue: string | number, fraction: number) => {
     lastPositionRef.current = { value: positionValue, fraction };
@@ -534,7 +497,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     settings,
     initialPosition,
     resumePosition,
-    debugLines,
     loading,
     loadProgress,
     error,

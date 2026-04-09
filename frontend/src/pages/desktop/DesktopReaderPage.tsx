@@ -11,7 +11,7 @@ export default function DesktopReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
-    bookBlob, bookTitle, settings, initialPosition, resumePosition, debugLines,
+    bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
     clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
@@ -119,26 +119,6 @@ export default function DesktopReaderPage() {
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />
       </div>
-      {debugLines.length > 0 && (
-        <div style={{
-          position: "fixed",
-          right: 12,
-          bottom: 12,
-          zIndex: 500,
-          maxWidth: 420,
-          padding: "10px 12px",
-          borderRadius: 10,
-          background: "rgba(0,0,0,0.82)",
-          color: "#b7ffb7",
-          fontSize: 11,
-          lineHeight: 1.4,
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap",
-          pointerEvents: "none",
-        }}>
-          {debugLines.join("\n")}
-        </div>
-      )}
     </div>
   );
 }

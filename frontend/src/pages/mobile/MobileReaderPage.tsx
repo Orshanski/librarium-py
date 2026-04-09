@@ -12,7 +12,7 @@ export default function MobileReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
-    bookBlob, bookTitle, settings, initialPosition, resumePosition, debugLines,
+    bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
     clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
@@ -122,26 +122,6 @@ export default function MobileReaderPage() {
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />
       </div>
-      {debugLines.length > 0 && (
-        <div style={{
-          position: "fixed",
-          left: 8,
-          right: 8,
-          bottom: "calc(var(--sab) + 8px)",
-          zIndex: 500,
-          padding: "8px 10px",
-          borderRadius: 10,
-          background: "rgba(0,0,0,0.82)",
-          color: "#b7ffb7",
-          fontSize: 10,
-          lineHeight: 1.35,
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap",
-          pointerEvents: "none",
-        }}>
-          {debugLines.join("\n")}
-        </div>
-      )}
     </div>
   );
 }
