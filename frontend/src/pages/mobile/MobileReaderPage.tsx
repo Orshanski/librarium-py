@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import EbookReader from "../../components/ebook-reader";
@@ -12,9 +12,9 @@ export default function MobileReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
-    bookBlob, bookTitle, settings, initialPosition,
+    bookBlob, bookTitle, settings, initialPosition, resumePosition, debugLines,
     loading, loadProgress, error,
-    handleRelocate: onStorageRelocate, handleSettingsChange,
+    clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
   const [fraction, setFraction] = useState(0);
@@ -41,6 +41,28 @@ export default function MobileReaderPage() {
     const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
     setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (resumePosition == null) return;
+    if (!bookReady) return;
+    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (target: string | number) => void };
+    if (view) {
+      view.goTo(resumePosition);
+      clearResumePosition();
+    }
+  }, [bookReady, clearResumePosition, resumePosition]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState !== "visible") return;
+      const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { renderer?: unknown };
+      if (!view || !view.renderer) {
+        window.location.reload();
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
   }, []);
 
   if (loading && !bookBlob) {
@@ -100,6 +122,26 @@ export default function MobileReaderPage() {
           callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
         />
       </div>
+      {debugLines.length > 0 && (
+        <div style={{
+          position: "fixed",
+          left: 8,
+          right: 8,
+          bottom: "calc(var(--sab) + 8px)",
+          zIndex: 500,
+          padding: "8px 10px",
+          borderRadius: 10,
+          background: "rgba(0,0,0,0.82)",
+          color: "#b7ffb7",
+          fontSize: 10,
+          lineHeight: 1.35,
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
+          pointerEvents: "none",
+        }}>
+          {debugLines.join("\n")}
+        </div>
+      )}
     </div>
   );
 }
