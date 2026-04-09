@@ -46,6 +46,8 @@ interface UseReaderStorageResult {
   handleSettingsChange: (newSettings: ReaderSettings) => void;
 }
 
+const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
+
 export function useReaderStorage({ bookId: id, format, positionKind }: UseReaderStorageOptions): UseReaderStorageResult {
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
   const [bookTitle, setBookTitle] = useState("");
@@ -71,8 +73,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
     options?: { resume?: boolean },
   ) => Promise<void>>(async () => {});
-
-  const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
   const parsePositionValue = useCallback((raw: string): string | number | null => {
     try {

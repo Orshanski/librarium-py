@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import EbookReader from "../../components/ebook-reader";
 import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
 import { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
+import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
 
 export default function MobileReaderPage() {
   const { id, format } = useParams();
@@ -43,28 +44,7 @@ export default function MobileReaderPage() {
     setBookReady(true);
   }, []);
 
-  useEffect(() => {
-    if (resumePosition == null) return;
-    if (!bookReady) return;
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (target: string | number) => void };
-    if (view) {
-      view.goTo(resumePosition);
-      clearResumePosition();
-    }
-  }, [bookReady, clearResumePosition, resumePosition]);
-
-  useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState !== "visible") return;
-      if (!bookReady) return;
-      const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { renderer?: unknown };
-      if (!view || !view.renderer) {
-        window.location.reload();
-      }
-    };
-    document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
-  }, [bookReady]);
+  useReaderLifecycle(containerRef, bookReady, resumePosition, clearResumePosition);
 
   if (loading && !bookBlob) {
     return (
