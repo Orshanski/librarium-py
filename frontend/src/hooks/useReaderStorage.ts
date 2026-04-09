@@ -64,6 +64,13 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const lastPositionRef = useRef<{ value: string | number; fraction: number } | null>(null);
   const lastSavedPositionRef = useRef<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
+  const applyPositionRef = useRef<(raw: string) => void>(() => {});
+  const pushProgressToServerRef = useRef<(bookId: number, progress: LocalProgress, keepalive?: boolean) => Promise<boolean>>(async () => false);
+  const adoptServerProgressRef = useRef<(
+    bookId: number,
+    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
+    options?: { resume?: boolean },
+  ) => Promise<void>>(async () => {});
 
   const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
@@ -139,6 +146,10 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     }
   }, [format, parsePositionValue]);
 
+  applyPositionRef.current = applyPosition;
+  pushProgressToServerRef.current = pushProgressToServer;
+  adoptServerProgressRef.current = adoptServerProgress;
+
   // Load book, settings, progress
   useEffect(() => {
     if (!id || !format) return;
@@ -183,7 +194,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
         if (localProgress?.position) {
           lastSavedPositionRef.current = localProgress.position;
-          applyPosition(localProgress.position);
+          applyPositionRef.current(localProgress.position);
         }
 
         // 2. Book blob (cache or network)
@@ -287,12 +298,12 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
       if (hasUnsyncedLocal && localProgress) {
         if (serverPosition && serverPosition !== localPosition && serverTime > localTime) {
-          await adoptServerProgress(bookId, serverProgress, { resume: false });
+          await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
         } else {
-          await pushProgressToServer(bookId, localProgress);
+          await pushProgressToServerRef.current(bookId, localProgress);
         }
       } else if (serverPosition && serverPosition !== localPosition) {
-        await adoptServerProgress(bookId, serverProgress, { resume: false });
+        await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
       } else if (!serverProgress?.position && localProgress) {
         lastSavedPositionRef.current = localProgress.position;
       }
@@ -336,7 +347,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
       })().catch((err) => console.warn("Failed to auto-cache book:", err));
     }
-  }, [adoptServerProgress, applyPosition, deviceName, format, id, isPwa, parsePositionValue, positionKind, pushProgressToServer]);
+  }, [deviceName, format, id, isPwa, positionKind]);
 
   // Save progress (local-first, debounced)
   const flushProgress = useCallback(() => {
