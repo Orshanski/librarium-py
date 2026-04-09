@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Routes, Route, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ProtectedRoute } from "./auth";
 import Shell from "./components/shell";
@@ -7,23 +7,24 @@ import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useIsPwa } from "./hooks/useIsPwa";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-import CatalogPage from "./pages/CatalogPage";
 import LoginPage from "./pages/LoginPage";
-import BookPage from "./pages/BookPage";
-import BookEditPage from "./pages/BookEditPage";
-import AuthorsPage from "./pages/AuthorsPage";
-import AuthorPage from "./pages/AuthorPage";
-import SeriesListPage from "./pages/SeriesListPage";
-import SeriesPage from "./pages/SeriesPage";
-import TagsPage from "./pages/TagsPage";
-import TagPage from "./pages/TagPage";
-import ShelfPage from "./pages/ShelfPage";
-import SearchPage from "./pages/SearchPage";
-import UploadPage from "./pages/UploadPage";
-import AdminPage from "./pages/AdminPage";
-import SimilarBooksPage from "./pages/SimilarBooksPage";
-import ReaderPage from "./pages/ReaderPage";
+import CatalogPage from "./pages/CatalogPage";
 import NotFoundPage from "./pages/NotFoundPage";
+
+const BookPage = lazy(() => import("./pages/BookPage"));
+const BookEditPage = lazy(() => import("./pages/BookEditPage"));
+const AuthorsPage = lazy(() => import("./pages/AuthorsPage"));
+const AuthorPage = lazy(() => import("./pages/AuthorPage"));
+const SeriesListPage = lazy(() => import("./pages/SeriesListPage"));
+const SeriesPage = lazy(() => import("./pages/SeriesPage"));
+const TagsPage = lazy(() => import("./pages/TagsPage"));
+const TagPage = lazy(() => import("./pages/TagPage"));
+const ShelfPage = lazy(() => import("./pages/ShelfPage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
+const UploadPage = lazy(() => import("./pages/UploadPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const SimilarBooksPage = lazy(() => import("./pages/SimilarBooksPage"));
+const ReaderPage = lazy(() => import("./pages/ReaderPage"));
 
 function ShellLayout() {
   return (
@@ -77,26 +78,28 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад"><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
-      <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
-        <Route path="/" element={<CatalogPage />} />
-        <Route path="/book/:id" element={<BookPage />} />
-        <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
-        <Route path="/book/:id/similar" element={<SimilarBooksPage />} />
-        <Route path="/authors" element={<AuthorsPage />} />
-        <Route path="/authors/:id" element={<AuthorPage />} />
-        <Route path="/series" element={<SeriesListPage />} />
-        <Route path="/series/:id" element={<SeriesPage />} />
-        <Route path="/tags" element={<TagsPage />} />
-        <Route path="/tags/:id" element={<TagPage />} />
-        <Route path="/shelves/:id" element={<ShelfPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/upload" element={<ProtectedRoute adminOnly><UploadPage /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <Suspense>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад"><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
+        <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
+          <Route path="/" element={<CatalogPage />} />
+          <Route path="/book/:id" element={<BookPage />} />
+          <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
+          <Route path="/book/:id/similar" element={<SimilarBooksPage />} />
+          <Route path="/authors" element={<AuthorsPage />} />
+          <Route path="/authors/:id" element={<AuthorPage />} />
+          <Route path="/series" element={<SeriesListPage />} />
+          <Route path="/series/:id" element={<SeriesPage />} />
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/tags/:id" element={<TagPage />} />
+          <Route path="/shelves/:id" element={<ShelfPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/upload" element={<ProtectedRoute adminOnly><UploadPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
