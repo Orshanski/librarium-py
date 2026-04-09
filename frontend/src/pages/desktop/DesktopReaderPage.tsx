@@ -55,6 +55,7 @@ export default function DesktopReaderPage() {
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState !== "visible") return;
+      if (!bookReady) return;
       const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { renderer?: unknown };
       if (!view || !view.renderer) {
         window.location.reload();
@@ -62,7 +63,7 @@ export default function DesktopReaderPage() {
     };
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
-  }, []);
+  }, [bookReady]);
 
   if (loading && !bookBlob) {
     return (

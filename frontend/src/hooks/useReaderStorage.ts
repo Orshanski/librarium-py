@@ -67,11 +67,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
   const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
-  const shortPos = useCallback((value: string | null | undefined) => {
-    if (!value) return "null";
-    return value.length > 64 ? `${value.slice(0, 64)}...` : value;
-  }, []);
-
   const parsePositionValue = useCallback((raw: string): string | number | null => {
     try {
       const parsed = JSON.parse(raw);
@@ -297,12 +292,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
           await pushProgressToServer(bookId, localProgress);
         }
       } else if (serverPosition && serverPosition !== localPosition) {
-        if (localProgress && !localProgress.synced) {
-          return;
-        }
-        if (serverPosition) {
-          await adoptServerProgress(bookId, serverProgress, { resume: false });
-        }
+        await adoptServerProgress(bookId, serverProgress, { resume: false });
       } else if (!serverProgress?.position && localProgress) {
         lastSavedPositionRef.current = localProgress.position;
       }
@@ -378,6 +368,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   useEffect(() => () => flushProgress(), [flushProgress]);
 
   useEffect(() => {
+    const onBeforeUnload = () => flushRef.current();
     const onVisibilityChange = () => {
       if (document.hidden) {
         flushRef.current();
@@ -386,9 +377,11 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const onPageHide = () => {
       flushRef.current();
     };
+    window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
     return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
     };
