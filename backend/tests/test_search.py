@@ -208,12 +208,16 @@ class TestSearchBooksFuzzy:
     def test_empty_query_returns_empty_lists(self):
         from app.dal.books import search_books
         res = search_books(_get_db(), "")
-        assert res == {"books": [], "authors": [], "series": []}
+        assert res["books"] == []
+        assert res["authors"] == []
+        assert res["series"] == []
 
     def test_whitespace_only_query_returns_empty(self):
         from app.dal.books import search_books
         res = search_books(_get_db(), "   ")
-        assert res == {"books": [], "authors": [], "series": []}
+        assert res["books"] == []
+        assert res["authors"] == []
+        assert res["series"] == []
 
     def test_no_match_returns_empty(self):
         from app.dal.books import search_books
