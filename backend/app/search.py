@@ -52,6 +52,14 @@ def _token_match_score(q_token: str, c_token: str) -> float:
       крыса     → корсакова         ✗ reject
       мария     → информация        ✗ reject
       мария     → марк              ✗ reject
+
+    Known limitation — short prefix against a much longer word gets
+    rejected by the ratio floor: e.g. 'толк' (4) vs 'толкиен' (7)
+    has LCS-cov 100 but ratio ~73, so the min (73) is below the 75
+    cutoff and the match is dropped. Users need to type ≥5 chars of
+    a prefix for it to survive the ratio floor against 7+ char words.
+    Keeping this as intentional: lowering the cutoff to 70 would let
+    noise like 'мария → марк' back through. Revisit if it bites.
     """
     if not q_token or not c_token:
         return 0.0
