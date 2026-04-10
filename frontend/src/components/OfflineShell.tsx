@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { colors, fonts } from "../theme";
 import { getCachedBooks, getProgress, type CachedBook } from "../utils/offline-storage";
+import { setReadingFlag } from "../utils/readerFlag";
 import { useIsMobile } from "../responsive";
 
 export default function OfflineShell() {
@@ -123,6 +124,7 @@ function OfflineBookCard({ book, isMobile, progressPercent }: { book: CachedBook
   return (
     <Link
       to={`/book/${book.bookId}/read/${fmt}`}
+      onClick={setReadingFlag}
       style={{ textDecoration: "none", color: "inherit" }}
     >
       <div style={{

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "../responsive";
 import { colors } from "../theme";
+import { exitReader } from "../utils/readerFlag";
 import DesktopPdfReaderPage from "./desktop/DesktopPdfReaderPage";
 
 export default function PdfReaderPage() {
@@ -30,7 +31,7 @@ export default function PdfReaderPage() {
           Скачайте файл или откройте библиотеку на компьютере.
         </div>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => exitReader(navigate)}
           style={{
             marginTop: 8,
             background: "none",

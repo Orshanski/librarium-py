@@ -6,6 +6,7 @@ import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
 import { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
 import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
+import { exitReader } from "../../utils/readerFlag";
 
 export default function MobileReaderPage() {
   const { id, format } = useParams();
@@ -61,7 +62,7 @@ export default function MobileReaderPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.danger, gap: 16 }}>
         <div>{error || "Не удалось загрузить книгу"}</div>
-        <button onClick={() => navigate(-1)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
+        <button onClick={() => exitReader(navigate)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
           Назад
         </button>
       </div>
@@ -79,7 +80,7 @@ export default function MobileReaderPage() {
           settings={settings}
           onSettingsChange={handleSettingsChange}
           onTocSelect={handleTocSelect}
-          onClose={() => navigate(-1)}
+          onClose={() => exitReader(navigate)}
         />
       )}
       {!bookReady && (

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { colors, fonts } from "../theme";
+import { clearReadingFlag } from "../utils/readerFlag";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -23,6 +24,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  // User is on /login — session is invalid (expired cookie, explicit logout,
+  // 401 redirect). Reader context is meaningless without a session.
+  useEffect(() => {
+    clearReadingFlag();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

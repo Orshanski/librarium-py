@@ -8,6 +8,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
+import { setReadingFlag } from "../utils/readerFlag";
 import { toBook, splitCsv, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 
@@ -114,11 +115,13 @@ export default function ShelfPage() {
           const isReadingNow = shelf.system_code === "reading_now";
           const fmt = b.last_format;
           const frac = b.fraction;
+          const readerHref = isReadingNow && fmt ? `/book/${b.id}/read/${fmt.toLowerCase()}` : undefined;
           return (
             <BookCard
               key={b.id}
               book={toBook(b)}
-              href={isReadingNow && fmt ? `/book/${b.id}/read/${fmt.toLowerCase()}` : undefined}
+              href={readerHref}
+              onClick={readerHref ? setReadingFlag : undefined}
               progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
               isCached={cachedBookIds.has(b.id)}
               onRemove={!shelf.is_system ? async () => {
