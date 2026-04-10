@@ -568,10 +568,12 @@ export class Paginator extends HTMLElement {
         this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
         this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
         this.addEventListener('touchend', this.#onTouchEnd.bind(this))
+        this.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
         this.addEventListener('load', ({ detail: { doc } }) => {
             doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
             doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
             doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
+            doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
@@ -824,8 +826,12 @@ export class Paginator extends HTMLElement {
         const touch = e.changedTouches[0]
         this.#touchState = {
             x: touch?.screenX, y: touch?.screenY,
+            // Immutable origin for tap-detection: #onTouchMove mutates x/y
+            // to the latest move point, so origin* is needed for total
+            // start→end delta.
+            originX: touch?.screenX, originY: touch?.screenY,
             t: e.timeStamp,
-            vx: 0, xy: 0,
+            vx: 0, vy: 0,
         }
     }
     #onTouchMove(e) {
@@ -850,7 +856,51 @@ export class Paginator extends HTMLElement {
         this.#touchScrolled = true
         this.scrollBy(dx, dy)
     }
-    #onTouchEnd() {
+    #onTouchCancel() {
+        // OS intercepted the gesture (e.g. iOS home swipe). Mark cancelled
+        // via flag, not null — #onTouchEnd may still fire and reads state.
+        this.#touchScrolled = false
+        if (this.#touchState) this.#touchState.cancelled = true
+    }
+    #onTouchEnd(e) {
+        if (!this.#touchState || this.#touchState.cancelled) {
+            this.#touchScrolled = false
+            return
+        }
+
+        // Emit synthetic 'tap' event if this was a clean single-finger tap
+        // with no pan-scroll, no pinch, and origin→end delta within threshold.
+        // Consumers (ebook-reader) use this instead of listening to the
+        // browser-synthesised click, which fires even when iOS aborts a
+        // system gesture part-way through.
+        //
+        // We must return BEFORE the snap() RAF below when a tap is dispatched:
+        // tap listeners synchronously call view.prev()/next()/goTo(), and a
+        // follow-up snap(0, 0) with the tap's zero velocity can override the
+        // navigation by snapping back to the prior page position. That is
+        // exactly what broke left/right taps and TOC goTo without breaking
+        // the centre tap (which only opens the toolbar, no page navigation).
+        const TAP_MAX_DELTA = 10
+        const state = this.#touchState
+        const endTouch = e.changedTouches[0]
+        if (
+            this.#touchScrolled === false
+            && !state.pinched
+            && e.touches.length === 0
+            && e.changedTouches.length === 1
+            && endTouch
+            && Math.abs(endTouch.screenX - state.originX) <= TAP_MAX_DELTA
+            && Math.abs(endTouch.screenY - state.originY) <= TAP_MAX_DELTA
+        ) {
+            this.dispatchEvent(new CustomEvent('tap', {
+                detail: {
+                    screenX: endTouch.screenX,
+                    screenY: endTouch.screenY,
+                },
+            }))
+            return
+        }
+
         this.#touchScrolled = false
         if (this.scrolled) return
 

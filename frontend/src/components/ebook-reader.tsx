@@ -93,6 +93,11 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const lastClickXRef = useRef(0);
   const lastClickYRef = useRef(0);
   const footnoteOpenRef = useRef(false);
+  // true while a touch is in progress OR within 500ms after touchend.
+  // Used to suppress the iOS-synthesised click that follows touch, so the
+  // real tap-zone work happens via the foliate 'tap' event instead.
+  const touchActiveRef = useRef(false);
+  const touchActiveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const totalCharsRef = useRef(0);
   const totalPagesRef = useRef(0);
   const charCountTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -179,7 +184,32 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           lastClickXRef.current = ev.screenX - window.screenX;
           lastClickYRef.current = ev.screenY - window.screenY;
         }, true);
+        // Touch-origin guard: flip touchActiveRef for the lifetime of any
+        // touch and for 500ms after touchend so the iOS-synthesised click
+        // that follows is filtered out of the tap-zone click handler below.
+        doc.addEventListener("touchstart", () => {
+          if (touchActiveTimerRef.current) {
+            clearTimeout(touchActiveTimerRef.current);
+            touchActiveTimerRef.current = undefined;
+          }
+          touchActiveRef.current = true;
+        }, { passive: true, capture: true });
+        doc.addEventListener("touchend", () => {
+          if (touchActiveTimerRef.current) clearTimeout(touchActiveTimerRef.current);
+          touchActiveTimerRef.current = setTimeout(() => {
+            touchActiveRef.current = false;
+            touchActiveTimerRef.current = undefined;
+          }, 500);
+        }, { passive: true });
+        doc.addEventListener("touchcancel", () => {
+          if (touchActiveTimerRef.current) {
+            clearTimeout(touchActiveTimerRef.current);
+            touchActiveTimerRef.current = undefined;
+          }
+          touchActiveRef.current = false;
+        }, { passive: true });
         doc.addEventListener("click", (ev: MouseEvent) => {
+          if (touchActiveRef.current) return; // touch path handled via 'tap'
           if ((ev.target as Element)?.closest?.("a[href]")) return; // links handled by foliate-js
           if (footnoteOpenRef.current) {
             setFootnoteHtml(null);
@@ -203,6 +233,35 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
             // zoom_in / zoom_out не применимы в flow-ридере — no-op
           }
         });
+      }
+    });
+
+    // Touch tap-zone path: foliate's paginator emits a 'tap' event on a
+    // clean single-finger tap (no scroll, no pinch, small delta). This
+    // replaces the browser-synthesised click on touch devices, which fires
+    // even when iOS cancels a system gesture mid-way.
+    view.addEventListener("tap", (e: CustomEvent<{ screenX: number; screenY: number }>) => {
+      if (footnoteOpenRef.current) {
+        setFootnoteHtml(null);
+        footnoteOpenRef.current = false;
+        return;
+      }
+      const x = e.detail.screenX - window.screenX;
+      const y = e.detail.screenY - window.screenY;
+      const rect = container.getBoundingClientRect();
+      const xFrac = (x - rect.left) / rect.width;
+      const yFrac = (y - rect.top) / rect.height;
+
+      if (isMobile) {
+        if (xFrac < 0.33) view.prev();
+        else if (xFrac > 0.67) view.next();
+        else onCenterTapRef.current?.();
+      } else {
+        const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
+        const action = resolveDesktopZone(xFrac, yFrac, zones);
+        if (action === "prev") view.prev();
+        else if (action === "next") view.next();
+        else if (action === "toolbar") onCenterTapRef.current?.();
       }
     });
 
@@ -297,6 +356,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     return () => {
       disposed = true;
       clearTimeout(charCountTimerRef.current);
+      if (touchActiveTimerRef.current) {
+        clearTimeout(touchActiveTimerRef.current);
+        touchActiveTimerRef.current = undefined;
+      }
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       try { view.renderer?.destroy(); } catch {}
