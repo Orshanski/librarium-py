@@ -41,7 +41,7 @@ def _token_match_score(q_token: str, c_token: str) -> float:
       when two short words happen to share enough letters in order:
       'короли' vs 'космобиолухи' has LCS 83 but ratio 55, so the min
       (55) correctly rejects the match. 'крыса' vs 'корсакова' has
-      LCS 80 but ratio ~71 → rejected.
+      LCS 80 but ratio ~57 → rejected.
 
     Combined with a 75 cutoff in token_min_ratio this covers:
       прошивка  → прошивки          ✓ pass
