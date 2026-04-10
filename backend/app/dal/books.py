@@ -1,7 +1,15 @@
 import re
 import sqlite3
 
+from rapidfuzz import process
+
 from ..database import dicts_from_rows, dict_from_row
+from ..search import (
+    AUTHORS_SERIES_LIMIT,
+    SEARCH_SCORE_CUTOFF,
+    search_preprocess,
+    token_min_ratio,
+)
 from .filters import build_book_where
 
 
@@ -174,15 +182,6 @@ def search_books(db: sqlite3.Connection, query: str, limit=50):
     `find_duplicates_by_title` (upload dedup) and provider matching
     are deliberately out of scope — see bead librarium-py-7o2.
     """
-    from rapidfuzz import process
-
-    from ..search import (
-        AUTHORS_SERIES_LIMIT,
-        SEARCH_SCORE_CUTOFF,
-        search_preprocess,
-        token_min_ratio,
-    )
-
     q = (query or "").strip()
     if not q:
         return {"books": [], "authors": [], "series": []}
