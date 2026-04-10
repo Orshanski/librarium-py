@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import PdfReader from "../../components/pdf-reader";
@@ -15,8 +15,9 @@ export default function DesktopPdfReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
-    bookBlob, bookTitle, settings, initialPosition,
+    bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
+    clearResumePosition,
     handleRelocate: onStorageRelocate, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "page" });
 
@@ -53,6 +54,17 @@ export default function DesktopPdfReaderPage() {
     setTocItems((Array.isArray(toc) ? toc : []) as TocItem[]);
     setBookReady(true);
   }, []);
+
+  // Adopt on mid-session reconcile: when another device wrote a newer
+  // position and useReaderStorage's resume() / CAS reject-adopt path sets
+  // resumePosition, jump the PDF viewer to that page. Initial mount is
+  // handled via initialPage, not this effect.
+  useEffect(() => {
+    if (!bookReady || resumePosition == null) return;
+    if (typeof resumePosition !== "number") return;
+    viewApiRef.current?.goToPage(resumePosition);
+    clearResumePosition();
+  }, [bookReady, resumePosition, clearResumePosition]);
 
   if (loading && !bookBlob) {
     return (

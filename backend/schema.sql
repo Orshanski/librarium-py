@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS reading_progress (
     last_format TEXT,
     fraction REAL,
     last_read_at DATETIME,
+    version INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, book_id)
 );
 

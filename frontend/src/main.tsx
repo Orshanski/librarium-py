@@ -3,7 +3,8 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth";
 import { ResponsiveProvider } from "./responsive";
 import { installFetchCredentials } from "./api";
-import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markProgressSynced, markSettingsSynced } from "./utils/offline-storage";
+import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markSettingsSynced } from "./utils/offline-storage";
+import { pushProgressToServerCAS } from "./utils/reader-sync";
 import { getDeviceName } from "./utils/device-info";
 import App from "./App";
 
@@ -18,19 +19,12 @@ function isReaderActive() {
 async function syncUnsyncedProgress() {
   try {
     const unsynced = await getUnsyncedProgress();
+    const deviceName = getDeviceName();
     for (const p of unsynced) {
-      const resp = await fetch(`/api/reader/progress/${p.bookId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          position: p.position,
-          last_device: getDeviceName(),
-          last_format: p.lastFormat,
-          fraction: p.fraction,
-        }),
-      });
-      if (resp.ok) await markProgressSynced(p.bookId);
+      // CAS helper handles accept / rebase / reject-adopt, writes to IDB,
+      // marks synced. On 'adopted' the catalog page has no reader to jump —
+      // the adoption is silent and that's fine (the row is now synced).
+      await pushProgressToServerCAS(p, { deviceName });
     }
   } catch (err) {
     console.warn("Failed to sync progress:", err);

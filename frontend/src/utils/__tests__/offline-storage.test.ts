@@ -13,6 +13,7 @@ import {
   getProgress,
   getUnsyncedProgress,
   markProgressSynced,
+  getLastReadBook,
   saveSettings,
   getSettings,
   getUnsyncedSettings,
@@ -107,6 +108,67 @@ describe("reading progress", () => {
     expect(p!.synced).toBe(false);
   });
 
+  it("saveProgress defaults serverVersion to 0 on new row", async () => {
+    await saveProgress(1, { position: "a", fraction: 0.1, lastFormat: "epub", lastReadAt: 1000 });
+    const p = await getProgress(1);
+    expect(p!.serverVersion).toBe(0);
+  });
+
+  it("saveProgress preserves existing serverVersion across local-only writes", async () => {
+    // First write: new row with explicit serverVersion = 5 (as if adopted from server)
+    await saveProgress(1, {
+      position: "a",
+      fraction: 0.1,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 5,
+    });
+    // Local relocate: does NOT pass serverVersion — must preserve 5
+    await saveProgress(1, {
+      position: "b",
+      fraction: 0.2,
+      lastFormat: "epub",
+      lastReadAt: 2000,
+    });
+    const p = await getProgress(1);
+    expect(p!.position).toBe("b");
+    expect(p!.serverVersion).toBe(5);
+  });
+
+  it("saveProgress updates serverVersion when explicitly provided", async () => {
+    await saveProgress(1, {
+      position: "a",
+      fraction: 0.1,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 5,
+    });
+    // Simulate successful push response updating version
+    await saveProgress(1, {
+      position: "a",
+      fraction: 0.1,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 6,
+    });
+    const p = await getProgress(1);
+    expect(p!.serverVersion).toBe(6);
+  });
+
+  it("markProgressSynced does NOT touch lastReadAt (regression guard)", async () => {
+    const readAt = 12345;
+    await saveProgress(1, {
+      position: "a",
+      fraction: 0.1,
+      lastFormat: "epub",
+      lastReadAt: readAt,
+    });
+    await markProgressSynced(1);
+    const p = await getProgress(1);
+    expect(p!.lastReadAt).toBe(readAt); // must not be overwritten to Date.now()
+    expect(p!.synced).toBe(true);
+  });
+
   it("getUnsyncedProgress returns unsynced only", async () => {
     await saveProgress(1, { position: "a", fraction: 0.1, lastFormat: "epub", lastReadAt: Date.now() });
     await saveProgress(2, { position: "b", fraction: 0.2, lastFormat: "pdf", lastReadAt: Date.now() });
@@ -114,6 +176,27 @@ describe("reading progress", () => {
     const unsynced = await getUnsyncedProgress();
     expect(unsynced).toHaveLength(1);
     expect(unsynced[0].bookId).toBe(2);
+  });
+
+  describe("getLastReadBook", () => {
+    it("returns null on empty store", async () => {
+      const last = await getLastReadBook();
+      expect(last).toBeNull();
+    });
+
+    it("returns the row with the largest lastReadAt", async () => {
+      await saveProgress(1, { position: "a", fraction: 0.1, lastFormat: "epub", lastReadAt: 1000 });
+      await saveProgress(2, { position: "b", fraction: 0.2, lastFormat: "fb2", lastReadAt: 5000 });
+      await saveProgress(3, { position: "c", fraction: 0.3, lastFormat: "pdf", lastReadAt: 3000 });
+      const last = await getLastReadBook();
+      expect(last).toEqual({ bookId: 2, lastFormat: "fb2" });
+    });
+
+    it("returns null when the latest row has empty lastFormat", async () => {
+      await saveProgress(1, { position: "a", fraction: 0.1, lastFormat: "", lastReadAt: 1000 });
+      const last = await getLastReadBook();
+      expect(last).toBeNull();
+    });
   });
 });
 

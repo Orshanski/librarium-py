@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 interface CachedBookFormat {
   format: string;
@@ -46,6 +46,7 @@ export interface LocalProgress {
   fraction: number;
   lastFormat: string;
   lastReadAt: number;
+  serverVersion: number;
   synced: boolean;
 }
 
@@ -82,6 +83,13 @@ export function initDB(): Promise<LibrariumDB> {
         // v1→v2: Blob→ArrayBuffer — clear old incompatible cached books
         if (oldVersion < 2) {
           transaction.objectStore("cached_books").clear();
+        }
+        // v2→v3: reading_progress gained serverVersion. No users with real
+        // data yet — just wipe the store. On next book open, local progress
+        // is re-populated from the server via adopt (server rows are
+        // backfilled to version=1 by migrations/003_reading_progress_version.sql).
+        if (oldVersion < 3) {
+          transaction.objectStore("reading_progress").clear();
         }
       },
     });
@@ -190,10 +198,30 @@ export async function touchBook(bookId: number): Promise<void> {
 
 export async function saveProgress(
   bookId: number,
-  data: { position: string; fraction: number; lastFormat: string; lastReadAt: number },
+  data: {
+    position: string;
+    fraction: number;
+    lastFormat: string;
+    lastReadAt: number;
+    serverVersion?: number;
+  },
 ): Promise<void> {
+  // Single readwrite transaction so the get and put are atomic — otherwise
+  // a concurrent saveProgress call could interleave between them.
   const db = await initDB();
-  await db.put("reading_progress", { bookId, ...data, synced: false });
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const existing = await store.get(bookId);
+  await store.put({
+    bookId,
+    ...data,
+    // Preserve existing serverVersion across local-only writes
+    // (handleRelocate doesn't know/care). Overwrite only when the caller
+    // explicitly passes a new serverVersion (on push success or adopt).
+    serverVersion: data.serverVersion ?? existing?.serverVersion ?? 0,
+    synced: false,
+  });
+  await tx.done;
 }
 
 export async function getProgress(bookId: number): Promise<LocalProgress | null> {
@@ -207,13 +235,44 @@ export async function getUnsyncedProgress(): Promise<LocalProgress[]> {
   return all.filter((p) => !p.synced);
 }
 
+/**
+ * Write a server-sourced reading_progress state into IDB and mark it synced.
+ * Used by both the CAS helper (on reject-adopt) and useReaderStorage's
+ * adoptServerProgress (on mount/resume sync) so the shape is consistent.
+ */
+export async function adoptServerProgressLocal(
+  bookId: number,
+  server: {
+    position: string;
+    fraction?: number | null;
+    last_format?: string | null;
+    last_read_at?: string | null;
+    version?: number;
+  },
+  fallbackLastFormat: string,
+): Promise<void> {
+  await saveProgress(bookId, {
+    position: server.position,
+    fraction: server.fraction ?? 0,
+    lastFormat: server.last_format ?? fallbackLastFormat,
+    lastReadAt: server.last_read_at
+      ? new Date(server.last_read_at).getTime()
+      : Date.now(),
+    serverVersion: server.version ?? 0,
+  });
+  await markProgressSynced(bookId);
+}
+
 export async function markProgressSynced(bookId: number): Promise<void> {
   const db = await initDB();
-  const p = await db.get("reading_progress", bookId);
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const p = await store.get(bookId);
   if (p) {
     p.synced = true;
-    await db.put("reading_progress", p);
+    await store.put(p);
   }
+  await tx.done;
 }
 
 export async function getLastReadBook(): Promise<{ bookId: number; lastFormat: string } | null> {

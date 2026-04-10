@@ -6,10 +6,12 @@ import { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
 import { getDeviceName } from "../utils/device-info";
 import {
   LocalProgress, LocalSettings,
-  getProgress, saveProgress as saveLocalProgress, markProgressSynced,
+  getProgress, saveProgress as saveLocalProgress,
+  adoptServerProgressLocal,
   getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,
   cacheBook, touchBook, getCachedBook, evictLRU,
 } from "../utils/offline-storage";
+import { pushProgressToServerCAS } from "../utils/reader-sync";
 import { useIsPwa } from "./useIsPwa";
 
 type PositionKind = "cfi" | "page";
@@ -67,12 +69,15 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   // Serializes PUT /api/reader/progress calls: each new PUT awaits the
   // previous one so the server can't see requests reordered by the network.
   const inFlightPutRef = useRef<Promise<void>>(Promise.resolve());
+  // Blocks debounced server pushes from handleRelocate while resume() is
+  // reconciling with the server. IDB writes still happen.
+  const resumeGateRef = useRef(false);
   const flushRef = useRef<() => void>(() => {});
   const applyPositionRef = useRef<(raw: string) => void>(() => {});
-  const pushProgressToServerRef = useRef<(bookId: number, progress: LocalProgress, keepalive?: boolean) => Promise<boolean>>(async () => false);
+  const pushProgressToServerRef = useRef<(progress: LocalProgress, keepalive?: boolean) => Promise<boolean>>(async () => false);
   const adoptServerProgressRef = useRef<(
     bookId: number,
-    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
+    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number },
     options?: { resume?: boolean },
   ) => Promise<void>>(async () => {});
 
@@ -101,50 +106,42 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     }
   }, [parsePositionValue]);
 
-  const pushProgressToServer = useCallback(async (bookId: number, progress: LocalProgress, keepalive = false) => {
+  const pushProgressToServer = useCallback(async (progress: LocalProgress, keepalive = false): Promise<boolean> => {
     // Chain onto the previous in-flight PUT so PUTs always land in order.
-    let ok = false;
+    let handled = false;
     const next = inFlightPutRef.current.then(async () => {
+      const ctl = keepalive ? null : new AbortController();
+      const timer = ctl ? setTimeout(() => ctl.abort(), 10_000) : null;
       try {
-        const resp = await fetch(`/api/reader/progress/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
+        const result = await pushProgressToServerCAS(progress, {
+          deviceName,
           keepalive,
-          body: JSON.stringify({
-            position: progress.position,
-            last_device: deviceName,
-            last_format: progress.lastFormat,
-            fraction: progress.fraction,
-          }),
+          signal: ctl?.signal,
         });
-        if (resp.ok) {
-          await markProgressSynced(bookId);
-          ok = true;
+        if (result.status === "adopted" && result.adoptedPosition) {
+          const parsed = parsePositionValue(result.adoptedPosition);
+          if (parsed != null) setResumePosition(parsed);
+          handled = true;
+        } else if (result.status === "accepted" || result.status === "rebased") {
+          handled = true;
         }
-      } catch (err) {
-        console.warn("Failed to push progress:", err);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     });
     inFlightPutRef.current = next.catch(() => {});
     await next;
-    return ok;
-  }, [deviceName, id]);
+    return handled;
+  }, [deviceName, parsePositionValue]);
 
   const adoptServerProgress = useCallback(async (
     bookId: number,
-    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null },
+    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number },
     options?: { resume?: boolean },
   ) => {
     const parsed = parsePositionValue(server.position);
     if (parsed == null) return;
-    await saveLocalProgress(bookId, {
-      position: server.position,
-      fraction: server.fraction || 0,
-      lastFormat: server.last_format || format || "",
-      lastReadAt: server.last_read_at ? new Date(server.last_read_at).getTime() : Date.now(),
-    });
-    await markProgressSynced(bookId);
+    await adoptServerProgressLocal(bookId, server, format || "");
     if (options?.resume) {
       setResumePosition(parsed);
     } else {
@@ -295,17 +292,18 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
       }
 
-      // Reconciliation rule (no timestamps — they can drift between client/server):
-      //   - unsynced local → local is the latest writer on this device, push to server
-      //   - synced local + server differs → another device wrote, adopt server
-      //   - equal or server empty → nothing to do
-      const localPosition = localProgress?.position ?? null;
+      // Version-based reconciliation (no timestamps):
+      //   - unsynced local → push via CAS; server decides accept / rebase / reject-adopt
+      //   - synced local + server version ahead → another device wrote, adopt
+      //   - otherwise → nothing
       const hasUnsyncedLocal = Boolean(localProgress && !localProgress.synced);
       const serverPosition = serverProgress?.position ?? null;
+      const serverVersion = serverProgress?.version ?? 0;
+      const localServerVersion = localProgress?.serverVersion ?? 0;
 
       if (hasUnsyncedLocal && localProgress) {
-        await pushProgressToServerRef.current(bookId, localProgress);
-      } else if (serverPosition && serverPosition !== localPosition) {
+        await pushProgressToServerRef.current(localProgress);
+      } else if (serverPosition && serverVersion > localServerVersion) {
         await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
       }
     }
@@ -352,6 +350,10 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
 
   // Save progress (local-first, debounced). All network PUTs go through
   // pushProgressToServer so they land on the server in FIFO order.
+  //
+  // Read-back pattern: after saving to IDB we re-read the row so the push
+  // gets the current serverVersion (which was preserved from the last sync,
+  // not mutated by the relocate-driven IDB write).
   const flushProgress = useCallback(() => {
     clearTimeout(saveTimerRef.current);
     const pos = lastPositionRef.current;
@@ -361,13 +363,22 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const fraction = Math.min(1, Math.max(0, pos.fraction || 0));
     const localData = { position, fraction, lastFormat: format || "", lastReadAt: Date.now() };
 
-    saveLocalProgress(bookId, localData).catch((err) => console.warn("Failed to save local progress:", err));
-    if (navigator.onLine) {
-      // keepalive: true so the request survives pagehide / visibilitychange(hidden)
-      const progressForPush: LocalProgress = { bookId, ...localData, synced: false };
-      void pushProgressToServerRef.current(bookId, progressForPush, true);
-    }
     lastPositionRef.current = null;
+
+    (async () => {
+      try {
+        await saveLocalProgress(bookId, localData);
+      } catch (err) {
+        console.warn("Failed to save local progress:", err);
+        return;
+      }
+      if (!navigator.onLine) return;
+      // Read back to get the fresh row with serverVersion preserved.
+      const fresh = await getProgress(bookId).catch(() => null);
+      if (!fresh) return;
+      // keepalive: true so the request survives pagehide / visibilitychange(hidden)
+      void pushProgressToServerRef.current(fresh, true);
+    })();
   }, [id, format, positionKind]);
 
   // Keep flushRef in sync for beforeunload
@@ -402,32 +413,39 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const resume = async () => {
       if (document.visibilityState === "hidden" || !navigator.onLine) return;
 
-      // Reconciliation rule (no timestamps):
-      //   1. in-memory pending position (not yet flushed) → flush, done
-      //   2. unsynced local → push it, done
-      //   3. local fully synced + server differs → another device wrote, adopt
-      //   4. equal → nothing
-      if (lastPositionRef.current) {
-        flushRef.current();
-        return;
-      }
-
-      const localProgress = await getProgress(bookId).catch(() => null);
-      if (localProgress && !localProgress.synced) {
-        await pushProgressToServer(bookId, localProgress);
-        return;
-      }
-
+      // Gate debounced pushes from handleRelocate while we're reconciling.
+      resumeGateRef.current = true;
       try {
+        // 1. Pending in-memory position (not yet flushed) → flush first. It
+        //    goes through the CAS chain and wins whatever is needed.
+        if (lastPositionRef.current) {
+          flushRef.current();
+          return;
+        }
+
+        // 2. Unsynced local → push via CAS. Server decides accept/rebase/reject.
+        const localProgress = await getProgress(bookId).catch(() => null);
+        if (localProgress && !localProgress.synced) {
+          await pushProgressToServer(localProgress);
+          return;
+        }
+
+        // 3. Synced local + server ahead by version → another device wrote, adopt.
         const resp = await fetch(`/api/reader/progress/${id}`, { credentials: "include" });
         if (!resp.ok) return;
         const server = await resp.json();
         if (!server?.position) return;
-        if (server.position !== (localProgress?.position ?? null)) {
+        const serverVersion = server.version ?? 0;
+        const localServerVersion = localProgress?.serverVersion ?? 0;
+        if (serverVersion > localServerVersion) {
           await adoptServerProgress(bookId, server, { resume: true });
         }
       } catch (err) {
         console.warn("Failed to refresh progress on resume:", err);
+      } finally {
+        resumeGateRef.current = false;
+        // If user relocated during the gate window, flush now.
+        if (lastPositionRef.current) flushRef.current();
       }
     };
 
@@ -455,6 +473,10 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         lastReadAt: Date.now(),
       }).catch((err) => console.warn("Failed to save local progress:", err));
     }
+    // During resume reconciliation, IDB is updated but server push is deferred.
+    // resume() will call flushProgress() in its finally block if lastPositionRef
+    // has anything pending.
+    if (resumeGateRef.current) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(flushProgress, 1000);
   }, [flushProgress, format, id, positionKind]);
