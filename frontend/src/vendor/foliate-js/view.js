@@ -261,6 +261,12 @@ export class View extends HTMLElement {
         this.renderer.addEventListener('relocate', e => this.#onRelocate(e.detail))
         this.renderer.addEventListener('create-overlayer', e =>
             e.detail.attach(this.#createOverlayer(e.detail)))
+        // Forward synthetic 'tap' from Paginator (fires on clean single-finger
+        // taps, see Paginator#onTouchEnd) up to the host so consumers of
+        // <foliate-view> can listen for it instead of the browser-synthesised
+        // click, which fires even on cancelled iOS system gestures.
+        this.renderer.addEventListener('tap', e =>
+            this.dispatchEvent(new CustomEvent('tap', { detail: e.detail })))
         this.renderer.open(book)
         this.#root.append(this.renderer)
 
