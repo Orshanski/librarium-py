@@ -5,8 +5,9 @@ Provider-matching / duplicate detection lives in its own workflow
 (see bead librarium-py-7o2) and will reuse `search_preprocess` when
 ready.
 """
-from rapidfuzz import fuzz, utils
+from rapidfuzz import utils
 from rapidfuzz.distance import Indel
+from rapidfuzz.fuzz import ratio as _ratio
 
 
 def search_preprocess(s: str | None) -> str:
@@ -66,7 +67,7 @@ def _token_match_score(q_token: str, c_token: str) -> float:
     indel = Indel.distance(q_token, c_token)
     lcs_len = (len(q_token) + len(c_token) - indel) / 2
     lcs_coverage = (lcs_len / len(q_token)) * 100.0
-    ratio = fuzz.ratio(q_token, c_token)
+    ratio = _ratio(q_token, c_token)
     return min(lcs_coverage, ratio)
 
 
