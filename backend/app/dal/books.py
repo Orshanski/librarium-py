@@ -194,6 +194,11 @@ def search_books(db: sqlite3.Connection, query: str, limit=50):
     }
 
     # Books: full outer fetch, fuzzy-rank against title + authors + series_name.
+    # GROUP_CONCAT uses SQLite's default comma separator. That's fine
+    # here because search_preprocess turns the comma into a space
+    # before scoring. If search_preprocess ever stops normalising
+    # punctuation, this concat will silently break — see also the
+    # series query below, same caveat.
     book_rows = dicts_from_rows(db.execute("""
         SELECT b.id, b.title, b.cover_path,
             GROUP_CONCAT(DISTINCT a.name) as authors, s.name as series_name
