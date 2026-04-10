@@ -84,21 +84,12 @@ export function initDB(): Promise<LibrariumDB> {
         if (oldVersion < 2) {
           transaction.objectStore("cached_books").clear();
         }
-        // v2→v3: add serverVersion to reading_progress. Existing rows get
-        // serverVersion=0 + synced=false so the first CAS push lets the
-        // server decide (accept / rebase / reject-adopt).
+        // v2→v3: reading_progress gained serverVersion. No users with real
+        // data yet — just wipe the store. On next book open, local progress
+        // is re-populated from the server via adopt (server rows are
+        // backfilled to version=1 by migrations/003_reading_progress_version.sql).
         if (oldVersion < 3) {
-          const store = transaction.objectStore("reading_progress");
-          void (async () => {
-            let cursor = await store.openCursor();
-            while (cursor) {
-              const val = cursor.value as LocalProgress & { serverVersion?: number };
-              if (val.serverVersion === undefined) {
-                await cursor.update({ ...val, serverVersion: 0, synced: false });
-              }
-              cursor = await cursor.continue();
-            }
-          })();
+          transaction.objectStore("reading_progress").clear();
         }
       },
     });
@@ -215,17 +206,22 @@ export async function saveProgress(
     serverVersion?: number;
   },
 ): Promise<void> {
+  // Single readwrite transaction so the get and put are atomic — otherwise
+  // a concurrent saveProgress call could interleave between them.
   const db = await initDB();
-  // Preserve existing serverVersion across local-only writes (handleRelocate
-  // does not know/care about server version). Only overwrite when the caller
-  // explicitly passes a new serverVersion (on push success or adopt).
-  const existing = await db.get("reading_progress", bookId);
-  await db.put("reading_progress", {
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const existing = await store.get(bookId);
+  await store.put({
     bookId,
     ...data,
+    // Preserve existing serverVersion across local-only writes
+    // (handleRelocate doesn't know/care). Overwrite only when the caller
+    // explicitly passes a new serverVersion (on push success or adopt).
     serverVersion: data.serverVersion ?? existing?.serverVersion ?? 0,
     synced: false,
   });
+  await tx.done;
 }
 
 export async function getProgress(bookId: number): Promise<LocalProgress | null> {
@@ -239,13 +235,44 @@ export async function getUnsyncedProgress(): Promise<LocalProgress[]> {
   return all.filter((p) => !p.synced);
 }
 
+/**
+ * Write a server-sourced reading_progress state into IDB and mark it synced.
+ * Used by both the CAS helper (on reject-adopt) and useReaderStorage's
+ * adoptServerProgress (on mount/resume sync) so the shape is consistent.
+ */
+export async function adoptServerProgressLocal(
+  bookId: number,
+  server: {
+    position: string;
+    fraction?: number | null;
+    last_format?: string | null;
+    last_read_at?: string | null;
+    version?: number;
+  },
+  fallbackLastFormat: string,
+): Promise<void> {
+  await saveProgress(bookId, {
+    position: server.position,
+    fraction: server.fraction ?? 0,
+    lastFormat: server.last_format ?? fallbackLastFormat,
+    lastReadAt: server.last_read_at
+      ? new Date(server.last_read_at).getTime()
+      : Date.now(),
+    serverVersion: server.version ?? 0,
+  });
+  await markProgressSynced(bookId);
+}
+
 export async function markProgressSynced(bookId: number): Promise<void> {
   const db = await initDB();
-  const p = await db.get("reading_progress", bookId);
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const p = await store.get(bookId);
   if (p) {
     p.synced = true;
-    await db.put("reading_progress", p);
+    await store.put(p);
   }
+  await tx.done;
 }
 
 export async function getLastReadBook(): Promise<{ bookId: number; lastFormat: string } | null> {

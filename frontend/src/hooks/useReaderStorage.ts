@@ -6,7 +6,8 @@ import { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
 import { getDeviceName } from "../utils/device-info";
 import {
   LocalProgress, LocalSettings,
-  getProgress, saveProgress as saveLocalProgress, markProgressSynced,
+  getProgress, saveProgress as saveLocalProgress,
+  adoptServerProgressLocal,
   getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,
   cacheBook, touchBook, getCachedBook, evictLRU,
 } from "../utils/offline-storage";
@@ -140,14 +141,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   ) => {
     const parsed = parsePositionValue(server.position);
     if (parsed == null) return;
-    await saveLocalProgress(bookId, {
-      position: server.position,
-      fraction: server.fraction || 0,
-      lastFormat: server.last_format || format || "",
-      lastReadAt: server.last_read_at ? new Date(server.last_read_at).getTime() : Date.now(),
-      serverVersion: server.version ?? 0,
-    });
-    await markProgressSynced(bookId);
+    await adoptServerProgressLocal(bookId, server, format || "");
     if (options?.resume) {
       setResumePosition(parsed);
     } else {

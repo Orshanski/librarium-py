@@ -1,5 +1,5 @@
 import type { LocalProgress } from "./offline-storage";
-import { saveProgress, markProgressSynced } from "./offline-storage";
+import { saveProgress, markProgressSynced, adoptServerProgressLocal } from "./offline-storage";
 
 /**
  * Result of a CAS PUT to /api/reader/progress.
@@ -72,18 +72,9 @@ export async function pushProgressToServerCAS(
       };
     }
 
-    if (data.accepted === false && data.current) {
+    if (data.accepted === false && data.current && typeof data.current.position === "string") {
       const srv = data.current;
-      await saveProgress(progress.bookId, {
-        position: srv.position,
-        fraction: srv.fraction ?? 0,
-        lastFormat: srv.last_format ?? progress.lastFormat,
-        lastReadAt: srv.last_read_at
-          ? new Date(srv.last_read_at).getTime()
-          : Date.now(),
-        serverVersion: srv.version,
-      });
-      await markProgressSynced(progress.bookId);
+      await adoptServerProgressLocal(progress.bookId, srv, progress.lastFormat);
       return {
         status: "adopted",
         adoptedPosition: srv.position,
