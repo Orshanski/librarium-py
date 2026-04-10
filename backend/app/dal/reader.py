@@ -57,73 +57,89 @@ def save_reading_progress(
       {"accepted": True, "version": N, "rebased": bool}
       {"accepted": False, "current": {position, last_device, last_format,
                                        fraction, last_read_at, version}}
+      {"accepted": False, "retry_exhausted": True, "current": None}
 
-    No retry loop: this runs inside the per-request transaction from db_session,
-    and SQLite WAL has a single writer, so there is no concurrent state change
-    between the SELECT and the UPDATE within one call.
+    CAS is enforced at the UPDATE level: every UPDATE includes
+    `AND version = :expected` in its WHERE, and INSERT uses ON CONFLICT DO
+    NOTHING. We verify cursor.rowcount to detect a lost race against another
+    writer that committed between our SELECT and our write, and retry up to
+    3 times before giving up. This matters because db_session uses one
+    connection per thread in legacy autocommit mode — our SELECT holds no
+    lock, so another threadpool worker can commit an UPDATE in between.
     """
     now = datetime.now(timezone.utc).isoformat()
-
-    current = db.execute(
-        "SELECT position, last_device, last_format, fraction, last_read_at, version "
-        "FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
-        {"uid": user_id, "bid": book_id},
-    ).fetchone()
-
-    if current is None:
-        # First write for (user, book)
-        db.execute(
-            "INSERT INTO reading_progress "
-            "(user_id, book_id, position, last_device, last_format, fraction, last_read_at, version) "
-            "VALUES (:uid, :bid, :pos, :dev, :fmt, :frac, :now, 1)",
-            {
-                "uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
-                "fmt": last_format, "frac": fraction, "now": now,
-            },
-        )
-        return {"accepted": True, "version": 1, "rebased": False}
-
-    current_version = current["version"]
-    current_fraction = current["fraction"] if current["fraction"] is not None else 0.0
-
-    if current_version == expected_version:
-        # Clean CAS match
-        db.execute(
-            "UPDATE reading_progress "
-            "SET position = :pos, last_device = :dev, last_format = :fmt, "
-            "    fraction = :frac, last_read_at = :now, version = version + 1 "
-            "WHERE user_id = :uid AND book_id = :bid",
-            {
-                "uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
-                "fmt": last_format, "frac": fraction, "now": now,
-            },
-        )
-        return {"accepted": True, "version": expected_version + 1, "rebased": False}
-
-    # Conflict: intent check
-    if fraction >= current_fraction:
-        # Forward (or equal) → auto-rebase (accept on top of current)
-        db.execute(
-            "UPDATE reading_progress "
-            "SET position = :pos, last_device = :dev, last_format = :fmt, "
-            "    fraction = :frac, last_read_at = :now, version = version + 1 "
-            "WHERE user_id = :uid AND book_id = :bid",
-            {
-                "uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
-                "fmt": last_format, "frac": fraction, "now": now,
-            },
-        )
-        return {"accepted": True, "version": current_version + 1, "rebased": True}
-
-    # Rewind in conflict → reject, return current state for client to adopt
-    return {
-        "accepted": False,
-        "current": {
-            "position": current["position"],
-            "last_device": current["last_device"],
-            "last_format": current["last_format"],
-            "fraction": current["fraction"],
-            "last_read_at": current["last_read_at"],
-            "version": current_version,
-        },
+    params_base = {
+        "uid": user_id, "bid": book_id, "pos": position, "dev": last_device,
+        "fmt": last_format, "frac": fraction, "now": now,
     }
+
+    for _ in range(3):
+        current = db.execute(
+            "SELECT position, last_device, last_format, fraction, last_read_at, version "
+            "FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
+            {"uid": user_id, "bid": book_id},
+        ).fetchone()
+
+        if current is None:
+            # First write for (user, book). ON CONFLICT DO NOTHING so a
+            # simultaneous first-write from another device does not raise
+            # UNIQUE constraint failed — it just yields rowcount=0 and we
+            # retry into the UPDATE branch.
+            cursor = db.execute(
+                "INSERT INTO reading_progress "
+                "(user_id, book_id, position, last_device, last_format, fraction, last_read_at, version) "
+                "VALUES (:uid, :bid, :pos, :dev, :fmt, :frac, :now, 1) "
+                "ON CONFLICT(user_id, book_id) DO NOTHING",
+                params_base,
+            )
+            if cursor.rowcount > 0:
+                return {"accepted": True, "version": 1, "rebased": False}
+            continue  # raced: a concurrent writer inserted the row — retry
+
+        current_version = current["version"]
+        current_fraction = current["fraction"] if current["fraction"] is not None else 0.0
+
+        if current_version == expected_version:
+            # Clean CAS match
+            cursor = db.execute(
+                "UPDATE reading_progress "
+                "SET position = :pos, last_device = :dev, last_format = :fmt, "
+                "    fraction = :frac, last_read_at = :now, version = version + 1 "
+                "WHERE user_id = :uid AND book_id = :bid AND version = :ver",
+                {**params_base, "ver": expected_version},
+            )
+            if cursor.rowcount > 0:
+                return {"accepted": True, "version": expected_version + 1, "rebased": False}
+            continue  # raced: version moved between SELECT and UPDATE — retry
+
+        # Conflict: intent check
+        if fraction >= current_fraction:
+            # Forward (or equal) → auto-rebase (accept on top of current)
+            cursor = db.execute(
+                "UPDATE reading_progress "
+                "SET position = :pos, last_device = :dev, last_format = :fmt, "
+                "    fraction = :frac, last_read_at = :now, version = version + 1 "
+                "WHERE user_id = :uid AND book_id = :bid AND version = :ver",
+                {**params_base, "ver": current_version},
+            )
+            if cursor.rowcount > 0:
+                return {"accepted": True, "version": current_version + 1, "rebased": True}
+            continue  # raced: version moved — retry
+
+        # Rewind in conflict → reject, return current state for client to adopt
+        return {
+            "accepted": False,
+            "current": {
+                "position": current["position"],
+                "last_device": current["last_device"],
+                "last_format": current["last_format"],
+                "fraction": current["fraction"],
+                "last_read_at": current["last_read_at"],
+                "version": current_version,
+            },
+        }
+
+    # 3 retries lost the race every time — should be effectively impossible
+    # under SQLite WAL single-writer but we return a clean error instead of
+    # silently corrupting state.
+    return {"accepted": False, "retry_exhausted": True, "current": None}
