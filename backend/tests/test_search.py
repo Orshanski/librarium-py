@@ -20,7 +20,7 @@ _BOOK_PUNCT = 10      # Проект "Аве Мария"
 _BOOK_DOTPARTS = 11   # Три мушкетера. Часть 1
 _BOOK_CONNECTIVE = 12 # Война и мир
 _BOOK_YO = 13         # Видящая звёзды
-_BOOK_APOSTROPHE = 14 # filler so author O'Нил has a book
+_BOOK_ONEIL_FILLER = 14 # filler so author O'Нил has a book
 
 _AUTHOR_SANDERSON = 10
 _AUTHOR_DUMA = 11
@@ -89,11 +89,11 @@ def _seed_fuzzy_fixtures():
     db.execute(
         "INSERT INTO books (id, title, sort_title, language, added_at) VALUES "
         "(?, ?, ?, 'en', '2025-01-10 00:00:00')",
-        (_BOOK_APOSTROPHE, "Weapons of Math Destruction", "Weapons of Math Destruction"),
+        (_BOOK_ONEIL_FILLER, "Weapons of Math Destruction", "Weapons of Math Destruction"),
     )
     db.execute(
         "INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
-        (_BOOK_APOSTROPHE, _AUTHOR_ONEIL),
+        (_BOOK_ONEIL_FILLER, _AUTHOR_ONEIL),
     )
     db.commit()
     yield
