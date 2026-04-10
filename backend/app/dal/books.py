@@ -153,36 +153,94 @@ def delete_book(db: sqlite3.Connection, book_id: int):
 
 
 def search_books(db: sqlite3.Connection, query: str, limit=50):
-    escaped = query.lower().replace("%", "\\%").replace("_", "\\_")
-    pattern = f"%{escaped}%"
-    p = {"pattern": pattern, "limit": limit}
+    """Fuzzy UI search across books, authors, and series.
 
-    books = dicts_from_rows(db.execute("""
-        SELECT DISTINCT b.id, b.title, b.cover_path,
+    Uses a custom rapidfuzz-compatible scorer (`token_min_ratio` in
+    `app.search`) that tolerates punctuation, word order, missing
+    connectives, typos, and ё/е variations while staying tight on
+    short-query noise. Scores each field separately (title, authors,
+    series) to avoid score dilution from long concatenated haystacks.
+
+    Loads the whole table per slice; that's fine at the current scale
+    (personal family library, pair-of-thousands of books). Revisit
+    performance if search starts feeling slow in real use — see the
+    separate perf follow-up bead for tightening options (pre-tokenise
+    choices, early-exit in the scorer, etc).
+
+    Contract: `limit` applies to `books` only. `authors` and `series`
+    use a hardcoded cap (AUTHORS_SERIES_LIMIT) to keep the wire
+    response tight, matching the pre-fuzzy behaviour.
+
+    `find_duplicates_by_title` (upload dedup) and provider matching
+    are deliberately out of scope — see bead librarium-py-7o2.
+    """
+    from rapidfuzz import process
+
+    from ..search import (
+        AUTHORS_SERIES_LIMIT,
+        SEARCH_SCORE_CUTOFF,
+        search_preprocess,
+        token_min_ratio,
+    )
+
+    q = (query or "").strip()
+    if not q:
+        return {"books": [], "authors": [], "series": []}
+
+    extract_kwargs = {
+        "scorer": token_min_ratio,
+        "processor": search_preprocess,
+        "score_cutoff": SEARCH_SCORE_CUTOFF,
+    }
+
+    # Books: full outer fetch, fuzzy-rank against title + authors + series_name.
+    book_rows = dicts_from_rows(db.execute("""
+        SELECT b.id, b.title, b.cover_path,
             GROUP_CONCAT(DISTINCT a.name) as authors, s.name as series_name
         FROM books b
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
         LEFT JOIN series s ON b.series_id = s.id
-        WHERE lower_utf8(b.title) LIKE :pattern ESCAPE '\\' OR lower_utf8(a.name) LIKE :pattern ESCAPE '\\'
-            OR lower_utf8(s.name) LIKE :pattern ESCAPE '\\'
-        GROUP BY b.id LIMIT :limit
-    """, p).fetchall())
+        GROUP BY b.id
+    """).fetchall())
+    book_choices = {
+        r["id"]: f"{r['title'] or ''} {r['authors'] or ''} {r['series_name'] or ''}"
+        for r in book_rows
+    }
+    book_matches = process.extract(q, book_choices, limit=limit, **extract_kwargs)
+    book_by_id = {r["id"]: r for r in book_rows}
+    books = [book_by_id[bid] for _, _, bid in book_matches]
 
-    authors = dicts_from_rows(db.execute("""
+    # Authors: fuzzy-rank against name only.
+    author_rows = dicts_from_rows(db.execute("""
         SELECT a.id, a.name, COUNT(ba.book_id) as book_count
         FROM authors a JOIN book_authors ba ON a.id = ba.author_id
-        WHERE lower_utf8(a.name) LIKE :pattern ESCAPE '\\'
-        GROUP BY a.id ORDER BY book_count DESC LIMIT 10
-    """, p).fetchall())
+        GROUP BY a.id
+    """).fetchall())
+    author_choices = {r["id"]: r["name"] or "" for r in author_rows}
+    author_matches = process.extract(
+        q, author_choices, limit=AUTHORS_SERIES_LIMIT, **extract_kwargs
+    )
+    author_by_id = {r["id"]: r for r in author_rows}
+    authors = [author_by_id[aid] for _, _, aid in author_matches]
 
-    series = dicts_from_rows(db.execute("""
-        SELECT s.id, s.name, COUNT(b.id) as book_count, GROUP_CONCAT(DISTINCT a.name) as authors
+    # Series: fuzzy-rank against name + concatenated authors.
+    series_rows = dicts_from_rows(db.execute("""
+        SELECT s.id, s.name, COUNT(b.id) as book_count,
+               GROUP_CONCAT(DISTINCT a.name) as authors
         FROM series s JOIN books b ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE lower_utf8(s.name) LIKE :pattern ESCAPE '\\'
-        GROUP BY s.id ORDER BY book_count DESC LIMIT 10
-    """, p).fetchall())
+        LEFT JOIN book_authors ba ON b.id = ba.book_id
+        LEFT JOIN authors a ON ba.author_id = a.id
+        GROUP BY s.id
+    """).fetchall())
+    series_choices = {
+        r["id"]: f"{r['name'] or ''} {r['authors'] or ''}" for r in series_rows
+    }
+    series_matches = process.extract(
+        q, series_choices, limit=AUTHORS_SERIES_LIMIT, **extract_kwargs
+    )
+    series_by_id = {r["id"]: r for r in series_rows}
+    series = [series_by_id[sid] for _, _, sid in series_matches]
 
     return {"books": books, "authors": authors, "series": series}
 
