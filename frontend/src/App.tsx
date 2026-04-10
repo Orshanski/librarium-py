@@ -56,7 +56,12 @@ export default function App() {
     (async () => {
       try {
         const last = await getLastReadBook();
-        if (!last) return;
+        if (!last) {
+          // No IDB data to restore to — clear the flag so next cold start
+          // doesn't repeat this no-op dance.
+          clearReadingFlag();
+          return;
+        }
         navigate(`/book/${last.bookId}/read/${last.lastFormat.toLowerCase()}`);
       } catch {
         // IndexedDB unavailable — stay on catalog
