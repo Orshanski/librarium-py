@@ -119,7 +119,7 @@ def token_min_ratio(
 #   at ~66 and below
 # - prefix queries (достоевск → Достоевский) land at 85-90
 # 75 sits comfortably in the gap. Tune via manual tests on live data.
-SEARCH_SCORE_CUTOFF = 75
+SEARCH_SCORE_CUTOFF = 75.0
 
 # Hardcoded cap for authors/series in search results. The router's
 # `limit` parameter only applies to books. 10 is what the old LIKE-based
