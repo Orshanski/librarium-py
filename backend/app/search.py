@@ -78,7 +78,7 @@ def token_min_ratio(
     supersequence inside some word of the choice. The weakest match
     drags the whole score down, so partial matches on multi-word
     queries don't leak in. Single-word short queries are handled by
-    `_query_coverage`'s asymmetric coverage metric: a short query must
+    `_token_match_score`'s LCS + ratio metric: a short query must
     actually be (nearly) contained in the target, not just overlap
     with a short noise word.
 
