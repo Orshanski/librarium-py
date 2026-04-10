@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 interface CachedBookFormat {
   format: string;
@@ -46,6 +46,7 @@ export interface LocalProgress {
   fraction: number;
   lastFormat: string;
   lastReadAt: number;
+  serverVersion: number;
   synced: boolean;
 }
 
@@ -82,6 +83,22 @@ export function initDB(): Promise<LibrariumDB> {
         // v1→v2: Blob→ArrayBuffer — clear old incompatible cached books
         if (oldVersion < 2) {
           transaction.objectStore("cached_books").clear();
+        }
+        // v2→v3: add serverVersion to reading_progress. Existing rows get
+        // serverVersion=0 + synced=false so the first CAS push lets the
+        // server decide (accept / rebase / reject-adopt).
+        if (oldVersion < 3) {
+          const store = transaction.objectStore("reading_progress");
+          void (async () => {
+            let cursor = await store.openCursor();
+            while (cursor) {
+              const val = cursor.value as LocalProgress & { serverVersion?: number };
+              if (val.serverVersion === undefined) {
+                await cursor.update({ ...val, serverVersion: 0, synced: false });
+              }
+              cursor = await cursor.continue();
+            }
+          })();
         }
       },
     });
@@ -190,10 +207,25 @@ export async function touchBook(bookId: number): Promise<void> {
 
 export async function saveProgress(
   bookId: number,
-  data: { position: string; fraction: number; lastFormat: string; lastReadAt: number },
+  data: {
+    position: string;
+    fraction: number;
+    lastFormat: string;
+    lastReadAt: number;
+    serverVersion?: number;
+  },
 ): Promise<void> {
   const db = await initDB();
-  await db.put("reading_progress", { bookId, ...data, synced: false });
+  // Preserve existing serverVersion across local-only writes (handleRelocate
+  // does not know/care about server version). Only overwrite when the caller
+  // explicitly passes a new serverVersion (on push success or adopt).
+  const existing = await db.get("reading_progress", bookId);
+  await db.put("reading_progress", {
+    bookId,
+    ...data,
+    serverVersion: data.serverVersion ?? existing?.serverVersion ?? 0,
+    synced: false,
+  });
 }
 
 export async function getProgress(bookId: number): Promise<LocalProgress | null> {
