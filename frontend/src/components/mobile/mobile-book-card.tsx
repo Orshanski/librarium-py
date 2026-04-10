@@ -3,10 +3,11 @@ import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
 import CloudBadge from "../cloud-badge";
 
-export default function MobileBookCard({ book, onRemove, href, progressPercent, isCached }: BookCardProps) {
+export default function MobileBookCard({ book, onRemove, href, onClick, progressPercent, isCached }: BookCardProps) {
   return (
     <Link
       to={href ?? `/book/${book.id}`}
+      onClick={onClick}
       style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
       <div style={{ cursor: "pointer", minWidth: 0 }}>

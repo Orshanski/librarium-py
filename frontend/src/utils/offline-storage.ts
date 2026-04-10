@@ -212,9 +212,20 @@ export async function markProgressSynced(bookId: number): Promise<void> {
   const p = await db.get("reading_progress", bookId);
   if (p) {
     p.synced = true;
-    p.lastReadAt = Date.now();
     await db.put("reading_progress", p);
   }
+}
+
+export async function getLastReadBook(): Promise<{ bookId: number; lastFormat: string } | null> {
+  const db = await initDB();
+  const all = await db.getAll("reading_progress");
+  if (all.length === 0) return null;
+  let latest = all[0];
+  for (const p of all) {
+    if (p.lastReadAt > latest.lastReadAt) latest = p;
+  }
+  if (!latest.lastFormat) return null;
+  return { bookId: latest.bookId, lastFormat: latest.lastFormat };
 }
 
 // ── Reader settings ──

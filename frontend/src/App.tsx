@@ -6,6 +6,8 @@ import OfflineShell from "./components/OfflineShell";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useIsPwa } from "./hooks/useIsPwa";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { isReadingFlag, clearReadingFlag } from "./utils/readerFlag";
+import { getLastReadBook } from "./utils/offline-storage";
 
 import LoginPage from "./pages/LoginPage";
 import CatalogPage from "./pages/CatalogPage";
@@ -44,22 +46,22 @@ export default function App() {
   const isReading = location.pathname.match(/^\/book\/\d+\/read\//);
   const showOffline = isPwa && !online && !isReading;
 
-  // Remember reader route for PWA restore after eviction
+  // On app mount: if the "reading" flag is set (user was in reader when the
+  // process died), look up the last-read book from IndexedDB and navigate there.
+  // Flag is set only by explicit "Read" taps and cleared only by explicit exit
+  // (see utils/readerFlag.ts). Deep links to a reader URL are not overridden.
   useEffect(() => {
-    if (isReading) {
-      localStorage.setItem("librarium_last_reader", location.pathname);
-    } else {
-      localStorage.removeItem("librarium_last_reader");
-    }
-  }, [location.pathname, isReading]);
-
-  // On PWA startup, restore reader route if evicted
-  useEffect(() => {
-    if (!isPwa) return;
-    const saved = localStorage.getItem("librarium_last_reader");
-    if (saved && !isReading) {
-      navigate(saved, { replace: true });
-    }
+    if (!isReadingFlag()) return;
+    if (isReading) return;
+    (async () => {
+      try {
+        const last = await getLastReadBook();
+        if (!last) return;
+        navigate(`/book/${last.bookId}/read/${last.lastFormat.toLowerCase()}`);
+      } catch {
+        // IndexedDB unavailable — stay on catalog
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,7 +83,7 @@ export default function App() {
     <Suspense>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад"><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад" onBack={() => { clearReadingFlag(); window.history.back(); }}><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
         <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
           <Route path="/" element={<CatalogPage />} />
           <Route path="/book/:id" element={<BookPage />} />

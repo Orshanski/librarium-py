@@ -5,6 +5,7 @@ import PdfReader from "../../components/pdf-reader";
 import PdfNavBar from "../../components/pdf-nav-bar";
 import ReaderToolbar, { TocItem, TapAction } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
+import { exitReader } from "../../utils/readerFlag";
 
 const PDF_AVAILABLE_ACTIONS: TapAction[] = ["prev", "next", "zoom_in", "zoom_out"];
 
@@ -68,7 +69,7 @@ export default function DesktopPdfReaderPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.danger, gap: 16 }}>
         <div>{error || "Не удалось загрузить книгу"}</div>
-        <button onClick={() => navigate(-1)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
+        <button onClick={() => exitReader(navigate)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
           Назад
         </button>
       </div>
@@ -87,7 +88,7 @@ export default function DesktopPdfReaderPage() {
             settings={settings}
             onSettingsChange={handleSettingsChange}
             onTocSelect={handleTocSelect}
-            onClose={() => navigate(-1)}
+            onClose={() => exitReader(navigate)}
             maxTocDepth={3}
             hideStyles
             tapZonesKey="pdfTapZones"

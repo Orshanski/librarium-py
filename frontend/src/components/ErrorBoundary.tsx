@@ -6,6 +6,7 @@ interface Props {
   fallback?: ReactNode;
   title?: string;
   backLabel?: string;
+  onBack?: () => void;
 }
 
 interface State {
@@ -36,7 +37,10 @@ export default class ErrorBoundary extends Component<Props, State> {
         }}>
           <div style={{ fontSize: 18 }}>{this.props.title || "Something went wrong"}</div>
           <button
-            onClick={() => window.history.back()}
+            onClick={() => {
+              if (this.props.onBack) this.props.onBack();
+              else window.history.back();
+            }}
             style={{
               background: "none",
               border: `1px solid ${colors.border}`,

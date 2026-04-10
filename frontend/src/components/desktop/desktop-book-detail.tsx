@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { colors, fonts } from "../../theme";
 import { sanitizeHtml } from "../../utils/sanitize-html";
+import { setReadingFlag } from "../../utils/readerFlag";
 import BookStarRating from "../book-star-rating";
 import CloudBadge from "../cloud-badge";
 import { BookDetailViewProps } from "../book-detail.types";
@@ -74,6 +75,7 @@ export default function DesktopBookDetail({
                 <Link
                   key={`read-${f.format}`}
                   to={`/book/${book.id}/read/${f.format.toLowerCase()}`}
+                  onClick={setReadingFlag}
                   style={{
                     ...actionButtonStyle,
                     textDecoration: "none",

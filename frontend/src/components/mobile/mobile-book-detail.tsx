@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { colors, fonts } from "../../theme";
 import { sanitizeHtml } from "../../utils/sanitize-html";
+import { setReadingFlag } from "../../utils/readerFlag";
 import BookCard from "../book-card";
 import BookRail from "../book-rail";
 import BookStarRating from "../book-star-rating";
@@ -114,6 +115,7 @@ export default function MobileBookDetail({
             <Link
               key={`read-${f.format}`}
               to={`/book/${book.id}/read/${f.format.toLowerCase()}`}
+              onClick={setReadingFlag}
               style={{
                 ...primaryButtonStyle,
                 backgroundColor: "rgba(249, 190, 3, 0.1)",
