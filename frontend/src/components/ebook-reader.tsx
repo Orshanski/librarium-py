@@ -309,17 +309,26 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     // replaces the browser-synthesised click on touch devices, which fires
     // even when iOS cancels a system gesture mid-way.
     view.addEventListener("tap", (e: CustomEvent<{ screenX: number; screenY: number; target: Element | null }>) => {
+      // An open footnote popup dismisses on any tap. This check runs
+      // before the a[href] guard below so cross-reference / TOC /
+      // external link taps still clear the old popup first — otherwise
+      // the popup lingers on screen until a new-section load side-
+      // effect clears it. Returning after close is correct: for link
+      // taps, foliate's click path still fires the 'link' event for
+      // the same underlying touch and opens a new popup / navigates;
+      // for empty-space taps, the user's intent was to dismiss, not
+      // to flip a page.
+      if (footnoteOpenRef.current) {
+        setFootnoteHtml(null);
+        footnoteOpenRef.current = false;
+        return;
+      }
       // Taps on <a href> must fall through to foliate's own click/link
       // path (see 'link' handler below, e.g. footnote popups). The CSS
       // ::after overlay on footnote links expands the hit area — clicks
       // on the overlay are reported as touches on the host <a>, so this
       // check catches both exact and fuzzy hits.
       if (e.detail.target?.closest?.("a[href]")) return;
-      if (footnoteOpenRef.current) {
-        setFootnoteHtml(null);
-        footnoteOpenRef.current = false;
-        return;
-      }
       const x = e.detail.screenX - window.screenX;
       const y = e.detail.screenY - window.screenY;
       const rect = container.getBoundingClientRect();
