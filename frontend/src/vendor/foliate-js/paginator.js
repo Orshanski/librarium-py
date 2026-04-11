@@ -824,12 +824,65 @@ export class Paginator extends HTMLElement {
     }
     #onTouchStart(e) {
         const touch = e.changedTouches[0]
+        // Tap consumers (ebook-reader) need to know whether the touch
+        // landed on an <a href>. Raw e.target is too strict for Safari
+        // iOS: touchstart uses plain DOM hit-testing without the fuzzy
+        // ~10px expansion that click/pointer synthesis applies for
+        // small targets. So a 1-2px miss on a tiny <sup> footnote
+        // marker leaves e.target on the surrounding <p>.
+        //
+        // We reproduce fuzzy click targeting by searching every visible
+        // <a href> on the page and picking the one whose bounding rect
+        // is nearest to the touch point, within NEAREST_LINK_RADIUS.
+        // Books keep links sparse (footnotes, TOC refs) so the radius
+        // can be generous without risking false-positive hits on
+        // adjacent links.
+        const NEAREST_LINK_RADIUS = 20
+        const doc = e.target?.ownerDocument || document
+        const cx = touch?.clientX, cy = touch?.clientY
+        let originTarget = null
+        if (cx != null && cy != null) {
+            // Fast path: direct hit
+            const direct = typeof doc.elementFromPoint === 'function'
+                ? doc.elementFromPoint(cx, cy)
+                : null
+            originTarget = direct?.closest?.('a[href]') ?? null
+            // Slow path: nearest <a href> by point-to-rect distance
+            if (!originTarget) {
+                let bestDist = NEAREST_LINK_RADIUS * NEAREST_LINK_RADIUS
+                const links = doc.querySelectorAll?.('a[href]') ?? []
+                for (const a of links) {
+                    const r = a.getBoundingClientRect()
+                    if (r.width === 0 && r.height === 0) continue
+                    const dx = cx < r.left ? r.left - cx
+                        : cx > r.right ? cx - r.right : 0
+                    const dy = cy < r.top ? r.top - cy
+                        : cy > r.bottom ? cy - r.bottom : 0
+                    const d2 = dx * dx + dy * dy
+                    if (d2 < bestDist) {
+                        bestDist = d2
+                        originTarget = a
+                    }
+                }
+            }
+        }
+        if (!originTarget) {
+            // Fallback: normalize raw target to Element so downstream
+            // code can still inspect it for non-link purposes.
+            const rawTarget = e.target
+            originTarget = rawTarget instanceof Element
+                ? rawTarget
+                : rawTarget instanceof Node
+                    ? rawTarget.parentElement
+                    : null
+        }
         this.#touchState = {
             x: touch?.screenX, y: touch?.screenY,
             // Immutable origin for tap-detection: #onTouchMove mutates x/y
             // to the latest move point, so origin* is needed for total
             // start→end delta.
             originX: touch?.screenX, originY: touch?.screenY,
+            originTarget,
             t: e.timeStamp,
             vx: 0, vy: 0,
         }
@@ -896,6 +949,7 @@ export class Paginator extends HTMLElement {
                 detail: {
                     screenX: endTouch.screenX,
                     screenY: endTouch.screenY,
+                    target: state.originTarget,
                 },
             }))
             return
