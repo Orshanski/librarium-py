@@ -850,10 +850,14 @@ export class Paginator extends HTMLElement {
         // (the CSS ::after overlay extent) so native click hit-testing
         // and our JS scan agree on what "near a footnote" means.
         const NEAREST_LINK_RADIUS = 20
-        const doc = e.target?.ownerDocument || document
+        // No fallback to host `document` — if e.target has no
+        // ownerDocument the touch isn't from a real element and a scan
+        // in the outer reader shell would match app chrome links, not
+        // book content. Bail out and leave originTarget null.
+        const doc = e.target?.ownerDocument
         const cx = touch?.clientX, cy = touch?.clientY
         let originTarget = null
-        if (cx != null && cy != null) {
+        if (doc && cx != null && cy != null) {
             // Fast path: direct hit
             const direct = typeof doc.elementFromPoint === 'function'
                 ? doc.elementFromPoint(cx, cy)
