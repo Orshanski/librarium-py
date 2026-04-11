@@ -98,7 +98,11 @@ function isFootnoteRef(a: Element): boolean {
 // @namespace declaration is required so the [epub|type~=...] selectors
 // match namespaced attributes in XHTML-parsed EPUB3 documents; the
 // literal [epub\:type~=...] form covers HTML-parsed docs.
-const FOOTNOTE_HIT_EXPANSION_PX = 14;
+//
+// Value must match NEAREST_LINK_RADIUS in paginator.js #onTouchStart so
+// both hit-expansion paths (native click via this overlay + our JS
+// synthetic-tap guard) agree on what "near a footnote" means.
+const FOOTNOTE_HIT_EXPANSION_PX = 20;
 
 function injectFootnoteHitAreaStyle(doc: Document): void {
   const MARKER = "data-librarium-footnote-hitarea";

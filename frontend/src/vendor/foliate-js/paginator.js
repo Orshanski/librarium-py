@@ -837,6 +837,18 @@ export class Paginator extends HTMLElement {
         // Books keep links sparse (footnotes, TOC refs) so the radius
         // can be generous without risking false-positive hits on
         // adjacent links.
+        //
+        // DO NOT remove this in favour of just elementFromPoint + the
+        // CSS ::after overlay injected from ebook-reader. The overlay
+        // helps foliate's CLICK handler (browser-native click fuzzy
+        // respects pseudo-elements), but iOS touchstart's hit-test
+        // does NOT — it only sees real DOM elements. Without this JS
+        // scan the tap-zone guard misses fuzzy hits and the toolbar /
+        // page flip fires alongside the footnote popup (tested, broken).
+        //
+        // Radius must match FOOTNOTE_HIT_EXPANSION_PX in ebook-reader.tsx
+        // (the CSS ::after overlay extent) so native click hit-testing
+        // and our JS scan agree on what "near a footnote" means.
         const NEAREST_LINK_RADIUS = 20
         const doc = e.target?.ownerDocument || document
         const cx = touch?.clientX, cy = touch?.clientY
