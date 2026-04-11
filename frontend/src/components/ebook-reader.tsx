@@ -332,7 +332,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       // ::after overlay on footnote links expands the hit area — clicks
       // on the overlay are reported as touches on the host <a>, so this
       // check catches both exact and fuzzy hits.
-      if (e.detail.target?.closest?.("a[href]")) return;
+      if (e.detail.target?.closest("a[href]")) return;
       const x = e.detail.screenX - window.screenX;
       const y = e.detail.screenY - window.screenY;
       const rect = container.getBoundingClientRect();
