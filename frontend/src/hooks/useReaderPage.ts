@@ -86,12 +86,17 @@ export function useReaderPage() {
   useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
   return {
+    // Route params
     id, format,
+    // Refs
     readerRef,
+    // Data (from hooks)
     bookBlob, bookTitle, settings, initialPosition,
     loading, loadProgress, error,
     handleSavePosition, handleSettingsChange,
+    // UI state
     fraction, tocItems, currentTocHref, bookReady, toolbarVisible,
+    // Callbacks
     handleRelocate, handleTocSelect, handleReady, toggleToolbar,
   };
 }
