@@ -6,7 +6,9 @@ import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
 import { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
 import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
+import type { ReaderRelocateDetail, ReaderViewElement } from "../../types/reader";
 import { exitReader } from "../../utils/readerFlag";
+import { getFoliateView, goToReaderHref } from "../../utils/reader-view";
 
 export default function MobileReaderPage() {
   const { id, format } = useParams();
@@ -26,7 +28,7 @@ export default function MobileReaderPage() {
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
+    (detail: ReaderRelocateDetail) => {
       setFraction(detail.fraction);
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
     },
@@ -34,23 +36,11 @@ export default function MobileReaderPage() {
   );
 
   const handleTocSelect = useCallback(async (href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & {
-      goTo: (h: string) => Promise<void>;
-      lastLocation?: { cfi?: string; fraction?: number };
-      performNavigation?: (request: { type: "goTo"; target: string; persist?: boolean; allowDuringInit?: boolean }) => Promise<void>;
-    };
-    if (!view) return;
-    if (view.performNavigation) {
-      await view.performNavigation({ type: "goTo", target: href });
-      return;
-    }
-    await view.goTo(href);
-    const loc = view.lastLocation;
-    if (loc?.cfi) handleSavePosition(loc.cfi, loc.fraction ?? 0);
+    await goToReaderHref(containerRef, href, handleSavePosition);
   }, [handleSavePosition]);
 
   const handleReady = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
+    const view = getFoliateView(containerRef) as (ReaderViewElement & { book?: { toc?: TocItem[] } }) | null;
     setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
   }, []);

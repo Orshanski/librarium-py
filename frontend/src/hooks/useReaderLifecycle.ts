@@ -1,10 +1,6 @@
 import { RefObject, useEffect } from "react";
-
-interface FoliateViewElement extends HTMLElement {
-  goTo: (target: string | number) => Promise<void>;
-  performNavigation?: (request: { type: "goTo"; target: string | number; persist?: boolean; allowDuringInit?: boolean }) => Promise<void>;
-  renderer?: unknown;
-}
+import type { ReaderViewElement } from "../types/reader";
+import { getFoliateView } from "../utils/reader-view";
 
 export function useReaderLifecycle(
   containerRef: RefObject<HTMLDivElement | null>,
@@ -15,20 +11,31 @@ export function useReaderLifecycle(
   useEffect(() => {
     if (resumePosition == null) return;
     if (!bookReady) return;
-    const view = containerRef.current?.querySelector("foliate-view") as FoliateViewElement | null;
-    if (view) {
-      void (view.performNavigation
-        ? view.performNavigation({ type: "goTo", target: resumePosition })
-        : view.goTo(resumePosition));
-      clearResumePosition();
-    }
+    const view = getFoliateView(containerRef);
+    if (!view) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await (view.performNavigation
+          ? view.performNavigation({ type: "goTo", target: resumePosition })
+          : view.goTo(resumePosition));
+        if (!cancelled) clearResumePosition();
+      } catch (err) {
+        if (location.hostname === "localhost") {
+          console.error("[reader] failed to apply resume position:", err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [bookReady, clearResumePosition, containerRef, resumePosition]);
 
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState !== "visible") return;
       if (!bookReady) return;
-      const view = containerRef.current?.querySelector("foliate-view") as FoliateViewElement | null;
+      const view = getFoliateView(containerRef) as ReaderViewElement | null;
       if (!view || !view.renderer) {
         window.location.reload();
       }

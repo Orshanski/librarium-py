@@ -969,9 +969,9 @@ export class Paginator extends HTMLElement {
                     target: state.originTarget,
                 },
             }))
-            // Reset touch bookkeeping before returning. Without this the
-            // first clean tap leaves stale touch state behind, which can
-            // interfere with the next gesture lifecycle on iOS/Safari.
+            // Reset touch bookkeeping before returning. This is
+            // belt-and-suspenders cleanup; the primary first-tap fix is
+            // the #touchScrolled reset in #onTouchStart.
             this.#touchScrolled = false
             this.#touchState = null
             return
@@ -980,14 +980,16 @@ export class Paginator extends HTMLElement {
         this.#touchScrolled = false
         if (this.scrolled) return
 
+        const { vx, vy } = this.#touchState
+        this.#touchState = null
+
         // XXX: Firefox seems to report scale as 1... sometimes...?
         // at this point I'm basically throwing `requestAnimationFrame` at
         // anything that doesn't work
         requestAnimationFrame(() => {
             if (globalThis.visualViewport.scale === 1)
-                this.snap(this.#touchState.vx, this.#touchState.vy)
+                this.snap(vx, vy)
         })
-        this.#touchState = null
     }
     // allows one to process rects as if they were LTR and horizontal
     #getRectMapper() {

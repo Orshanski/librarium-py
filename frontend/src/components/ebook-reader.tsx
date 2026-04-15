@@ -2,17 +2,19 @@ import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
+import type { ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";
 
+/**
+ * `onLoad` fires when a foliate document iframe loads and styling can be applied.
+ * `onReady` fires once content is loaded and the initial navigation has completed.
+ * `onRelocate` is UI-only and follows foliate location changes.
+ * `onSavePosition` is persistence-only and runs after explicit navigation/pagehide.
+ */
 export interface ReaderCallbacks {
-  onRelocate?: (detail: {
-    fraction: number;
-    cfi: string;
-    tocItem?: { label: string; href: string };
-    location?: { current: number; total: number };
-  }) => void;
+  onRelocate?: (detail: ReaderRelocateDetail) => void;
   onLoad?: () => void;
   onReady?: () => void;
   onSavePosition?: (cfi: string, fraction: number) => void;
@@ -130,7 +132,7 @@ function injectFootnoteHitAreaStyle(doc: Document): void {
 type TapZoneResult = TapAction | "toolbar";
 
 type NormalizedReaderInput =
-  | { kind: "tap" | "click"; x: number; y: number; target: Element | null }
+  | { kind: "tap"; x: number; y: number; target: Element | null }
   | { kind: "keyboard"; key: string };
 
 type ReaderAction =
@@ -142,43 +144,6 @@ type ReaderAction =
   | { type: "followLink" }
   | { type: "dismissFootnote" }
   | { type: "noop" };
-
-type ReaderNavigationRequest =
-  | { type: "prev" | "next"; persist?: boolean; allowDuringInit?: boolean }
-  | { type: "goTo"; target: string | number; persist?: boolean; allowDuringInit?: boolean };
-
-interface ReaderViewElement extends HTMLElement {
-  book?: {
-    toc?: unknown[];
-    resolveHref: (href: string) => Promise<{ index: number; anchor: (doc: Document) => Element | null } | null> | { index: number; anchor: (doc: Document) => Element | null } | null;
-    sections: Array<{ charCount?: number; createDocument?: () => Promise<Document> }>;
-  };
-  close: () => void;
-  goLeft: () => Promise<void>;
-  goRight: () => Promise<void>;
-  goTo: (target: string | number) => Promise<void>;
-  goToTextStart?: () => Promise<void>;
-  lastLocation?: { cfi?: string; fraction?: number };
-  next: () => Promise<void>;
-  open: (book: Blob) => Promise<void>;
-  performNavigation?: (request: ReaderNavigationRequest) => Promise<void>;
-  prev: () => Promise<void>;
-  renderer?: {
-    destroy?: () => void;
-    feet?: HTMLElement[];
-    getContents?: () => Array<{ doc: Document }>;
-    next: () => Promise<void>;
-    setAttribute: (name: string, value: string) => void;
-    setStyles?: (styles: string) => void;
-  };
-}
-
-interface ReaderRelocateDetail {
-  fraction: number;
-  cfi: string;
-  tocItem?: { label: string; href: string };
-  location?: { current: number; total: number };
-}
 
 interface ReaderLoadDetail {
   doc?: Document;
@@ -217,14 +182,25 @@ function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings):
   return Math.max(Math.round(charsPerLine * linesPerPage / 2), 50);
 }
 
+function addCustomEventListener<T>(
+  target: EventTarget,
+  type: string,
+  listener: (event: CustomEvent<T>) => void,
+): () => void {
+  const wrapped = (event: Event) => listener(event as CustomEvent<T>);
+  target.addEventListener(type, wrapped as EventListener);
+  return () => target.removeEventListener(type, wrapped as EventListener);
+}
+
 export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true, isMobile = false }: EbookReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<any>(null);
+  const viewRef = useRef<ReaderViewElement | null>(null);
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
   const onCenterTapRef = useRef(onCenterTap);
   onCenterTapRef.current = onCenterTap;
   const settingsRef = useRef(settings);
+  const configRef = useRef({ maxInlineSize, gap, margin, maxBlockSize, showFooter, isMobile });
   const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
   const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
   const lastClickXRef = useRef(0);
@@ -245,6 +221,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   // Apply settings when they change
   useEffect(() => {
     settingsRef.current = settings;
+    configRef.current = { maxInlineSize, gap, margin, maxBlockSize, showFooter, isMobile };
     const view = viewRef.current;
     if (!view?.renderer) return;
     // Apply CSS variables to current document
@@ -256,13 +233,14 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     }
     // Layout attributes
     view.renderer.setAttribute("flow", settings.flow);
-    view.renderer.setAttribute("max-inline-size", maxInlineSize);
-    view.renderer.setAttribute("gap", gap);
-    if (margin) view.renderer.setAttribute("margin", margin);
-    if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
+    view.renderer.setAttribute("max-inline-size", configRef.current.maxInlineSize);
+    view.renderer.setAttribute("gap", configRef.current.gap);
+    if (configRef.current.margin) view.renderer.setAttribute("margin", configRef.current.margin);
+    if (configRef.current.maxBlockSize) view.renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
     recalcPages();
-  }, [settings]);
+  }, [settings, gap, isMobile, margin, maxBlockSize, maxInlineSize, showFooter]);
 
+  // Reader instance is recreated only when the book blob changes; runtime config is read from refs.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !bookBlob) return;
@@ -298,6 +276,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       const { persist = true, allowDuringInit = false } = options ?? {};
       const run = async () => {
         if (disposed) return;
+        // Ignore user navigation until initial navigation finishes.
         if (!allowDuringInit && !interactiveRef.current) return;
         try {
           await task();
@@ -307,7 +286,11 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
         }
       };
       navigationQueueRef.current = navigationQueueRef.current
-        .catch(() => {})
+        .catch((err) => {
+          if (location.hostname === "localhost") {
+            console.error("[reader] navigation failed:", err);
+          }
+        })
         .then(run);
       return navigationQueueRef.current;
     };
@@ -349,7 +332,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       const rect = container.getBoundingClientRect();
       const xFrac = (input.x - rect.left) / rect.width;
       const yFrac = (input.y - rect.top) / rect.height;
-      if (isMobile) {
+      if (configRef.current.isMobile) {
         if (xFrac < 0.33) return { type: "prev" };
         if (xFrac > 0.67) return { type: "next" };
         return { type: "toggleToolbar" };
@@ -383,14 +366,13 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     const dispatchInput = (input: NormalizedReaderInput): Promise<void> =>
       performReaderAction(resolveReaderAction(input));
 
-    view.addEventListener("relocate", ((event: Event) => {
-      const e = event as CustomEvent<ReaderRelocateDetail>;
+    const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
       const { fraction, cfi, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
 
       // Fill footer with virtual page number and chapter title (desktop only)
       const feet = view.renderer?.feet;
-      if (showFooter && feet?.length && totalPagesRef.current > 0) {
+      if (configRef.current.showFooter && feet?.length && totalPagesRef.current > 0) {
         const theme = THEME_STYLES[settingsRef.current.theme];
         const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
         const pageText = `${currentPage} / ${totalPagesRef.current}`;
@@ -414,10 +396,9 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           feet[feet.length - 1].textContent = chapterText;
         }
       }
-    }) as EventListener);
+    });
 
-    view.addEventListener("load", ((event: Event) => {
-      const e = event as CustomEvent<ReaderLoadDetail>;
+    const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
       contentLoadedRef.current = true;
       callbacksRef.current?.onLoad?.();
       notifyReady();
@@ -434,21 +415,18 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           lastClickYRef.current = ev.screenY - window.screenY;
         }, true);
       }
-    }) as EventListener);
+    });
 
     // Touch tap-zone path: foliate's paginator emits a 'tap' event on a
-    // clean single-finger tap (no scroll, no pinch, small delta). This
-    // replaces the browser-synthesised click on touch devices, which fires
-    // even when iOS cancels a system gesture mid-way.
-    view.addEventListener("tap", ((event: Event) => {
-      const e = event as CustomEvent<ReaderTapDetail>;
+    // clean single-finger tap (no scroll, no pinch, small delta).
+    const removeTapListener = addCustomEventListener<ReaderTapDetail>(view, "tap", (e) => {
       void dispatchInput({
         kind: "tap",
         x: e.detail.screenX - window.screenX,
         y: e.detail.screenY - window.screenY,
         target: e.detail.target,
       });
-    }) as EventListener);
+    });
 
     // Keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -457,31 +435,35 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     document.addEventListener("keydown", handleKeyDown);
 
     // Footnote popup: intercept link, load content via createDocument
-    view.addEventListener("link", (async (event: Event) => {
-      const e = event as CustomEvent<ReaderLinkDetail>;
+    const removeLinkListener = addCustomEventListener<ReaderLinkDetail>(view, "link", (e) => {
       const { a, href } = e.detail;
       if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
       e.preventDefault(); // prevent navigation
-      try {
-        const book = view.book;
-        if (!book) return;
-        const containerWidth = container.getBoundingClientRect().width;
-        const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
-        setFootnoteSide(side);
+      void (async () => {
+        try {
+          const book = view.book;
+          if (!book) return;
+          const containerWidth = container.getBoundingClientRect().width;
+          const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
+          setFootnoteSide(side);
 
-        const resolved = await Promise.resolve(book.resolveHref(href));
-        if (!resolved) return;
-        const { index, anchor } = resolved;
-        const doc = await book.sections[index].createDocument?.();
-        if (!doc) return;
-        const el = anchor(doc);
-        if (!el) return;
-        footnoteOpenRef.current = true;
-        setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
-      } catch (err) {
-        console.error("Failed to load footnote:", err);
-      }
-    }) as EventListener);
+          const resolved = await Promise.resolve(book.resolveHref(href));
+          if (!resolved) return;
+          const { index, anchor } = resolved;
+          const doc = await book.sections[index].createDocument?.();
+          if (!doc) {
+            console.warn("Failed to open footnote: section createDocument() is unavailable.");
+            return;
+          }
+          const el = anchor(doc);
+          if (!el) return;
+          footnoteOpenRef.current = true;
+          setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
+        } catch (err) {
+          console.error("Failed to load footnote:", err);
+        }
+      })();
+    });
 
     // Resize handler: recalculate pages on window resize
     const handleResize = () => recalcPages();
@@ -503,10 +485,10 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
         if (!book || !renderer) return;
         if (location.hostname === "localhost") console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${book.sections.length}`);
         renderer.setAttribute("flow", settingsRef.current.flow);
-        renderer.setAttribute("max-inline-size", maxInlineSize);
-        renderer.setAttribute("gap", gap);
-        if (margin) renderer.setAttribute("margin", margin);
-        if (maxBlockSize) renderer.setAttribute("max-block-size", maxBlockSize);
+        renderer.setAttribute("max-inline-size", configRef.current.maxInlineSize);
+        renderer.setAttribute("gap", configRef.current.gap);
+        if (configRef.current.margin) renderer.setAttribute("margin", configRef.current.margin);
+        if (configRef.current.maxBlockSize) renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
 
         // Finish initial navigation before making the reader interactive.
         await (initialPosition
@@ -551,13 +533,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           }, 100);
         }
       })
-      .catch((err: Error) => console.error("Failed to open book:", err))
-      .finally(() => {
-        if (!disposed && !interactiveRef.current) {
-          interactiveRef.current = true;
-          notifyReady();
-        }
-      });
+      .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
       disposed = true;
@@ -565,12 +541,17 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("pagehide", handlePageHide);
+      removeRelocateListener();
+      removeLoadListener();
+      removeTapListener();
+      removeLinkListener();
       view.performNavigation = undefined;
       try { view.renderer?.destroy?.(); } catch {}
       try { view.close(); } catch {}
       view.remove();
       viewRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookBlob]);
 
   const theme = THEME_STYLES[settings.theme];
