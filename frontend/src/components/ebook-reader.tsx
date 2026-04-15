@@ -1,11 +1,13 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FootnotePopup from "./FootnotePopup";
-import { ReaderSettings, THEME_STYLES, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
-import { sanitizeHtml } from "../utils/sanitize-html";
-import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
-import { resolveDesktopZone, addCustomEventListener } from "../utils/reader-input";
+import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import { applySettings } from "../utils/reader-styling";
+import { addCustomEventListener } from "../utils/reader-input";
+import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reader-footnote-handler";
+import { createNavigationController } from "../utils/reader-navigation";
+import { attachReaderInteraction } from "../utils/reader-interaction";
 import { useReaderFooter } from "../hooks/useReaderFooter";
-import type { NormalizedReaderInput, ReaderAction, ReaderLoadDetail, ReaderTapDetail, ReaderLinkDetail } from "../utils/reader-input";
+import type { ReaderLoadDetail } from "../utils/reader-input";
 import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
 // Import foliate-js view (registers <foliate-view> custom element)
@@ -34,21 +36,6 @@ interface EbookReaderProps {
   margin?: string;
   maxBlockSize?: string;
   isMobile?: boolean;
-}
-
-function applySettings(doc: Document, settings: ReaderSettings, renderer?: { setStyles?: (s: string) => void }) {
-  const theme = THEME_STYLES[settings.theme];
-  const s = doc.documentElement.style;
-  s.setProperty("--user-bg", theme.bg);
-  s.setProperty("--user-color", theme.text);
-  s.setProperty("--user-accent", theme.accent);
-  s.setProperty("--user-font", settings.fontFamily);
-  s.setProperty("--user-font-size", `${settings.fontSize}px`);
-  s.setProperty("--user-line-height", String(settings.lineSpacing));
-  s.setProperty("--user-text-align", settings.justify ? "justify" : "start");
-  s.setProperty("--user-hyphens", settings.hyphenate ? "auto" : "manual");
-  // Trigger paginator background update
-  renderer?.setStyles?.("");
 }
 
 
@@ -113,120 +100,24 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     viewRef.current = view;
     let disposed = false;
     const disposedRef = { current: false };
-    const contentLoadedRef = { current: false };
-    const interactiveRef = { current: false };
-    const navigationQueueRef = { current: Promise.resolve() as Promise<void> };
-    const readyNotifiedRef = { current: false };
 
-    const notifyReady = () => {
-      if (!contentLoadedRef.current || !interactiveRef.current || readyNotifiedRef.current) return;
-      readyNotifiedRef.current = true;
-      callbacksRef.current?.onReady?.();
-    };
+    const nav = createNavigationController(view, {
+      onSavePosition: () => {
+        const loc = view.lastLocation;
+        if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+      },
+      onReady: () => callbacksRef.current?.onReady?.(),
+      isDisposed: () => disposed,
+    });
 
-    const saveCurrentPosition = () => {
-      const loc = view.lastLocation;
-      if (loc?.cfi) {
-        callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
-      }
-    };
+    performNavigationRef.current = nav.performNavigation;
 
-    const enqueueNavigation = (
-      task: () => Promise<void>,
-      options?: { persist?: boolean; allowDuringInit?: boolean },
-    ): Promise<void> => {
-      const { persist = true, allowDuringInit = false } = options ?? {};
-      const run = async () => {
-        if (disposed) return;
-        // Ignore user navigation until initial navigation finishes.
-        if (!allowDuringInit && !interactiveRef.current) return;
-        try {
-          await task();
-          if (persist) saveCurrentPosition();
-        } finally {
-          notifyReady();
-        }
-      };
-      navigationQueueRef.current = navigationQueueRef.current
-        .catch((err) => {
-          if (location.hostname === "localhost") {
-            console.error("[reader] navigation failed:", err);
-          }
-        })
-        .then(run);
-      return navigationQueueRef.current;
-    };
-
-    const performNavigation = (request: ReaderNavigationRequest): Promise<void> => {
-      if (request.type === "goTo") {
-        return enqueueNavigation(() => view.goTo(request.target), {
-          persist: request.persist,
-          allowDuringInit: request.allowDuringInit,
-        });
-      }
-      if (request.type === "prev") {
-        return enqueueNavigation(() => view.prev(), {
-          persist: request.persist,
-          allowDuringInit: request.allowDuringInit,
-        });
-      }
-      return enqueueNavigation(() => view.next(), {
-        persist: request.persist,
-        allowDuringInit: request.allowDuringInit,
-      });
-    };
-
-    performNavigationRef.current = performNavigation;
-
-    const resolveReaderAction = (input: NormalizedReaderInput): ReaderAction => {
-      if (input.kind === "keyboard") {
-        if (input.key === "ArrowLeft") return { type: "goLeft" };
-        if (input.key === "ArrowRight") return { type: "goRight" };
-        if (input.key === "ArrowUp" || input.key === "PageUp") return { type: "prev" };
-        if (input.key === "ArrowDown" || input.key === "PageDown") return { type: "next" };
-        return { type: "noop" };
-      }
-
-      const isLinkTarget = Boolean(input.target?.closest("a[href]"));
-      if (footnoteOpenRef.current && !isLinkTarget) return { type: "dismissFootnote" };
-      if (isLinkTarget) return { type: "followLink" };
-
-      const rect = container.getBoundingClientRect();
-      const xFrac = (input.x - rect.left) / rect.width;
-      const yFrac = (input.y - rect.top) / rect.height;
-      if (configRef.current.isMobile) {
-        if (xFrac < 0.33) return { type: "prev" };
-        if (xFrac > 0.67) return { type: "next" };
-        return { type: "toggleToolbar" };
-      }
-
-      const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
-      const action = resolveDesktopZone(xFrac, yFrac, zones);
-      if (action === "prev") return { type: "prev" };
-      if (action === "next") return { type: "next" };
-      return { type: "toggleToolbar" };
-    };
-
-    const performReaderAction = (action: ReaderAction): Promise<void> => {
-      if (!interactiveRef.current && action.type !== "followLink" && action.type !== "noop") return Promise.resolve();
-      if (action.type === "prev") return performNavigation({ type: "prev" });
-      if (action.type === "next") return performNavigation({ type: "next" });
-      if (action.type === "goLeft") return enqueueNavigation(() => view.goLeft());
-      if (action.type === "goRight") return enqueueNavigation(() => view.goRight());
-      if (action.type === "toggleToolbar") {
-        onCenterTapRef.current?.();
-        return Promise.resolve();
-      }
-      if (action.type === "dismissFootnote") {
-        setFootnoteHtml(null);
-        footnoteOpenRef.current = false;
-        return Promise.resolve();
-      }
-      return Promise.resolve();
-    };
-
-    const dispatchInput = (input: NormalizedReaderInput): Promise<void> =>
-      performReaderAction(resolveReaderAction(input));
+    const cleanupInteraction = attachReaderInteraction(view, container, nav, configRef, {
+      onCenterTap: () => onCenterTapRef.current?.(),
+      isFootnoteOpen: () => footnoteOpenRef.current,
+      onDismissFootnote: () => { setFootnoteHtml(null); footnoteOpenRef.current = false; },
+      getSettings: () => settingsRef.current,
+    });
 
     const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
       const { fraction, cfi, tocItem, location } = e.detail;
@@ -235,69 +126,20 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     });
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
-      contentLoadedRef.current = true;
-      notifyReady();
+      nav.setContentLoaded();
       const doc = e.detail?.doc;
       if (doc) {
         // Apply user settings to new document
         applySettings(doc, settingsRef.current, view.renderer);
-        // Expand hit area of footnote-style links so native click catches
-        // near-miss taps and foliate's #handleLinks fires 'link' on them.
-        injectFootnoteHitAreaStyle(doc);
-        // Capture phase: record click position BEFORE foliate-js handles the link
-        doc.addEventListener("click", (ev: MouseEvent) => {
-          lastClickXRef.current = ev.screenX - window.screenX;
-          lastClickYRef.current = ev.screenY - window.screenY;
-        }, true);
+        setupFootnoteDocListeners(doc, lastClickXRef, lastClickYRef);
       }
     });
 
-    // Touch tap-zone path: foliate's paginator emits a 'tap' event on a
-    // clean single-finger tap (no scroll, no pinch, small delta).
-    const removeTapListener = addCustomEventListener<ReaderTapDetail>(view, "tap", (e) => {
-      void dispatchInput({
-        kind: "tap",
-        x: e.detail.screenX - window.screenX,
-        y: e.detail.screenY - window.screenY,
-        target: e.detail.target,
-      });
-    });
-
-    // Keyboard navigation
-    const handleKeyDown = (e: KeyboardEvent) => {
-      void dispatchInput({ kind: "keyboard", key: e.key });
-    };
-    document.addEventListener("keydown", handleKeyDown);
-
-    // Footnote popup: intercept link, load content via createDocument
-    const removeLinkListener = addCustomEventListener<ReaderLinkDetail>(view, "link", (e) => {
-      const { a, href } = e.detail;
-      if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
-      e.preventDefault(); // prevent navigation
-      void (async () => {
-        try {
-          const book = view.book;
-          if (!book) return;
-          const containerWidth = container.getBoundingClientRect().width;
-          const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
-          setFootnoteSide(side);
-
-          const resolved = await Promise.resolve(book.resolveHref(href));
-          if (!resolved) return;
-          const { index, anchor } = resolved;
-          const doc = await book.sections[index].createDocument?.();
-          if (!doc) {
-            console.warn("Failed to open footnote: section createDocument() is unavailable.");
-            return;
-          }
-          const el = anchor(doc);
-          if (!el) return;
-          footnoteOpenRef.current = true;
-          setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
-        } catch (err) {
-          console.error("Failed to load footnote:", err);
-        }
-      })();
+    const removeLinkListener = attachFootnoteHandler(view, container, {
+      setFootnoteHtml,
+      setFootnoteSide,
+      setFootnoteOpen: (open) => { footnoteOpenRef.current = open; },
+      lastClickXRef,
     });
 
     // Resize handler: recalculate pages on window resize
@@ -306,9 +148,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
     // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
-    const handlePageHide = () => {
-      saveCurrentPosition();
-    };
+    const handlePageHide = () => nav.savePosition();
     window.addEventListener("pagehide", handlePageHide);
 
     const t0 = performance.now();
@@ -327,14 +167,13 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
         // Finish initial navigation before making the reader interactive.
         await (initialPosition
-          ? performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
-          : enqueueNavigation(
+          ? nav.performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
+          : nav.enqueueNavigation(
             () => view.goToTextStart ? view.goToTextStart() : view.goTo(0),
             { persist: false, allowDuringInit: true },
           ));
         if (!disposed) {
-          interactiveRef.current = true;
-          notifyReady();
+          nav.setInteractive();
         }
 
         // Count total characters for virtual page numbers
@@ -348,12 +187,11 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       disposed = true;
       disposedRef.current = true;
       footer.cleanupCharCount();
-      document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("pagehide", handlePageHide);
       removeRelocateListener();
       removeLoadListener();
-      removeTapListener();
+      cleanupInteraction();
       removeLinkListener();
       performNavigationRef.current = async () => {};
       try { view.renderer?.destroy?.(); } catch {}
