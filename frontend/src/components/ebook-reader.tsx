@@ -1,13 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FootnotePopup from "./FootnotePopup";
 import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
-import { sanitizeHtml } from "../utils/sanitize-html";
-import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
 import { addCustomEventListener } from "../utils/reader-input";
+import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reader-footnote-handler";
 import { createNavigationController } from "../utils/reader-navigation";
 import { attachReaderInteraction } from "../utils/reader-interaction";
 import { useReaderFooter } from "../hooks/useReaderFooter";
-import type { ReaderLoadDetail, ReaderLinkDetail } from "../utils/reader-input";
+import type { ReaderLoadDetail } from "../utils/reader-input";
 import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
 // Import foliate-js view (registers <foliate-view> custom element)
@@ -146,46 +145,15 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       if (doc) {
         // Apply user settings to new document
         applySettings(doc, settingsRef.current, view.renderer);
-        // Expand hit area of footnote-style links so native click catches
-        // near-miss taps and foliate's #handleLinks fires 'link' on them.
-        injectFootnoteHitAreaStyle(doc);
-        // Capture phase: record click position BEFORE foliate-js handles the link
-        doc.addEventListener("click", (ev: MouseEvent) => {
-          lastClickXRef.current = ev.screenX - window.screenX;
-          lastClickYRef.current = ev.screenY - window.screenY;
-        }, true);
+        setupFootnoteDocListeners(doc, lastClickXRef, lastClickYRef);
       }
     });
 
-    // Footnote popup: intercept link, load content via createDocument
-    const removeLinkListener = addCustomEventListener<ReaderLinkDetail>(view, "link", (e) => {
-      const { a, href } = e.detail;
-      if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
-      e.preventDefault(); // prevent navigation
-      void (async () => {
-        try {
-          const book = view.book;
-          if (!book) return;
-          const containerWidth = container.getBoundingClientRect().width;
-          const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
-          setFootnoteSide(side);
-
-          const resolved = await Promise.resolve(book.resolveHref(href));
-          if (!resolved) return;
-          const { index, anchor } = resolved;
-          const doc = await book.sections[index].createDocument?.();
-          if (!doc) {
-            console.warn("Failed to open footnote: section createDocument() is unavailable.");
-            return;
-          }
-          const el = anchor(doc);
-          if (!el) return;
-          footnoteOpenRef.current = true;
-          setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
-        } catch (err) {
-          console.error("Failed to load footnote:", err);
-        }
-      })();
+    const removeLinkListener = attachFootnoteHandler(view, container, {
+      setFootnoteHtml,
+      setFootnoteSide,
+      setFootnoteOpen: (open) => { footnoteOpenRef.current = open; },
+      lastClickXRef,
     });
 
     // Resize handler: recalculate pages on window resize
