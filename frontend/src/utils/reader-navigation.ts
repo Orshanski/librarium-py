@@ -12,6 +12,7 @@ export interface NavigationController {
     options?: { persist?: boolean; allowDuringInit?: boolean },
   ) => Promise<void>;
   performNavigation: (request: ReaderNavigationRequest) => Promise<void>;
+  savePosition: () => void;
   setInteractive: () => void;
   setContentLoaded: () => void;
   isInteractive: () => boolean;
@@ -79,6 +80,7 @@ export function createNavigationController(
   return {
     enqueueNavigation,
     performNavigation,
+    savePosition: () => callbacks.onSavePosition(),
     setInteractive: () => { interactive = true; notifyReady(); },
     setContentLoaded: () => { contentLoaded = true; notifyReady(); },
     isInteractive: () => interactive,

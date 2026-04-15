@@ -148,10 +148,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
     // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
-    const handlePageHide = () => {
-      const loc = view.lastLocation;
-      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
-    };
+    const handlePageHide = () => nav.savePosition();
     window.addEventListener("pagehide", handlePageHide);
 
     const t0 = performance.now();
