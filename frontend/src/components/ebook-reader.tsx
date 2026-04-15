@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import FootnotePopup from "./FootnotePopup";
 import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
@@ -425,21 +425,6 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
   }, [bookBlob]);
 
   const theme = THEME_STYLES[settings.theme];
-  const footnotePopupStyle = {
-    "--footnote-accent": theme.accent,
-  } as CSSProperties;
-
-  useEffect(() => {
-    const id = "librarium-footnote-styles";
-    let style = document.getElementById(id) as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = id;
-      document.head.appendChild(style);
-    }
-    style.textContent = `.footnote-popup>h1,.footnote-popup>h2,.footnote-popup>h3{font-size:1em;margin:0 0 8px 0;color:var(--footnote-accent)}.footnote-popup>p{margin:4px 0}`;
-    return () => { document.getElementById(id)?.remove(); };
-  }, []);
 
   return (
     <>
@@ -451,32 +436,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
           backgroundColor: theme.bg,
         }}
       />
-      {footnoteHtml && (
-        <div
-          className="footnote-popup"
-          style={{
-            ...footnotePopupStyle,
-            position: "fixed",
-            bottom: 16,
-            ...(window.innerWidth > 1000
-              ? (footnoteSide === "left" ? { left: "5%", right: "55%" } : { left: "55%", right: "5%" })
-              : { left: "5%", right: "5%" }),
-            maxHeight: "40vh",
-            overflowY: "auto",
-            backgroundColor: theme.bg,
-            color: theme.text,
-            border: `1px solid ${theme.accent}`,
-            borderRadius: 12,
-            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            padding: "16px 20px",
-            fontSize: Math.round(settings.fontSize * 0.9),
-            lineHeight: 1.4,
-            fontFamily: settings.fontFamily,
-            zIndex: 100,
-          }}
-          dangerouslySetInnerHTML={{ __html: footnoteHtml }}
-        />
-      )}
+      <FootnotePopup html={footnoteHtml} side={footnoteSide} settings={settings} />
     </>
   );
 });
