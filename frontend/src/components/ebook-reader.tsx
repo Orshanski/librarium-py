@@ -8,14 +8,12 @@ import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, 
 import "../vendor/foliate-js/view.js";
 
 /**
- * `onLoad` fires when a foliate document iframe loads and styling can be applied.
  * `onReady` fires once content is loaded and the initial navigation has completed.
  * `onRelocate` is UI-only and follows foliate location changes.
  * `onSavePosition` is persistence-only and runs after explicit navigation/pagehide.
  */
 export interface ReaderCallbacks {
   onRelocate?: (detail: ReaderRelocateDetail) => void;
-  onLoad?: () => void;
   onReady?: () => void;
   onSavePosition?: (cfi: string, fraction: number) => void;
 }
@@ -244,6 +242,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     recalcPages();
   }, [settings, gap, isMobile, margin, maxBlockSize, maxInlineSize, showFooter]);
 
+  // Empty deps: all methods access via stable refs, no need to recreate handle.
   useImperativeHandle(ref, () => ({
     getToc: () => viewRef.current?.book?.toc ?? [],
     hasRenderer: () => Boolean(viewRef.current?.renderer),
@@ -410,7 +409,6 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
       contentLoadedRef.current = true;
-      callbacksRef.current?.onLoad?.();
       notifyReady();
       const doc = e.detail?.doc;
       if (doc) {
@@ -561,6 +559,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       view.remove();
       viewRef.current = null;
     };
+    // Deps: only bookBlob — runtime config read from refs (configRef, settingsRef, callbacksRef).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookBlob]);
 

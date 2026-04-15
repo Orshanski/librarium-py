@@ -12,7 +12,6 @@ import { exitReader } from "../../utils/readerFlag";
 export default function MobileReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
-  const containerRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<EbookReaderHandle | null>(null);
 
   const {
@@ -37,7 +36,7 @@ export default function MobileReaderPage() {
 
   const handleTocSelect = useCallback(async (href: string) => {
     await readerRef.current?.performNavigation({ type: "goTo", target: href });
-  }, []);
+  }, [readerRef]);
 
   const handleReady = useCallback(() => {
     setTocItems((readerRef.current?.getToc() ?? []) as TocItem[]);
@@ -69,7 +68,7 @@ export default function MobileReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && toolbarVisible && (
         <MobileReaderToolbar
           bookTitle={bookTitle}

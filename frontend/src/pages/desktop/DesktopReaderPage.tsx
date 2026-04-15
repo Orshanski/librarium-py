@@ -11,7 +11,6 @@ import { exitReader } from "../../utils/readerFlag";
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
-  const containerRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<EbookReaderHandle | null>(null);
 
   const {
@@ -36,7 +35,7 @@ export default function DesktopReaderPage() {
 
   const handleTocSelect = useCallback(async (href: string) => {
     await readerRef.current?.performNavigation({ type: "goTo", target: href });
-  }, []);
+  }, [readerRef]);
 
   const handleReady = useCallback(() => {
     setTocItems((readerRef.current?.getToc() ?? []) as TocItem[]);
@@ -68,7 +67,7 @@ export default function DesktopReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && toolbarVisible && (
         <ReaderToolbar
           bookTitle={bookTitle}

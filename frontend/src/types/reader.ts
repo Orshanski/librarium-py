@@ -1,4 +1,4 @@
-export interface ReaderLocation {
+interface ReaderLocation {
   cfi?: string;
   fraction?: number;
 }
@@ -23,7 +23,7 @@ export interface EbookReaderHandle {
 export interface ReaderViewElement extends HTMLElement {
   book?: {
     toc?: unknown[];
-    resolveHref: (href: string) => Promise<{ index: number; anchor: (doc: Document) => Element | null } | { index: number; anchor: (doc: Document) => Element | null } | null> | { index: number; anchor: (doc: Document) => Element | null } | null;
+    resolveHref: (href: string) => Promise<{ index: number; anchor: (doc: Document) => Element | null } | null> | { index: number; anchor: (doc: Document) => Element | null } | null;
     sections: Array<{ charCount?: number; createDocument?: () => Promise<Document> }>;
   };
   close: () => void;
