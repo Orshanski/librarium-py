@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FootnotePopup from "./FootnotePopup";
-import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
+import { ReaderSettings, THEME_STYLES, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
 import { resolveDesktopZone, addCustomEventListener } from "../utils/reader-input";
@@ -112,6 +112,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     container.appendChild(view);
     viewRef.current = view;
     let disposed = false;
+    const disposedRef = { current: false };
     const contentLoadedRef = { current: false };
     const interactiveRef = { current: false };
     const navigationQueueRef = { current: Promise.resolve() as Promise<void> };
@@ -338,13 +339,14 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
         // Count total characters for virtual page numbers
         if (!disposed) {
-          footer.startCharCount(book.sections, { current: disposed });
+          footer.startCharCount(book.sections, disposedRef);
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
       disposed = true;
+      disposedRef.current = true;
       footer.cleanupCharCount();
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
