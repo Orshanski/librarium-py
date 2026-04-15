@@ -1,7 +1,11 @@
-import type { CSSProperties } from "react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
+import FootnotePopup from "./FootnotePopup";
+import { ReaderSettings, THEME_STYLES, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
+import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
+import { resolveDesktopZone, addCustomEventListener } from "../utils/reader-input";
+import { useReaderFooter } from "../hooks/useReaderFooter";
+import type { NormalizedReaderInput, ReaderAction, ReaderLoadDetail, ReaderTapDetail, ReaderLinkDetail } from "../utils/reader-input";
 import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
 // Import foliate-js view (registers <foliate-view> custom element)
@@ -47,148 +51,6 @@ function applySettings(doc: Document, settings: ReaderSettings, renderer?: { set
   renderer?.setStyles?.("");
 }
 
-// Selectors that identify a footnote-style link in rendered book content.
-// Covers three markup conventions:
-//   1. EPUB3 canonical: <a epub:type="noteref"> / biblioref / glossref,
-//      either as a namespaced attribute (XHTML parse) or as a literal
-//      attribute name (HTML parse) — we handle both.
-//   2. ARIA doc-* roles — same spec as above, alt markup.
-//   3. Superscript heuristic for FB2 / plain HTML — <sup><a></a></sup>
-//      or <a><sup></sup></a>.
-// Used by both isFootnoteRef() (for the foliate 'link' event) and
-// injectFootnoteHitAreaStyle() (for touch hit-area expansion). Keep both
-// in sync by editing this list in one place.
-const FOOTNOTE_REF_SELECTORS = [
-  'a[href][epub\\:type~="noteref"]',
-  'a[href][epub\\:type~="biblioref"]',
-  'a[href][epub\\:type~="glossref"]',
-  'a[href][epub|type~="noteref"]',
-  'a[href][epub|type~="biblioref"]',
-  'a[href][epub|type~="glossref"]',
-  'a[href][role~="doc-noteref"]',
-  'a[href][role~="doc-biblioref"]',
-  'a[href][role~="doc-glossref"]',
-  'sup a[href]',
-  'a[href]:has(sup)',
-];
-
-// Check if a link is a footnote reference. The getAttributeNS lookup
-// mirrors the namespaced epub:type selector in FOOTNOTE_REF_SELECTORS;
-// the role / sup checks mirror the other selectors. Logic kept in JS
-// (rather than a.matches(FOOTNOTE_REF_SELECTORS.join(','))) because
-// matches() in an XHTML-parsed doc can't reach namespaced attrs
-// without a declared CSS namespace — getAttributeNS can.
-function isFootnoteRef(a: Element): boolean {
-  const epubType = a.getAttributeNS("http://www.idpf.org/2007/ops", "type") || "";
-  const role = a.getAttribute("role") || "";
-  if (["noteref", "biblioref", "glossref"].some(t => epubType.includes(t))) return true;
-  if (["doc-noteref", "doc-biblioref", "doc-glossref"].some(r => role.includes(r))) return true;
-  // Heuristic: superscript link
-  if (a.matches("sup") || a.closest("sup") || (a.children.length === 1 && a.children[0]?.matches("sup"))) return true;
-  return false;
-}
-
-// Inject a stylesheet into a book iframe document that expands the click
-// hit area of footnote-style links. Books wrap footnote markers in tiny
-// <sup> elements; the native touch hit-test (and by extension our own
-// tap-zone guard in paginator.js) is too strict to catch off-by-a-few-
-// pixels taps. A zero-size ::after overlay extends the hit box by
-// FOOTNOTE_HIT_EXPANSION_PX in every direction without shifting layout
-// (no line-height grow, no neighbour push). Native click then picks up
-// the fuzzy hit via foliate's #handleLinks → 'link' event → popup.
-//
-// @namespace declaration is required so the [epub|type~=...] selectors
-// match namespaced attributes in XHTML-parsed EPUB3 documents; the
-// literal [epub\:type~=...] form covers HTML-parsed docs.
-//
-// Value must match NEAREST_LINK_RADIUS in paginator.js #onTouchStart so
-// both hit-expansion paths (native click via this overlay + our JS
-// synthetic-tap guard) agree on what "near a footnote" means.
-const FOOTNOTE_HIT_EXPANSION_PX = 20;
-
-function injectFootnoteHitAreaStyle(doc: Document): void {
-  const MARKER = "data-librarium-footnote-hitarea";
-  if (doc.head?.querySelector(`style[${MARKER}]`)) return; // idempotent
-  const selectorList = FOOTNOTE_REF_SELECTORS.join(",\n  ");
-  const afterSelectorList = FOOTNOTE_REF_SELECTORS.map(s => `${s}::after`).join(",\n  ");
-  const style = doc.createElement("style");
-  style.setAttribute(MARKER, "");
-  style.textContent = `
-    @namespace epub url(http://www.idpf.org/2007/ops);
-    ${selectorList} {
-      position: relative;
-    }
-    ${afterSelectorList} {
-      content: "";
-      position: absolute;
-      inset: -${FOOTNOTE_HIT_EXPANSION_PX}px;
-    }
-  `;
-  (doc.head ?? doc.documentElement).appendChild(style);
-}
-
-type TapZoneResult = TapAction | "toolbar";
-
-type NormalizedReaderInput =
-  | { kind: "tap"; x: number; y: number; target: Element | null }
-  | { kind: "keyboard"; key: string };
-
-type ReaderAction =
-  | { type: "prev" }
-  | { type: "next" }
-  | { type: "goLeft" }
-  | { type: "goRight" }
-  | { type: "toggleToolbar" }
-  | { type: "followLink" }
-  | { type: "dismissFootnote" }
-  | { type: "noop" };
-
-interface ReaderLoadDetail {
-  doc?: Document;
-}
-
-interface ReaderTapDetail {
-  screenX: number;
-  screenY: number;
-  target: Element | null;
-}
-
-interface ReaderLinkDetail {
-  a: Element;
-  href: string;
-}
-
-function resolveDesktopZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
-  if (xFrac < 0.33) {
-    return yFrac < 0.5 ? zones.topLeft : zones.bottomLeft;
-  }
-  if (xFrac > 0.67) {
-    return yFrac < 0.5 ? zones.topRight : zones.bottomRight;
-  }
-  if (yFrac < 0.33) return zones.topCenter;
-  if (yFrac > 0.67) return zones.bottomCenter;
-  return "toolbar";
-}
-
-// Estimate chars per page from font settings and container dimensions
-function estimateCharsPerPage(container: HTMLElement, settings: ReaderSettings): number {
-  const rect = container.getBoundingClientRect();
-  const avgCharWidth = settings.fontSize * 0.55;
-  const lineHeight = settings.fontSize * settings.lineSpacing;
-  const charsPerLine = Math.floor(rect.width * 0.85 / avgCharWidth);
-  const linesPerPage = Math.floor(rect.height * 0.9 / lineHeight);
-  return Math.max(Math.round(charsPerLine * linesPerPage / 2), 50);
-}
-
-function addCustomEventListener<T>(
-  target: EventTarget,
-  type: string,
-  listener: (event: CustomEvent<T>) => void,
-): () => void {
-  const wrapped = (event: Event) => listener(event as CustomEvent<T>);
-  target.addEventListener(type, wrapped as EventListener);
-  return () => target.removeEventListener(type, wrapped as EventListener);
-}
 
 const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function EbookReader(
   { bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true, isMobile = false }: EbookReaderProps,
@@ -208,17 +70,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
   const lastClickXRef = useRef(0);
   const lastClickYRef = useRef(0);
   const footnoteOpenRef = useRef(false);
-  const totalCharsRef = useRef(0);
-  const totalPagesRef = useRef(0);
-  const charCountTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Recalculate total pages from chars and current layout
-  const recalcPages = () => {
-    const container = containerRef.current;
-    if (!container || !totalCharsRef.current) return;
-    const cpp = estimateCharsPerPage(container, settingsRef.current);
-    totalPagesRef.current = Math.max(1, Math.round(totalCharsRef.current / cpp));
-  };
+  const footer = useReaderFooter(containerRef, settingsRef, configRef);
 
   // Apply settings when they change
   useEffect(() => {
@@ -239,7 +91,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     view.renderer.setAttribute("gap", configRef.current.gap);
     if (configRef.current.margin) view.renderer.setAttribute("margin", configRef.current.margin);
     if (configRef.current.maxBlockSize) view.renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
-    recalcPages();
+    footer.recalcPages();
   }, [settings, gap, isMobile, margin, maxBlockSize, maxInlineSize, showFooter]);
 
   // Empty deps: all methods access via stable refs, no need to recreate handle.
@@ -260,6 +112,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     container.appendChild(view);
     viewRef.current = view;
     let disposed = false;
+    const disposedRef = { current: false };
     const contentLoadedRef = { current: false };
     const interactiveRef = { current: false };
     const navigationQueueRef = { current: Promise.resolve() as Promise<void> };
@@ -378,33 +231,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
       const { fraction, cfi, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
-
-      // Fill footer with virtual page number and chapter title (desktop only)
-      const feet = view.renderer?.feet;
-      if (configRef.current.showFooter && feet?.length && totalPagesRef.current > 0) {
-        const theme = THEME_STYLES[settingsRef.current.theme];
-        const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
-        const pageText = `${currentPage} / ${totalPagesRef.current}`;
-        const chapterText = tocItem?.label || "";
-        const footStyle = {
-          fontSize: "11px",
-          color: theme.text,
-          fontFamily: "'IBM Plex Sans', sans-serif",
-          opacity: "0.4",
-          textOverflow: "ellipsis",
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-        };
-        if (feet.length === 1) {
-          Object.assign(feet[0].style, { ...footStyle, textAlign: "center" });
-          feet[0].textContent = chapterText ? `${pageText}  ·  ${chapterText}` : pageText;
-        } else {
-          Object.assign(feet[0].style, { ...footStyle, textAlign: "left" });
-          feet[0].textContent = pageText;
-          Object.assign(feet[feet.length - 1].style, { ...footStyle, textAlign: "right" });
-          feet[feet.length - 1].textContent = chapterText;
-        }
-      }
+      footer.updateFooter(fraction, tocItem, view.renderer?.feet);
     });
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
@@ -474,7 +301,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     });
 
     // Resize handler: recalculate pages on window resize
-    const handleResize = () => recalcPages();
+    const handleResize = () => footer.recalcPages();
     window.addEventListener("resize", handleResize);
 
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
@@ -510,42 +337,17 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
           notifyReady();
         }
 
-        // Count total characters — use pre-computed charCount if available (FB2),
-        // otherwise fall back to incremental createDocument() in batches
-        const sections = book.sections;
-        const hasCharCount = sections.some((s: { charCount?: number }) => s.charCount != null);
-        if (hasCharCount) {
-          totalCharsRef.current = sections.reduce((sum: number, s: { charCount?: number }) => sum + (s.charCount || 0), 0);
-          recalcPages();
-        } else if (!disposed) {
-          // EPUB: count incrementally after first paint
-          charCountTimerRef.current = setTimeout(async () => {
-            try {
-              let totalChars = 0;
-              const batch = 3;
-              for (let i = 0; i < sections.length; i += batch) {
-                if (disposed) return;
-                for (let j = i; j < Math.min(i + batch, sections.length); j++) {
-                  const s = sections[j];
-                  if (!s.createDocument) continue;
-                  const doc = await s.createDocument();
-                  totalChars += (doc.body?.textContent?.length || 0);
-                }
-                totalCharsRef.current = totalChars;
-                recalcPages();
-                await new Promise(r => setTimeout(r, 0));
-              }
-            } catch (err) {
-              console.warn("Failed to count chars:", err);
-            }
-          }, 100);
+        // Count total characters for virtual page numbers
+        if (!disposed) {
+          footer.startCharCount(book.sections, disposedRef);
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
       disposed = true;
-      clearTimeout(charCountTimerRef.current);
+      disposedRef.current = true;
+      footer.cleanupCharCount();
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("pagehide", handlePageHide);
@@ -564,21 +366,6 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
   }, [bookBlob]);
 
   const theme = THEME_STYLES[settings.theme];
-  const footnotePopupStyle = {
-    "--footnote-accent": theme.accent,
-  } as CSSProperties;
-
-  useEffect(() => {
-    const id = "librarium-footnote-styles";
-    let style = document.getElementById(id) as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = id;
-      document.head.appendChild(style);
-    }
-    style.textContent = `.footnote-popup>h1,.footnote-popup>h2,.footnote-popup>h3{font-size:1em;margin:0 0 8px 0;color:var(--footnote-accent)}.footnote-popup>p{margin:4px 0}`;
-    return () => { document.getElementById(id)?.remove(); };
-  }, []);
 
   return (
     <>
@@ -590,32 +377,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
           backgroundColor: theme.bg,
         }}
       />
-      {footnoteHtml && (
-        <div
-          className="footnote-popup"
-          style={{
-            ...footnotePopupStyle,
-            position: "fixed",
-            bottom: 16,
-            ...(window.innerWidth > 1000
-              ? (footnoteSide === "left" ? { left: "5%", right: "55%" } : { left: "55%", right: "5%" })
-              : { left: "5%", right: "5%" }),
-            maxHeight: "40vh",
-            overflowY: "auto",
-            backgroundColor: theme.bg,
-            color: theme.text,
-            border: `1px solid ${theme.accent}`,
-            borderRadius: 12,
-            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            padding: "16px 20px",
-            fontSize: Math.round(settings.fontSize * 0.9),
-            lineHeight: 1.4,
-            fontFamily: settings.fontFamily,
-            zIndex: 100,
-          }}
-          dangerouslySetInnerHTML={{ __html: footnoteHtml }}
-        />
-      )}
+      <FootnotePopup html={footnoteHtml} side={footnoteSide} settings={settings} />
     </>
   );
 });

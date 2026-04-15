@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { DesktopTapZones, TapAction, DEFAULT_PDF_TAP_ZONES } from "./reader-toolbar";
+import { resolveDesktopZone } from "../utils/reader-input";
 
 // Register <foliate-view> custom element
 import "../vendor/foliate-js/view.js";
@@ -54,19 +55,6 @@ interface PdfReaderProps {
   callbacks?: PdfReaderCallbacks;
 }
 
-type TapZoneResult = TapAction | "toolbar";
-
-function resolveZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
-  if (xFrac < 0.33) {
-    return yFrac < 0.5 ? zones.topLeft : zones.bottomLeft;
-  }
-  if (xFrac > 0.67) {
-    return yFrac < 0.5 ? zones.topRight : zones.bottomRight;
-  }
-  if (yFrac < 0.33) return zones.topCenter;
-  if (yFrac > 0.67) return zones.bottomCenter;
-  return "toolbar";
-}
 
 // Zoom steps: "fit-page" (default) → 1.25 → 1.5 → 2.0 → 3.0
 const ZOOM_STEPS = ["fit-page", 1.25, 1.5, 2.0, 3.0] as const;
@@ -173,7 +161,7 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
         const rect = container.getBoundingClientRect();
         const xFrac = (lastClickXRef.current - rect.left) / rect.width;
         const yFrac = (lastClickYRef.current - rect.top) / rect.height;
-        const action = resolveZone(xFrac, yFrac, zonesRef.current);
+        const action = resolveDesktopZone(xFrac, yFrac, zonesRef.current);
         if (action === "prev") view.prev();
         else if (action === "next") view.next();
         else if (action === "zoom_in") zoomIn();
@@ -190,7 +178,7 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
         const rect = container.getBoundingClientRect();
         const xFrac = (x - rect.left) / rect.width;
         const yFrac = (y - rect.top) / rect.height;
-        const action = resolveZone(xFrac, yFrac, zonesRef.current);
+        const action = resolveDesktopZone(xFrac, yFrac, zonesRef.current);
         if (action === "prev") view.prev();
         else if (action === "next") view.next();
         else if (action === "zoom_in") zoomIn();
