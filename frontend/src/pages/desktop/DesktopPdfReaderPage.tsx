@@ -6,22 +6,54 @@ import ReaderLoadingScreen from "../../components/ReaderLoadingScreen";
 import ReaderErrorScreen from "../../components/ReaderErrorScreen";
 import PdfNavBar from "../../components/pdf-nav-bar";
 import ReaderToolbar, { TocItem, TapAction } from "../../components/reader-toolbar";
-import { useReaderStorage } from "../../hooks/useReaderStorage";
+import { useReaderSettings } from "../../hooks/useReaderSettings";
+import { useReaderPosition } from "../../hooks/useReaderPosition";
+import { useBookLoader } from "../../hooks/useBookLoader";
+import { usePwaBookLoader } from "../../hooks/usePwaBookLoader";
+import { useReaderSessionFlag } from "../../hooks/useReaderSessionFlag";
+import { useIsPwa } from "../../hooks/useIsPwa";
+import { getDeviceName } from "../../utils/device-info";
 import { exitReader } from "../../utils/readerFlag";
+import type { BookLoaderResult } from "../../hooks/useBookLoader";
 
 const PDF_AVAILABLE_ACTIONS: TapAction[] = ["prev", "next", "zoom_in", "zoom_out"];
+
+function usePdfBookLoaderSwitch(isPwa: boolean, options: Parameters<typeof useBookLoader>[0]): BookLoaderResult {
+  const browserResult = useBookLoader({ ...options, bookId: isPwa ? undefined : options.bookId });
+  const pwaResult = usePwaBookLoader({ ...options, bookId: isPwa ? options.bookId : undefined });
+  return isPwa ? pwaResult : browserResult;
+}
 
 export default function DesktopPdfReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+  const deviceName = getDeviceName();
+  const isPwa = useIsPwa();
 
+  const { settings, handleSettingsChange, applyLocalSettings, syncSettingsWithServer } = useReaderSettings({ deviceName });
   const {
-    bookBlob, bookTitle, settings, initialPosition, resumePosition,
-    loading, loadProgress, error,
-    clearResumePosition,
-    handleSavePosition, handleSettingsChange,
-  } = useReaderStorage({ bookId: id, format, positionKind: "page" });
+    initialPosition, resumePosition, clearResumePosition,
+    handleSavePosition, applyLocalProgress, syncProgressWithServer,
+  } = useReaderPosition({ bookId: id, format, positionKind: "page", deviceName });
+
+  const onLocalDataLoaded = useCallback((localProgress: Parameters<typeof applyLocalProgress>[0], localSettings: Parameters<typeof applyLocalSettings>[0]) => {
+    applyLocalProgress(localProgress);
+    applyLocalSettings(localSettings);
+  }, [applyLocalProgress, applyLocalSettings]);
+
+  const onSyncNeeded = useCallback(async (bookId: number, localProgress: Parameters<typeof syncProgressWithServer>[1], localSettings: Parameters<typeof syncSettingsWithServer>[0]) => {
+    await Promise.all([
+      syncProgressWithServer(bookId, localProgress),
+      syncSettingsWithServer(localSettings),
+    ]);
+  }, [syncProgressWithServer, syncSettingsWithServer]);
+
+  const { bookBlob, bookTitle, loading, loadProgress, error } = usePdfBookLoaderSwitch(isPwa, {
+    bookId: id, format, deviceName, onLocalDataLoaded, onSyncNeeded,
+  });
+
+  useReaderSessionFlag();
 
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [currentTocHref, setCurrentTocHref] = useState("");
@@ -37,7 +69,6 @@ export default function DesktopPdfReaderPage() {
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       setCurrentPage(detail.index);
       setTotalPages(detail.total);
-      // Skip initial-load relocate (before book is ready); save only on user navigation.
       if (bookReady) handleSavePosition(detail.index, detail.fraction);
     },
     [bookReady, handleSavePosition],
@@ -58,10 +89,6 @@ export default function DesktopPdfReaderPage() {
     setBookReady(true);
   }, []);
 
-  // Adopt on mid-session reconcile: when another device wrote a newer
-  // position and useReaderStorage's resume() / CAS reject-adopt path sets
-  // resumePosition, jump the PDF viewer to that page. Initial mount is
-  // handled via initialPage, not this effect.
   useEffect(() => {
     if (!bookReady || resumePosition == null) return;
     if (typeof resumePosition !== "number") return;

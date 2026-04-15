@@ -30,6 +30,12 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
   const [initialPosition, setInitialPosition] = useState<string | number | null>(null);
   const [resumePosition, setResumePosition] = useState<string | number | null>(null);
 
+  // Reset position state when book changes
+  useEffect(() => {
+    setInitialPosition(null);
+    setResumePosition(null);
+  }, [id]);
+
   const inFlightPutRef = useRef<Promise<void>>(Promise.resolve());
   const pushProgressToServerRef = useRef<(progress: LocalProgress) => Promise<boolean>>(async () => false);
   const adoptServerProgressRef = useRef<(

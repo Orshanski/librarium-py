@@ -237,7 +237,7 @@ export async function getUnsyncedProgress(): Promise<LocalProgress[]> {
 
 /**
  * Write a server-sourced reading_progress state into IDB and mark it synced.
- * Used by both the CAS helper (on reject-adopt) and useReaderStorage's
+ * Used by both the CAS helper (on reject-adopt) and useReaderPosition's
  * adoptServerProgress (on mount/resume sync) so the shape is consistent.
  */
 export async function adoptServerProgressLocal(

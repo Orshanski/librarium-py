@@ -85,6 +85,12 @@ export function attachReaderInteraction(
   });
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    // Don't hijack keys when focus is inside an input/select/contenteditable (toolbar controls)
+    const t = e.target;
+    if (t instanceof HTMLElement) {
+      const tag = t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable) return;
+    }
     void dispatchInput({ kind: "keyboard", key: e.key });
   };
   document.addEventListener("keydown", handleKeyDown);

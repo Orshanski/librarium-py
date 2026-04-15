@@ -76,6 +76,14 @@ export function useBookLoaderBase(
   useEffect(() => {
     if (!id || !format) return;
     const bookId = Number(id);
+    let cancelled = false;
+
+    // Reset transient state when id/format changes
+    setBookBlob(null);
+    setBookTitle("");
+    setLoading(true);
+    setLoadProgress(0);
+    setError(null);
 
     (async () => {
       try {
@@ -113,6 +121,7 @@ export function useBookLoaderBase(
           await onSyncNeededRef.current(bookId, localProgress, localSettings);
         }
 
+        if (cancelled) return;
         setBookTitle(title);
         setBookBlob(blob);
         setLoading(false);
@@ -128,10 +137,13 @@ export function useBookLoaderBase(
         }
         postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromCache });
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Ошибка загрузки");
-        setLoading(false);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Ошибка загрузки");
+          setLoading(false);
+        }
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceName, format, id]);
 
