@@ -42,7 +42,6 @@ interface UseReaderStorageResult {
   loading: boolean;
   loadProgress: number;
   error: string | null;
-  flushProgress: () => void;
   clearResumePosition: () => void;
   handleRelocate: (position: string | number, fraction: number) => void;
   handleSettingsChange: (newSettings: ReaderSettings) => void;
@@ -63,18 +62,12 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   const deviceName = getDeviceName();
   const isPwa = useIsPwa();
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastPositionRef = useRef<{ value: string | number; fraction: number } | null>(null);
   // Serializes PUT /api/reader/progress calls: each new PUT awaits the
   // previous one so the server can't see requests reordered by the network.
   const inFlightPutRef = useRef<Promise<void>>(Promise.resolve());
-  // Blocks debounced server pushes from handleRelocate while resume() is
-  // reconciling with the server. IDB writes still happen.
-  const resumeGateRef = useRef(false);
-  const flushRef = useRef<() => void>(() => {});
   const applyPositionRef = useRef<(raw: string) => void>(() => {});
-  const pushProgressToServerRef = useRef<(progress: LocalProgress, keepalive?: boolean) => Promise<boolean>>(async () => false);
+  const pushProgressToServerRef = useRef<(progress: LocalProgress) => Promise<boolean>>(async () => false);
   const adoptServerProgressRef = useRef<(
     bookId: number,
     server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number },
@@ -106,27 +99,21 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     }
   }, [parsePositionValue]);
 
-  const pushProgressToServer = useCallback(async (progress: LocalProgress, keepalive = false): Promise<boolean> => {
+  const pushProgressToServer = useCallback(async (progress: LocalProgress): Promise<boolean> => {
     // Chain onto the previous in-flight PUT so PUTs always land in order.
+    // keepalive: true so the request survives pagehide / visibilitychange(hidden).
     let handled = false;
     const next = inFlightPutRef.current.then(async () => {
-      const ctl = keepalive ? null : new AbortController();
-      const timer = ctl ? setTimeout(() => ctl.abort(), 10_000) : null;
-      try {
-        const result = await pushProgressToServerCAS(progress, {
-          deviceName,
-          keepalive,
-          signal: ctl?.signal,
-        });
-        if (result.status === "adopted" && result.adoptedPosition) {
-          const parsed = parsePositionValue(result.adoptedPosition);
-          if (parsed != null) setResumePosition(parsed);
-          handled = true;
-        } else if (result.status === "accepted" || result.status === "rebased") {
-          handled = true;
-        }
-      } finally {
-        if (timer) clearTimeout(timer);
+      const result = await pushProgressToServerCAS(progress, {
+        deviceName,
+        keepalive: true,
+      });
+      if (result.status === "adopted" && result.adoptedPosition) {
+        const parsed = parsePositionValue(result.adoptedPosition);
+        if (parsed != null) setResumePosition(parsed);
+        handled = true;
+      } else if (result.status === "accepted" || result.status === "rebased") {
+        handled = true;
       }
     });
     inFlightPutRef.current = next.catch(() => {});
@@ -348,63 +335,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     }
   }, [deviceName, format, id, isPwa, positionKind]);
 
-  // Save progress (local-first, debounced). All network PUTs go through
-  // pushProgressToServer so they land on the server in FIFO order.
-  //
-  // Read-back pattern: after saving to IDB we re-read the row so the push
-  // gets the current serverVersion (which was preserved from the last sync,
-  // not mutated by the relocate-driven IDB write).
-  const flushProgress = useCallback(() => {
-    clearTimeout(saveTimerRef.current);
-    const pos = lastPositionRef.current;
-    if (!pos || !id) return;
-    const bookId = Number(id);
-    const position = JSON.stringify({ kind: positionKind, value: pos.value });
-    const fraction = Math.min(1, Math.max(0, pos.fraction || 0));
-    const localData = { position, fraction, lastFormat: format || "", lastReadAt: Date.now() };
-
-    lastPositionRef.current = null;
-
-    (async () => {
-      try {
-        await saveLocalProgress(bookId, localData);
-      } catch (err) {
-        console.warn("Failed to save local progress:", err);
-        return;
-      }
-      if (!navigator.onLine) return;
-      // Read back to get the fresh row with serverVersion preserved.
-      const fresh = await getProgress(bookId).catch(() => null);
-      if (!fresh) return;
-      // keepalive: true so the request survives pagehide / visibilitychange(hidden)
-      void pushProgressToServerRef.current(fresh, true);
-    })();
-  }, [id, format, positionKind]);
-
-  // Keep flushRef in sync for beforeunload
-  flushRef.current = flushProgress;
-
-  useEffect(() => () => flushProgress(), [flushProgress]);
-
-  useEffect(() => {
-    const onBeforeUnload = () => flushRef.current();
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        flushRef.current();
-      }
-    };
-    const onPageHide = () => {
-      flushRef.current();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("pagehide", onPageHide);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("pagehide", onPageHide);
-    };
-  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -412,25 +342,15 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     const bookId = Number(id);
     const resume = async () => {
       if (document.visibilityState === "hidden" || !navigator.onLine) return;
-
-      // Gate debounced pushes from handleRelocate while we're reconciling.
-      resumeGateRef.current = true;
       try {
-        // 1. Pending in-memory position (not yet flushed) → flush first. It
-        //    goes through the CAS chain and wins whatever is needed.
-        if (lastPositionRef.current) {
-          flushRef.current();
-          return;
-        }
-
-        // 2. Unsynced local → push via CAS. Server decides accept/rebase/reject.
+        // 1. Unsynced local → push via CAS. Server decides accept/rebase/reject.
         const localProgress = await getProgress(bookId).catch(() => null);
         if (localProgress && !localProgress.synced) {
           await pushProgressToServer(localProgress);
           return;
         }
 
-        // 3. Synced local + server ahead by version → another device wrote, adopt.
+        // 2. Synced local + server ahead by version → another device wrote, adopt.
         const resp = await fetch(`/api/reader/progress/${id}`, { credentials: "include" });
         if (!resp.ok) return;
         const server = await resp.json();
@@ -442,10 +362,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
         }
       } catch (err) {
         console.warn("Failed to refresh progress on resume:", err);
-      } finally {
-        resumeGateRef.current = false;
-        // If user relocated during the gate window, flush now.
-        if (lastPositionRef.current) flushRef.current();
       }
     };
 
@@ -462,24 +378,23 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
   }, [adoptServerProgress, id, positionKind, pushProgressToServer]);
 
   const handleRelocate = useCallback((positionValue: string | number, fraction: number) => {
-    lastPositionRef.current = { value: positionValue, fraction };
-    const bookId = id ? Number(id) : 0;
+    if (!id) return;
+    const bookId = Number(id);
     const position = JSON.stringify({ kind: positionKind, value: positionValue });
-    if (bookId) {
-      saveLocalProgress(bookId, {
-        position,
-        fraction: Math.min(1, Math.max(0, fraction || 0)),
-        lastFormat: format || "",
-        lastReadAt: Date.now(),
-      }).catch((err) => console.warn("Failed to save local progress:", err));
-    }
-    // During resume reconciliation, IDB is updated but server push is deferred.
-    // resume() will call flushProgress() in its finally block if lastPositionRef
-    // has anything pending.
-    if (resumeGateRef.current) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(flushProgress, 1000);
-  }, [flushProgress, format, id, positionKind]);
+    const localData = { position, fraction: Math.min(1, Math.max(0, fraction || 0)), lastFormat: format || "", lastReadAt: Date.now() };
+    (async () => {
+      try {
+        await saveLocalProgress(bookId, localData);
+      } catch (err) {
+        console.warn("Failed to save local progress:", err);
+        return;
+      }
+      if (!navigator.onLine) return;
+      const fresh = await getProgress(bookId).catch(() => null);
+      if (!fresh) return;
+      void pushProgressToServerRef.current(fresh);
+    })();
+  }, [format, id, positionKind]);
 
   const clearResumePosition = useCallback(() => {
     setResumePosition(null);
@@ -525,7 +440,6 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     loading,
     loadProgress,
     error,
-    flushProgress,
     clearResumePosition,
     handleRelocate,
     handleSettingsChange,

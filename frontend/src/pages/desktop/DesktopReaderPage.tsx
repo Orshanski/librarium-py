@@ -28,15 +28,17 @@ export default function DesktopReaderPage() {
     (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
       setFraction(detail.fraction);
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
-      onStorageRelocate(detail.cfi, detail.fraction);
     },
-    [onStorageRelocate],
+    [],
   );
 
-  const handleTocSelect = useCallback((href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => void };
-    view?.goTo(href);
-  }, []);
+  const handleTocSelect = useCallback(async (href: string) => {
+    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => Promise<void>; lastLocation?: { cfi?: string; fraction?: number } };
+    if (!view) return;
+    await view.goTo(href);
+    const loc = view.lastLocation;
+    if (loc?.cfi) onStorageRelocate(loc.cfi, loc.fraction ?? 0);
+  }, [onStorageRelocate]);
 
   const handleLoad = useCallback(() => {
     const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
@@ -98,7 +100,7 @@ export default function DesktopReaderPage() {
           gap="3%"
           margin="48px"
           onCenterTap={() => setToolbarVisible((v) => !v)}
-          callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad }}
+          callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad, onSavePosition: onStorageRelocate }}
         />
       </div>
     </div>

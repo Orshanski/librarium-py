@@ -20,7 +20,6 @@ export interface PushResult {
 interface PushOptions {
   deviceName: string;
   keepalive?: boolean;
-  signal?: AbortSignal;
 }
 
 /**
@@ -44,7 +43,6 @@ export async function pushProgressToServerCAS(
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       keepalive: opts.keepalive,
-      signal: opts.signal,
       body: JSON.stringify({
         position: progress.position,
         last_device: opts.deviceName,
