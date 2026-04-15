@@ -3,7 +3,8 @@ import FootnotePopup from "./FootnotePopup";
 import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
-import { resolveDesktopZone, estimateCharsPerPage, addCustomEventListener } from "../utils/reader-input";
+import { resolveDesktopZone, addCustomEventListener } from "../utils/reader-input";
+import { useReaderFooter } from "../hooks/useReaderFooter";
 import type { NormalizedReaderInput, ReaderAction, ReaderLoadDetail, ReaderTapDetail, ReaderLinkDetail } from "../utils/reader-input";
 import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
@@ -69,17 +70,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
   const lastClickXRef = useRef(0);
   const lastClickYRef = useRef(0);
   const footnoteOpenRef = useRef(false);
-  const totalCharsRef = useRef(0);
-  const totalPagesRef = useRef(0);
-  const charCountTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Recalculate total pages from chars and current layout
-  const recalcPages = () => {
-    const container = containerRef.current;
-    if (!container || !totalCharsRef.current) return;
-    const cpp = estimateCharsPerPage(container, settingsRef.current);
-    totalPagesRef.current = Math.max(1, Math.round(totalCharsRef.current / cpp));
-  };
+  const footer = useReaderFooter(containerRef, settingsRef, configRef);
 
   // Apply settings when they change
   useEffect(() => {
@@ -100,7 +91,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     view.renderer.setAttribute("gap", configRef.current.gap);
     if (configRef.current.margin) view.renderer.setAttribute("margin", configRef.current.margin);
     if (configRef.current.maxBlockSize) view.renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
-    recalcPages();
+    footer.recalcPages();
   }, [settings, gap, isMobile, margin, maxBlockSize, maxInlineSize, showFooter]);
 
   // Empty deps: all methods access via stable refs, no need to recreate handle.
@@ -239,33 +230,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
       const { fraction, cfi, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
-
-      // Fill footer with virtual page number and chapter title (desktop only)
-      const feet = view.renderer?.feet;
-      if (configRef.current.showFooter && feet?.length && totalPagesRef.current > 0) {
-        const theme = THEME_STYLES[settingsRef.current.theme];
-        const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
-        const pageText = `${currentPage} / ${totalPagesRef.current}`;
-        const chapterText = tocItem?.label || "";
-        const footStyle = {
-          fontSize: "11px",
-          color: theme.text,
-          fontFamily: "'IBM Plex Sans', sans-serif",
-          opacity: "0.4",
-          textOverflow: "ellipsis",
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-        };
-        if (feet.length === 1) {
-          Object.assign(feet[0].style, { ...footStyle, textAlign: "center" });
-          feet[0].textContent = chapterText ? `${pageText}  ·  ${chapterText}` : pageText;
-        } else {
-          Object.assign(feet[0].style, { ...footStyle, textAlign: "left" });
-          feet[0].textContent = pageText;
-          Object.assign(feet[feet.length - 1].style, { ...footStyle, textAlign: "right" });
-          feet[feet.length - 1].textContent = chapterText;
-        }
-      }
+      footer.updateFooter(fraction, tocItem, view.renderer?.feet);
     });
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
@@ -335,7 +300,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     });
 
     // Resize handler: recalculate pages on window resize
-    const handleResize = () => recalcPages();
+    const handleResize = () => footer.recalcPages();
     window.addEventListener("resize", handleResize);
 
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
@@ -371,42 +336,16 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
           notifyReady();
         }
 
-        // Count total characters — use pre-computed charCount if available (FB2),
-        // otherwise fall back to incremental createDocument() in batches
-        const sections = book.sections;
-        const hasCharCount = sections.some((s: { charCount?: number }) => s.charCount != null);
-        if (hasCharCount) {
-          totalCharsRef.current = sections.reduce((sum: number, s: { charCount?: number }) => sum + (s.charCount || 0), 0);
-          recalcPages();
-        } else if (!disposed) {
-          // EPUB: count incrementally after first paint
-          charCountTimerRef.current = setTimeout(async () => {
-            try {
-              let totalChars = 0;
-              const batch = 3;
-              for (let i = 0; i < sections.length; i += batch) {
-                if (disposed) return;
-                for (let j = i; j < Math.min(i + batch, sections.length); j++) {
-                  const s = sections[j];
-                  if (!s.createDocument) continue;
-                  const doc = await s.createDocument();
-                  totalChars += (doc.body?.textContent?.length || 0);
-                }
-                totalCharsRef.current = totalChars;
-                recalcPages();
-                await new Promise(r => setTimeout(r, 0));
-              }
-            } catch (err) {
-              console.warn("Failed to count chars:", err);
-            }
-          }, 100);
+        // Count total characters for virtual page numbers
+        if (!disposed) {
+          footer.startCharCount(book.sections, { current: disposed });
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
       disposed = true;
-      clearTimeout(charCountTimerRef.current);
+      footer.cleanupCharCount();
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("pagehide", handlePageHide);
