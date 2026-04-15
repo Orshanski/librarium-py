@@ -14,6 +14,7 @@ export interface ReaderCallbacks {
     location?: { current: number; total: number };
   }) => void;
   onLoad?: () => void;
+  onSavePosition?: (cfi: string, fraction: number) => void;
 }
 
 interface EbookReaderProps {
@@ -293,20 +294,27 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           const yFrac = (lastClickYRef.current - rect.top) / rect.height;
 
           if (isMobile) {
-            if (xFrac < 0.33) view.prev();
-            else if (xFrac > 0.67) view.next();
+            if (xFrac < 0.33) void navigate(view.prev());
+            else if (xFrac > 0.67) void navigate(view.next());
             else onCenterTapRef.current?.();
           } else {
             const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
             const action = resolveDesktopZone(xFrac, yFrac, zones);
-            if (action === "prev") view.prev();
-            else if (action === "next") view.next();
+            if (action === "prev") void navigate(view.prev());
+            else if (action === "next") void navigate(view.next());
             else if (action === "toolbar") onCenterTapRef.current?.();
             // zoom_in / zoom_out не применимы в flow-ридере — no-op
           }
         });
       }
     });
+
+    // Shared helper: await navigation, then save position via onSavePosition.
+    const navigate = async (action: Promise<void>) => {
+      await action;
+      const loc = view.lastLocation;
+      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+    };
 
     // Touch tap-zone path: foliate's paginator emits a 'tap' event on a
     // clean single-finger tap (no scroll, no pinch, small delta). This
@@ -340,24 +348,24 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       const yFrac = (y - rect.top) / rect.height;
 
       if (isMobile) {
-        if (xFrac < 0.33) view.prev();
-        else if (xFrac > 0.67) view.next();
+        if (xFrac < 0.33) void navigate(view.prev());
+        else if (xFrac > 0.67) void navigate(view.next());
         else onCenterTapRef.current?.();
       } else {
         const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
         const action = resolveDesktopZone(xFrac, yFrac, zones);
-        if (action === "prev") view.prev();
-        else if (action === "next") view.next();
+        if (action === "prev") void navigate(view.prev());
+        else if (action === "next") void navigate(view.next());
         else if (action === "toolbar") onCenterTapRef.current?.();
       }
     });
 
     // Keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") view.goLeft();
-      else if (e.key === "ArrowRight") view.goRight();
-      else if (e.key === "ArrowUp" || e.key === "PageUp") view.prev();
-      else if (e.key === "ArrowDown" || e.key === "PageDown") view.next();
+      if (e.key === "ArrowLeft") void navigate(view.goLeft());
+      else if (e.key === "ArrowRight") void navigate(view.goRight());
+      else if (e.key === "ArrowUp" || e.key === "PageUp") void navigate(view.prev());
+      else if (e.key === "ArrowDown" || e.key === "PageDown") void navigate(view.next());
     };
     document.addEventListener("keydown", handleKeyDown);
 
@@ -387,6 +395,14 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     // Resize handler: recalculate pages on window resize
     const handleResize = () => recalcPages();
     window.addEventListener("resize", handleResize);
+
+    // Save position on suspend/hide — covers scroll mode where there are no tap events.
+    // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
+    const handlePageHide = () => {
+      const loc = view.lastLocation;
+      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+    };
+    window.addEventListener("pagehide", handlePageHide);
 
     const t0 = performance.now();
     let disposed = false;
@@ -449,6 +465,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       }
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("pagehide", handlePageHide);
       try { view.renderer?.destroy(); } catch {}
       try { view.close(); } catch {}
       view.remove();

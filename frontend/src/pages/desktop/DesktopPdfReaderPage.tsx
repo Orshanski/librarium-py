@@ -35,9 +35,10 @@ export default function DesktopPdfReaderPage() {
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       setCurrentPage(detail.index);
       setTotalPages(detail.total);
-      onStorageRelocate(detail.index, detail.fraction);
+      // Skip initial-load relocate (before book is ready); save only on user navigation.
+      if (bookReady) onStorageRelocate(detail.index, detail.fraction);
     },
-    [onStorageRelocate],
+    [bookReady, onStorageRelocate],
   );
 
   const handleTocSelect = useCallback((href: string) => {
