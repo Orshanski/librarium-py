@@ -1,19 +1,60 @@
 import { useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { TocItem } from "../components/reader-toolbar";
-import { useReaderStorage } from "./useReaderStorage";
+import { useReaderSettings } from "./useReaderSettings";
+import { useReaderPosition } from "./useReaderPosition";
+import { useBookLoader } from "./useBookLoader";
+import { usePwaBookLoader } from "./usePwaBookLoader";
+import { useReaderSessionFlag } from "./useReaderSessionFlag";
 import { useReaderLifecycle } from "./useReaderLifecycle";
+import { useIsPwa } from "./useIsPwa";
+import { getDeviceName } from "../utils/device-info";
+import type { BookLoaderResult } from "./useBookLoader";
 import type { EbookReaderHandle, ReaderRelocateDetail } from "../types/reader";
+
+function useBookLoaderSwitch(isPwa: boolean, options: Parameters<typeof useBookLoader>[0]): BookLoaderResult {
+  // Both hooks are always called (rules of hooks), but only one is "active".
+  // The inactive one receives an undefined bookId, so its effect is a no-op.
+  const browserResult = useBookLoader({
+    ...options,
+    bookId: isPwa ? undefined : options.bookId,
+  });
+  const pwaResult = usePwaBookLoader({
+    ...options,
+    bookId: isPwa ? options.bookId : undefined,
+  });
+  return isPwa ? pwaResult : browserResult;
+}
 
 export function useReaderPage() {
   const { id, format } = useParams();
   const readerRef = useRef<EbookReaderHandle | null>(null);
+  const deviceName = getDeviceName();
+  const isPwa = useIsPwa();
 
+  const { settings, handleSettingsChange, applyLocalSettings, syncSettingsWithServer } = useReaderSettings({ deviceName });
   const {
-    bookBlob, bookTitle, settings, initialPosition, resumePosition,
-    loading, loadProgress, error,
-    clearResumePosition, handleSavePosition, handleSettingsChange,
-  } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
+    initialPosition, resumePosition, clearResumePosition,
+    handleSavePosition, applyLocalProgress, syncProgressWithServer,
+  } = useReaderPosition({ bookId: id, format, positionKind: "cfi", deviceName });
+
+  const onLocalDataLoaded = useCallback((localProgress: Parameters<typeof applyLocalProgress>[0], localSettings: Parameters<typeof applyLocalSettings>[0]) => {
+    applyLocalProgress(localProgress);
+    applyLocalSettings(localSettings);
+  }, [applyLocalProgress, applyLocalSettings]);
+
+  const onSyncNeeded = useCallback(async (bookId: number, localProgress: Parameters<typeof syncProgressWithServer>[1], localSettings: Parameters<typeof syncSettingsWithServer>[0]) => {
+    await Promise.all([
+      syncProgressWithServer(bookId, localProgress),
+      syncSettingsWithServer(localSettings),
+    ]);
+  }, [syncProgressWithServer, syncSettingsWithServer]);
+
+  const { bookBlob, bookTitle, loading, loadProgress, error } = useBookLoaderSwitch(isPwa, {
+    bookId: id, format, deviceName, onLocalDataLoaded, onSyncNeeded,
+  });
+
+  useReaderSessionFlag();
 
   const [fraction, setFraction] = useState(0);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
@@ -45,17 +86,12 @@ export function useReaderPage() {
   useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
   return {
-    // Route params
     id, format,
-    // Refs
     readerRef,
-    // Storage
     bookBlob, bookTitle, settings, initialPosition,
     loading, loadProgress, error,
     handleSavePosition, handleSettingsChange,
-    // UI state
     fraction, tocItems, currentTocHref, bookReady, toolbarVisible,
-    // Callbacks
     handleRelocate, handleTocSelect, handleReady, toggleToolbar,
   };
 }
