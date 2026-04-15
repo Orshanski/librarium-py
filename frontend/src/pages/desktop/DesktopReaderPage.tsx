@@ -5,17 +5,18 @@ import EbookReader from "../../components/ebook-reader";
 import ReaderToolbar, { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
 import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
+import type { EbookReaderHandle, ReaderRelocateDetail } from "../../types/reader";
 import { exitReader } from "../../utils/readerFlag";
 
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const readerRef = useRef<EbookReaderHandle | null>(null);
 
   const {
     bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
-    clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
+    clearResumePosition, handleSavePosition, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
   const [fraction, setFraction] = useState(0);
@@ -25,7 +26,7 @@ export default function DesktopReaderPage() {
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
+    (detail: ReaderRelocateDetail) => {
       setFraction(detail.fraction);
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
     },
@@ -33,20 +34,15 @@ export default function DesktopReaderPage() {
   );
 
   const handleTocSelect = useCallback(async (href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => Promise<void>; lastLocation?: { cfi?: string; fraction?: number } };
-    if (!view) return;
-    await view.goTo(href);
-    const loc = view.lastLocation;
-    if (loc?.cfi) onStorageRelocate(loc.cfi, loc.fraction ?? 0);
-  }, [onStorageRelocate]);
+    await readerRef.current?.performNavigation({ type: "goTo", target: href });
+  }, [readerRef]);
 
-  const handleLoad = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
-    setTocItems((view?.book?.toc ?? []) as TocItem[]);
+  const handleReady = useCallback(() => {
+    setTocItems((readerRef.current?.getToc() ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
 
-  useReaderLifecycle(containerRef, bookReady, resumePosition, clearResumePosition);
+  useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
   if (loading && !bookBlob) {
     return (
@@ -71,7 +67,7 @@ export default function DesktopReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div style={{ position: "relative", height: "100dvh", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && toolbarVisible && (
         <ReaderToolbar
           bookTitle={bookTitle}
@@ -93,6 +89,7 @@ export default function DesktopReaderPage() {
       )}
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
+          ref={readerRef}
           bookBlob={bookBlob}
           initialPosition={initialPosition as string | null}
           settings={settings}
@@ -100,7 +97,7 @@ export default function DesktopReaderPage() {
           gap="3%"
           margin="48px"
           onCenterTap={() => setToolbarVisible((v) => !v)}
-          callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad, onSavePosition: onStorageRelocate }}
+          callbacks={{ onRelocate: handleRelocate, onReady: handleReady, onSavePosition: handleSavePosition }}
         />
       </div>
     </div>

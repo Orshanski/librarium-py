@@ -6,17 +6,18 @@ import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
 import { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
 import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
+import type { EbookReaderHandle, ReaderRelocateDetail } from "../../types/reader";
 import { exitReader } from "../../utils/readerFlag";
 
 export default function MobileReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const readerRef = useRef<EbookReaderHandle | null>(null);
 
   const {
     bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
-    clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
+    clearResumePosition, handleSavePosition, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
   const [fraction, setFraction] = useState(0);
@@ -26,7 +27,7 @@ export default function MobileReaderPage() {
   const [toolbarVisible, setToolbarVisible] = useState(false);
 
   const handleRelocate = useCallback(
-    (detail: { fraction: number; cfi: string; tocItem?: { label: string; href: string } }) => {
+    (detail: ReaderRelocateDetail) => {
       setFraction(detail.fraction);
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
     },
@@ -34,20 +35,15 @@ export default function MobileReaderPage() {
   );
 
   const handleTocSelect = useCallback(async (href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => Promise<void>; lastLocation?: { cfi?: string; fraction?: number } };
-    if (!view) return;
-    await view.goTo(href);
-    const loc = view.lastLocation;
-    if (loc?.cfi) onStorageRelocate(loc.cfi, loc.fraction ?? 0);
-  }, [onStorageRelocate]);
+    await readerRef.current?.performNavigation({ type: "goTo", target: href });
+  }, [readerRef]);
 
-  const handleLoad = useCallback(() => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
-    setTocItems((view?.book?.toc ?? []) as TocItem[]);
+  const handleReady = useCallback(() => {
+    setTocItems((readerRef.current?.getToc() ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
 
-  useReaderLifecycle(containerRef, bookReady, resumePosition, clearResumePosition);
+  useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
   if (loading && !bookBlob) {
     return (
@@ -72,7 +68,7 @@ export default function MobileReaderPage() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
+    <div style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>
       {bookReady && toolbarVisible && (
         <MobileReaderToolbar
           bookTitle={bookTitle}
@@ -94,6 +90,7 @@ export default function MobileReaderPage() {
       )}
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
+          ref={readerRef}
           bookBlob={bookBlob}
           initialPosition={initialPosition as string | null}
           settings={settings}
@@ -103,7 +100,7 @@ export default function MobileReaderPage() {
           showFooter={false}
           isMobile={true}
           onCenterTap={() => setToolbarVisible((v) => !v)}
-          callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad, onSavePosition: onStorageRelocate }}
+          callbacks={{ onRelocate: handleRelocate, onReady: handleReady, onSavePosition: handleSavePosition }}
         />
       </div>
     </div>

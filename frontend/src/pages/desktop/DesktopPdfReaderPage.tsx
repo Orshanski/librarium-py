@@ -18,7 +18,7 @@ export default function DesktopPdfReaderPage() {
     bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
     clearResumePosition,
-    handleRelocate: onStorageRelocate, handleSettingsChange,
+    handleSavePosition, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "page" });
 
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
@@ -36,9 +36,9 @@ export default function DesktopPdfReaderPage() {
       setCurrentPage(detail.index);
       setTotalPages(detail.total);
       // Skip initial-load relocate (before book is ready); save only on user navigation.
-      if (bookReady) onStorageRelocate(detail.index, detail.fraction);
+      if (bookReady) handleSavePosition(detail.index, detail.fraction);
     },
-    [bookReady, onStorageRelocate],
+    [bookReady, handleSavePosition],
   );
 
   const handleTocSelect = useCallback((href: string) => {

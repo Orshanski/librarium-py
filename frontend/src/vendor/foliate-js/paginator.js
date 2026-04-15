@@ -574,6 +574,7 @@ export class Paginator extends HTMLElement {
             doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
             doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
             doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
+            doc.addEventListener('click', this.#onMouseClick.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
@@ -824,6 +825,7 @@ export class Paginator extends HTMLElement {
     }
     #onTouchStart(e) {
         const touch = e.changedTouches[0]
+        this.#touchScrolled = false
         // Tap consumers (ebook-reader) need to know whether the touch
         // landed on an <a href>. Raw e.target is too strict for Safari
         // iOS: touchstart uses plain DOM hit-testing without the fuzzy
@@ -931,6 +933,30 @@ export class Paginator extends HTMLElement {
         this.#touchScrolled = false
         if (this.#touchState) this.#touchState.cancelled = true
     }
+    // Mouse click → tap: on desktop, touch events don't fire, so the
+    // touch→tap path in #onTouchEnd never runs. This handler emits 'tap'
+    // for mouse clicks so ebook-reader's dispatchInput receives them.
+    // Touch-originated (synthesised) clicks are skipped — #onTouchEnd
+    // already emitted 'tap' for those.
+    #onMouseClick(e) {
+        // Skip touch-synthesised clicks: #touchState is non-null between
+        // touchstart and the post-touchend cleanup, and for synthesised
+        // clicks it hasn't been cleared yet. Genuine mouse clicks never
+        // set #touchState.
+        if (this.#touchState) return
+        const target = e.target instanceof Element
+            ? e.target.closest('a[href]') ?? e.target
+            : e.target instanceof Node
+                ? e.target.parentElement
+                : null
+        this.dispatchEvent(new CustomEvent('tap', {
+            detail: {
+                screenX: e.screenX,
+                screenY: e.screenY,
+                target,
+            },
+        }))
+    }
     #onTouchEnd(e) {
         if (!this.#touchState || this.#touchState.cancelled) {
             this.#touchScrolled = false
@@ -968,18 +994,26 @@ export class Paginator extends HTMLElement {
                     target: state.originTarget,
                 },
             }))
+            // Reset touch bookkeeping before returning. This is
+            // belt-and-suspenders cleanup; the primary first-tap fix is
+            // the #touchScrolled reset in #onTouchStart.
+            this.#touchScrolled = false
+            this.#touchState = null
             return
         }
 
         this.#touchScrolled = false
         if (this.scrolled) return
 
+        const { vx, vy } = this.#touchState
+        this.#touchState = null
+
         // XXX: Firefox seems to report scale as 1... sometimes...?
         // at this point I'm basically throwing `requestAnimationFrame` at
         // anything that doesn't work
         requestAnimationFrame(() => {
             if (globalThis.visualViewport.scale === 1)
-                this.snap(this.#touchState.vx, this.#touchState.vy)
+                this.snap(vx, vy)
         })
     }
     // allows one to process rects as if they were LTR and horizontal
