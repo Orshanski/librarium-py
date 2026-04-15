@@ -4,6 +4,7 @@ import { ReaderSettings, THEME_STYLES, DEFAULT_DESKTOP_TAP_ZONES } from "./reade
 import { sanitizeHtml } from "../utils/sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "../utils/reader-footnotes";
 import { resolveDesktopZone, addCustomEventListener } from "../utils/reader-input";
+import { createNavigationController } from "../utils/reader-navigation";
 import { useReaderFooter } from "../hooks/useReaderFooter";
 import type { NormalizedReaderInput, ReaderAction, ReaderLoadDetail, ReaderTapDetail, ReaderLinkDetail } from "../utils/reader-input";
 import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
@@ -113,70 +114,17 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     viewRef.current = view;
     let disposed = false;
     const disposedRef = { current: false };
-    const contentLoadedRef = { current: false };
-    const interactiveRef = { current: false };
-    const navigationQueueRef = { current: Promise.resolve() as Promise<void> };
-    const readyNotifiedRef = { current: false };
 
-    const notifyReady = () => {
-      if (!contentLoadedRef.current || !interactiveRef.current || readyNotifiedRef.current) return;
-      readyNotifiedRef.current = true;
-      callbacksRef.current?.onReady?.();
-    };
+    const nav = createNavigationController(view, {
+      onSavePosition: () => {
+        const loc = view.lastLocation;
+        if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+      },
+      onReady: () => callbacksRef.current?.onReady?.(),
+      isDisposed: () => disposed,
+    });
 
-    const saveCurrentPosition = () => {
-      const loc = view.lastLocation;
-      if (loc?.cfi) {
-        callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
-      }
-    };
-
-    const enqueueNavigation = (
-      task: () => Promise<void>,
-      options?: { persist?: boolean; allowDuringInit?: boolean },
-    ): Promise<void> => {
-      const { persist = true, allowDuringInit = false } = options ?? {};
-      const run = async () => {
-        if (disposed) return;
-        // Ignore user navigation until initial navigation finishes.
-        if (!allowDuringInit && !interactiveRef.current) return;
-        try {
-          await task();
-          if (persist) saveCurrentPosition();
-        } finally {
-          notifyReady();
-        }
-      };
-      navigationQueueRef.current = navigationQueueRef.current
-        .catch((err) => {
-          if (location.hostname === "localhost") {
-            console.error("[reader] navigation failed:", err);
-          }
-        })
-        .then(run);
-      return navigationQueueRef.current;
-    };
-
-    const performNavigation = (request: ReaderNavigationRequest): Promise<void> => {
-      if (request.type === "goTo") {
-        return enqueueNavigation(() => view.goTo(request.target), {
-          persist: request.persist,
-          allowDuringInit: request.allowDuringInit,
-        });
-      }
-      if (request.type === "prev") {
-        return enqueueNavigation(() => view.prev(), {
-          persist: request.persist,
-          allowDuringInit: request.allowDuringInit,
-        });
-      }
-      return enqueueNavigation(() => view.next(), {
-        persist: request.persist,
-        allowDuringInit: request.allowDuringInit,
-      });
-    };
-
-    performNavigationRef.current = performNavigation;
+    performNavigationRef.current = nav.performNavigation;
 
     const resolveReaderAction = (input: NormalizedReaderInput): ReaderAction => {
       if (input.kind === "keyboard") {
@@ -208,11 +156,11 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     };
 
     const performReaderAction = (action: ReaderAction): Promise<void> => {
-      if (!interactiveRef.current && action.type !== "followLink" && action.type !== "noop") return Promise.resolve();
-      if (action.type === "prev") return performNavigation({ type: "prev" });
-      if (action.type === "next") return performNavigation({ type: "next" });
-      if (action.type === "goLeft") return enqueueNavigation(() => view.goLeft());
-      if (action.type === "goRight") return enqueueNavigation(() => view.goRight());
+      if (!nav.isInteractive() && action.type !== "followLink" && action.type !== "noop") return Promise.resolve();
+      if (action.type === "prev") return nav.performNavigation({ type: "prev" });
+      if (action.type === "next") return nav.performNavigation({ type: "next" });
+      if (action.type === "goLeft") return nav.enqueueNavigation(() => view.goLeft());
+      if (action.type === "goRight") return nav.enqueueNavigation(() => view.goRight());
       if (action.type === "toggleToolbar") {
         onCenterTapRef.current?.();
         return Promise.resolve();
@@ -235,8 +183,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     });
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
-      contentLoadedRef.current = true;
-      notifyReady();
+      nav.setContentLoaded();
       const doc = e.detail?.doc;
       if (doc) {
         // Apply user settings to new document
@@ -307,7 +254,8 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
     // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
     const handlePageHide = () => {
-      saveCurrentPosition();
+      const loc = view.lastLocation;
+      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
     };
     window.addEventListener("pagehide", handlePageHide);
 
@@ -327,14 +275,13 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
         // Finish initial navigation before making the reader interactive.
         await (initialPosition
-          ? performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
-          : enqueueNavigation(
+          ? nav.performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
+          : nav.enqueueNavigation(
             () => view.goToTextStart ? view.goToTextStart() : view.goTo(0),
             { persist: false, allowDuringInit: true },
           ));
         if (!disposed) {
-          interactiveRef.current = true;
-          notifyReady();
+          nav.setInteractive();
         }
 
         // Count total characters for virtual page numbers
