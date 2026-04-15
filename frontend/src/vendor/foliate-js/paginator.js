@@ -574,7 +574,6 @@ export class Paginator extends HTMLElement {
             doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
             doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
             doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
-            doc.addEventListener('click', this.#onMouseClick.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
@@ -932,30 +931,6 @@ export class Paginator extends HTMLElement {
         // via flag, not null — #onTouchEnd may still fire and reads state.
         this.#touchScrolled = false
         if (this.#touchState) this.#touchState.cancelled = true
-    }
-    // Mouse click → tap: on desktop, touch events don't fire, so the
-    // touch→tap path in #onTouchEnd never runs. This handler emits 'tap'
-    // for mouse clicks so ebook-reader's dispatchInput receives them.
-    // Touch-originated (synthesised) clicks are skipped — #onTouchEnd
-    // already emitted 'tap' for those.
-    #onMouseClick(e) {
-        // Skip touch-synthesised clicks: #touchState is non-null between
-        // touchstart and the post-touchend cleanup, and for synthesised
-        // clicks it hasn't been cleared yet. Genuine mouse clicks never
-        // set #touchState.
-        if (this.#touchState) return
-        const target = e.target instanceof Element
-            ? e.target.closest('a[href]') ?? e.target
-            : e.target instanceof Node
-                ? e.target.parentElement
-                : null
-        this.dispatchEvent(new CustomEvent('tap', {
-            detail: {
-                screenX: e.screenX,
-                screenY: e.screenY,
-                target,
-            },
-        }))
     }
     #onTouchEnd(e) {
         if (!this.#touchState || this.#touchState.cancelled) {
