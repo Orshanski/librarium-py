@@ -30,7 +30,7 @@ interface PushOptions {
  * is replaced with the server's current state and marked synced; the returned
  * `adoptedPosition` lets the caller jump the reader UI.
  *
- * Both useReaderStorage (reader mounted) and main.tsx (background catalog sync)
+ * Both useReaderPosition (reader mounted) and main.tsx (background catalog sync)
  * call this helper so every PUT goes through the same CAS flow.
  */
 export async function pushProgressToServerCAS(

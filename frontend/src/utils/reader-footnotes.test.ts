@@ -9,9 +9,22 @@ function makeElement(html: string): Element {
 }
 
 describe("isFootnoteRef", () => {
-  it("returns true for epub:type noteref (attribute)", () => {
+  it("returns true for role doc-noteref", () => {
     const a = makeElement('<a href="#n1" role="doc-noteref">1</a>');
     expect(isFootnoteRef(a)).toBe(true);
+  });
+
+  it("returns true for epub:type noteref (namespaced attribute)", () => {
+    const a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+    a.setAttribute("href", "#fn1");
+    a.setAttributeNS("http://www.idpf.org/2007/ops", "epub:type", "noteref");
+    a.textContent = "1";
+    document.body.appendChild(a);
+    try {
+      expect(isFootnoteRef(a)).toBe(true);
+    } finally {
+      a.remove();
+    }
   });
 
   it("returns true for role doc-biblioref", () => {
