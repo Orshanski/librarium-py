@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import EbookReader from "../../components/ebook-reader";
+import ReaderLoadingScreen from "../../components/ReaderLoadingScreen";
+import ReaderErrorScreen from "../../components/ReaderErrorScreen";
 import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
 import { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
@@ -45,27 +47,8 @@ export default function MobileReaderPage() {
 
   useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
-  if (loading && !bookBlob) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.textDim, gap: 16 }}>
-        <div>Загрузка книги...{loadProgress > 0 ? ` ${loadProgress}%` : loadProgress < 0 ? ` ${(-loadProgress / 1048576).toFixed(1)} МБ` : ""}</div>
-        <div style={{ width: 200, height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
-          <div style={{ width: loadProgress > 0 ? `${loadProgress}%` : "0%", height: "100%", backgroundColor: colors.accent, borderRadius: 2, transition: "width 0.2s" }} />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !bookBlob) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.danger, gap: 16 }}>
-        <div>{error || "Не удалось загрузить книгу"}</div>
-        <button onClick={() => exitReader(navigate)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
-          Назад
-        </button>
-      </div>
-    );
-  }
+  if (loading && !bookBlob) return <ReaderLoadingScreen loadProgress={loadProgress} />;
+  if (error || !bookBlob) return <ReaderErrorScreen error={error} onBack={() => exitReader(navigate)} />;
 
   return (
     <div style={{ position: "relative", height: "100dvh", paddingTop: "var(--sat)", paddingBottom: "var(--sab)", backgroundColor: THEME_STYLES[settings.theme].bg }}>

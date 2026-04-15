@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { colors } from "../../theme";
 import PdfReader from "../../components/pdf-reader";
+import ReaderLoadingScreen from "../../components/ReaderLoadingScreen";
+import ReaderErrorScreen from "../../components/ReaderErrorScreen";
 import PdfNavBar from "../../components/pdf-nav-bar";
 import ReaderToolbar, { TocItem, TapAction } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
@@ -67,27 +69,8 @@ export default function DesktopPdfReaderPage() {
     clearResumePosition();
   }, [bookReady, resumePosition, clearResumePosition]);
 
-  if (loading && !bookBlob) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.textDim, gap: 16 }}>
-        <div>Загрузка книги...{loadProgress > 0 ? ` ${loadProgress}%` : loadProgress < 0 ? ` ${(-loadProgress / 1048576).toFixed(1)} МБ` : ""}</div>
-        <div style={{ width: 200, height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
-          <div style={{ width: loadProgress > 0 ? `${loadProgress}%` : "0%", height: "100%", backgroundColor: colors.accent, borderRadius: 2, transition: "width 0.2s" }} />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !bookBlob) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.danger, gap: 16 }}>
-        <div>{error || "Не удалось загрузить книгу"}</div>
-        <button onClick={() => exitReader(navigate)} style={{ color: colors.accent, background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
-          Назад
-        </button>
-      </div>
-    );
-  }
+  if (loading && !bookBlob) return <ReaderLoadingScreen loadProgress={loadProgress} />;
+  if (error || !bookBlob) return <ReaderErrorScreen error={error} onBack={() => exitReader(navigate)} />;
 
   return (
     <div ref={containerRef} style={{ position: "relative", height: "100dvh", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", backgroundColor: "#2a2a2a" }}>
