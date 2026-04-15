@@ -824,6 +824,7 @@ export class Paginator extends HTMLElement {
     }
     #onTouchStart(e) {
         const touch = e.changedTouches[0]
+        this.#touchScrolled = false
         // Tap consumers (ebook-reader) need to know whether the touch
         // landed on an <a href>. Raw e.target is too strict for Safari
         // iOS: touchstart uses plain DOM hit-testing without the fuzzy
@@ -968,6 +969,11 @@ export class Paginator extends HTMLElement {
                     target: state.originTarget,
                 },
             }))
+            // Reset touch bookkeeping before returning. Without this the
+            // first clean tap leaves stale touch state behind, which can
+            // interfere with the next gesture lifecycle on iOS/Safari.
+            this.#touchScrolled = false
+            this.#touchState = null
             return
         }
 
@@ -981,6 +987,7 @@ export class Paginator extends HTMLElement {
             if (globalThis.visualViewport.scale === 1)
                 this.snap(this.#touchState.vx, this.#touchState.vy)
         })
+        this.#touchState = null
     }
     // allows one to process rects as if they were LTR and horizontal
     #getRectMapper() {

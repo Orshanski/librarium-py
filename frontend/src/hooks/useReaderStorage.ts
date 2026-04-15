@@ -43,7 +43,7 @@ interface UseReaderStorageResult {
   loadProgress: number;
   error: string | null;
   clearResumePosition: () => void;
-  handleRelocate: (position: string | number, fraction: number) => void;
+  handleSavePosition: (position: string | number, fraction: number) => void;
   handleSettingsChange: (newSettings: ReaderSettings) => void;
 }
 
@@ -110,7 +110,9 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
       });
       if (result.status === "adopted" && result.adoptedPosition) {
         const parsed = parsePositionValue(result.adoptedPosition);
-        if (parsed != null) setResumePosition(parsed);
+        if (parsed != null) {
+          setResumePosition(parsed);
+        }
         handled = true;
       } else if (result.status === "accepted" || result.status === "rebased") {
         handled = true;
@@ -377,7 +379,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     };
   }, [adoptServerProgress, id, positionKind, pushProgressToServer]);
 
-  const handleRelocate = useCallback((positionValue: string | number, fraction: number) => {
+  const handleSavePosition = useCallback((positionValue: string | number, fraction: number) => {
     if (!id) return;
     const bookId = Number(id);
     const position = JSON.stringify({ kind: positionKind, value: positionValue });
@@ -441,7 +443,7 @@ export function useReaderStorage({ bookId: id, format, positionKind }: UseReader
     loadProgress,
     error,
     clearResumePosition,
-    handleRelocate,
+    handleSavePosition,
     handleSettingsChange,
   };
 }

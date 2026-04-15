@@ -15,7 +15,7 @@ export default function DesktopReaderPage() {
   const {
     bookBlob, bookTitle, settings, initialPosition, resumePosition,
     loading, loadProgress, error,
-    clearResumePosition, handleRelocate: onStorageRelocate, handleSettingsChange,
+    clearResumePosition, handleSavePosition, handleSettingsChange,
   } = useReaderStorage({ bookId: id, format, positionKind: "cfi" });
 
   const [fraction, setFraction] = useState(0);
@@ -33,14 +33,22 @@ export default function DesktopReaderPage() {
   );
 
   const handleTocSelect = useCallback(async (href: string) => {
-    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { goTo: (h: string) => Promise<void>; lastLocation?: { cfi?: string; fraction?: number } };
+    const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & {
+      goTo: (h: string) => Promise<void>;
+      lastLocation?: { cfi?: string; fraction?: number };
+      performNavigation?: (request: { type: "goTo"; target: string; persist?: boolean; allowDuringInit?: boolean }) => Promise<void>;
+    };
     if (!view) return;
+    if (view.performNavigation) {
+      await view.performNavigation({ type: "goTo", target: href });
+      return;
+    }
     await view.goTo(href);
     const loc = view.lastLocation;
-    if (loc?.cfi) onStorageRelocate(loc.cfi, loc.fraction ?? 0);
-  }, [onStorageRelocate]);
+    if (loc?.cfi) handleSavePosition(loc.cfi, loc.fraction ?? 0);
+  }, [handleSavePosition]);
 
-  const handleLoad = useCallback(() => {
+  const handleReady = useCallback(() => {
     const view = containerRef.current?.querySelector("foliate-view") as HTMLElement & { book?: { toc?: TocItem[] } };
     setTocItems((view?.book?.toc ?? []) as TocItem[]);
     setBookReady(true);
@@ -100,7 +108,7 @@ export default function DesktopReaderPage() {
           gap="3%"
           margin="48px"
           onCenterTap={() => setToolbarVisible((v) => !v)}
-          callbacks={{ onRelocate: handleRelocate, onLoad: handleLoad, onSavePosition: onStorageRelocate }}
+          callbacks={{ onRelocate: handleRelocate, onReady: handleReady, onSavePosition: handleSavePosition }}
         />
       </div>
     </div>

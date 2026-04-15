@@ -1,7 +1,8 @@
 import { RefObject, useEffect } from "react";
 
 interface FoliateViewElement extends HTMLElement {
-  goTo: (target: string | number) => void;
+  goTo: (target: string | number) => Promise<void>;
+  performNavigation?: (request: { type: "goTo"; target: string | number; persist?: boolean; allowDuringInit?: boolean }) => Promise<void>;
   renderer?: unknown;
 }
 
@@ -16,7 +17,9 @@ export function useReaderLifecycle(
     if (!bookReady) return;
     const view = containerRef.current?.querySelector("foliate-view") as FoliateViewElement | null;
     if (view) {
-      view.goTo(resumePosition);
+      void (view.performNavigation
+        ? view.performNavigation({ type: "goTo", target: resumePosition })
+        : view.goTo(resumePosition));
       clearResumePosition();
     }
   }, [bookReady, clearResumePosition, containerRef, resumePosition]);

@@ -14,6 +14,7 @@ export interface ReaderCallbacks {
     location?: { current: number; total: number };
   }) => void;
   onLoad?: () => void;
+  onReady?: () => void;
   onSavePosition?: (cfi: string, fraction: number) => void;
 }
 
@@ -128,6 +129,72 @@ function injectFootnoteHitAreaStyle(doc: Document): void {
 
 type TapZoneResult = TapAction | "toolbar";
 
+type NormalizedReaderInput =
+  | { kind: "tap" | "click"; x: number; y: number; target: Element | null }
+  | { kind: "keyboard"; key: string };
+
+type ReaderAction =
+  | { type: "prev" }
+  | { type: "next" }
+  | { type: "goLeft" }
+  | { type: "goRight" }
+  | { type: "toggleToolbar" }
+  | { type: "followLink" }
+  | { type: "dismissFootnote" }
+  | { type: "noop" };
+
+type ReaderNavigationRequest =
+  | { type: "prev" | "next"; persist?: boolean; allowDuringInit?: boolean }
+  | { type: "goTo"; target: string | number; persist?: boolean; allowDuringInit?: boolean };
+
+interface ReaderViewElement extends HTMLElement {
+  book?: {
+    toc?: unknown[];
+    resolveHref: (href: string) => Promise<{ index: number; anchor: (doc: Document) => Element | null } | null> | { index: number; anchor: (doc: Document) => Element | null } | null;
+    sections: Array<{ charCount?: number; createDocument?: () => Promise<Document> }>;
+  };
+  close: () => void;
+  goLeft: () => Promise<void>;
+  goRight: () => Promise<void>;
+  goTo: (target: string | number) => Promise<void>;
+  goToTextStart?: () => Promise<void>;
+  lastLocation?: { cfi?: string; fraction?: number };
+  next: () => Promise<void>;
+  open: (book: Blob) => Promise<void>;
+  performNavigation?: (request: ReaderNavigationRequest) => Promise<void>;
+  prev: () => Promise<void>;
+  renderer?: {
+    destroy?: () => void;
+    feet?: HTMLElement[];
+    getContents?: () => Array<{ doc: Document }>;
+    next: () => Promise<void>;
+    setAttribute: (name: string, value: string) => void;
+    setStyles?: (styles: string) => void;
+  };
+}
+
+interface ReaderRelocateDetail {
+  fraction: number;
+  cfi: string;
+  tocItem?: { label: string; href: string };
+  location?: { current: number; total: number };
+}
+
+interface ReaderLoadDetail {
+  doc?: Document;
+}
+
+interface ReaderTapDetail {
+  screenX: number;
+  screenY: number;
+  target: Element | null;
+}
+
+interface ReaderLinkDetail {
+  a: Element;
+  href: string;
+}
+
 function resolveDesktopZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
   if (xFrac < 0.33) {
     return yFrac < 0.5 ? zones.topLeft : zones.bottomLeft;
@@ -163,11 +230,6 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   const lastClickXRef = useRef(0);
   const lastClickYRef = useRef(0);
   const footnoteOpenRef = useRef(false);
-  // true while a touch is in progress OR within 500ms after touchend.
-  // Used to suppress the iOS-synthesised click that follows touch, so the
-  // real tap-zone work happens via the foliate 'tap' event instead.
-  const touchActiveRef = useRef(false);
-  const touchActiveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const totalCharsRef = useRef(0);
   const totalPagesRef = useRef(0);
   const charCountTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -205,13 +267,124 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     const container = containerRef.current;
     if (!container || !bookBlob) return;
 
-    const view = document.createElement("foliate-view") as any;
+    const view = document.createElement("foliate-view") as ReaderViewElement;
     view.style.width = "100%";
     view.style.height = "100%";
     container.appendChild(view);
     viewRef.current = view;
+    let disposed = false;
+    const contentLoadedRef = { current: false };
+    const interactiveRef = { current: false };
+    const navigationQueueRef = { current: Promise.resolve() as Promise<void> };
+    const readyNotifiedRef = { current: false };
 
-    view.addEventListener("relocate", (e: CustomEvent) => {
+    const notifyReady = () => {
+      if (!contentLoadedRef.current || !interactiveRef.current || readyNotifiedRef.current) return;
+      readyNotifiedRef.current = true;
+      callbacksRef.current?.onReady?.();
+    };
+
+    const saveCurrentPosition = () => {
+      const loc = view.lastLocation;
+      if (loc?.cfi) {
+        callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+      }
+    };
+
+    const enqueueNavigation = (
+      task: () => Promise<void>,
+      options?: { persist?: boolean; allowDuringInit?: boolean },
+    ): Promise<void> => {
+      const { persist = true, allowDuringInit = false } = options ?? {};
+      const run = async () => {
+        if (disposed) return;
+        if (!allowDuringInit && !interactiveRef.current) return;
+        try {
+          await task();
+          if (persist) saveCurrentPosition();
+        } finally {
+          notifyReady();
+        }
+      };
+      navigationQueueRef.current = navigationQueueRef.current
+        .catch(() => {})
+        .then(run);
+      return navigationQueueRef.current;
+    };
+
+    const performNavigation = (request: ReaderNavigationRequest): Promise<void> => {
+      if (request.type === "goTo") {
+        return enqueueNavigation(() => view.goTo(request.target), {
+          persist: request.persist,
+          allowDuringInit: request.allowDuringInit,
+        });
+      }
+      if (request.type === "prev") {
+        return enqueueNavigation(() => view.prev(), {
+          persist: request.persist,
+          allowDuringInit: request.allowDuringInit,
+        });
+      }
+      return enqueueNavigation(() => view.next(), {
+        persist: request.persist,
+        allowDuringInit: request.allowDuringInit,
+      });
+    };
+
+    view.performNavigation = performNavigation;
+
+    const resolveReaderAction = (input: NormalizedReaderInput): ReaderAction => {
+      if (input.kind === "keyboard") {
+        if (input.key === "ArrowLeft") return { type: "goLeft" };
+        if (input.key === "ArrowRight") return { type: "goRight" };
+        if (input.key === "ArrowUp" || input.key === "PageUp") return { type: "prev" };
+        if (input.key === "ArrowDown" || input.key === "PageDown") return { type: "next" };
+        return { type: "noop" };
+      }
+
+      const isLinkTarget = Boolean(input.target?.closest("a[href]"));
+      if (footnoteOpenRef.current && !isLinkTarget) return { type: "dismissFootnote" };
+      if (isLinkTarget) return { type: "followLink" };
+
+      const rect = container.getBoundingClientRect();
+      const xFrac = (input.x - rect.left) / rect.width;
+      const yFrac = (input.y - rect.top) / rect.height;
+      if (isMobile) {
+        if (xFrac < 0.33) return { type: "prev" };
+        if (xFrac > 0.67) return { type: "next" };
+        return { type: "toggleToolbar" };
+      }
+
+      const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
+      const action = resolveDesktopZone(xFrac, yFrac, zones);
+      if (action === "prev") return { type: "prev" };
+      if (action === "next") return { type: "next" };
+      return { type: "toggleToolbar" };
+    };
+
+    const performReaderAction = (action: ReaderAction): Promise<void> => {
+      if (!interactiveRef.current && action.type !== "followLink" && action.type !== "noop") return Promise.resolve();
+      if (action.type === "prev") return performNavigation({ type: "prev" });
+      if (action.type === "next") return performNavigation({ type: "next" });
+      if (action.type === "goLeft") return enqueueNavigation(() => view.goLeft());
+      if (action.type === "goRight") return enqueueNavigation(() => view.goRight());
+      if (action.type === "toggleToolbar") {
+        onCenterTapRef.current?.();
+        return Promise.resolve();
+      }
+      if (action.type === "dismissFootnote") {
+        setFootnoteHtml(null);
+        footnoteOpenRef.current = false;
+        return Promise.resolve();
+      }
+      return Promise.resolve();
+    };
+
+    const dispatchInput = (input: NormalizedReaderInput): Promise<void> =>
+      performReaderAction(resolveReaderAction(input));
+
+    view.addEventListener("relocate", ((event: Event) => {
+      const e = event as CustomEvent<ReaderRelocateDetail>;
       const { fraction, cfi, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
 
@@ -241,10 +414,13 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           feet[feet.length - 1].textContent = chapterText;
         }
       }
-    });
+    }) as EventListener);
 
-    view.addEventListener("load", (e: CustomEvent) => {
+    view.addEventListener("load", ((event: Event) => {
+      const e = event as CustomEvent<ReaderLoadDetail>;
+      contentLoadedRef.current = true;
       callbacksRef.current?.onLoad?.();
+      notifyReady();
       const doc = e.detail?.doc;
       if (doc) {
         // Apply user settings to new document
@@ -257,132 +433,47 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           lastClickXRef.current = ev.screenX - window.screenX;
           lastClickYRef.current = ev.screenY - window.screenY;
         }, true);
-        // Touch-origin guard: flip touchActiveRef for the lifetime of any
-        // touch and for 500ms after touchend so the iOS-synthesised click
-        // that follows is filtered out of the tap-zone click handler below.
-        doc.addEventListener("touchstart", () => {
-          if (touchActiveTimerRef.current) {
-            clearTimeout(touchActiveTimerRef.current);
-            touchActiveTimerRef.current = undefined;
-          }
-          touchActiveRef.current = true;
-        }, { passive: true, capture: true });
-        doc.addEventListener("touchend", () => {
-          if (touchActiveTimerRef.current) clearTimeout(touchActiveTimerRef.current);
-          touchActiveTimerRef.current = setTimeout(() => {
-            touchActiveRef.current = false;
-            touchActiveTimerRef.current = undefined;
-          }, 500);
-        }, { passive: true });
-        doc.addEventListener("touchcancel", () => {
-          if (touchActiveTimerRef.current) {
-            clearTimeout(touchActiveTimerRef.current);
-            touchActiveTimerRef.current = undefined;
-          }
-          touchActiveRef.current = false;
-        }, { passive: true });
-        doc.addEventListener("click", (ev: MouseEvent) => {
-          if (touchActiveRef.current) return; // touch path handled via 'tap'
-          if ((ev.target as Element)?.closest?.("a[href]")) return; // links handled by foliate-js
-          if (footnoteOpenRef.current) {
-            setFootnoteHtml(null);
-            footnoteOpenRef.current = false;
-            return; // only close, don't navigate
-          }
-          const rect = container.getBoundingClientRect();
-          const xFrac = (lastClickXRef.current - rect.left) / rect.width;
-          const yFrac = (lastClickYRef.current - rect.top) / rect.height;
-
-          if (isMobile) {
-            if (xFrac < 0.33) void navigate(view.prev());
-            else if (xFrac > 0.67) void navigate(view.next());
-            else onCenterTapRef.current?.();
-          } else {
-            const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
-            const action = resolveDesktopZone(xFrac, yFrac, zones);
-            if (action === "prev") void navigate(view.prev());
-            else if (action === "next") void navigate(view.next());
-            else if (action === "toolbar") onCenterTapRef.current?.();
-            // zoom_in / zoom_out не применимы в flow-ридере — no-op
-          }
-        });
       }
-    });
-
-    // Shared helper: await navigation, then save position via onSavePosition.
-    const navigate = async (action: Promise<void>) => {
-      await action;
-      const loc = view.lastLocation;
-      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
-    };
+    }) as EventListener);
 
     // Touch tap-zone path: foliate's paginator emits a 'tap' event on a
     // clean single-finger tap (no scroll, no pinch, small delta). This
     // replaces the browser-synthesised click on touch devices, which fires
     // even when iOS cancels a system gesture mid-way.
-    view.addEventListener("tap", (e: CustomEvent<{ screenX: number; screenY: number; target: Element | null }>) => {
-      // An open footnote popup dismisses on any tap. This check runs
-      // before the a[href] guard below so cross-reference / TOC /
-      // external link taps still clear the old popup first — otherwise
-      // the popup lingers on screen until a new-section load side-
-      // effect clears it. Returning after close is correct: for link
-      // taps, foliate's click path still fires the 'link' event for
-      // the same underlying touch and opens a new popup / navigates;
-      // for empty-space taps, the user's intent was to dismiss, not
-      // to flip a page.
-      if (footnoteOpenRef.current) {
-        setFootnoteHtml(null);
-        footnoteOpenRef.current = false;
-        return;
-      }
-      // Taps on <a href> must fall through to foliate's own click/link
-      // path (see 'link' handler below, e.g. footnote popups). The CSS
-      // ::after overlay on footnote links expands the hit area — clicks
-      // on the overlay are reported as touches on the host <a>, so this
-      // check catches both exact and fuzzy hits.
-      if (e.detail.target?.closest("a[href]")) return;
-      const x = e.detail.screenX - window.screenX;
-      const y = e.detail.screenY - window.screenY;
-      const rect = container.getBoundingClientRect();
-      const xFrac = (x - rect.left) / rect.width;
-      const yFrac = (y - rect.top) / rect.height;
-
-      if (isMobile) {
-        if (xFrac < 0.33) void navigate(view.prev());
-        else if (xFrac > 0.67) void navigate(view.next());
-        else onCenterTapRef.current?.();
-      } else {
-        const zones = settingsRef.current.desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
-        const action = resolveDesktopZone(xFrac, yFrac, zones);
-        if (action === "prev") void navigate(view.prev());
-        else if (action === "next") void navigate(view.next());
-        else if (action === "toolbar") onCenterTapRef.current?.();
-      }
-    });
+    view.addEventListener("tap", ((event: Event) => {
+      const e = event as CustomEvent<ReaderTapDetail>;
+      void dispatchInput({
+        kind: "tap",
+        x: e.detail.screenX - window.screenX,
+        y: e.detail.screenY - window.screenY,
+        target: e.detail.target,
+      });
+    }) as EventListener);
 
     // Keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") void navigate(view.goLeft());
-      else if (e.key === "ArrowRight") void navigate(view.goRight());
-      else if (e.key === "ArrowUp" || e.key === "PageUp") void navigate(view.prev());
-      else if (e.key === "ArrowDown" || e.key === "PageDown") void navigate(view.next());
+      void dispatchInput({ kind: "keyboard", key: e.key });
     };
     document.addEventListener("keydown", handleKeyDown);
 
     // Footnote popup: intercept link, load content via createDocument
-    view.addEventListener("link", async (e: any) => {
+    view.addEventListener("link", (async (event: Event) => {
+      const e = event as CustomEvent<ReaderLinkDetail>;
       const { a, href } = e.detail;
       if (!isFootnoteRef(a)) return; // not a footnote, let default goTo happen
       e.preventDefault(); // prevent navigation
       try {
+        const book = view.book;
+        if (!book) return;
         const containerWidth = container.getBoundingClientRect().width;
         const side = lastClickXRef.current < containerWidth / 2 ? "left" : "right";
         setFootnoteSide(side);
 
-        const resolved = await Promise.resolve(view.book.resolveHref(href));
+        const resolved = await Promise.resolve(book.resolveHref(href));
         if (!resolved) return;
         const { index, anchor } = resolved;
-        const doc = await view.book.sections[index].createDocument();
+        const doc = await book.sections[index].createDocument?.();
+        if (!doc) return;
         const el = anchor(doc);
         if (!el) return;
         footnoteOpenRef.current = true;
@@ -390,7 +481,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       } catch (err) {
         console.error("Failed to load footnote:", err);
       }
-    });
+    }) as EventListener);
 
     // Resize handler: recalculate pages on window resize
     const handleResize = () => recalcPages();
@@ -399,33 +490,39 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
     // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
     const handlePageHide = () => {
-      const loc = view.lastLocation;
-      if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+      saveCurrentPosition();
     };
     window.addEventListener("pagehide", handlePageHide);
 
     const t0 = performance.now();
-    let disposed = false;
     view.open(bookBlob)
       .then(async () => {
         if (disposed) return;
-        if (location.hostname === 'localhost') console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${view.book.sections.length}`);
-        view.renderer.setAttribute("flow", settingsRef.current.flow);
-        view.renderer.setAttribute("max-inline-size", maxInlineSize);
-        view.renderer.setAttribute("gap", gap);
-        if (margin) view.renderer.setAttribute("margin", margin);
-        if (maxBlockSize) view.renderer.setAttribute("max-block-size", maxBlockSize);
+        const book = view.book;
+        const renderer = view.renderer;
+        if (!book || !renderer) return;
+        if (location.hostname === "localhost") console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${book.sections.length}`);
+        renderer.setAttribute("flow", settingsRef.current.flow);
+        renderer.setAttribute("max-inline-size", maxInlineSize);
+        renderer.setAttribute("gap", gap);
+        if (margin) renderer.setAttribute("margin", margin);
+        if (maxBlockSize) renderer.setAttribute("max-block-size", maxBlockSize);
 
-        // Navigate to position first — show book immediately
-        if (initialPosition) {
-          view.goTo(initialPosition);
-        } else {
-          view.renderer.next();
+        // Finish initial navigation before making the reader interactive.
+        await (initialPosition
+          ? performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
+          : enqueueNavigation(
+            () => view.goToTextStart ? view.goToTextStart() : view.goTo(0),
+            { persist: false, allowDuringInit: true },
+          ));
+        if (!disposed) {
+          interactiveRef.current = true;
+          notifyReady();
         }
 
         // Count total characters — use pre-computed charCount if available (FB2),
         // otherwise fall back to incremental createDocument() in batches
-        const sections = view.book.sections;
+        const sections = book.sections;
         const hasCharCount = sections.some((s: { charCount?: number }) => s.charCount != null);
         if (hasCharCount) {
           totalCharsRef.current = sections.reduce((sum: number, s: { charCount?: number }) => sum + (s.charCount || 0), 0);
@@ -454,19 +551,22 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
           }, 100);
         }
       })
-      .catch((err: Error) => console.error("Failed to open book:", err));
+      .catch((err: Error) => console.error("Failed to open book:", err))
+      .finally(() => {
+        if (!disposed && !interactiveRef.current) {
+          interactiveRef.current = true;
+          notifyReady();
+        }
+      });
 
     return () => {
       disposed = true;
       clearTimeout(charCountTimerRef.current);
-      if (touchActiveTimerRef.current) {
-        clearTimeout(touchActiveTimerRef.current);
-        touchActiveTimerRef.current = undefined;
-      }
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("pagehide", handlePageHide);
-      try { view.renderer?.destroy(); } catch {}
+      view.performNavigation = undefined;
+      try { view.renderer?.destroy?.(); } catch {}
       try { view.close(); } catch {}
       view.remove();
       viewRef.current = null;
