@@ -1,9 +1,8 @@
 import { RefObject, useEffect } from "react";
-import type { ReaderViewElement } from "../types/reader";
-import { getFoliateView } from "../utils/reader-view";
+import type { EbookReaderHandle } from "../types/reader";
 
 export function useReaderLifecycle(
-  containerRef: RefObject<HTMLDivElement | null>,
+  readerRef: RefObject<EbookReaderHandle | null>,
   bookReady: boolean,
   resumePosition: string | number | null,
   clearResumePosition: () => void,
@@ -11,14 +10,12 @@ export function useReaderLifecycle(
   useEffect(() => {
     if (resumePosition == null) return;
     if (!bookReady) return;
-    const view = getFoliateView(containerRef);
-    if (!view) return;
+    const reader = readerRef.current;
+    if (!reader) return;
     let cancelled = false;
     void (async () => {
       try {
-        await (view.performNavigation
-          ? view.performNavigation({ type: "goTo", target: resumePosition })
-          : view.goTo(resumePosition));
+        await reader.performNavigation({ type: "goTo", target: resumePosition });
         if (!cancelled) clearResumePosition();
       } catch (err) {
         if (location.hostname === "localhost") {
@@ -29,18 +26,17 @@ export function useReaderLifecycle(
     return () => {
       cancelled = true;
     };
-  }, [bookReady, clearResumePosition, containerRef, resumePosition]);
+  }, [bookReady, clearResumePosition, readerRef, resumePosition]);
 
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState !== "visible") return;
       if (!bookReady) return;
-      const view = getFoliateView(containerRef) as ReaderViewElement | null;
-      if (!view || !view.renderer) {
+      if (!readerRef.current?.hasRenderer()) {
         window.location.reload();
       }
     };
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
-  }, [bookReady, containerRef]);
+  }, [bookReady, readerRef]);
 }

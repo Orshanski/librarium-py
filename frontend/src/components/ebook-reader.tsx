@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ReaderSettings, THEME_STYLES, DesktopTapZones, TapAction, DEFAULT_DESKTOP_TAP_ZONES } from "./reader-toolbar";
 import { sanitizeHtml } from "../utils/sanitize-html";
-import type { ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
+import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";
@@ -192,7 +192,10 @@ function addCustomEventListener<T>(
   return () => target.removeEventListener(type, wrapped as EventListener);
 }
 
-export default function EbookReader({ bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true, isMobile = false }: EbookReaderProps) {
+const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function EbookReader(
+  { bookBlob, initialPosition, settings, onCenterTap, callbacks, maxInlineSize = "1000px", gap = "5%", margin, maxBlockSize, showFooter = true, isMobile = false }: EbookReaderProps,
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<ReaderViewElement | null>(null);
   const callbacksRef = useRef(callbacks);
@@ -201,6 +204,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
   onCenterTapRef.current = onCenterTap;
   const settingsRef = useRef(settings);
   const configRef = useRef({ maxInlineSize, gap, margin, maxBlockSize, showFooter, isMobile });
+  const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
   const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
   const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
   const lastClickXRef = useRef(0);
@@ -239,6 +243,12 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
     if (configRef.current.maxBlockSize) view.renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
     recalcPages();
   }, [settings, gap, isMobile, margin, maxBlockSize, maxInlineSize, showFooter]);
+
+  useImperativeHandle(ref, () => ({
+    getToc: () => viewRef.current?.book?.toc ?? [],
+    hasRenderer: () => Boolean(viewRef.current?.renderer),
+    performNavigation: (request: ReaderNavigationRequest) => performNavigationRef.current(request),
+  }), []);
 
   // Reader instance is recreated only when the book blob changes; runtime config is read from refs.
   useEffect(() => {
@@ -314,7 +324,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       });
     };
 
-    view.performNavigation = performNavigation;
+    performNavigationRef.current = performNavigation;
 
     const resolveReaderAction = (input: NormalizedReaderInput): ReaderAction => {
       if (input.kind === "keyboard") {
@@ -545,7 +555,7 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       removeLoadListener();
       removeTapListener();
       removeLinkListener();
-      view.performNavigation = undefined;
+      performNavigationRef.current = async () => {};
       try { view.renderer?.destroy?.(); } catch {}
       try { view.close(); } catch {}
       view.remove();
@@ -609,4 +619,6 @@ export default function EbookReader({ bookBlob, initialPosition, settings, onCen
       )}
     </>
   );
-}
+});
+
+export default EbookReader;

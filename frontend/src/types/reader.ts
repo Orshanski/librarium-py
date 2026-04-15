@@ -14,6 +14,12 @@ export type ReaderNavigationRequest =
   | { type: "prev" | "next"; persist?: boolean; allowDuringInit?: boolean }
   | { type: "goTo"; target: string | number; persist?: boolean; allowDuringInit?: boolean };
 
+export interface EbookReaderHandle {
+  getToc: () => unknown[];
+  hasRenderer: () => boolean;
+  performNavigation: (request: ReaderNavigationRequest) => Promise<void>;
+}
+
 export interface ReaderViewElement extends HTMLElement {
   book?: {
     toc?: unknown[];
@@ -28,7 +34,6 @@ export interface ReaderViewElement extends HTMLElement {
   lastLocation?: ReaderLocation;
   next: () => Promise<void>;
   open: (book: Blob) => Promise<void>;
-  performNavigation?: (request: ReaderNavigationRequest) => Promise<void>;
   prev: () => Promise<void>;
   renderer?: {
     destroy?: () => void;

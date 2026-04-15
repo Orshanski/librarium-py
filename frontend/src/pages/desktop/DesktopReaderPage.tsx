@@ -5,14 +5,14 @@ import EbookReader from "../../components/ebook-reader";
 import ReaderToolbar, { THEME_STYLES, TocItem } from "../../components/reader-toolbar";
 import { useReaderStorage } from "../../hooks/useReaderStorage";
 import { useReaderLifecycle } from "../../hooks/useReaderLifecycle";
-import type { ReaderRelocateDetail, ReaderViewElement } from "../../types/reader";
+import type { EbookReaderHandle, ReaderRelocateDetail } from "../../types/reader";
 import { exitReader } from "../../utils/readerFlag";
-import { getFoliateView, goToReaderHref } from "../../utils/reader-view";
 
 export default function DesktopReaderPage() {
   const { id, format } = useParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+  const readerRef = useRef<EbookReaderHandle | null>(null);
 
   const {
     bookBlob, bookTitle, settings, initialPosition, resumePosition,
@@ -35,16 +35,15 @@ export default function DesktopReaderPage() {
   );
 
   const handleTocSelect = useCallback(async (href: string) => {
-    await goToReaderHref(containerRef, href, handleSavePosition);
-  }, [handleSavePosition]);
+    await readerRef.current?.performNavigation({ type: "goTo", target: href });
+  }, []);
 
   const handleReady = useCallback(() => {
-    const view = getFoliateView(containerRef) as (ReaderViewElement & { book?: { toc?: TocItem[] } }) | null;
-    setTocItems((view?.book?.toc ?? []) as TocItem[]);
+    setTocItems((readerRef.current?.getToc() ?? []) as TocItem[]);
     setBookReady(true);
   }, []);
 
-  useReaderLifecycle(containerRef, bookReady, resumePosition, clearResumePosition);
+  useReaderLifecycle(readerRef, bookReady, resumePosition, clearResumePosition);
 
   if (loading && !bookBlob) {
     return (
@@ -91,6 +90,7 @@ export default function DesktopReaderPage() {
       )}
       <div style={{ width: "100%", height: "100%", visibility: bookReady ? "visible" : "hidden" }}>
         <EbookReader
+          ref={readerRef}
           bookBlob={bookBlob}
           initialPosition={initialPosition as string | null}
           settings={settings}
