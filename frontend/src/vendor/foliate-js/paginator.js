@@ -574,6 +574,7 @@ export class Paginator extends HTMLElement {
             doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
             doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
             doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this))
+            doc.addEventListener('pointerup', this.#onPointerUp.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
@@ -931,6 +932,21 @@ export class Paginator extends HTMLElement {
         // via flag, not null — #onTouchEnd may still fire and reads state.
         this.#touchScrolled = false
         if (this.#touchState) this.#touchState.cancelled = true
+    }
+    // Desktop mouse path: pointerup with pointerType 'mouse' emits 'tap'
+    // so ebook-reader's unified dispatchInput pipeline handles it.
+    // Touch pointerup is ignored — touch path emits 'tap' via #onTouchEnd.
+    #onPointerUp(e) {
+        if (e.pointerType !== 'mouse') return
+        const a = e.target?.closest?.('a[href]')
+        if (a) return
+        this.dispatchEvent(new CustomEvent('tap', {
+            detail: {
+                screenX: e.screenX,
+                screenY: e.screenY,
+                target: e.target instanceof Element ? e.target : e.target?.parentElement ?? null,
+            },
+        }))
     }
     #onTouchEnd(e) {
         if (!this.#touchState || this.#touchState.cancelled) {
