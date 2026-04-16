@@ -1,8 +1,3 @@
-interface ReaderLocation {
-  cfi?: string;
-  fraction?: number;
-}
-
 export interface ReaderViewElement extends HTMLElement {
   book?: {
     toc?: unknown[];
@@ -14,7 +9,7 @@ export interface ReaderViewElement extends HTMLElement {
   goRight: () => Promise<void>;
   goTo: (target: string | number) => Promise<void>;
   goToTextStart?: () => Promise<void>;
-  lastLocation?: ReaderLocation;
+  lastLocation?: { cfi?: string; fraction?: number };
   next: () => Promise<void>;
   open: (book: Blob) => Promise<void>;
   prev: () => Promise<void>;
