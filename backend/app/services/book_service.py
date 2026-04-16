@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from typing import TypedDict
 
 from ..config import LIBRARY_DIR, db_path_for
 from ..dal import books as dal
@@ -11,15 +12,19 @@ from . import thumb
 log = logging.getLogger("librarium.books")
 
 
+class UploadResult(TypedDict):
+    format: str
+    size: int
+
+
 def _maybe_linearize(path: str, ext: str) -> None:
     if ext == "pdf":
         linearize_pdf_in_place(path)
 
 
-def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> dict:
+def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
     """Write a book file to disk and register in DB.
 
-    Returns {"format": str, "size": int}.
     Rollback: removes file on DB failure.
     """
     fmt = ext.upper()
@@ -39,24 +44,31 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     _maybe_linearize(file_path, ext)
 
     try:
-        dal.add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), os.path.getsize(file_path))
+        file_size = os.path.getsize(file_path)
+        dal.add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
     except Exception:
         os.remove(file_path)
         raise
 
-    return {"format": fmt, "size": len(content)}
+    return {"format": fmt, "size": file_size}
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
-    """Delete a book format file from disk and DB."""
+    """Delete a book format: DB first, then FS cleanup (best-effort)."""
     row = dal.get_book_file(db, book_id, fmt)
     if not row:
         raise LookupError("Not found")
 
-    file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
-    if os.path.isfile(file_path):
-        os.remove(file_path)
+    # DB first
     dal.delete_book_file(db, row["id"])
+
+    # FS cleanup (best-effort)
+    file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
+    try:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+    except OSError:
+        log.warning("Failed to remove file %s after DB delete", file_path)
 
 
 def delete_book(db: sqlite3.Connection, book_id: int) -> None:
