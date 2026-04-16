@@ -95,7 +95,7 @@ def test_create_book_rollback_on_move_failure(client):
     no_raise_client = TestClient(app, raise_server_exceptions=False, cookies=client.cookies)
     no_raise_client.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
-    with patch("app.routers.upload.shutil.move", side_effect=OSError("disk full")):
+    with patch("app.services.upload_service.shutil.move", side_effect=OSError("disk full")):
         resp = no_raise_client.post("/api/books/create", json={
             "tempId": temp_id,
             "metadata": {"title": "Should Fail", "authors": "Nobody"}

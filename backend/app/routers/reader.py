@@ -52,8 +52,7 @@ def _set_device_cookie(response, device_id: str):
 
 
 @router.get("/api/reader/settings")
-def api_get_settings(request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def api_get_settings(request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     device_id = _get_or_create_device_id(request)
     settings = get_reader_settings(db, user["userId"], device_id)
     response = JSONResponse({"settings": settings})
@@ -62,8 +61,7 @@ def api_get_settings(request: Request, db: sqlite3.Connection = Depends(db_sessi
 
 
 @router.put("/api/reader/settings")
-def api_save_settings(body: ReaderSettingsBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def api_save_settings(body: ReaderSettingsBody, request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     device_id = _get_or_create_device_id(request)
     save_reader_settings(db, user["userId"], device_id, body.settings)
     response = JSONResponse({"ok": True})
@@ -72,15 +70,13 @@ def api_save_settings(body: ReaderSettingsBody, request: Request, db: sqlite3.Co
 
 
 @router.get("/api/reader/progress/{book_id}")
-def api_get_progress(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def api_get_progress(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     progress = get_reading_progress(db, user["userId"], book_id)
     return progress
 
 
 @router.put("/api/reader/progress/{book_id}")
-def api_save_progress(book_id: int, body: ReadingProgressBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def api_save_progress(book_id: int, body: ReadingProgressBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     return save_reading_progress(
         db, user["userId"], book_id,
         body.position, body.last_device, body.last_format, body.fraction,
