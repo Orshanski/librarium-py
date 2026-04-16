@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { THEME_STYLES, ReaderSettings } from "./reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { THEME_STYLES } from "../constants/reader-theme";
 
 interface FootnotePopupProps {
   html: string | null;

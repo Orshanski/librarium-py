@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { colors, fonts } from "../../theme";
-import { ReaderToolbarProps, ReaderSettings, flattenToc } from "../reader-toolbar";
+import type { ReaderToolbarProps } from "../../types/reader-toolbar";
+import type { ReaderSettings } from "../../types/reader-settings";
+import { flattenToc } from "../../utils/reader-toc";
 import ReaderSettingsPanel from "../reader-settings-panel";
 
 const btnStyle: React.CSSProperties = {

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { TocItem } from "../components/reader-toolbar";
+import type { TocItem } from "../types/reader-toc";
 import { useReaderSettings } from "./useReaderSettings";
 import { useReaderPosition } from "./useReaderPosition";
 import { useBookLoader } from "./useBookLoader";

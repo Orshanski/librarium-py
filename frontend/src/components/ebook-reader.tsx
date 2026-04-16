@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FootnotePopup from "./FootnotePopup";
-import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { THEME_STYLES } from "../constants/reader-theme";
 import { applySettings } from "../utils/reader-styling";
 import { addCustomEventListener } from "../utils/reader-input";
 import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reader-footnote-handler";

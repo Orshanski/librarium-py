@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { colors } from "../theme";
-import { ReaderSettings, FONT_OPTIONS } from "./reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { FONT_OPTIONS } from "../constants/reader-defaults";
 
 const labelStyle: React.CSSProperties = {
   fontSize: 11,

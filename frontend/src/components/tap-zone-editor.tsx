@@ -1,9 +1,6 @@
 import { colors } from "../theme";
-import {
-  TapAction,
-  DesktopTapZones,
-  DEFAULT_DESKTOP_TAP_ZONES,
-} from "./reader-toolbar";
+import type { TapAction, DesktopTapZones } from "../types/reader-settings";
+import { DEFAULT_DESKTOP_TAP_ZONES } from "../constants/reader-defaults";
 
 const ACTION_COLORS: Record<TapAction, string> = {
   next: "rgba(76, 175, 80, 0.25)",

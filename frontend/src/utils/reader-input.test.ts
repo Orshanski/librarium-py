@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { resolveDesktopZone, estimateCharsPerPage } from "./reader-input";
-import type { DesktopTapZones, ReaderSettings } from "../components/reader-toolbar";
+import type { DesktopTapZones, ReaderSettings } from "../types/reader-settings";
 
 // Inline test fixture — avoids importing DEFAULT_DESKTOP_TAP_ZONES which
 // transitively pulls in desktop-reader-toolbar (module-scope matchMedia).

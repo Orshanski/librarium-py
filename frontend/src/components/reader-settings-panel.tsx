@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { colors } from "../theme";
-import { ReaderSettings, DEFAULT_DESKTOP_TAP_ZONES, DEFAULT_PDF_TAP_ZONES, TapAction } from "./reader-toolbar";
+import type { ReaderSettings, TapAction } from "../types/reader-settings";
+import { DEFAULT_DESKTOP_TAP_ZONES, DEFAULT_PDF_TAP_ZONES } from "../constants/reader-defaults";
 import ReaderGeneralSettings from "./reader-general-settings";
 import { DesktopTapZoneEditor } from "./tap-zone-editor";
 

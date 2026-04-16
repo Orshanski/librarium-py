@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { colors, fonts, layout } from "../../theme";
-import { ReaderToolbarProps, ReaderSettings, FONT_OPTIONS, flattenToc } from "../reader-toolbar";
+import type { ReaderToolbarProps } from "../../types/reader-toolbar";
+import type { ReaderSettings } from "../../types/reader-settings";
+import { FONT_OPTIONS } from "../../constants/reader-defaults";
+import { flattenToc } from "../../utils/reader-toc";
 
 export default function MobileReaderToolbar({
   bookTitle,

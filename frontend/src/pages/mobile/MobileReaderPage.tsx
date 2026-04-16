@@ -4,7 +4,7 @@ import EbookReader from "../../components/ebook-reader";
 import ReaderLoadingScreen from "../../components/ReaderLoadingScreen";
 import ReaderErrorScreen from "../../components/ReaderErrorScreen";
 import MobileReaderToolbar from "../../components/mobile/mobile-reader-toolbar";
-import { THEME_STYLES } from "../../components/reader-toolbar";
+import { THEME_STYLES } from "../../constants/reader-theme";
 import { useReaderPage } from "../../hooks/useReaderPage";
 import { exitReader } from "../../utils/readerFlag";
 

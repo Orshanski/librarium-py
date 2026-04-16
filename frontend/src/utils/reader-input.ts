@@ -1,4 +1,4 @@
-import type { DesktopTapZones, TapAction, ReaderSettings } from "../components/reader-toolbar";
+import type { DesktopTapZones, TapAction, ReaderSettings } from "../types/reader-settings";
 
 export type TapZoneResult = TapAction | "toolbar";
 
