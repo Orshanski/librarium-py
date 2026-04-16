@@ -22,7 +22,8 @@ log = logging.getLogger("librarium.upload")
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
 
 
-def _maybe_linearize(path: str, ext: str) -> None:
+def maybe_linearize(path: str, ext: str) -> None:
+    """Linearize PDF in place if ext is pdf. No-op for other formats."""
     if ext == "pdf":
         linearize_pdf_in_place(path)
 
@@ -193,7 +194,7 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
         shutil.move(src_file, dst_file)
         moved_paths.append(dst_file)
 
-        _maybe_linearize(dst_file, ext)
+        maybe_linearize(dst_file, ext)
 
         file_size = os.path.getsize(dst_file)
         add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
@@ -251,7 +252,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
         dst = os.path.join(book_dir, f"book.{ext}")
         shutil.move(src, dst)
 
-        _maybe_linearize(dst, ext)
+        maybe_linearize(dst, ext)
 
         file_size = os.path.getsize(dst)
         add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)

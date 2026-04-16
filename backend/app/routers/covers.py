@@ -9,18 +9,17 @@ from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
 
 from ..auth import get_current_user, require_admin
-from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
+from ..config import LIBRARY_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 from ..database import db_session
 from ..dal.books import get_book_by_id
 from ..services import cover_service
 from ..services.cover_service import find_cover
+from ..services.thumb import THUMBS_DIR
 
 log = logging.getLogger("librarium.covers")
 
 router = APIRouter(tags=["covers"])
 
-THUMBS_DIR = DATA_DIR / "thumbs"
-THUMBS_DIR.mkdir(exist_ok=True)
 THUMB_HEIGHT = 300
 
 

@@ -11,13 +11,12 @@ from ..dal import books as dal
 from ..database import db_session
 from ..services import book_service
 from ..services.entity_resolver import resolve_authors, resolve_tags, resolve_series
+from ..services.upload_service import BOOK_EXTENSIONS
 from .params import parse_ids
 
 log = logging.getLogger("librarium.books")
 
 router = APIRouter(prefix="/api/books", tags=["books"])
-
-ALLOWED_FORMATS = {"fb2", "epub", "pdf"}
 
 
 class UpdateBookBody(BaseModel):
@@ -80,7 +79,7 @@ def update_book(book_id: int, body: UpdateBookBody, user: dict = Depends(require
 @router.post("/{book_id}/files")
 async def upload_file(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
-    if ext not in ALLOWED_FORMATS:
+    if ext not in BOOK_EXTENSIONS:
         return JSONResponse({"error": f"Unsupported format: {ext}"}, status_code=400)
     content = await file.read()
     if len(content) > MAX_BOOK_SIZE:

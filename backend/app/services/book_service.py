@@ -6,8 +6,8 @@ from typing import TypedDict
 
 from ..config import LIBRARY_DIR, db_path_for
 from ..dal import books as dal
-from ..pdf_linearize import linearize_pdf_in_place
 from . import thumb
+from .upload_service import maybe_linearize
 
 log = logging.getLogger("librarium.books")
 
@@ -15,11 +15,6 @@ log = logging.getLogger("librarium.books")
 class UploadResult(TypedDict):
     format: str
     size: int
-
-
-def _maybe_linearize(path: str, ext: str) -> None:
-    if ext == "pdf":
-        linearize_pdf_in_place(path)
 
 
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
@@ -41,7 +36,7 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     with open(file_path, "wb") as f:
         f.write(content)
 
-    _maybe_linearize(file_path, ext)
+    maybe_linearize(file_path, ext)
 
     try:
         file_size = os.path.getsize(file_path)
