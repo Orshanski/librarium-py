@@ -49,45 +49,42 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
-    """Delete a book format: DB first, then FS cleanup (best-effort)."""
+    """Delete a book format file. FS first, then DB.
+
+    Intentionally FS-first: if FS fails, DB is untouched and state is consistent.
+    DB-first was tried and reverted — it creates false transactional guarantees
+    that break down at the DB commit boundary (db_session commits after handler return).
+    """
     row = dal.get_book_file(db, book_id, fmt)
     if not row:
         raise LookupError("Not found")
 
-    # DB first
-    dal.delete_book_file(db, row["id"])
-
-    # FS cleanup (best-effort)
     file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
-    try:
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-    except OSError:
-        log.warning("Failed to remove file %s after DB delete", file_path)
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+    dal.delete_book_file(db, row["id"])
 
 
 def delete_book(db: sqlite3.Connection, book_id: int) -> None:
-    """Delete book: DB first (CASCADE), then FS cleanup (best-effort).
+    """Delete book. FS first, then DB.
 
-    DB first policy: if FS cleanup fails after DB delete, book is gone from DB
-    and orphan files don't block the user. Reverse order risks losing files
-    if DB delete fails.
+    Intentionally FS-first: if FS fails, DB is untouched and state is consistent.
+    If DB fails after FS (extremely unlikely with SQLite CASCADE),
+    orphan files remain but user can retry.
+    DB-first and FSTransaction approaches were tried and reverted — they create
+    false transactional guarantees that break at the db_session commit boundary.
     """
     if not dal.book_exists(db, book_id):
         raise LookupError("Book not found")
 
-    # DB first
+    book_dir = str(LIBRARY_DIR / str(book_id))
+    if os.path.isdir(book_dir):
+        shutil.rmtree(book_dir)
+
     dal.delete_book(db, book_id)
 
-    # FS cleanup (best-effort)
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    try:
-        if os.path.isdir(book_dir):
-            shutil.rmtree(book_dir)
-    except OSError:
-        log.warning("Failed to remove book dir %s after DB delete", book_dir)
-
+    # Thumb is cache — best-effort, after the critical path
     try:
         thumb.invalidate(book_id)
     except OSError:
-        log.warning("Failed to remove thumb for book %d after DB delete", book_id)
+        log.warning("Failed to remove thumb for book %d", book_id)
