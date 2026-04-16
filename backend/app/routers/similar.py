@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user
 from ..database import db_session
@@ -13,8 +13,7 @@ router = APIRouter(tags=["similar"])
 
 
 @router.get("/api/books/{book_id}/similar")
-def get_similar(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    get_current_user(request)
+def get_similar(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
 
     book = get_book_by_id(db, book_id)
     if not book:

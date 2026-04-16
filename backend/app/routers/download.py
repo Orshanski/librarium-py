@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse, Response
 from ..auth import get_current_user
 from ..config import LIBRARY_DIR
@@ -11,8 +11,7 @@ router = APIRouter(tags=["download"])
 
 
 @router.get("/api/books/{book_id}/download")
-def download_book(book_id: int, format: str, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    get_current_user(request)
+def download_book(book_id: int, format: str, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     book = get_book_by_id(db, book_id)
     if not book:
         return Response(status_code=404)

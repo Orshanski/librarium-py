@@ -6,7 +6,7 @@ import sqlite3
 import uuid
 import shutil
 import zipfile
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 
 from pydantic import BaseModel, Field
@@ -52,8 +52,7 @@ class AddFormatBody(BaseModel):
 
 
 @router.post("/api/upload")
-async def upload_file(request: Request, file: UploadFile = File(...), db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+async def upload_file(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
 
     filename = file.filename or "unknown"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -169,8 +168,7 @@ def _find_temp_covers(temp_id: str) -> list[str]:
 
 
 @router.delete("/api/uploads/{temp_id}")
-def cleanup_temp(temp_id: str, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    require_admin(request)
+def cleanup_temp(temp_id: str, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not _validate_temp_id(temp_id):
         return JSONResponse({"error": "Invalid temp_id"}, status_code=400)
     book_file = _find_temp_file(temp_id)
@@ -182,8 +180,7 @@ def cleanup_temp(temp_id: str, request: Request, db: sqlite3.Connection = Depend
 
 
 @router.post("/api/books/create")
-def create_book_from_upload(body: CreateBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def create_book_from_upload(body: CreateBookBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
 
     temp_id = body.tempId
     meta = body.metadata.model_dump()
@@ -270,8 +267,7 @@ def create_book_from_upload(body: CreateBookBody, request: Request, db: sqlite3.
 
 
 @router.post("/api/books/{book_id}/add-format")
-def add_format(book_id: int, body: AddFormatBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def add_format(book_id: int, body: AddFormatBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     temp_id = body.tempId
 
     # Find temp file (exact match)

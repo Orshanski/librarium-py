@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
@@ -13,14 +13,12 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 
 
 @router.get("")
-def list_authors(request: Request, db: sqlite3.Connection = Depends(db_session), tagIds: str = "", language: str = ""):
-    user = get_current_user(request)
+def list_authors(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), tagIds: str = "", language: str = ""):
     return dal.get_authors(db, parse_ids(tagIds), language or None, user_id=user["userId"])
 
 
 @router.get("/{author_id}")
-def get_author(author_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    get_current_user(request)
+def get_author(author_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     result = dal.get_author_by_id(db, author_id)
     if not result:
         return JSONResponse({"error": "Not found"}, status_code=404)
@@ -32,8 +30,7 @@ class RenameBody(BaseModel):
 
 
 @router.put("/{author_id}")
-def rename_author(author_id: int, body: RenameBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def rename_author(author_id: int, body: RenameBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     dal.rename_author(db, author_id, body.name.strip())
     log.info("Renamed author=%d to=%s by user_id=%s", author_id, body.name.strip(), user["userId"])
     return {"ok": True}
@@ -44,8 +41,7 @@ class MergeBody(BaseModel):
 
 
 @router.post("/{author_id}/merge")
-def merge_author(author_id: int, body: MergeBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def merge_author(author_id: int, body: MergeBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if body.sourceId == author_id:
         return JSONResponse({"error": "Нельзя объединить с самим собой"}, status_code=400)
     dal.merge_authors(db, author_id, body.sourceId)
@@ -55,8 +51,7 @@ def merge_author(author_id: int, body: MergeBody, request: Request, db: sqlite3.
 
 
 @router.delete("/{author_id}")
-def delete_author(author_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def delete_author(author_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     err = dal.delete_author(db, author_id)
     if err == "not_found":
         return JSONResponse({"error": "Автор не найден"}, status_code=404)

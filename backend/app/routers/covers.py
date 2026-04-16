@@ -5,7 +5,7 @@ import os
 import re
 import sqlite3
 
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import FileResponse, Response, JSONResponse
 from PIL import Image
 
@@ -59,8 +59,7 @@ def _find_cover(book_dir: str) -> str | None:
 
 
 @router.get("/api/covers/{book_id}")
-def get_cover(book_id: int, request: Request, full: int = 0, db: sqlite3.Connection = Depends(db_session)):
-    get_current_user(request)
+def get_cover(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), full: int = 0):
     book_dir = str(LIBRARY_DIR / str(book_id))
     cover = _find_cover(book_dir)
     if not cover:
@@ -81,8 +80,7 @@ def get_cover(book_id: int, request: Request, full: int = 0, db: sqlite3.Connect
 
 # --- POST: upload cover to temp ---
 @router.post("/api/books/{book_id}/cover")
-async def upload_cover(book_id: int, request: Request, file: UploadFile = File(...), db: sqlite3.Connection = Depends(db_session)):
-    require_admin(request)
+async def upload_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     parts = (file.filename or "cover.jpg").rsplit(".", 1)
@@ -119,8 +117,7 @@ async def upload_cover(book_id: int, request: Request, file: UploadFile = File(.
 
 # --- GET: serve temp cover preview ---
 @router.get("/api/uploads/cover/{temp_id}")
-def get_temp_cover(temp_id: str, request: Request):
-    get_current_user(request)
+def get_temp_cover(temp_id: str, user: dict = Depends(get_current_user)):
     if not re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id):
         return Response(status_code=400)
     for f in os.listdir(str(UPLOADS_DIR)):
@@ -131,8 +128,7 @@ def get_temp_cover(temp_id: str, request: Request):
 
 # --- PUT: commit temp cover → library ---
 @router.put("/api/books/{book_id}/cover")
-def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def commit_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not get_book_by_id(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     book_dir = str(LIBRARY_DIR / str(book_id))
@@ -181,8 +177,7 @@ def commit_cover(book_id: int, request: Request, db: sqlite3.Connection = Depend
 
 # --- DELETE: discard temp cover ---
 @router.delete("/api/books/{book_id}/cover")
-def discard_cover(book_id: int, request: Request):
-    require_admin(request)
+def discard_cover(book_id: int, user: dict = Depends(require_admin)):
     for f in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
         os.remove(f)
     return JSONResponse({"ok": True})

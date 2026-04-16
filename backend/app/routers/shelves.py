@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ..auth import get_current_user
@@ -22,8 +22,7 @@ class ShelfBookBody(BaseModel):
 
 
 @router.get("")
-def list_shelves(request: Request, db: sqlite3.Connection = Depends(db_session), bookId: int | None = None):
-    user = get_current_user(request)
+def list_shelves(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), bookId: int | None = None):
     shelves = dal.get_shelves(db, user["userId"])
     result: dict = {"shelves": shelves}
     if bookId is not None:
@@ -33,16 +32,14 @@ def list_shelves(request: Request, db: sqlite3.Connection = Depends(db_session),
 
 
 @router.post("")
-def create_shelf(body: ShelfBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def create_shelf(body: ShelfBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     shelf_id = dal.create_shelf(db, user["userId"], body.name)
     log.info("Created shelf=%s by user_id=%s", body.name, user["userId"])
     return {"id": shelf_id}
 
 
 @router.get("/{shelf_id}")
-def get_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def get_shelf(shelf_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     result = dal.get_shelf_by_id(db, shelf_id, user["userId"])
     if not result:
         return JSONResponse({"error": "Not found"}, status_code=404)
@@ -50,8 +47,7 @@ def get_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depends(
 
 
 @router.put("/{shelf_id}")
-def update_shelf(shelf_id: int, body: ShelfBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def update_shelf(shelf_id: int, body: ShelfBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.update_shelf(db, shelf_id, body.name)
@@ -59,8 +55,7 @@ def update_shelf(shelf_id: int, body: ShelfBody, request: Request, db: sqlite3.C
 
 
 @router.delete("/{shelf_id}")
-def delete_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def delete_shelf(shelf_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.delete_shelf(db, shelf_id)
@@ -69,8 +64,7 @@ def delete_shelf(shelf_id: int, request: Request, db: sqlite3.Connection = Depen
 
 
 @router.post("/{shelf_id}/books")
-def add_book(shelf_id: int, body: ShelfBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def add_book(shelf_id: int, body: ShelfBookBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.add_book_to_shelf(db, shelf_id, body.bookId)
@@ -78,8 +72,7 @@ def add_book(shelf_id: int, body: ShelfBookBody, request: Request, db: sqlite3.C
 
 
 @router.delete("/{shelf_id}/books/{book_id}")
-def remove_book(shelf_id: int, book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def remove_book(shelf_id: int, book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     if not dal.shelf_exists(db, shelf_id, user["userId"]):
         return JSONResponse({"error": "Not found"}, status_code=404)
     dal.remove_book_from_shelf(db, shelf_id, book_id)

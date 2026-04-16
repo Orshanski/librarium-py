@@ -3,7 +3,7 @@ import os
 import shutil
 import sqlite3
 
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -34,10 +34,9 @@ class UpdateBookBody(BaseModel):
 
 
 @router.get("")
-def list_books(request: Request, db: sqlite3.Connection = Depends(db_session), sort: str = "added_desc", cursor: int = 0, pageSize: int = 50,
+def list_books(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), sort: str = "added_desc", cursor: int = 0, pageSize: int = 50,
                authorIds: str = "", tagIds: str = "", seriesIds: str = "", language: str = ""):
     pageSize = min(pageSize, 100)
-    user = get_current_user(request)
     filters: dict = {"userId": user["userId"]}
     if ids := parse_ids(authorIds):
         filters["authorIds"] = ids
@@ -51,8 +50,7 @@ def list_books(request: Request, db: sqlite3.Connection = Depends(db_session), s
 
 
 @router.get("/{book_id}")
-def get_book(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = get_current_user(request)
+def get_book(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     book = dal.get_book_by_id(db, book_id, user["userId"])
     if not book:
         return JSONResponse({"error": "Not found"}, status_code=404)
@@ -62,11 +60,10 @@ def get_book(book_id: int, request: Request, db: sqlite3.Connection = Depends(db
 
 
 @router.put("/{book_id}")
-def update_book(book_id: int, body: UpdateBookBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
+def update_book(book_id: int, body: UpdateBookBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     from ..dal.authors import get_or_create_author
     from ..dal.series import get_or_create_series
     from ..dal.tags import get_or_create_tag
-    user = require_admin(request)
     if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     data = body.model_dump(exclude_unset=True)
@@ -86,8 +83,7 @@ def update_book(book_id: int, body: UpdateBookBody, request: Request, db: sqlite
 
 
 @router.post("/{book_id}/files")
-async def upload_file(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
-    user = require_admin(request)
+async def upload_file(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
@@ -117,8 +113,7 @@ async def upload_file(book_id: int, request: Request, db: sqlite3.Connection = D
 
 
 @router.delete("/{book_id}/files")
-def delete_file(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session), format: str = ""):
-    user = require_admin(request)
+def delete_file(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), format: str = ""):
     fmt = format.upper()
     if not fmt:
         return JSONResponse({"error": "format required"}, status_code=400)
@@ -134,8 +129,7 @@ def delete_file(book_id: int, request: Request, db: sqlite3.Connection = Depends
 
 
 @router.delete("/{book_id}")
-def delete_book(book_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def delete_book(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not dal.book_exists(db, book_id):
         return JSONResponse({"error": "Book not found"}, status_code=404)
 

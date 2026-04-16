@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 import requests
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
 from ..auth import get_current_user
@@ -19,8 +19,7 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Librarium/1.0)"}
 
 
 @router.get("/search")
-def search(request: Request, q: str = "", providers: str = "litres"):
-    get_current_user(request)
+def search(user: dict = Depends(get_current_user), q: str = "", providers: str = "litres"):
     if not q.strip():
         return {"results": []}
     provider_list = [p.strip() for p in providers.split(",") if p.strip()]
@@ -37,8 +36,7 @@ def _is_allowed_domain(url: str) -> bool:
 
 
 @router.get("/cover-proxy")
-def cover_proxy(request: Request, url: str = ""):
-    get_current_user(request)
+def cover_proxy(user: dict = Depends(get_current_user), url: str = ""):
     if not url:
         return Response(status_code=400)
 

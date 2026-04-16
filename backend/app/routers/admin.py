@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -57,22 +57,19 @@ class UpdateUserBody(BaseModel):
 
 
 @router.get("/users")
-def list_users(request: Request, db: sqlite3.Connection = Depends(db_session)):
-    require_admin(request)
+def list_users(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     return {"users": users_dal.get_all_users(db)}
 
 
 @router.post("/users")
-def create_user(body: CreateUserBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def create_user(body: CreateUserBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     uid = users_dal.create_user(db, body.username, body.password, body.role, body.displayName, body.email)
     log.info("Created user=%s role=%s by user_id=%s", body.username, body.role, user["userId"])
     return {"id": uid}
 
 
 @router.put("/users/{user_id}")
-def update_user(user_id: int, body: UpdateUserBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def update_user(user_id: int, body: UpdateUserBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     data = body.model_dump(exclude_none=True)
     if data.get("role") == "reader":
         if users_dal.is_last_admin(db, user_id):
@@ -83,8 +80,7 @@ def update_user(user_id: int, body: UpdateUserBody, request: Request, db: sqlite
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: int, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def delete_user(user_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if user["userId"] == user_id:
         return JSONResponse({"error": "Нельзя удалить самого себя"}, status_code=400)
     if users_dal.is_last_admin(db, user_id):
@@ -102,8 +98,7 @@ ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pas
 
 
 @router.get("/settings")
-def get_settings(request: Request, db: sqlite3.Connection = Depends(db_session)):
-    require_admin(request)
+def get_settings(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     result = settings_dal.get_all_settings(db)
     if result.get("smtp_pass"):
         result["smtp_pass"] = _SMTP_PASS_MASK
@@ -119,8 +114,7 @@ class UpdateSettingsBody(BaseModel):
 
 
 @router.put("/settings")
-def update_settings(body: UpdateSettingsBody, request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def update_settings(body: UpdateSettingsBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     data = body.model_dump(exclude_none=True)
     # Don't overwrite real password with the mask shown in UI
     if data.get("smtp_pass") == _SMTP_PASS_MASK:
@@ -138,8 +132,7 @@ def update_settings(body: UpdateSettingsBody, request: Request, db: sqlite3.Conn
 # --- SMTP Test ---
 
 @router.post("/smtp-test")
-def smtp_test(request: Request, db: sqlite3.Connection = Depends(db_session)):
-    user = require_admin(request)
+def smtp_test(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     host = settings_dal.get_setting(db, "smtp_host")
     port = int(settings_dal.get_setting(db, "smtp_port") or "587")
     smtp_user = settings_dal.get_setting(db, "smtp_user")
