@@ -92,16 +92,16 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
 
 
 @router.get("/me")
-def me(token_data: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    user = users_dal.get_user_by_id(db, token_data["userId"])
-    if not user:
+def me(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+    db_user = users_dal.get_user_by_id(db, user["userId"])
+    if not db_user:
         raise HTTPException(status_code=401, detail="User not found")
     return {
-        "id": user["id"],
-        "username": user["username"],
-        "displayName": user["display_name"],
-        "email": user["email"],
-        "role": user["role"],
+        "id": db_user["id"],
+        "username": db_user["username"],
+        "displayName": db_user["display_name"],
+        "email": db_user["email"],
+        "role": db_user["role"],
     }
 
 
