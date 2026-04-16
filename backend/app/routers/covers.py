@@ -13,6 +13,7 @@ from ..config import LIBRARY_DIR, DATA_DIR, UPLOADS_DIR, MAX_COVER_SIZE
 from ..database import db_session
 from ..dal.books import get_book_by_id
 from ..services import cover_service
+from ..services.cover_service import find_cover
 
 log = logging.getLogger("librarium.covers")
 
@@ -45,16 +46,10 @@ def _get_thumb(book_id: int, cover_path: str) -> str:
     return thumb_path
 
 
-def _find_cover(book_dir: str) -> str | None:
-    if not os.path.isdir(book_dir):
-        return None
-    return next((f for f in os.listdir(book_dir) if f.startswith("cover.") and "bak" not in f), None)
-
-
 @router.get("/api/covers/{book_id}")
 def get_cover(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), full: int = 0):
     book_dir = str(LIBRARY_DIR / str(book_id))
-    cover = _find_cover(book_dir)
+    cover = find_cover(book_dir)
     if not cover:
         return Response(status_code=404)
 

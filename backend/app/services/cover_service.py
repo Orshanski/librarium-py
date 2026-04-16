@@ -71,7 +71,7 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     dst = os.path.join(book_dir, f"cover.{ext}")
 
     # Remove old cover
-    old = _find_cover(book_dir)
+    old = find_cover(book_dir)
     if old:
         os.remove(os.path.join(book_dir, old))
 
@@ -93,7 +93,8 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     return True
 
 
-def _find_cover(book_dir: str) -> str | None:
+def find_cover(book_dir: str) -> str | None:
+    """Find cover file in book directory, excluding backups."""
     if not os.path.isdir(book_dir):
         return None
     return next((f for f in os.listdir(book_dir) if f.startswith("cover.") and "bak" not in f), None)
