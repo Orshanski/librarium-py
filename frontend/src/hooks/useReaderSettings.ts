@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ReaderSettings, DEFAULT_SETTINGS } from "../components/reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { DEFAULT_SETTINGS } from "../constants/reader-defaults";
 import {
   LocalSettings,
   getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,

@@ -1,4 +1,4 @@
-import type { DesktopTapZones, TapAction, ReaderSettings } from "../components/reader-toolbar";
+import type { DesktopTapZones, TapAction, ReaderSettings } from "../types/reader-settings";
 
 export type TapZoneResult = TapAction | "toolbar";
 
@@ -15,21 +15,6 @@ export type ReaderAction =
   | { type: "followLink" }
   | { type: "dismissFootnote" }
   | { type: "noop" };
-
-export interface ReaderLoadDetail {
-  doc?: Document;
-}
-
-export interface ReaderTapDetail {
-  screenX: number;
-  screenY: number;
-  target: Element | null;
-}
-
-export interface ReaderLinkDetail {
-  a: Element;
-  href: string;
-}
 
 export function resolveDesktopZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
   if (xFrac < 0.33) {

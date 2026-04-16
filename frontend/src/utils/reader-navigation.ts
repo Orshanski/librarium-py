@@ -1,4 +1,5 @@
-import type { ReaderNavigationRequest, ReaderViewElement } from "../types/reader";
+import type { ReaderNavigationRequest } from "../types/reader-handle";
+import type { ReaderViewElement } from "../types/reader-foliate";
 
 interface NavigationControllerCallbacks {
   onSavePosition: () => void;

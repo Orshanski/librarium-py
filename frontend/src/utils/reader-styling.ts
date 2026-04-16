@@ -1,4 +1,5 @@
-import { ReaderSettings, THEME_STYLES } from "../components/reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { THEME_STYLES } from "../constants/reader-theme";
 
 /** Apply user reading settings (theme, font, spacing) to a book iframe document. */
 export function applySettings(doc: Document, settings: ReaderSettings, renderer?: { setStyles?: (s: string) => void }) {

@@ -1,8 +1,8 @@
 import { sanitizeHtml } from "./sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "./reader-footnotes";
 import { addCustomEventListener } from "./reader-input";
-import type { ReaderLinkDetail } from "./reader-input";
-import type { ReaderViewElement } from "../types/reader";
+import type { ReaderLinkDetail } from "../types/reader-events";
+import type { ReaderViewElement } from "../types/reader-foliate";
 
 interface FootnoteHandlerCallbacks {
   setFootnoteHtml: (html: string | null) => void;

@@ -1,5 +1,6 @@
 import { useRef, useCallback } from "react";
-import { ReaderSettings, THEME_STYLES } from "../components/reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { THEME_STYLES } from "../constants/reader-theme";
 import { estimateCharsPerPage } from "../utils/reader-input";
 
 interface FooterConfig {

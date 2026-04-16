@@ -1,14 +1,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FootnotePopup from "./FootnotePopup";
-import { ReaderSettings, THEME_STYLES } from "./reader-toolbar";
+import type { ReaderSettings } from "../types/reader-settings";
+import { THEME_STYLES } from "../constants/reader-theme";
 import { applySettings } from "../utils/reader-styling";
 import { addCustomEventListener } from "../utils/reader-input";
 import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reader-footnote-handler";
 import { createNavigationController } from "../utils/reader-navigation";
 import { attachReaderInteraction } from "../utils/reader-interaction";
 import { useReaderFooter } from "../hooks/useReaderFooter";
-import type { ReaderLoadDetail } from "../utils/reader-input";
-import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
+import type { ReaderLoadDetail } from "../types/reader-events";
+import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
+import type { ReaderViewElement } from "../types/reader-foliate";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";

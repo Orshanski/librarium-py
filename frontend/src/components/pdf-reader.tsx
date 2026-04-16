@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { DesktopTapZones, TapAction, DEFAULT_PDF_TAP_ZONES } from "./reader-toolbar";
+import type { DesktopTapZones, TapAction } from "../types/reader-settings";
+import { DEFAULT_PDF_TAP_ZONES } from "../constants/reader-defaults";
 import { resolveDesktopZone } from "../utils/reader-input";
 
 // Register <foliate-view> custom element
