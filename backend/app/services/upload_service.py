@@ -9,7 +9,7 @@ import zipfile
 
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE, db_path_for
 from ..parsers import parse_book
-from ..enrichers import enrich_metadata
+from ..enrichers import enrich_metadata, resolve_genres
 from ..pdf_linearize import linearize_pdf_in_place
 from ..dal.books import (
     create_book as dal_create_book, add_book_file, update_cover_path,
@@ -97,7 +97,6 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
         # Parse + enrich (in thread pool to avoid blocking event loop)
         meta = await asyncio.to_thread(parse_book, book_path, ext)
         meta = await asyncio.to_thread(enrich_metadata, meta, ext, filename_hint, book_path)
-        from ..enrichers import resolve_genres
         meta.genres = resolve_genres(db, meta.genres)
 
         # Save cover if extracted
@@ -272,14 +271,17 @@ def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> 
     if not title:
         return None
     rows = find_duplicates_by_title(db, title)
-
     for r in rows:
-        if authors:
-            r_authors = (r["authors"] or "").lower()
-            for a in authors:
-                if a.lower() in r_authors:
-                    return {"id": r["id"], "title": r["title"], "authors": r["authors"]}
-        elif r["title"].lower() == title.lower():
-            return {"id": r["id"], "title": r["title"], "authors": r["authors"]}
-
+        hit = _row_as_hit(r)
+        if not authors:
+            if r["title"].lower() == title.lower():
+                return hit
+            continue
+        r_authors = (r["authors"] or "").lower()
+        if any(a.lower() in r_authors for a in authors):
+            return hit
     return None
+
+
+def _row_as_hit(r: dict) -> dict:
+    return {"id": r["id"], "title": r["title"], "authors": r["authors"]}
