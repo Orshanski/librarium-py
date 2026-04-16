@@ -1,5 +1,5 @@
 import { RefObject, useEffect } from "react";
-import type { EbookReaderHandle } from "../types/reader";
+import type { EbookReaderHandle } from "../types/reader-handle";
 
 export function useReaderLifecycle(
   readerRef: RefObject<EbookReaderHandle | null>,

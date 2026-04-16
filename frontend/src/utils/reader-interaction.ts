@@ -1,9 +1,10 @@
 import type { ReaderSettings } from "../types/reader-settings";
 import { DEFAULT_DESKTOP_TAP_ZONES } from "../constants/reader-defaults";
 import { resolveDesktopZone, addCustomEventListener } from "./reader-input";
-import type { NormalizedReaderInput, ReaderAction, ReaderTapDetail } from "./reader-input";
+import type { NormalizedReaderInput, ReaderAction } from "./reader-input";
+import type { ReaderTapDetail } from "../types/reader-events";
 import type { NavigationController } from "./reader-navigation";
-import type { ReaderViewElement } from "../types/reader";
+import type { ReaderViewElement } from "../types/reader-foliate";
 
 interface InteractionConfig {
   isMobile: boolean;

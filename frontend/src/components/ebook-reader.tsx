@@ -8,8 +8,9 @@ import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reade
 import { createNavigationController } from "../utils/reader-navigation";
 import { attachReaderInteraction } from "../utils/reader-interaction";
 import { useReaderFooter } from "../hooks/useReaderFooter";
-import type { ReaderLoadDetail } from "../utils/reader-input";
-import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail, ReaderViewElement } from "../types/reader";
+import type { ReaderLoadDetail } from "../types/reader-events";
+import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
+import type { ReaderViewElement } from "../types/reader-foliate";
 
 // Import foliate-js view (registers <foliate-view> custom element)
 import "../vendor/foliate-js/view.js";

@@ -10,7 +10,7 @@ import { useReaderLifecycle } from "./useReaderLifecycle";
 import { useIsPwa } from "./useIsPwa";
 import { getDeviceName } from "../utils/device-info";
 import type { BookLoaderResult } from "./useBookLoader";
-import type { EbookReaderHandle, ReaderRelocateDetail } from "../types/reader";
+import type { EbookReaderHandle, ReaderRelocateDetail } from "../types/reader-handle";
 
 function useBookLoaderSwitch(isPwa: boolean, options: Parameters<typeof useBookLoader>[0]): BookLoaderResult {
   // Both hooks are always called (rules of hooks), but only one is "active".

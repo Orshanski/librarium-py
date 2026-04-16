@@ -16,21 +16,6 @@ export type ReaderAction =
   | { type: "dismissFootnote" }
   | { type: "noop" };
 
-export interface ReaderLoadDetail {
-  doc?: Document;
-}
-
-export interface ReaderTapDetail {
-  screenX: number;
-  screenY: number;
-  target: Element | null;
-}
-
-export interface ReaderLinkDetail {
-  a: Element;
-  href: string;
-}
-
 export function resolveDesktopZone(xFrac: number, yFrac: number, zones: DesktopTapZones): TapZoneResult {
   if (xFrac < 0.33) {
     return yFrac < 0.5 ? zones.topLeft : zones.bottomLeft;
