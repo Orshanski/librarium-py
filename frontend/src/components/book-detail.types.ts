@@ -1,12 +1,8 @@
 import { RefObject } from "react";
 import { Book } from "../types";
+import type { Shelf } from "@/api/endpoints/shelves";
 
-export interface Shelf {
-  id: number;
-  name: string;
-  is_system: boolean;
-  has_book?: boolean;
-}
+export type { Shelf } from "@/api/endpoints/shelves";
 
 export interface BookDetailViewProps {
   book: Book;

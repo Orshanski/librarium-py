@@ -11,6 +11,8 @@ import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
 import { toBook, splitCsv, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { getShelf, deleteShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
+import { NotFoundError } from "@/api/errors";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -29,14 +31,19 @@ export default function ShelfPage() {
   const [sort, setSort] = useState("added_desc");
 
   useEffect(() => {
-    fetch(`/api/shelves/${id}`)
-      .then((r) => r.json())
+    getShelf(Number(id))
       .then((data) => {
         setShelf(data.shelf);
         setBooks(data.books || []);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof NotFoundError) {
+          // shelf not found — leave shelf=null, UI returns null
+        } else {
+          console.warn("Failed to load shelf:", err);
+        }
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   const sorted = useMemo(() => {
@@ -56,10 +63,12 @@ export default function ShelfPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   async function handleDelete() {
-    const res = await fetch(`/api/shelves/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await deleteShelf(Number(id));
       window.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
+    } catch (err) {
+      console.warn("Failed to delete shelf:", err);
     }
   }
 
@@ -125,8 +134,12 @@ export default function ShelfPage() {
               progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
               isCached={cachedBookIds.has(b.id)}
               onRemove={!shelf.is_system ? async () => {
-                const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
-                if (res.ok) setBooks(books.filter((x) => x.id !== b.id));
+                try {
+                  await removeBookFromShelf(Number(id), b.id);
+                  setBooks(books.filter((x) => x.id !== b.id));
+                } catch {
+                  // silently swallow — matches prior "if (res.ok)" semantics
+                }
               } : undefined}
             />
           );
