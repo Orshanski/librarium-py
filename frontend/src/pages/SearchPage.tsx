@@ -20,21 +20,31 @@ function SearchResults() {
 
   useEffect(() => {
     if (!q.trim()) {
+      // Reset all state — including `loading`, in case a prior in-flight
+      // query is about to resolve and would leave the spinner visible.
       setResults(null);
       setError(null);
+      setLoading(false);
       return;
     }
+    // AbortController ensures stale responses от previous query don't overwrite
+    // the current one when the user types quickly (e.g. ?q=ab → ?q=abc before
+    // the first request resolves). Cleanup aborts the in-flight request.
+    const ctl = new AbortController();
     setLoading(true);
     setError(null);
-    searchAll(q)
+    searchAll(q, ctl.signal)
       .then((data) => {
         setResults(data);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        // Abort is штатный control-flow — молча выходим, не показываем ошибку.
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError("Ошибка поиска");
         setLoading(false);
       });
+    return () => ctl.abort();
   }, [q]);
 
   const { books = [], authors = [], series = [] } = results || {};
