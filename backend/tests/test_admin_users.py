@@ -1,5 +1,5 @@
 """Admin users API tests."""
-from tests._helpers import assert_error, assert_ok, login_client, make_user, connect_test_db
+from tests._helpers import assert_error, assert_ok, login_client, connect_test_db
 
 
 def test_create_user(admin_client):
