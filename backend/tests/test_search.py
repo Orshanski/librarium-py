@@ -1,15 +1,16 @@
 """Fuzzy search tests.
 
-API-level tests for /api/search live in test_catalog_filters.py and
-remain as the wire-format regression guard. This file covers:
+This file covers:
 
 - unit tests for search_preprocess (pure function)
 - DAL-level tests for search_books that exercise the *new* fuzzy
-  behaviour — cases plain LIKE could not match.
+  behaviour — cases plain LIKE could not match
+- API-level tests for /api/search (TestSearch class below) migrated in from
+  the old test_catalog_filters.py during T-BE Task 15 decomposition
 
 Fixture data (books 10..14, authors 10..12) is inserted per-test
-rather than via the shared baseline seed so test_catalog_filters
-and friends don't need to be updated for count changes.
+rather than via the shared baseline seed so other tests don't need
+to be updated for count changes.
 """
 import pytest
 

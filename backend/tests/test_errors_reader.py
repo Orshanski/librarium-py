@@ -1,34 +1,31 @@
-"""Reader endpoints error paths (401/404)."""
-from tests._helpers import assert_error
+"""Reader endpoints error paths (401) + nonexistent-book behavior."""
+from tests._helpers import assert_error, assert_ok
 
 
-def test_settings_require_auth(client):
-    resp = client.get("/api/reader/settings")
-    assert resp.status_code == 401
+def test_settings_require_auth(anon_client):
+    assert_error(anon_client.get("/api/reader/settings"), 401)
 
 
-def test_progress_require_auth_get(client):
-    resp = client.get("/api/reader/progress/1")
-    assert resp.status_code == 401
-
-
-def test_progress_require_auth_put(client):
-    resp = client.put("/api/reader/progress/1", json={"position": "ch1", "last_device": "x"})
-    assert resp.status_code == 401
-
-
-def test_progress_unauthenticated_is_401(anon_client):
+def test_progress_require_auth_get(anon_client):
     assert_error(anon_client.get("/api/reader/progress/1"), 401)
 
 
-def test_progress_nonexistent_book_behavior(reader_client):
-    """Document the current behavior on a missing book id.
+def test_progress_require_auth_put(anon_client):
+    resp = anon_client.put("/api/reader/progress/1",
+                           json={"position": "ch1", "last_device": "x"})
+    assert_error(resp, 401)
 
-    Reader endpoint may return either 404 or a default-empty state (200). We
-    fix whichever current behavior is — the test becomes ONE of the branches.
-    Inspect result on first run and keep the correct assertion.
+
+def test_progress_nonexistent_book_returns_defaults(reader_client):
+    """Fixed behavior: GET /api/reader/progress/{missing_id} returns 200 with
+    default state (position/fraction/last_read_at are None, version == 0).
+    The endpoint does NOT 404 on a missing book — it returns a starting-point
+    progress record so the client can begin reading.
     """
-    resp = reader_client.get("/api/reader/999999/progress")
-    # Current behavior: 200 with defaults OR 404. Accept either for now;
-    # if 200 — verify payload shape is a valid default.
-    assert resp.status_code in (200, 404)
+    data = assert_ok(reader_client.get("/api/reader/progress/999999"))
+    assert data["position"] is None
+    assert data["last_device"] is None
+    assert data["last_format"] is None
+    assert data["fraction"] is None
+    assert data["last_read_at"] is None
+    assert data["version"] == 0
