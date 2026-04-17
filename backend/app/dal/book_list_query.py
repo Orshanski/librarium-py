@@ -4,9 +4,14 @@ Canonical book-listing SELECT fragment shared across entity-detail DAL queries
 ORDER BY <name> inside GROUP_CONCAT so rendered chips are stable across runs.
 Requires SQLite 3.44+.
 
-Sorting contract: every GROUP_CONCAT in this epic orders by the human-readable
-.name column — never by .id. This keeps `authors` / `author_ids` arrays
-index-aligned so frontend can pair `names[i] ↔ ids[i]` for clickable chips.
+Sorting contract (applies to EVERY GROUP_CONCAT in this epic, including the
+four in `dal.books._BOOK_SELECT`): inputs are ordered by the human-readable
+.name column, NEVER by .id. Entity-detail endpoints intentionally expose only
+`authors` / `tags` (the id arrays `author_ids` / `tag_ids` live in `books.py`
+and are out-of-scope for entity endpoints per E5 spec). If a future consumer
+adds id columns here, it MUST also sort them by `a.name` / `t.name` so that
+`names[i] ↔ ids[i]` pair correctly for frontend clickable chips. See
+`dal.books._BOOK_SELECT` for the already-correct four-column pattern.
 
 Aliasing convention: aggregation JOINs use bare aliases (`ba`, `a`, `bt`, `t`).
 Filtering JOINs in consumers must use the `_scope` suffix (e.g. `ba_scope`)
