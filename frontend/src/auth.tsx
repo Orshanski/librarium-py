@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("librarium_user", JSON.stringify(data));
         } catch {}
       })
-      .catch((err) => {
+      .catch(() => {
         if (!navigator.onLine) {
           try {
             const cached = localStorage.getItem("librarium_user");

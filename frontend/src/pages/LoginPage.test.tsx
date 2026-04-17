@@ -39,13 +39,16 @@ describe("LoginPage — integration", () => {
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/Имя пользователя/), "admin");
     await user.type(screen.getByPlaceholderText(/Пароль/), "admin123");
-    await user.click(screen.getByRole("button", { name: /Войти/ }));
+    const submit = screen.getByRole("button", { name: /Войти/ });
+    await user.click(submit);
 
-    // Если LoginPage на успехе делает redirect — тест не упадёт даже если button исчезает.
-    // Ключевое — error message НЕ появляется.
-    await waitFor(() => {
-      expect(screen.queryByText(/неверн|invalid|ошибка/i)).not.toBeInTheDocument();
-    });
+    // Settle-gate: button is disabled during the in-flight request (loading=true)
+    // and re-enabled once the provider returns. Without waiting for that
+    // transition the "no error" assertion below would pass trivially at t=0.
+    await waitFor(() => expect(submit).not.toBeDisabled());
+
+    // Error message must NOT appear on happy path.
+    expect(screen.queryByText(/неверн|invalid|ошибка/i)).not.toBeInTheDocument();
   });
 
   it("shows inline error on 401", async () => {
