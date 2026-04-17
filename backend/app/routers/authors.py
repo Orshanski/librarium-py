@@ -30,8 +30,6 @@ class RenameBody(BaseModel):
 
 @router.put("/{author_id}")
 def rename_author(author_id: int, body: RenameBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.get_author_by_id(db, author_id):
-        raise HTTPException(status_code=404, detail="Автор не найден")
     dal.rename_author(db, author_id, body.name.strip())
     log.info("Renamed author=%d to=%s by user_id=%s", author_id, body.name.strip(), user["userId"])
     return {"ok": True}

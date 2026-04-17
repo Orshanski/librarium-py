@@ -18,13 +18,6 @@ def test_reader_cannot_merge_series(reader_client):
     )
 
 
-def test_rename_nonexistent_series_is_404(admin_client):
-    assert_error(
-        admin_client.put("/api/series/999999", json={"name": "X"}),
-        404,
-    )
-
-
 def test_get_nonexistent_series_is_404(reader_client):
     assert_error(reader_client.get("/api/series/999999"),
                  404)

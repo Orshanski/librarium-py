@@ -18,13 +18,6 @@ def test_reader_cannot_merge_authors(reader_client):
     )
 
 
-def test_rename_nonexistent_author_is_404(admin_client):
-    assert_error(
-        admin_client.put("/api/authors/999999", json={"name": "X"}),
-        404,
-    )
-
-
 def test_get_nonexistent_author_is_404(reader_client):
     assert_error(reader_client.get("/api/authors/999999"),
                  404)

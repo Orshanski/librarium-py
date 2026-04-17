@@ -19,7 +19,7 @@ def test_upload_cover_unauthenticated_is_401(anon_client):
         "/api/books/1/cover",
         files={"file": ("cover.png", io.BytesIO(png), "image/png")},
     )
-    assert resp.status_code in (401, 403)
+    assert_error(resp, 401)
 
 
 # Note: earlier drafts referenced POST /api/books/{id}/cover/download — that

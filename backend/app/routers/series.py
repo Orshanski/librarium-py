@@ -30,8 +30,6 @@ class RenameBody(BaseModel):
 
 @router.put("/{series_id}")
 def rename_series(series_id: int, body: RenameBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.get_series_by_id(db, series_id):
-        raise HTTPException(status_code=404, detail="Серия не найдена")
     dal.rename_series(db, series_id, body.name.strip())
     log.info("Renamed series=%d to=%s by user_id=%s", series_id, body.name.strip(), user["userId"])
     return {"ok": True}

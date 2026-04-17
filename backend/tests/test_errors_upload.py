@@ -10,8 +10,7 @@ def test_upload_unauthenticated_is_401(anon_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
         resp = anon_client.post("/api/upload",
                                 files={"file": ("test.fb2", f, "application/octet-stream")})
-    # require_admin: anon → 401 or 403 depending on implementation
-    assert resp.status_code in (401, 403)
+    assert_error(resp, 401)
 
 
 def test_reader_cannot_upload(reader_client):
