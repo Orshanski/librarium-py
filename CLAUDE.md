@@ -48,6 +48,10 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
                                                                     → filesystem (data/)
 ```
 
+## Vendored Code
+
+- **`frontend/src/vendor/foliate-js/` — полный форк, не upstream vendor copy.** Upstream больше не тянется, апдейты от оригинального maintainer'а не забираются. Код под `vendor/foliate-js/` — такой же owned code, как и всё остальное во frontend. Править можно наравне с остальным проектным кодом. Не воспринимать как third-party или "untouchable vendor".
+
 ## Code Rules
 
 - **No `any` in TypeScript.** Never use `as any` or `any` type. Extend interfaces, add optional fields, or create union types instead.
