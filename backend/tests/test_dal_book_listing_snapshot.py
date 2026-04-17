@@ -147,6 +147,42 @@ class TestShelfDetailSnapshot:
         assert result is not None
         assert result["books"] == []
 
+    def test_shelf_best_multi_author_exact_string(self, db_with_multi_author):
+        # Put book 100 onto user 2's "best" shelf by rating it >= 4
+        db_with_multi_author.execute(
+            "INSERT INTO user_books (user_id, book_id, rating) VALUES (2, 100, 5)"
+        )
+        db_with_multi_author.commit()
+        shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
+        best = next(s for s in shelves if s["system_code"] == "best")
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2)
+        multi_book = next(b for b in result["books"] if b["id"] == 100)
+        assert multi_book["authors"] == "Brown,Smith"
+        assert "rating" in multi_book  # branch-specific extra column
+        assert multi_book["rating"] == 5
+
+    def test_shelf_reading_now_multi_author_exact_string(self, db_with_multi_author):
+        db_with_multi_author.execute(
+            "INSERT INTO reading_progress (user_id, book_id, position, fraction, last_read_at) "
+            "VALUES (2, 100, '{\"kind\":\"cfi\",\"value\":\"x\"}', 0.5, '2025-01-10 12:00:00')"
+        )
+        db_with_multi_author.commit()
+        shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
+        rn = next(s for s in shelves if s["system_code"] == "reading_now")
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2)
+        multi_book = next(b for b in result["books"] if b["id"] == 100)
+        assert multi_book["authors"] == "Brown,Smith"
+        assert "fraction" in multi_book
+        assert multi_book["fraction"] == 0.5
+
+    def test_shelf_default_multi_author_exact_string(self, db_with_multi_author):
+        shelf_id = shelves_dal.create_shelf(db_with_multi_author, 2, "Test Shelf")
+        shelves_dal.add_book_to_shelf(db_with_multi_author, shelf_id, 100)
+        db_with_multi_author.commit()
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2)
+        multi_book = next(b for b in result["books"] if b["id"] == 100)
+        assert multi_book["authors"] == "Brown,Smith"
+
 
 class TestBooksSnapshot:
     def test_get_books_default_order(self, db):
