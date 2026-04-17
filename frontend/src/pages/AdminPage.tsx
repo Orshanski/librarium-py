@@ -4,23 +4,16 @@ import ConfirmDialog from "../components/confirm-dialog";
 import PageHeader from "../components/page-header";
 import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
-
-interface AdminUser {
-  id: number;
-  username: string;
-  display_name: string | null;
-  email: string | null;
-  role: string;
-}
-
-interface SmtpSettings {
-  app_name?: string;
-  smtp_host?: string;
-  smtp_port?: string;
-  smtp_user?: string;
-  smtp_pass?: string;
-  [key: string]: string | undefined;
-}
+import {
+  listUsers,
+  createUser as apiCreateUser,
+  updateUser,
+  deleteUser as apiDeleteUser,
+  getAdminSettings,
+  saveAdminSettings,
+  smtpTest as apiSmtpTest,
+} from "../api/endpoints/admin";
+import type { AdminUser, AdminSettings } from "../api/endpoints/admin";
 
 // ─── Styles ─────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
@@ -251,13 +244,23 @@ function UserCard({
   );
 }
 
+// ─── Types ──────────────────────────────────────────
+interface NewUserState {
+  username: string;
+  displayName: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  role: "admin" | "reader";
+}
+
 // ─── Main Page ──────────────────────────────────────
 export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [settings, setSettings] = useState<SmtpSettings>({});
+  const [settings, setSettings] = useState<AdminSettings>({});
   const [loading, setLoading] = useState(true);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [newUser, setNewUser] = useState({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
+  const [newUser, setNewUser] = useState<NewUserState>({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [smtpStatus, setSmtpStatus] = useState<"none" | "checking" | "ok">("none");
@@ -265,32 +268,38 @@ export default function AdminPage() {
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     Promise.all([
-      fetch("/api/admin/users").then((r) => r.json()),
-      fetch("/api/admin/settings").then((r) => r.json()),
+      listUsers(controller.signal),
+      getAdminSettings(controller.signal),
     ]).then(([userData, settingsData]) => {
       setUsers(userData.users || []);
       setSettings(settingsData || {});
       setSmtpStatus(settingsData?.smtp_host ? "ok" : "none");
       setLoading(false);
-    }).catch((e) => { console.error("Admin load error:", e); setLoading(false); });
+    }).catch((e: unknown) => {
+      if (e instanceof Error && e.name === "AbortError") return;
+      console.error("Admin load error:", e);
+      setLoading(false);
+    });
+    return () => controller.abort();
   }, []);
 
   async function saveName(id: number, name: string) {
-    await fetch(`/api/admin/users/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: name }),
-    });
-    setUsers(users.map((u) => u.id === id ? { ...u, display_name: name } : u));
+    try {
+      await updateUser(id, { displayName: name });
+      setUsers(users.map((u) => u.id === id ? { ...u, display_name: name } : u));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка сохранения имени");
+    }
   }
 
   async function savePassword(id: number, pass: string) {
-    await fetch(`/api/admin/users/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pass }),
-    });
+    try {
+      await updateUser(id, { password: pass });
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка смены пароля");
+    }
   }
 
   async function deleteUser(id: number) {
@@ -299,51 +308,51 @@ export default function AdminPage() {
 
   async function confirmDeleteUser() {
     if (!deleteUserId) return;
-    const res = await fetch(`/api/admin/users/${deleteUserId}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await apiDeleteUser(deleteUserId);
       setUsers(users.filter((u) => u.id !== deleteUserId));
-    } else {
-      const err = await res.json();
-      console.error(err.detail);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка удаления пользователя");
     }
     setDeleteUserId(null);
   }
 
-  async function createUser() {
+  async function handleCreateUser() {
     if (!newUser.username.trim() || !newUser.password || newUser.password !== newUser.passwordConfirm) return;
-    const res = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newUser),
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiCreateUser({
+        username: newUser.username,
+        password: newUser.password,
+        role: newUser.role,
+        displayName: newUser.displayName || undefined,
+        email: newUser.email || undefined,
+      });
       setUsers([...users, {
         id: data.id,
         username: newUser.username,
         display_name: newUser.displayName || newUser.username,
-        email: newUser.email,
+        email: newUser.email || null,
         role: newUser.role,
       }]);
       setNewUser({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
       setShowNewUser(false);
-    } else {
-      const err = await res.json();
-      alert(err.detail);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка создания пользователя");
     }
   }
 
   async function saveSettings() {
     setSaving(true);
     setSavedToast(false);
-    await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-    setSaving(false);
-    setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 3000);
+    try {
+      await saveAdminSettings(settings);
+      setSavedToast(true);
+      setTimeout(() => setSavedToast(false), 3000);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка сохранения настроек");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {
@@ -409,7 +418,7 @@ export default function AdminPage() {
                   <select
                     style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none", paddingRight: 32, cursor: "pointer", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
                     value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
                   >
                     <option value="reader" style={{ background: "#16162a", color: "#ccc" }}>reader</option>
                     <option value="admin" style={{ background: "#16162a", color: "#ccc" }}>admin</option>
@@ -421,7 +430,7 @@ export default function AdminPage() {
                 <button
                   style={{ ...btnAccentStyle, opacity: (!newUser.username.trim() || !newUser.password || newUser.password !== newUser.passwordConfirm) ? 0.4 : 1 }}
                   disabled={!newUser.username.trim() || !newUser.password || newUser.password !== newUser.passwordConfirm}
-                  onClick={createUser}
+                  onClick={handleCreateUser}
                 >
                   Создать
                 </button>
@@ -496,19 +505,14 @@ export default function AdminPage() {
             onClick={async () => {
               setSmtpStatus("checking");
               setSmtpError("");
-              // Save settings first
-              await fetch("/api/admin/settings", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(settings),
-              });
-              const res = await fetch("/api/admin/smtp-test", { method: "POST" });
-              if (res.ok) {
+              try {
+                // Save settings first
+                await saveAdminSettings(settings);
+                await apiSmtpTest();
                 setSmtpStatus("ok");
-              } else {
-                const data = await res.json();
+              } catch (e: unknown) {
                 setSmtpStatus("none");
-                setSmtpError(data.detail || "Ошибка подключения");
+                setSmtpError(e instanceof Error ? e.message : "Ошибка подключения");
               }
             }}
           >

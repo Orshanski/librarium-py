@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { server } from "./msw/server";
-import { installFetchCredentials } from "@/api";
+import { installFetchCredentials } from "@/api/credentials";
 
 // ── MSW lifecycle — always, including node-env tests ──
 //
@@ -12,6 +12,39 @@ import { installFetchCredentials } from "@/api";
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+// ── Storage isolation — stub localStorage/sessionStorage per test ──
+//
+// Node 25 auto-enables `--experimental-webstorage`, which replaces jsdom's
+// in-memory window.localStorage with a disk-backed native implementation
+// (and emits `--localstorage-file was provided without a valid path` warnings
+// when no file is configured). That native storage is shared across the
+// process/workers, breaking per-test isolation and `clear()` semantics.
+//
+// Fix: before each test, replace both storages with a fresh in-memory fake.
+// This is what production jsdom behaviour used to give us before Node 25,
+// and what every test that calls `sessionStorage.clear()` in `beforeEach`
+// already implicitly assumes.
+function makeInMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() { return store.size; },
+    key(index: number) { return Array.from(store.keys())[index] ?? null; },
+    getItem(key: string) { return store.has(key) ? store.get(key)! : null; },
+    setItem(key: string, value: string) { store.set(key, String(value)); },
+    removeItem(key: string) { store.delete(key); },
+    clear() { store.clear(); },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", makeInMemoryStorage());
+  vi.stubGlobal("sessionStorage", makeInMemoryStorage());
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // ── jsdom-only polyfills and bootstrap ──
 //

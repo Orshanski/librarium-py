@@ -11,43 +11,48 @@ import { useAuth } from "../auth";
 import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-
-interface SeriesData {
-  id: number;
-  name: string;
-  sort_name: string;
-  book_count: number;
-  authors: string | null;
-}
+import { getSeries } from "../api/endpoints/series";
+import type { Series } from "../api/endpoints/series";
+import { NotFoundError } from "@/api/errors";
 
 export default function SeriesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [series, setSeries] = useState<SeriesData | null>(null);
+  const [series, setSeries] = useState<Series | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/series/${id}`)
-      .then((r) => {
-        if (r.status === 404) {
-          setNotFoundState(true);
-          setLoading(false);
-          return null;
-        }
-        return r.json();
-      })
+    const numericId = Number(id);
+    if (!id || isNaN(numericId)) {
+      setNotFoundState(true);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    getSeries(numericId, controller.signal)
       .then((data) => {
-        if (!data) return;
         setSeries(data.series);
         setBooks(data.books || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (err instanceof NotFoundError) {
+          setNotFoundState(true);
+        } else {
+          console.warn("Failed to fetch series:", err);
+        }
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [id]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);

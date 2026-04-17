@@ -2,9 +2,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth";
 import { ResponsiveProvider } from "./responsive";
-import { installFetchCredentials } from "./api";
+import { installFetchCredentials } from "./api/credentials";
 import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markSettingsSynced } from "./utils/offline-storage";
 import { pushProgressToServerCAS } from "./utils/reader-sync";
+import { saveSettings } from "./api/endpoints/reader";
 import { getDeviceName } from "./utils/device-info";
 import App from "./App";
 
@@ -35,13 +36,12 @@ async function syncUnsyncedSettings() {
   try {
     const unsyncedSettings = await getUnsyncedSettings();
     for (const s of unsyncedSettings) {
-      const resp = await fetch("/api/reader/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ settings: s.settings }),
-      });
-      if (resp.ok) await markSettingsSynced(s.deviceType);
+      try {
+        await saveSettings(s.settings);
+        await markSettingsSynced(s.deviceType);
+      } catch (err) {
+        console.warn("Failed to sync settings entry:", err);
+      }
     }
   } catch (err) {
     console.warn("Failed to sync settings:", err);

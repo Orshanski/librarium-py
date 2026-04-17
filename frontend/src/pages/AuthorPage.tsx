@@ -5,11 +5,15 @@ import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
-import { Book, RawBook, toBook, splitCsv } from "../types";
+import { Book, toBook, splitCsv } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { useAuth } from "../auth";
+import { getAuthor } from "../api/endpoints/authors";
+import type { Author } from "../api/endpoints/authors";
+import { NotFoundError } from "@/api/errors";
 
+// UI-local shape: tags split to string[], sort_name required (post-splitCsv transform).
 interface AuthorData {
   id: number;
   name: string;
@@ -30,28 +34,40 @@ export default function AuthorPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/authors/${id}`)
-      .then((r) => {
-        if (!r.ok) {
-          setNotFound(true);
-          setLoading(false);
-          return null;
-        }
-        return r.json();
-      })
+    const numericId = Number(id);
+    if (!id || isNaN(numericId)) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    getAuthor(numericId, controller.signal)
       .then((data) => {
-        if (!data) return;
-        const a = data.author;
-        a.tags = splitCsv(a.tags);
-        a.book_count = data.books?.length || 0;
-        setAuthor(a);
-        setBooks((data.books || []).map((b: RawBook) => toBook(b)));
+        const raw: Author = data.author;
+        const authorData: AuthorData = {
+          id: raw.id,
+          name: raw.name,
+          sort_name: raw.sort_name ?? "",
+          book_count: data.books?.length || 0,
+          tags: splitCsv(raw.tags),
+        };
+        setAuthor(authorData);
+        setBooks((data.books || []).map((b) => toBook(b)));
         setLoading(false);
       })
-      .catch(() => {
-        setNotFound(true);
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (err instanceof NotFoundError) {
+          setNotFound(true);
+        } else {
+          console.warn("Failed to fetch author:", err);
+        }
         setLoading(false);
       });
+
+    return () => controller.abort();
   }, [id]);
 
   useEffect(() => {

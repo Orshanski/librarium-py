@@ -11,6 +11,8 @@ import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
 import { toBook, splitCsv, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { getShelf, deleteShelf, removeBookFromShelf, type Shelf } from "@/api/endpoints/shelves";
+import { NotFoundError } from "@/api/errors";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -21,22 +23,28 @@ const sortOptions = [
 
 export default function ShelfPage() {
   const { id } = useParams();
+  const shelfId = Number(id);
   const navigate = useNavigate();
 
-  const [shelf, setShelf] = useState<{ id: number; name: string; is_system: boolean; system_code?: string } | null>(null);
+  const [shelf, setShelf] = useState<Shelf | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState("added_desc");
 
   useEffect(() => {
-    fetch(`/api/shelves/${id}`)
-      .then((r) => r.json())
+    getShelf(shelfId)
       .then((data) => {
         setShelf(data.shelf);
         setBooks(data.books || []);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof NotFoundError) {
+          // shelf not found — leave shelf=null, UI returns null
+        } else {
+          console.warn("Failed to load shelf:", err);
+        }
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   const sorted = useMemo(() => {
@@ -56,10 +64,12 @@ export default function ShelfPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   async function handleDelete() {
-    const res = await fetch(`/api/shelves/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await deleteShelf(shelfId);
       window.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
+    } catch (err) {
+      console.warn("Failed to delete shelf:", err);
     }
   }
 
@@ -125,8 +135,12 @@ export default function ShelfPage() {
               progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
               isCached={cachedBookIds.has(b.id)}
               onRemove={!shelf.is_system ? async () => {
-                const res = await fetch(`/api/shelves/${id}/books/${b.id}`, { method: "DELETE" });
-                if (res.ok) setBooks(books.filter((x) => x.id !== b.id));
+                try {
+                  await removeBookFromShelf(shelfId, b.id);
+                  setBooks(books.filter((x) => x.id !== b.id));
+                } catch (err) {
+                  console.warn("Failed to remove book from shelf:", err);
+                }
               } : undefined}
             />
           );

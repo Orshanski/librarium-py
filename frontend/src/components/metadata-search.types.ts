@@ -1,14 +1,5 @@
-export interface MetadataResult {
-  title: string;
-  authors: string;
-  description: string;
-  publisher: string;
-  pubDate: string;
-  isbn: string;
-  tags: string;
-  source: string;
-  coverUrl: string;
-}
+import type { MetadataResult } from "@/api/endpoints/metadata";
+export type { MetadataResult };
 
 export const metadataProviders = [
   { key: "litres", label: "Litres" },

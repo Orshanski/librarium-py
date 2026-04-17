@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth";
 import { colors, layout } from "../theme";
+import { listShelves, createShelf as apiCreateShelf, type Shelf } from "@/api/endpoints/shelves";
 
 export const navItems = [
   { href: "/?fresh=1", label: "Все книги", shortLabel: "Книги" },
@@ -38,15 +39,14 @@ export function SidebarContent({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [shelves, setShelves] = useState<any[]>([]);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
   const [showNewShelf, setShowNewShelf] = useState(false);
   const [newShelfName, setNewShelfName] = useState("");
   const me = { name: user?.displayName || user?.username || "", role: user?.role || "" };
 
   const fetchShelves = useCallback(() => {
-    fetch("/api/shelves")
-      .then((r) => r.json())
-      .then((data) => setShelves(data.shelves || []))
+    listShelves()
+      .then((data) => setShelves(data.shelves))
       .catch((err) => console.warn("Failed to fetch shelves:", err));
   }, []);
 
@@ -59,17 +59,15 @@ export function SidebarContent({
 
   async function createShelf() {
     if (!newShelfName.trim()) return;
-    const res = await fetch("/api/shelves", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newShelfName.trim() }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setShelves([...shelves, { id: data.id, name: newShelfName.trim(), is_system: 0, book_count: 0 }]);
+    try {
+      const { id } = await apiCreateShelf(newShelfName.trim());
+      setShelves([...shelves, { id, name: newShelfName.trim(), is_system: false, book_count: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
+      window.dispatchEvent(new Event("shelves-changed"));
       onNavigate?.();
+    } catch (err) {
+      console.warn("Failed to create shelf:", err);
     }
   }
 

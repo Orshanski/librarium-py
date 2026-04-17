@@ -6,39 +6,63 @@ import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
 import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
+import { getBook, listBooks, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
+import { NotFoundError } from "@/api/errors";
 
 export default function BookPage() {
   const { id } = useParams();
   const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
-  const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
+  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/books/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.book) {
-          setBook(data.book);
-          setFiles(data.files || []);
-          setIdentifiers(data.identifiers || []);
+    if (!id) return;
+    const controller = new AbortController();
 
-          // Load series books if book has a series
-          if (data.book.series_id) {
-            fetch(`/api/books?seriesIds=${data.book.series_id}&pageSize=50&sort=added_desc`)
-              .then((r) => r.json())
-              .then((seriesData) => {
-                const sorted = (seriesData.books || []).sort(
-                  (a: { series_number?: number }, b: { series_number?: number }) => (a.series_number || 0) - (b.series_number || 0)
-                );
-                setSeriesBooks(sorted);
-              });
-          }
+    setLoading(true);
+    setNotFound(false);
+
+    getBook(Number(id), controller.signal)
+      .then((data) => {
+        setBook(data.book);
+        setFiles(data.files || []);
+        setIdentifiers(data.identifiers || []);
+
+        // Load series books if book has a series
+        if (data.book.series_id) {
+          listBooks(
+            { seriesIds: String(data.book.series_id), pageSize: 50, sort: "added_desc" },
+            controller.signal,
+          )
+            .then((seriesData) => {
+              const sorted = (seriesData.books || []).sort(
+                (a: RawBook, b: RawBook) =>
+                  (a.series_number ?? 0) - (b.series_number ?? 0),
+              );
+              setSeriesBooks(sorted);
+            })
+            .catch((err: unknown) => {
+              if (err instanceof Error && err.name === "AbortError") return;
+              console.warn("Failed to load series books:", err);
+            });
         }
+
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (err instanceof NotFoundError) {
+          setNotFound(true);
+        } else {
+          console.warn("Failed to load book:", err);
+        }
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [id]);
 
   if (loading) {
@@ -50,7 +74,7 @@ export default function BookPage() {
     );
   }
 
-  if (!book) {
+  if (notFound || !book) {
     return (
       <>
         <PageHeader title="Книга не найдена" breadcrumb={getBookOrigin()} />

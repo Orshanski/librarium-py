@@ -26,6 +26,7 @@ export interface RawBook {
   id: number;
   title: string;
   authors: string | null;
+  series_id?: number | null;
   series_name: string | null;
   series_number: number | null;
   tags: string | null;
@@ -74,20 +75,4 @@ export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string |
   };
 }
 
-export interface Author {
-  name: string;
-  bookCount: number;
-  tags: string[];
-}
 
-export interface Series {
-  name: string;
-  author: string;
-  bookCount: number;
-}
-
-export interface Shelf {
-  id: number;
-  name: string;
-  bookIds: number[];
-}

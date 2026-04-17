@@ -8,27 +8,45 @@ import { colors, fonts } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { searchAll, type SearchResponse } from "../api/endpoints/search";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") || "";
 
-  const [results, setResults] = useState<{ books: RawBook[]; authors: { id: number; name: string; book_count: number }[]; series: { id: number; name: string; authors: string; book_count: number }[] } | null>(null);
+  const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!q.trim()) {
+      // Reset all state — including `loading`, in case a prior in-flight
+      // query is about to resolve and would leave the spinner visible.
       setResults(null);
+      setError(null);
+      setLoading(false);
       return;
     }
+    // AbortController ensures stale responses от previous query don't overwrite
+    // the current one when the user types quickly (e.g. ?q=ab → ?q=abc before
+    // the first request resolves). Cleanup aborts the in-flight request.
+    const ctl = new AbortController();
     setLoading(true);
-    fetch(`/api/search?q=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
+    setError(null);
+    searchAll(q, ctl.signal)
       .then((data) => {
         setResults(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        // Abort is штатный control-flow — молча выходим, не показываем ошибку.
+        // Check by `name` (not `instanceof DOMException`) — client.ts rethrows
+        // AbortError as-is, and the concrete class varies between runtimes.
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError("Ошибка поиска");
+        setLoading(false);
+      });
+    return () => ctl.abort();
   }, [q]);
 
   const { books = [], authors = [], series = [] } = results || {};
@@ -41,6 +59,10 @@ function SearchResults() {
 
   if (loading) {
     return <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Поиск...</div>;
+  }
+
+  if (error) {
+    return <div style={{ fontSize: 14, color: colors.text, padding: 24, backgroundColor: "rgba(255, 0, 0, 0.1)", borderRadius: 6, margin: 24 }}>{error}</div>;
   }
 
   if (!results) return null;

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useIsMobile } from "../responsive";
 import DesktopMetadataSearch from "./desktop/desktop-metadata-search";
 import MobileMetadataSearch from "./mobile/mobile-metadata-search";
 import { MetadataResult } from "./metadata-search.types";
+import { searchMetadata } from "../api/endpoints/metadata";
 
 export default function MetadataSearch({
   query,
@@ -19,22 +20,29 @@ export default function MetadataSearch({
   const [results, setResults] = useState<MetadataResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   function fetchResults(providerKeys: Set<string>) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setSearching(true);
     setError(null);
-    fetch(`/api/metadata/search?q=${encodeURIComponent(searchQuery)}&providers=${Array.from(providerKeys).join(",")}`)
-      .then((r) => {
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}`);
-        }
-        return r.json();
-      })
+    searchMetadata(searchQuery, Array.from(providerKeys), controller.signal)
       .then((data) => {
-        setResults(data.results || []);
+        setResults(data.results);
         setSearching(false);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
         setResults(null);
         setError("Ошибка поиска метаданных");
         setSearching(false);

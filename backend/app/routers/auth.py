@@ -77,6 +77,7 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
         "id": user["id"],
         "username": user["username"],
         "displayName": user["display_name"],
+        "email": user.get("email"),
         "role": user["role"],
     }})
     response.set_cookie(

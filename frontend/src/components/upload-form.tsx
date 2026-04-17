@@ -1,6 +1,14 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { colors } from "../theme";
+import {
+  uploadTempFile,
+  deleteTempUpload,
+  createBookFromUpload,
+  type UploadMetadata,
+  type UploadDuplicate,
+} from "@/api/endpoints/upload";
+import { addFormat } from "@/api/endpoints/books";
 
 interface UploadEntry {
   id: string;
@@ -15,30 +23,11 @@ interface UploadEntry {
 
 interface BookGroup {
   key: string; // lowercase title+authors
-  metadata: {
-    title: string;
-    authors: string;
-    series: string;
-    seriesNumber: string;
-    description: string;
-    language: string;
-    tags: string;
-    publisher: string;
-    pubDate: string;
-    isbn: string;
-    coverUrl: string | null;
-  };
+  metadata: UploadMetadata;
   files: UploadEntry[];
-  duplicate: { id: number; title: string; authors: string } | null; // from DB
+  duplicate: UploadDuplicate | null; // from DB
   duplicateAction: "add-format" | "new-book" | null;
   hasDuplicateFormat: boolean;
-}
-
-interface UploadResponse {
-  tempId: string;
-  format: string;
-  metadata: BookGroup["metadata"];
-  duplicate: BookGroup["duplicate"];
 }
 
 function formatSize(bytes: number): string {
@@ -85,32 +74,14 @@ export default function UploadForm() {
   }
 
   async function uploadFile(id: string, file: File) {
-    const form = new FormData();
-    form.append("file", file);
     try {
-      const result = await new Promise<UploadResponse>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload");
-        xhr.withCredentials = true;
-        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.min(Math.round((e.loaded / e.total) * 100), 99);
-            setGroups((prev) => prev.map((g) => ({
-              ...g,
-              files: g.files.map((f) => f.id === id ? { ...f, progress: pct } : f),
-            })));
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
-          else {
-            try { reject(new Error(JSON.parse(xhr.responseText).detail || `HTTP ${xhr.status}`)); }
-            catch { reject(new Error(`HTTP ${xhr.status}`)); }
-          }
-        };
-        xhr.onerror = () => reject(new Error("Ошибка сети"));
-        xhr.send(form);
+      const result = await uploadTempFile(file, {
+        onProgress: (pct) => {
+          setGroups((prev) => prev.map((g) => ({
+            ...g,
+            files: g.files.map((f) => f.id === id ? { ...f, progress: pct } : f),
+          })));
+        },
       });
 
       const meta = result.metadata;
@@ -151,10 +122,11 @@ export default function UploadForm() {
           }];
         }
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
       setGroups((prev) => prev.map((g) => ({
         ...g,
-        files: g.files.map((f) => f.id === id ? { ...f, status: "error" as const, error: e.message, progress: 0 } : f),
+        files: g.files.map((f) => f.id === id ? { ...f, status: "error" as const, error: msg, progress: 0 } : f),
       })));
     }
   }
@@ -165,7 +137,7 @@ export default function UploadForm() {
       for (const g of prev) {
         const file = g.files.find((f) => f.id === fileId);
         if (file?.tempId) {
-          fetch(`/api/uploads/${file.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
+          deleteTempUpload(file.tempId).catch((err) => console.warn("Upload cleanup failed:", err));
         }
         const remaining = g.files.filter((f) => f.id !== fileId);
         if (remaining.length > 0) {
@@ -181,7 +153,7 @@ export default function UploadForm() {
       const group = prev.find((g) => g.key === key);
       if (group) {
         for (const f of group.files) {
-          if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
+          if (f.tempId) deleteTempUpload(f.tempId).catch((err) => console.warn("Upload cleanup failed:", err));
         }
       }
       return prev.filter((g) => g.key !== key);
@@ -200,30 +172,31 @@ export default function UploadForm() {
       if (g.duplicate && g.duplicateAction === "add-format") {
         // User confirmed: add as format to existing book
         for (const f of readyFiles) {
-          await fetch(`/api/books/${g.duplicate.id}/add-format`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tempId: f.tempId }),
-          }).catch((err) => console.warn("Upload cleanup failed:", err));
+          try {
+            await addFormat(g.duplicate.id, f.tempId);
+          } catch (err) {
+            console.warn("Failed to add format:", err);
+            alert("Не удалось добавить формат");
+          }
         }
       } else {
         // First file creates book, rest add as format
         const first = readyFiles[0];
-        const res = await fetch("/api/books/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tempId: first.tempId, metadata: g.metadata }),
-        }).catch(() => null);
-
-        if (res?.ok) {
-          const data = await res.json();
-          for (const f of readyFiles.slice(1)) {
-            await fetch(`/api/books/${data.bookId}/add-format`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tempId: f.tempId }),
-            }).catch((err) => console.warn("Upload cleanup failed:", err));
+        try {
+          const created = await createBookFromUpload(first.tempId, g.metadata);
+          if (created) {
+            for (const f of readyFiles.slice(1)) {
+              try {
+                await addFormat(created.bookId, f.tempId);
+              } catch (err) {
+                console.warn("Failed to add format:", err);
+                alert("Не удалось добавить формат");
+              }
+            }
           }
+        } catch (err) {
+          console.warn("Failed to create book:", err);
+          alert("Не удалось создать книгу");
         }
       }
     }
@@ -273,7 +246,7 @@ export default function UploadForm() {
   function cancelAll() {
     for (const g of groups) {
       for (const f of g.files) {
-        if (f.tempId) fetch(`/api/uploads/${f.tempId}`, { method: "DELETE" }).catch((err) => console.warn("Upload cleanup failed:", err));
+        if (f.tempId) deleteTempUpload(f.tempId).catch((err) => console.warn("Upload cleanup failed:", err));
       }
     }
     setGroups([]);
@@ -318,6 +291,7 @@ export default function UploadForm() {
             return (
             <div
               key={g.key}
+              data-testid="upload-group"
               onClick={() => isTarget ? mergeInto(g.key) : undefined}
               style={{
                 border: `1px solid ${isSource ? "rgba(249, 190, 3, 0.6)"

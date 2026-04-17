@@ -1,13 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { api } from "./api";
+import * as authApi from "./api/endpoints/auth";
+import type { User } from "./api/types";
 
-interface User {
-  id: number;
-  username: string;
-  displayName: string;
-  email?: string;
-  role: string;
+const LOCALSTORAGE_AUTH_KEY = "librarium_user";
+const LOCALSTORAGE_AUTH_SCHEMA_VERSION = 1;
+
+interface CachedAuth {
+  schemaVersion: number;
+  user: User;
 }
 
 interface AuthContextValue {
@@ -28,16 +29,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("/api/auth/me")
+    authApi
+      .getMe()
       .then((data) => {
         setUser(data);
-        try { localStorage.setItem("librarium_user", JSON.stringify(data)); } catch {}
+        try {
+          const entry: CachedAuth = { schemaVersion: LOCALSTORAGE_AUTH_SCHEMA_VERSION, user: data };
+          localStorage.setItem(LOCALSTORAGE_AUTH_KEY, JSON.stringify(entry));
+        } catch {}
       })
       .catch(() => {
         if (!navigator.onLine) {
           try {
-            const cached = localStorage.getItem("librarium_user");
-            if (cached) { setUser(JSON.parse(cached)); return; }
+            const raw = localStorage.getItem(LOCALSTORAGE_AUTH_KEY);
+            if (raw) {
+              const cached: CachedAuth = JSON.parse(raw);
+              if (cached.schemaVersion === LOCALSTORAGE_AUTH_SCHEMA_VERSION && cached.user) {
+                setUser(cached.user);
+                return;
+              }
+            }
           } catch {}
         }
         setUser(null);
@@ -47,10 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(username: string, password: string) {
     try {
-      const data = await api("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-      });
+      const data = await authApi.login({ username, password });
       setUser(data.user);
       return null;
     } catch (e: unknown) {
@@ -59,9 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" }).catch((err) => console.warn("Logout request failed:", err));
+    await authApi.logout().catch((err) => console.warn("Logout request failed:", err));
     setUser(null);
-    try { localStorage.removeItem("librarium_user"); } catch {}
+    try {
+      localStorage.removeItem(LOCALSTORAGE_AUTH_KEY);
+    } catch {}
   }
 
   return (

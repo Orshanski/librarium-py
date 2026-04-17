@@ -6,18 +6,12 @@ import { FilterKey } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
+import { listSeries } from "../api/endpoints/series";
+import type { Series } from "../api/endpoints/series";
 
 const CACHE_KEY = "librarium_series";
 
-interface SeriesItem {
-  id: number;
-  name: string;
-  sort_name: string;
-  book_count: number;
-  authors: string | null;
-}
-
-function saveCache(allSeries: SeriesItem[], selected: Record<string, string[]>) {
+function saveCache(allSeries: Series[], selected: Record<string, string[]>) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -44,7 +38,7 @@ export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
-  const [allSeries, setAllSeries] = useState<SeriesItem[]>([]);
+  const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
@@ -84,24 +78,32 @@ export default function SeriesListPage() {
   useEffect(() => {
     if (restoredRef.current) {
       restoredRef.current = false;
-      return;
+      return () => {}; // skip first run after restore — no cleanup needed
     }
 
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
 
-    const params = new URLSearchParams();
-    if (authorFilter.length > 0) params.set("authorIds", authorFilter.join(","));
-    if (tagFilter.length > 0) params.set("tagIds", tagFilter.join(","));
-    if (langFilter.length > 0) params.set("language", langFilter[0]);
+    const params: { authorIds?: string; tagIds?: string; language?: string } = {};
+    if (authorFilter.length > 0) params.authorIds = authorFilter.join(",");
+    if (tagFilter.length > 0) params.tagIds = tagFilter.join(",");
+    if (langFilter.length > 0) params.language = langFilter[0];
 
-    fetch(`/api/series?${params.toString()}`)
-      .then((r) => r.json())
+    const controller = new AbortController();
+
+    listSeries(params, controller.signal)
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to fetch series list:", err);
+        setAllSeries([]);
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount

@@ -17,7 +17,7 @@ export default function BookStarRating({
   const [hover, setHover] = useState(0);
 
   return (
-    <div style={{ display: "flex", gap }}>
+    <div data-testid="book-rating" data-rating={rating ?? 0} style={{ display: "flex", gap }}>
       {[1, 2, 3, 4, 5].map((star) => (
         <span
           key={star}

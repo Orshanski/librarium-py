@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { fetchStatic } from "@/api/client";
 
 declare global {
   interface Window {
@@ -15,10 +16,8 @@ export function useUpdateAvailable(): [boolean, () => void] {
     const buildVersion = window.__BUILD_VERSION__;
     if (!buildVersion) return;
 
-    fetch("/version.txt", { cache: "no-store" })
-      .then((r) => r.ok ? r.text() : null)
+    fetchStatic("/version.txt", { cache: "no-store" })
       .then((serverVersion) => {
-        if (!serverVersion) return;
         if (serverVersion.trim() !== buildVersion) {
           setAvailable(true);
         }

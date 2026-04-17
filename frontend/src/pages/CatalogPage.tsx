@@ -9,6 +9,7 @@ import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { listBooks } from "@/api/endpoints/books";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -64,16 +65,16 @@ export default function CatalogPage() {
   const language = searchParams.get("language") || "";
   const paramsKey = `${sort}|${authorIds}|${seriesIds}|${tagIds}|${language}`;
 
-  const buildApiUrl = useCallback((cursor: number, size?: number) => {
-    const params = new URLSearchParams();
-    params.set("pageSize", String(size || (cursor === 0 ? INITIAL_SIZE : PAGE_SIZE)));
-    params.set("sort", sort);
-    params.set("cursor", String(cursor));
-    if (authorIds) params.set("authorIds", authorIds);
-    if (seriesIds) params.set("seriesIds", seriesIds);
-    if (tagIds) params.set("tagIds", tagIds);
-    if (language) params.set("language", language);
-    return `/api/books?${params.toString()}`;
+  const buildApiParams = useCallback((cursor: number, size?: number) => {
+    return {
+      pageSize: size || (cursor === 0 ? INITIAL_SIZE : PAGE_SIZE),
+      sort,
+      cursor,
+      ...(authorIds ? { authorIds } : {}),
+      ...(seriesIds ? { seriesIds } : {}),
+      ...(tagIds ? { tagIds } : {}),
+      ...(language ? { language } : {}),
+    };
   }, [sort, authorIds, seriesIds, tagIds, language]);
 
   // Load: restore from cache or fetch fresh
@@ -105,23 +106,28 @@ export default function CatalogPage() {
 
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
-    fetch(buildApiUrl(0))
-      .then((r) => r.json())
+    const controller = new AbortController();
+    listBooks(buildApiParams(0), controller.signal)
       .then((data) => {
         setBooks(data.books || []);
         setHasMore(data.hasMore || false);
         setLoading(false);
         frozenRef.current = false;
       })
-      .catch(() => setLoading(false));
-  }, [paramsKey, buildApiUrl]);
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to load catalog:", err);
+        setBooks([]);
+        setLoading(false);
+      });
+    return () => controller.abort();
+  }, [paramsKey, buildApiParams]);
 
   // Lazy load
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore || frozenRef.current) return;
     setLoadingMore(true);
-    fetch(buildApiUrl(books.length))
-      .then((r) => r.json())
+    listBooks(buildApiParams(books.length))
       .then((data) => {
         const newBooks = data.books || [];
         setBooks((prev) => {
@@ -131,8 +137,12 @@ export default function CatalogPage() {
         setHasMore(data.hasMore || false);
         setLoadingMore(false);
       })
-      .catch(() => setLoadingMore(false));
-  }, [books.length, hasMore, loadingMore, buildApiUrl]);
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to load more books:", err);
+        setLoadingMore(false);
+      });
+  }, [books.length, hasMore, loadingMore, buildApiParams]);
 
   // Scroll listener for lazy load + cache save
   useEffect(() => {

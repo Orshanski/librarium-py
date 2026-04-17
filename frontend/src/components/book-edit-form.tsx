@@ -7,6 +7,12 @@ import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 import { splitCsv } from "../types";
+import { fetchCoverProxy } from "../api/endpoints/metadata";
+import { uploadCover, commitCover, discardCover } from "../api/endpoints/covers";
+import {
+  uploadFile as apiUploadFile,
+  deleteFile as apiDeleteFile,
+} from "@/api/endpoints/books";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
@@ -41,21 +47,20 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
   async function uploadFile(file: File) {
     setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
     try {
-      const res = await fetch(`/api/books/${book.id}/files`, { method: "POST", body: form });
-      const data = await res.json();
-      if (res.ok) {
-        const size = data.size > 1048576 ? `${(data.size / 1048576).toFixed(1)} MB` : `${Math.round(data.size / 1024)} KB`;
-        setFormats((prev) => [...prev, { format: data.format, size }]);
-      } else {
-        alert(data.detail || "Ошибка загрузки");
-      }
-    } catch {
-      alert("Ошибка загрузки");
+      const data = await apiUploadFile(book.id, file);
+      const size =
+        data.size > 1048576
+          ? `${(data.size / 1048576).toFixed(1)} MB`
+          : `${Math.round(data.size / 1024)} KB`;
+      setFormats((prev) => [...prev, { format: data.format, size }]);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      const detail = err instanceof Error ? err.message : "Ошибка загрузки";
+      alert(detail);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   async function applyMetadata(data: MetadataPayload) {
@@ -71,16 +76,14 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
     if (data.coverUrl) {
       try {
-        const coverRes = await fetch(`/api/metadata/cover-proxy?url=${encodeURIComponent(data.coverUrl)}`);
-        const blob = await coverRes.blob();
-        const form = new FormData();
-        form.append("file", blob, "cover.jpg");
-        const uploadRes = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
-        if (uploadRes.ok) {
-          setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
-          setCoverChanged(true);
-        }
-      } catch {}
+        const blob = await fetchCoverProxy(data.coverUrl);
+        const res = await uploadCover(book.id, blob, "cover.jpg");
+        setCoverUrl(res.tempCoverUrl);
+        setCoverChanged(true);
+      } catch (err) {
+        console.warn("Failed to apply cover from metadata:", err);
+        alert("Не удалось загрузить обложку из метаданных");
+      }
     }
     setShowMetadataSearch(false);
   }
@@ -90,17 +93,12 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     if (!file) return;
     setUploadingCover(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
-      if (res.ok) {
-        setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
-        setCoverChanged(true);
-      } else {
-        alert("Ошибка загрузки обложки");
-      }
-    } catch {
-      alert("Ошибка загрузки обложки");
+      const res = await uploadCover(book.id, file);
+      setCoverUrl(res.tempCoverUrl);
+      setCoverChanged(true);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Ошибка загрузки обложки";
+      alert(detail);
     } finally {
       setUploadingCover(false);
       e.target.value = "";
@@ -112,7 +110,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     setSaving(true);
     try {
       if (coverChanged) {
-        await fetch(`/api/books/${book.id}/cover`, { method: "PUT", credentials: "include" });
+        await commitCover(book.id);
       }
       await onSave({
         title,
@@ -133,7 +131,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
   async function handleCancel() {
     if (coverChanged) {
-      await fetch(`/api/books/${book.id}/cover`, { method: "DELETE", credentials: "include" });
+      await discardCover(book.id);
     }
     navigate(-1);
   }
@@ -214,11 +212,16 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
           message={`Удалить файл ${deleteFormatConfirm}?`}
           onCancel={() => setDeleteFormatConfirm(null)}
           onConfirm={async () => {
-            const res = await fetch(`/api/books/${book.id}/files?format=${deleteFormatConfirm}`, { method: "DELETE" });
-            if (res.ok) {
+            try {
+              await apiDeleteFile(book.id, deleteFormatConfirm);
               setFormats((prev) => prev.filter((x) => x.format !== deleteFormatConfirm));
+            } catch (err: unknown) {
+              if (err instanceof Error && err.name === "AbortError") return;
+              console.warn("Failed to delete format:", err);
+              alert("Не удалось удалить формат");
+            } finally {
+              setDeleteFormatConfirm(null);
             }
-            setDeleteFormatConfirm(null);
           }}
         />
       )}

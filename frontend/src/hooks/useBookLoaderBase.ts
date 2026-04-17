@@ -2,13 +2,15 @@
 // point-in-time checks inside async functions, not reactive state.
 import { useState, useRef, useEffect } from "react";
 import { LocalProgress, LocalSettings, getProgress, getSettings as getLocalSettings } from "../utils/offline-storage";
-import type { BookApiResponse } from "../types/api";
+import { getBook, setRead as apiSetRead } from "@/api/endpoints/books";
+import type { BookDetailResponse } from "@/api/endpoints/books";
+import type { LoadProgress } from "../components/ReaderLoadingScreen";
 
 export interface BookLoaderResult {
   bookBlob: Blob | null;
   bookTitle: string;
   loading: boolean;
-  loadProgress: number;
+  loadProgress: LoadProgress;
   error: string | null;
 }
 
@@ -47,7 +49,7 @@ export type PostLoadHook = (ctx: {
   id: string;
   format: string;
   blob: File;
-  bookData: BookApiResponse | null;
+  bookData: BookDetailResponse | null;
   fromCache: boolean;
 }) => void;
 
@@ -61,7 +63,7 @@ export function useBookLoaderBase(
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
   const [bookTitle, setBookTitle] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadProgress, setLoadProgress] = useState<LoadProgress>({ percent: 0, bytes: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const onLocalDataLoadedRef = useRef(options.onLocalDataLoaded);
@@ -82,7 +84,7 @@ export function useBookLoaderBase(
     setBookBlob(null);
     setBookTitle("");
     setLoading(true);
-    setLoadProgress(0);
+    setLoadProgress({ percent: 0, bytes: 0 });
     setError(null);
 
     (async () => {
@@ -99,20 +101,26 @@ export function useBookLoaderBase(
           bookId, id, format,
           download: async () => {
             const { downloadBook } = await import("../utils/book-download");
-            return downloadBook(id, format, setLoadProgress);
+            return downloadBook(id, format, (percent, bytes) =>
+              setLoadProgress({ percent, bytes }),
+            );
           },
         });
 
         // 3. Fetch metadata (online only)
         let title = blobTitle;
-        let bookData: BookApiResponse | null = null;
+        let bookData: BookDetailResponse | null = null;
         if (navigator.onLine) {
-          const resp = await fetch(`/api/books/${id}`, { credentials: "include" });
-          if (resp.ok) {
-            bookData = await resp.json() as BookApiResponse;
+          try {
+            const data = await getBook(Number(id));
+            bookData = data;
             if (!fromCache) title = bookData.book?.title || "";
-          } else if (!fromCache) {
-            throw new Error("Failed to fetch book data");
+          } catch (err: unknown) {
+            if (!fromCache) {
+              throw new Error(
+                err instanceof Error ? err.message : "Failed to fetch book data",
+              );
+            }
           }
         }
 
@@ -128,12 +136,9 @@ export function useBookLoaderBase(
 
         // 5. Background: clear is_read + post-load hook
         if (navigator.onLine && bookData?.book?.is_read) {
-          fetch(`/api/books/${id}/read`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ isRead: false }),
-          }).catch((err) => console.warn("Failed to clear is_read:", err));
+          apiSetRead(Number(id), false).catch((err) =>
+            console.warn("Failed to clear is_read:", err),
+          );
         }
         postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromCache });
       } catch (err: unknown) {

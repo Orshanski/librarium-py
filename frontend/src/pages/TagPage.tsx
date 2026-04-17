@@ -11,13 +11,10 @@ import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { getTag } from "../api/endpoints/tags";
+import { NotFoundError } from "@/api/errors";
 
-interface TagData {
-  id: number;
-  name: string;
-  code: string | null;
-  book_count: number;
-}
+type TagData = Awaited<ReturnType<typeof getTag>>["tag"];
 
 function cacheKey(tagId: number) {
   return `librarium_tag_${tagId}`;
@@ -108,27 +105,27 @@ export default function TagPage() {
     if (isNaN(tagId)) return;
 
     setLoading(true);
-    sessionStorage.removeItem(cacheKey(tagId));
 
-    const params = new URLSearchParams();
-    if (authorFilter.length > 0) params.set("authorIds", authorFilter.join(","));
-    if (seriesFilter.length > 0) params.set("seriesIds", seriesFilter.join(","));
-    if (langFilter.length > 0) params.set("language", langFilter[0]);
-
-    fetch(`/api/tags/${tagId}?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) {
-          setNotFound(true);
-          return null;
-        }
-        return r.json();
-      })
+    getTag(tagId, {
+      authorIds: authorFilter.length > 0 ? authorFilter.join(",") : undefined,
+      seriesIds: seriesFilter.length > 0 ? seriesFilter.join(",") : undefined,
+      language: langFilter.length > 0 ? langFilter[0] : undefined,
+    })
       .then((data) => {
-        if (!data) return;
+        // Invalidate cached snapshot only AFTER a successful fetch. If the
+        // network call fails (transient error), the stale cache is still
+        // better than a blank page; cache is rewritten via the save-effect below.
+        sessionStorage.removeItem(cacheKey(tagId));
         setTag(data.tag);
-        setBooks(data.books.map(toBook));
+        setBooks(data.books.map((b) => toBook(b)));
       })
-      .catch((err) => console.warn("Failed to fetch tag:", err))
+      .catch((err) => {
+        if (err instanceof NotFoundError) {
+          setNotFound(true);
+        } else {
+          console.warn("Failed to fetch tag:", err);
+        }
+      })
       .finally(() => setLoading(false));
   }, [paramsKey]);
 
