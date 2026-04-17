@@ -153,3 +153,28 @@ class TestBooksSnapshot:
         assert set(multi["authors"].split(",")) == {"Smith", "Brown"}
         # Matching IDs
         assert set(multi["author_ids"].split(",")) == {"101", "102"}
+
+    def test_get_books_multi_author_exact_string(self, db_with_multi_author):
+        # Prove ORDER BY a.name inside GROUP_CONCAT: insertion order was Smith, Brown;
+        # expected alphabetical is Brown, Smith. Also author_ids must pair with names
+        # by the same axis — so ids should come in the same (Brown-first, Smith-second)
+        # order, i.e. "102,101" — not "101,102" (which would indicate sort-by-id).
+        resp = books_dal.get_books(db_with_multi_author, filters={})
+        multi = next(b for b in resp["books"] if b["id"] == 100)
+        assert multi["authors"] == "Brown,Smith"
+        assert multi["author_ids"] == "102,101"
+
+    def test_get_book_by_id_100_multi_author_exact_string(self, db_with_multi_author):
+        result = books_dal.get_book_by_id(db_with_multi_author, 100)
+        assert result is not None
+        assert result["authors"] == "Brown,Smith"
+        assert result["author_ids"] == "102,101"
+
+    def test_get_books_multi_tag_exact_string(self, db_with_multi_author):
+        # Book 100 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
+        # Alphabetical by Russian: "Классический детектив" < "Фэнтези".
+        # Expected tags: "Классический детектив,Фэнтези", tag_ids: "2,1".
+        resp = books_dal.get_books(db_with_multi_author, filters={})
+        multi = next(b for b in resp["books"] if b["id"] == 100)
+        assert multi["tags"] == "Классический детектив,Фэнтези"
+        assert multi["tag_ids"] == "2,1"
