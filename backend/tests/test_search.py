@@ -240,6 +240,46 @@ class TestSearchBooksFuzzy:
             assert res["books"][0]["id"] == _BOOK_PUNCT
 
 
+# ── /api/search API-level regression tests ──
+#
+# These wire-format tests stay here to guard the JSON response contract.
+
+class TestSearch:
+    def test_search_by_title(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": "Minimal"})
+        assert resp.status_code == 200
+        assert len(resp.json()["books"]) >= 1
+
+    def test_search_by_author(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": "Cover"})
+        assert resp.status_code == 200
+        assert len(resp.json()["authors"]) >= 1
+
+    def test_search_by_series(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": "Test Series"})
+        assert resp.status_code == 200
+        assert len(resp.json()["series"]) >= 1
+
+    def test_search_partial_match(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": "Seri"})
+        assert resp.status_code == 200
+        assert len(resp.json()["series"]) >= 1
+
+    def test_search_empty_query(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": ""})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {"books": [], "authors": [], "series": []}
+
+    def test_search_no_results(self, reader_client):
+        resp = reader_client.get("/api/search", params={"q": "xyznonexistent"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["books"] == []
+        assert data["authors"] == []
+        assert data["series"] == []
+
+
 # ── Morphology aspirational ──
 #
 # WRatio may or may not handle Russian grammatical cases. We don't
