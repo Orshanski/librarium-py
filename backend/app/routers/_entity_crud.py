@@ -12,6 +12,7 @@ not registered here because authors and series differ in query-param signatures.
 """
 import logging
 import sqlite3
+from types import ModuleType
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -31,7 +32,7 @@ class _MergeBody(BaseModel):
 def register_entity_crud(
     router: APIRouter,
     *,
-    dal,
+    dal: ModuleType,
     logger: logging.Logger,
     entity_label: str,
     detail_not_found: str,
