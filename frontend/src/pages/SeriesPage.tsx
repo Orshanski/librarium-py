@@ -13,7 +13,7 @@ import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { getSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
-import { NotFoundError } from "../api/errors";
+import { NotFoundError } from "@/api/errors";
 
 export default function SeriesPage() {
   const { id } = useParams();

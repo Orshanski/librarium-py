@@ -8,7 +8,7 @@ import { colors, fonts } from "../theme";
 import { useIsMobile } from "../responsive";
 import { getBook } from "../api/endpoints/books";
 import { getSimilar } from "../api/endpoints/similar";
-import { NotFoundError } from "../api/errors";
+import { NotFoundError } from "@/api/errors";
 import type { RawBook } from "../types";
 
 export default function SimilarBooksPage() {

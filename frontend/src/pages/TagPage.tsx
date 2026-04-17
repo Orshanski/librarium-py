@@ -12,7 +12,7 @@ import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { getTag } from "../api/endpoints/tags";
-import { NotFoundError } from "../api/errors";
+import { NotFoundError } from "@/api/errors";
 
 type TagData = Awaited<ReturnType<typeof getTag>>["tag"];
 
