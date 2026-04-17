@@ -110,13 +110,13 @@ class TestTagDetailSnapshot:
         assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
 
     def test_book_5_multi_tag_membership_via_tag_1(self, db):
-        # Book 5 has tags 1 and 2 — fetch via tag 1, assert membership on the
-        # GROUP_CONCAT'd `tags` column (order agnostic for baseline; Task 3+
-        # tightens to exact string once ORDER BY lands).
+        # Book 5 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
+        # After Task 5 migration: shared BOOK_LIST_AGGREGATE_COLUMNS orders by
+        # tag name; "К" (U+041A) < "Ф" (U+0424), so "Классический детектив" first.
         result = tags_dal.get_tag_by_id(db, 1)
         assert result is not None
         book5 = next(b for b in result["books"] if b["id"] == 5)
-        assert set(book5["tags"].split(",")) == {"Фэнтези", "Классический детектив"}
+        assert book5["tags"] == "Классический детектив,Фэнтези"
 
 
 class TestShelfDetailSnapshot:

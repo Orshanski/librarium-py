@@ -1,6 +1,7 @@
 import sqlite3
 from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
+from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
 
 def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
@@ -39,22 +40,16 @@ def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_i
     if language:
         filters["language"] = language
 
-    where, params = build_book_where(
-        filters, extra_clauses=[("bt2.tag_id = :id", {"id": tag_id})]
-    )
+    where_sql, params = build_book_where(filters)
+    params["id"] = tag_id
 
     books = dicts_from_rows(db.execute(f"""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a.name) as authors,
-            GROUP_CONCAT(DISTINCT t.name) as tags
+        SELECT {BOOK_LIST_AGGREGATE_COLUMNS}
         FROM books b
-        JOIN book_tags bt2 ON b.id = bt2.book_id
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
-        {where} GROUP BY b.id ORDER BY b.added_at DESC
+        JOIN book_tags bt_scope ON b.id = bt_scope.book_id AND bt_scope.tag_id = :id
+        {BOOK_LIST_JOINS}
+        {where_sql}
+        GROUP BY b.id ORDER BY b.added_at DESC
     """, params).fetchall())
 
     return {"tag": tag, "books": books}
