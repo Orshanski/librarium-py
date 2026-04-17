@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import { server } from "./test/msw/server";
@@ -29,35 +29,13 @@ function renderAuth() {
 
 const AUTH_KEY = "librarium_user";
 
-/** Build an in-memory Storage mock compatible with the Storage interface. */
-function makeFakeStorage(): Storage & { _store: Record<string, string> } {
-  const store: Record<string, string> = {};
-  return {
-    _store: store,
-    get length() { return Object.keys(store).length; },
-    key(index: number) { return Object.keys(store)[index] ?? null; },
-    getItem(key: string) { return key in store ? store[key] : null; },
-    setItem(key: string, value: string) { store[key] = value; },
-    removeItem(key: string) { delete store[key]; },
-    clear() { for (const k of Object.keys(store)) delete store[k]; },
-  };
-}
-
 describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
-  let fakeStorage: Storage & { _store: Record<string, string> };
-
-  beforeEach(() => {
-    fakeStorage = makeFakeStorage();
-    vi.stubGlobal("localStorage", fakeStorage);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+  // localStorage is stubbed globally per-test in src/test/setup.ts with a
+  // fresh in-memory fake, so no local beforeEach is needed.
 
   it("stale schema in localStorage → cached value ignored, falls back to anon when offline", async () => {
     // Write a legacy entry without schemaVersion (simulates old cached format)
-    fakeStorage.setItem(
+    localStorage.setItem(
       AUTH_KEY,
       JSON.stringify({ id: 99, username: "stale_user", displayName: "Stale", email: null, role: "reader" }),
     );
@@ -86,7 +64,7 @@ describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
 
   it("valid schema in localStorage → cached user restored when offline", async () => {
     // Write a valid versioned entry
-    fakeStorage.setItem(
+    localStorage.setItem(
       AUTH_KEY,
       JSON.stringify({
         schemaVersion: 1,
