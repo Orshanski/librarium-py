@@ -1,0 +1,152 @@
+"""
+Baseline snapshot tests for DAL book-listing queries.
+
+Purpose: lock down current behavior of get_author_by_id / get_series_by_id /
+get_tag_by_id / get_shelf_by_id / get_books / get_book_by_id so the E5 refactor
+can prove byte-identical semantics (modulo the intended GROUP_CONCAT ORDER BY
+change introduced in Task 2).
+
+These tests use SET-MEMBERSHIP assertions for GROUP_CONCAT content because
+current SQL has no ORDER BY inside aggregates. Task 3+ tighten to exact string
+once the ORDER BY contract is in place.
+
+Extra fixture: we add a multi-author book (book_id=100) whose authors are
+inserted in non-alphabetical order to prove the Task 2 ORDER BY fix works.
+"""
+import pytest
+from app.dal import authors as authors_dal
+from app.dal import series as series_dal
+from app.dal import tags as tags_dal
+from app.dal import shelves as shelves_dal
+from app.dal import books as books_dal
+
+
+@pytest.fixture
+def db_with_multi_author(db):
+    """Adds book_id=100 with authors 'Smith' (id=101) then 'Brown' (id=102)
+    — non-alphabetical insertion — plus tags id=1 and id=2 (non-alphabetical
+    Cyrillic). Tests can use this book to verify that a future ORDER BY <name>
+    change actually sorts output, because without it the output would follow
+    insertion order (Smith,Brown) not alphabetical (Brown,Smith)."""
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (101, 'Smith', 'Smith')")
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (102, 'Brown', 'Brown')")
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, added_at) "
+        "VALUES (100, 'Multi-Author Book', 'Multi-Author Book', 'en', '2025-01-10 00:00:00')"
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (100, 101)")
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (100, 102)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (100, 1)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (100, 2)")
+    db.commit()
+    return db
+
+
+EXPECTED_BASE_COLUMNS = {
+    "id", "title", "sort_title", "series_id", "series_number", "language",
+    "publisher", "pub_date", "description", "cover_path", "added_at",
+    "series_name", "authors", "tags",
+}
+# NOTE: `isbn` is NOT in b.* — it lives in book_identifiers (separate table).
+# `updated_at`, `author_ids`, `tag_ids`, `rating`, `is_read` may appear
+# depending on the query but are NOT required in every context.
+
+
+class TestAuthorDetailSnapshot:
+    def test_author_1_shape_and_order(self, db):
+        result = authors_dal.get_author_by_id(db, 1)
+        assert result is not None
+        books = result["books"]
+        # Test Author (id=1) is tied to books 1 and 3
+        assert {b["id"] for b in books} == {1, 3}
+        assert len(books) == 2
+        # Column set — EXPECTED_BASE_COLUMNS subset of each row
+        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+        # Outer order (b.added_at DESC): book 3 (2025-01-03) before book 1 (2025-01-01)
+        assert [b["id"] for b in books] == [3, 1]
+
+    def test_author_100_multi_author_book(self, db_with_multi_author):
+        # Author 101 (Smith) — their page should show the multi-author book
+        result = authors_dal.get_author_by_id(db_with_multi_author, 101)
+        assert result is not None
+        multi_book = next(b for b in result["books"] if b["id"] == 100)
+        # Set-membership (current pre-refactor: order is non-deterministic)
+        assert set(multi_book["authors"].split(",")) == {"Smith", "Brown"}
+
+
+class TestSeriesDetailSnapshot:
+    def test_series_1_books_by_series_number(self, db):
+        result = series_dal.get_series_by_id(db, 1)
+        assert result is not None
+        books = result["books"]
+        # Books 1 (num 1) and 3 (num 2) belong to series 1
+        assert [b["id"] for b in books] == [1, 3]  # ORDER BY b.series_number
+        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+
+
+class TestTagDetailSnapshot:
+    def test_tag_1_fantasy(self, db):
+        result = tags_dal.get_tag_by_id(db, 1)
+        assert result is not None
+        books = result["books"]
+        # Tag 1 (Фэнтези) is on books 1, 3, 5. Order: b.added_at DESC -> 5, 3, 1
+        assert [b["id"] for b in books] == [5, 3, 1]
+        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+
+    def test_tag_5_multi_tag_book_membership(self, db):
+        # Book 5 has tags 1 and 2 — assert membership (order agnostic for baseline)
+        result = tags_dal.get_tag_by_id(db, 1)
+        book5 = next(b for b in result["books"] if b["id"] == 5)
+        assert set(book5["tags"].split(",")) == {"Фэнтези", "Классический детектив"}
+
+
+class TestShelfDetailSnapshot:
+    def test_shelf_best(self, db):
+        # User 2 (reader) rated book 1 with rating=5 → book 1 on "best" shelf
+        shelves = shelves_dal.get_shelves(db, 2)
+        best_shelf = next(s for s in shelves if s["system_code"] == "best")
+        result = shelves_dal.get_shelf_by_id(db, best_shelf["id"], 2)
+        assert result is not None
+        books = result["books"]
+        assert [b["id"] for b in books] == [1]
+        # Extra column from the "best" branch
+        assert "rating" in books[0]
+        assert books[0]["rating"] == 5
+
+    def test_shelf_reading_now_empty(self, db):
+        # No reading_progress for user 2 → empty list
+        shelves = shelves_dal.get_shelves(db, 2)
+        rn = next(s for s in shelves if s["system_code"] == "reading_now")
+        result = shelves_dal.get_shelf_by_id(db, rn["id"], 2)
+        assert result["books"] == []
+
+    def test_shelf_default_empty(self, db):
+        # User-created shelf (not system). Need to create one.
+        shelf_id = shelves_dal.create_shelf(db, 2, "My Shelf")
+        db.commit()
+        result = shelves_dal.get_shelf_by_id(db, shelf_id, 2)
+        assert result is not None
+        assert result["books"] == []
+
+
+class TestBooksSnapshot:
+    def test_get_books_default_order(self, db):
+        resp = books_dal.get_books(db, filters={})
+        # Default sort = added_desc
+        book_ids = [b["id"] for b in resp["books"]]
+        assert book_ids == [5, 4, 3, 2, 1]
+        assert EXPECTED_BASE_COLUMNS <= set(resp["books"][0].keys())
+
+    def test_get_book_by_id_shape(self, db):
+        result = books_dal.get_book_by_id(db, 1)
+        assert result is not None
+        # Book 1 has 1 author (Test Author) and 1 tag (Фэнтези)
+        assert result["authors"] == "Test Author"
+        assert result["tags"] == "Фэнтези"
+
+    def test_get_books_multi_author_membership(self, db_with_multi_author):
+        resp = books_dal.get_books(db_with_multi_author, filters={})
+        multi = next(b for b in resp["books"] if b["id"] == 100)
+        assert set(multi["authors"].split(",")) == {"Smith", "Brown"}
+        # Matching IDs
+        assert set(multi["author_ids"].split(",")) == {"101", "102"}
