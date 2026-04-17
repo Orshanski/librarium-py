@@ -6,41 +6,45 @@ import SimilarBooksGrid from "../components/similar-books-grid";
 import { SimilarBook } from "../components/similar-books.types";
 import { colors, fonts } from "../theme";
 import { useIsMobile } from "../responsive";
+import { getBook } from "../api/endpoints/books";
+import { getSimilar } from "../api/endpoints/similar";
+import { NotFoundError } from "../api/errors";
+import type { RawBook } from "../types";
 
 export default function SimilarBooksPage() {
   const { id } = useParams();
   const isMobile = useIsMobile();
-  const [book, setBook] = useState<{ id: number; title: string; authors: string | string[] } | null>(null);
+  const [book, setBook] = useState<RawBook | null>(null);
   const [similar, setSimilar] = useState<SimilarBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     Promise.all([
-      fetch(`/api/books/${id}`).then((r) => r.json()).then((d) => d.book),
-      fetch(`/api/books/${id}/similar`).then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      }),
+      getBook(Number(id), controller.signal),
+      getSimilar(Number(id), controller.signal),
     ])
       .then(([bookData, similarData]) => {
-        if (cancelled) return;
-        setBook(bookData);
-        setSimilar(similarData.books || []);
+        if (controller.signal.aborted) return;
+        setBook(bookData.book);
+        setSimilar(similarData.books);
         if (similarData.error === "service_unavailable") {
           setError(true);
         }
         setLoading(false);
       })
-      .catch(() => {
-        if (cancelled) return;
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (!(err instanceof NotFoundError)) {
+          console.warn("Failed to load similar books:", err);
+        }
         setError(true);
         setLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, [id]);
 
   return (
@@ -89,7 +93,7 @@ export default function SimilarBooksPage() {
                 {book.title}
               </Link>
               {book.authors && (
-                <span> — {typeof book.authors === "string" ? book.authors : book.authors.join(", ")}</span>
+                <span> — {book.authors}</span>
               )}
             </div>
             <div style={{ fontSize: isMobile ? 11 : 14, color: colors.textDim, lineHeight: 1.5 }}>
