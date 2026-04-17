@@ -8,6 +8,7 @@ import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 import { splitCsv } from "../types";
 import { fetchCoverProxy } from "../api/endpoints/metadata";
+import { uploadCover, commitCover, discardCover } from "../api/endpoints/covers";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
@@ -73,13 +74,9 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     if (data.coverUrl) {
       try {
         const blob = await fetchCoverProxy(data.coverUrl);
-        const form = new FormData();
-        form.append("file", blob, "cover.jpg");
-        const uploadRes = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
-        if (uploadRes.ok) {
-          setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
-          setCoverChanged(true);
-        }
+        const res = await uploadCover(book.id, blob, "cover.jpg");
+        setCoverUrl(res.tempCoverUrl);
+        setCoverChanged(true);
       } catch {}
     }
     setShowMetadataSearch(false);
@@ -90,17 +87,12 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     if (!file) return;
     setUploadingCover(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });
-      if (res.ok) {
-        setCoverUrl(`/api/uploads/cover/${book.id}?t=${Date.now()}`);
-        setCoverChanged(true);
-      } else {
-        alert("Ошибка загрузки обложки");
-      }
-    } catch {
-      alert("Ошибка загрузки обложки");
+      const res = await uploadCover(book.id, file);
+      setCoverUrl(res.tempCoverUrl);
+      setCoverChanged(true);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Ошибка загрузки обложки";
+      alert(detail);
     } finally {
       setUploadingCover(false);
       e.target.value = "";
@@ -112,7 +104,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
     setSaving(true);
     try {
       if (coverChanged) {
-        await fetch(`/api/books/${book.id}/cover`, { method: "PUT", credentials: "include" });
+        await commitCover(book.id);
       }
       await onSave({
         title,
@@ -133,7 +125,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
   async function handleCancel() {
     if (coverChanged) {
-      await fetch(`/api/books/${book.id}/cover`, { method: "DELETE", credentials: "include" });
+      await discardCover(book.id);
     }
     navigate(-1);
   }

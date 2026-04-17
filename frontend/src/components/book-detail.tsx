@@ -10,6 +10,7 @@ import DesktopBookDetail from "./desktop/desktop-book-detail";
 import MobileBookDetail from "./mobile/mobile-book-detail";
 import { Shelf } from "./book-detail.types";
 import { listShelves, addBookToShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
+import { getCover } from "@/api/endpoints/covers";
 
 export default function BookDetail({
   book,
@@ -44,8 +45,7 @@ export default function BookDetail({
         }));
       },
       async () => {
-        const r = await fetch(`/api/covers/${book.id}?full=1`, { credentials: "include" });
-        return r.blob();
+        return getCover(book.id, true);
       },
     );
   }, [book.id, book.title, book.authors, toggleCache]);

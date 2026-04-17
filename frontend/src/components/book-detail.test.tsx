@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -144,5 +144,32 @@ describe("book-detail — shelves", () => {
     await waitFor(() => {
       expect(checkbox).toBeChecked();
     });
+  });
+});
+
+describe("book-detail — cover display", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders cover img with src from book.coverPath", () => {
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+
+    const img = screen.getByRole("img", { name: mockBook.title });
+    expect(img).toBeInTheDocument();
+    expect((img as HTMLImageElement).getAttribute("src")).toBe("/api/covers/7");
+  });
+
+  it("cover img src uses correct /api/covers/:id pattern (no full=1 for display)", () => {
+    const bookWithCover: Book = { ...mockBook, id: 99, coverPath: "/api/covers/99" };
+    renderWithProviders(<BookDetail book={bookWithCover} seriesBooks={[]} />);
+
+    const img = screen.getByRole("img", { name: bookWithCover.title });
+    expect((img as HTMLImageElement).getAttribute("src")).toBe("/api/covers/99");
   });
 });
