@@ -62,8 +62,6 @@ def get_series_by_id(db: sqlite3.Connection, series_id: int):
     return {"series": s, "books": books}
 
 
-
-
 def get_or_create_series(db: sqlite3.Connection, name: str) -> int:
     db.execute("INSERT OR IGNORE INTO series (name, sort_name) VALUES (:name, :sort)", {"name": name, "sort": name})
     row = db.execute("SELECT id FROM series WHERE name = :name", {"name": name}).fetchone()
