@@ -6,6 +6,7 @@ from ..auth import get_current_user, require_admin
 from ..database import db_session
 from ..dal import tags as dal
 from .params import parse_ids
+from ._helpers import require_exists
 
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -19,8 +20,7 @@ def tag_cloud(user: dict = Depends(get_current_user), db: sqlite3.Connection = D
 @router.get("/{tag_id}")
 def get_tag(tag_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session), authorIds: str = "", seriesIds: str = "", language: str = ""):
     result = dal.get_tag_by_id(db, tag_id, parse_ids(authorIds), parse_ids(seriesIds), language or None)
-    if not result:
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(result)
     return result
 
 
@@ -33,8 +33,7 @@ def map_tag(tag_id: int, body: MapBody, user: dict = Depends(require_admin), db:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
-    if not dal.tag_exists(db, tag_id):
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(dal.tag_exists(db, tag_id))
     result = dal.map_tag(db, tag_id, name)
     action = "renamed" if result["renamed"] else "merged"
     log.info("Tag %s: %d → %s (target=%d) by user_id=%s",
