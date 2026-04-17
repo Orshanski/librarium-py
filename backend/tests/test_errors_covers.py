@@ -22,7 +22,7 @@ def test_upload_cover_unauthenticated_is_401(anon_client):
     assert resp.status_code in (401, 403)
 
 
-def test_download_cover_nonexistent_book_is_404(admin_client):
-    resp = admin_client.post("/api/books/999999/cover/download",
-                             json={"url": "http://example.com/img.jpg"})
-    assert_error(resp, 404)
+# Note: earlier drafts referenced POST /api/books/{id}/cover/download — that
+# endpoint never existed in the router. External-URL cover fetch happens
+# client-side then uploads via POST /api/books/{id}/cover (covered above).
+# Test removed to avoid testing non-existent endpoints.
