@@ -2,23 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { splitCsv } from "../types";
+import { listAuthors } from "../api/endpoints/authors";
+import type { Author } from "../api/endpoints/authors";
 
 const CACHE_KEY = "librarium_authors";
 
-interface AuthorRow {
-  id: number;
-  name: string;
-  sort_name: string;
-  book_count: number;
-  tags: string | null;
-}
-
-function saveCache(authors: AuthorRow[], selected: Record<string, string[]>) {
+function saveCache(authors: Author[], selected: Record<string, string[]>) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -45,7 +39,7 @@ export default function AuthorsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
-  const [authors, setAuthors] = useState<AuthorRow[]>([]);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
@@ -90,17 +84,25 @@ export default function AuthorsPage() {
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
 
-    const params = new URLSearchParams();
-    if (genreFilter.length > 0) params.set("tagIds", genreFilter.join(","));
-    if (langFilter.length > 0) params.set("language", langFilter[0]);
+    const params: { tagIds?: string; language?: string } = {};
+    if (genreFilter.length > 0) params.tagIds = genreFilter.join(",");
+    if (langFilter.length > 0) params.language = langFilter[0];
 
-    fetch(`/api/authors?${params.toString()}`)
-      .then((r) => r.json())
+    const controller = new AbortController();
+
+    listAuthors(params, controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to fetch authors list:", err);
+        setAuthors([]);
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount

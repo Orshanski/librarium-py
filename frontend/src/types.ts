@@ -74,9 +74,4 @@ export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string |
   };
 }
 
-export interface Author {
-  name: string;
-  bookCount: number;
-  tags: string[];
-}
 

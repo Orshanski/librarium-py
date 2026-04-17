@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { colors, fonts } from "../theme";
 import ConfirmDialog from "./confirm-dialog";
 import { listSeries, renameSeries, mergeSeries, deleteSeries } from "../api/endpoints/series";
+import { listAuthors, renameAuthor, mergeAuthor, deleteAuthor } from "../api/endpoints/authors";
 
 interface EntityAdminPanelProps {
   entityType: "author" | "series";
@@ -123,12 +124,9 @@ export default function EntityAdminPanel({
         })
         .catch((err) => console.warn("Failed to fetch series:", err));
     } else {
-      // author: keep raw fetch — Task 9 scope
-      fetch("/api/authors", { credentials: "include" })
-        .then((r) => r.json())
+      listAuthors()
         .then((data) => {
-          const list = (data.authors as { id: number; name: string }[]) || [];
-          setAllEntities(list.filter((e) => e.id !== entityId));
+          setAllEntities(data.authors.filter((e) => e.id !== entityId));
         })
         .catch((err) => console.warn("Failed to fetch authors:", err));
     }
@@ -145,17 +143,10 @@ export default function EntityAdminPanel({
     try {
       if (entityType === "series") {
         await renameSeries(entityId, trimmed);
-        onRenamed(trimmed);
       } else {
-        // author: keep raw fetch — Task 9 scope
-        const res = await fetch(`/api/authors/${entityId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ name: trimmed }),
-        });
-        if (res.ok) onRenamed(trimmed);
+        await renameAuthor(entityId, trimmed);
       }
+      onRenamed(trimmed);
     } catch (err) {
       console.warn("Failed to rename:", err);
     } finally {
@@ -173,17 +164,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await mergeSeries(entityId, source.id);
-            onMerged();
           } else {
-            // author: keep raw fetch — Task 9 scope
-            const res = await fetch(`/api/authors/${entityId}/merge`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({ sourceId: source.id }),
-            });
-            if (res.ok) onMerged();
+            await mergeAuthor(entityId, source.id);
           }
+          onMerged();
         } catch (err) {
           console.warn("Failed to merge:", err);
         } finally {
@@ -204,15 +188,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await deleteSeries(entityId);
-            onDeleted();
           } else {
-            // author: keep raw fetch — Task 9 scope
-            const res = await fetch(`/api/authors/${entityId}`, {
-              method: "DELETE",
-              credentials: "include",
-            });
-            if (res.ok) onDeleted();
+            await deleteAuthor(entityId);
           }
+          onDeleted();
         } catch (err) {
           console.warn("Failed to delete:", err);
         } finally {
