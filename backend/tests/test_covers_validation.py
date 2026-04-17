@@ -36,12 +36,10 @@ class TestCoverGet:
         assert resp.headers.get("content-type", "").startswith("image/")
 
     def test_no_cover(self, reader_client):
-        resp = reader_client.get("/api/covers/1")
-        assert resp.status_code == 404
+        assert_error(reader_client.get("/api/covers/1"), 404)
 
     def test_nonexistent_book(self, reader_client):
-        resp = reader_client.get("/api/covers/999")
-        assert resp.status_code == 404
+        assert_error(reader_client.get("/api/covers/999"), 404)
 
 
 # ── Covers: commit flow ──
@@ -83,8 +81,7 @@ class TestCoverDiscard:
         assert_ok(resp)
 
         # temp preview gone
-        resp = admin_client.get(temp_url)
-        assert resp.status_code == 404
+        assert_error(admin_client.get(temp_url), 404)
 
         # original library cover still there
         resp = admin_client.get("/api/covers/2", params={"full": 1})
@@ -106,7 +103,7 @@ class TestCoverUploadValidation:
             "/api/books/2/cover",
             files={"file": ("cover.jpg", b"<html>hack</html>", "image/jpeg")},
         )
-        assert resp.status_code == 400
+        assert_error(resp, 400)
 
 
 # ── Covers: auth ──
@@ -127,9 +124,8 @@ class TestCoverAuth:
         resp = reader_client.delete("/api/books/2/cover")
         assert_error(resp, 403)
 
-    def test_temp_preview_requires_auth(self, client):
-        resp = client.get("/api/uploads/cover/2")
-        assert_error(resp, 401)
+    def test_temp_preview_requires_auth(self, anon_client):
+        assert_error(anon_client.get("/api/uploads/cover/2"), 401)
 
 
 # ── Covers: edge cases ──
@@ -140,11 +136,10 @@ class TestCoverEdgeCases:
             "/api/books/999/cover",
             files={"file": ("cover.jpg", _make_jpeg(), "image/jpeg")},
         )
-        assert resp.status_code == 404
+        assert_error(resp, 404)
 
     def test_commit_nonexistent_book(self, admin_client):
-        resp = admin_client.put("/api/books/999/cover")
-        assert resp.status_code == 404
+        assert_error(admin_client.put("/api/books/999/cover"), 404)
 
     def test_commit_without_upload_is_noop(self, admin_client):
         resp = admin_client.put("/api/books/1/cover")
@@ -152,8 +147,7 @@ class TestCoverEdgeCases:
         assert data == {"ok": True}
 
     def test_temp_preview_non_alphanumeric_id(self, reader_client):
-        resp = reader_client.get("/api/uploads/cover/abc-def_!@#")
-        assert resp.status_code == 400
+        assert_error(reader_client.get("/api/uploads/cover/abc-def_!@#"), 400)
 
     def test_oversized_cover_rejected(self, admin_client):
         with patch("app.routers.covers.MAX_COVER_SIZE", 100):
@@ -161,7 +155,7 @@ class TestCoverEdgeCases:
                 "/api/books/2/cover",
                 files={"file": ("big.jpg", _make_jpeg(size=(200, 200)), "image/jpeg")},
             )
-        assert resp.status_code == 400
+        assert_error(resp, 400)
 
     def test_upload_replaces_previous_temp(self, admin_client):
         first_jpeg = _make_jpeg(color="red")

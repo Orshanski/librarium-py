@@ -1,4 +1,5 @@
 """Tests for tag mapping (raw genre codes -> tags)."""
+from tests._helpers import assert_error
 
 
 class TestResolveRawTag:
@@ -110,16 +111,13 @@ class TestMapTagEndpoint:
         assert data["targetId"] == 2
 
     def test_reader_forbidden(self, reader_client):
-        resp = reader_client.put("/api/tags/1/map", json={"name": "Whatever"})
-        assert resp.status_code == 403
+        assert_error(reader_client.put("/api/tags/1/map", json={"name": "Whatever"}), 403)
 
     def test_not_found(self, admin_client):
-        resp = admin_client.put("/api/tags/999/map", json={"name": "Whatever"})
-        assert resp.status_code == 404
+        assert_error(admin_client.put("/api/tags/999/map", json={"name": "Whatever"}), 404)
 
     def test_empty_name(self, admin_client):
-        resp = admin_client.put("/api/tags/1/map", json={"name": "  "})
-        assert resp.status_code == 400
+        assert_error(admin_client.put("/api/tags/1/map", json={"name": "  "}), 400)
 
 
 class TestUploadMapping:

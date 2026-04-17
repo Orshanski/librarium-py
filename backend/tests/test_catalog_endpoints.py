@@ -1,4 +1,5 @@
 """Authors, series, and tags detail endpoints."""
+from tests._helpers import assert_error
 
 
 class TestAuthorsFilters:
@@ -72,5 +73,4 @@ class TestTags:
         assert ids == {3, 5}
 
     def test_tag_not_found(self, reader_client):
-        resp = reader_client.get("/api/tags/999")
-        assert resp.status_code == 404
+        assert_error(reader_client.get("/api/tags/999"), 404)

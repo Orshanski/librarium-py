@@ -78,13 +78,13 @@ class TestReadingProgress:
         resp = reader_client.put("/api/reader/progress/1", json={
             "position": "ch1", "last_device": "x", "fraction": 1.5,
         })
-        assert resp.status_code == 422
+        assert_error(resp, 422)
 
     def test_fraction_too_low(self, reader_client):
         resp = reader_client.put("/api/reader/progress/1", json={
             "position": "ch1", "last_device": "x", "fraction": -0.1,
         })
-        assert resp.status_code == 422
+        assert_error(resp, 422)
 
     def test_last_format_saved(self, reader_client):
         reader_client.put("/api/reader/progress/1", json={

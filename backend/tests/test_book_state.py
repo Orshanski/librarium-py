@@ -1,5 +1,5 @@
 """Per-book user state: rating, read status, hidden flag."""
-from tests._helpers import assert_ok
+from tests._helpers import assert_error, assert_ok
 
 
 def test_set_rating(reader_client):
@@ -25,13 +25,11 @@ def test_rating_lower_bound(reader_client):
 
 
 def test_rating_too_high(reader_client):
-    resp = reader_client.put("/api/books/3/rating", json={"rating": 6})
-    assert resp.status_code == 422
+    assert_error(reader_client.put("/api/books/3/rating", json={"rating": 6}), 422)
 
 
 def test_rating_too_low(reader_client):
-    resp = reader_client.put("/api/books/3/rating", json={"rating": 0})
-    assert resp.status_code == 422
+    assert_error(reader_client.put("/api/books/3/rating", json={"rating": 0}), 422)
 
 
 def test_set_read(reader_client):
