@@ -1,5 +1,5 @@
 """Tests for PUT /api/books/{id} — metadata update."""
-from tests._helpers import assert_error, assert_ok, assert_not_found
+from tests._helpers import assert_error, assert_ok
 
 
 def get_book(client, book_id):
