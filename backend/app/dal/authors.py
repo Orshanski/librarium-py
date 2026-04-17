@@ -58,7 +58,6 @@ def get_author_by_id(db: sqlite3.Connection, author_id: int):
     return {"author": author, "books": books}
 
 
-
 def _generate_sort_name(name: str) -> str:
     """Generate sort name by inverting 'First Last' -> 'Last, First'."""
     parts = name.strip().split()
