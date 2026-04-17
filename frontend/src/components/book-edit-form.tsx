@@ -50,7 +50,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
         const size = data.size > 1048576 ? `${(data.size / 1048576).toFixed(1)} MB` : `${Math.round(data.size / 1024)} KB`;
         setFormats((prev) => [...prev, { format: data.format, size }]);
       } else {
-        alert(data.error || "Ошибка загрузки");
+        alert(data.detail || "Ошибка загрузки");
       }
     } catch {
       alert("Ошибка загрузки");

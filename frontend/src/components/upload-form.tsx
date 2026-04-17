@@ -105,7 +105,7 @@ export default function UploadForm() {
         xhr.onload = () => {
           if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
           else {
-            try { reject(new Error(JSON.parse(xhr.responseText).error || `HTTP ${xhr.status}`)); }
+            try { reject(new Error(JSON.parse(xhr.responseText).detail || `HTTP ${xhr.status}`)); }
             catch { reject(new Error(`HTTP ${xhr.status}`)); }
           }
         };
