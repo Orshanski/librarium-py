@@ -1,37 +1,42 @@
 """Shared assertion helpers for API tests.
 
-Target error contract: {"detail": "<message>"}.
-- assert_error: status + shape + (optional) message substring.
-- assert_ok: status, returns JSON payload.
-- assert_not_found: delegate for 404.
+Target error contract: {"detail": <str> | <list of validation errors>}.
+
+FastAPI uses `detail` for both cases:
+- App-raised HTTPException → detail is a str.
+- Pydantic validation (422) → detail is a list of {type, loc, msg, ...} objects.
+
+`assert_error` accepts both. `message_matches` does a case-insensitive
+substring search — in the string form directly, or in the joined `msg`
+fields of the list form.
 """
 from typing import Any
 
 
 def assert_error(resp, status: int, *, message_matches: str | None = None) -> None:
     """
-    Check an error response against the target contract:
+    Check an error response:
     - HTTP status == status
-    - JSON payload is a dict with "detail": str
-    - if message_matches is provided, substring match (case-insensitive)
+    - payload is JSON with a "detail" key (str or list per FastAPI contract)
+    - optional case-insensitive substring match against detail
     """
     assert resp.status_code == status, (
         f"Expected status {status}, got {resp.status_code}. Body: {resp.text}"
     )
-    body = resp.json()
-    assert isinstance(body, dict), (
-        f"Expected JSON object, got {type(body).__name__}: {body}"
+    detail = resp.json().get("detail")
+    assert detail is not None, f"Expected 'detail' key in response: {resp.text}"
+
+    if message_matches is None:
+        return
+
+    if isinstance(detail, str):
+        text = detail
+    else:
+        text = " ".join(item.get("msg", "") for item in detail if isinstance(item, dict))
+
+    assert message_matches.lower() in text.lower(), (
+        f"Expected substring {message_matches!r} in detail, got {detail!r}"
     )
-    assert "detail" in body, (
-        f"Expected key 'detail' in error response, got keys {list(body)}"
-    )
-    assert isinstance(body["detail"], str), (
-        f"Expected 'detail' to be str, got {type(body['detail']).__name__}: {body['detail']}"
-    )
-    if message_matches is not None:
-        assert message_matches.lower() in body["detail"].lower(), (
-            f"Expected substring {message_matches!r} in detail, got {body['detail']!r}"
-        )
 
 
 def assert_ok(resp, *, status: int = 200) -> Any:
