@@ -11,7 +11,7 @@ import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
 import { toBook, splitCsv, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-import { getShelf, deleteShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
+import { getShelf, deleteShelf, removeBookFromShelf, type Shelf } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
 
 const sortOptions = [
@@ -23,15 +23,16 @@ const sortOptions = [
 
 export default function ShelfPage() {
   const { id } = useParams();
+  const shelfId = Number(id);
   const navigate = useNavigate();
 
-  const [shelf, setShelf] = useState<{ id: number; name: string; is_system: boolean; system_code?: string } | null>(null);
+  const [shelf, setShelf] = useState<Shelf | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState("added_desc");
 
   useEffect(() => {
-    getShelf(Number(id))
+    getShelf(shelfId)
       .then((data) => {
         setShelf(data.shelf);
         setBooks(data.books || []);
@@ -64,7 +65,7 @@ export default function ShelfPage() {
 
   async function handleDelete() {
     try {
-      await deleteShelf(Number(id));
+      await deleteShelf(shelfId);
       window.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
     } catch (err) {
@@ -135,10 +136,10 @@ export default function ShelfPage() {
               isCached={cachedBookIds.has(b.id)}
               onRemove={!shelf.is_system ? async () => {
                 try {
-                  await removeBookFromShelf(Number(id), b.id);
+                  await removeBookFromShelf(shelfId, b.id);
                   setBooks(books.filter((x) => x.id !== b.id));
-                } catch {
-                  // silently swallow — matches prior "if (res.ok)" semantics
+                } catch (err) {
+                  console.warn("Failed to remove book from shelf:", err);
                 }
               } : undefined}
             />

@@ -10,9 +10,14 @@ export interface Shelf {
   system_code?: string;
 }
 
+export interface BookShelfMembership {
+  id: number;
+  has_book: boolean;
+}
+
 export interface ShelvesListResponse {
   shelves: Shelf[];
-  bookShelves?: { id: number; has_book: boolean }[];
+  bookShelves?: BookShelfMembership[];
 }
 
 export interface ShelfDetailResponse {

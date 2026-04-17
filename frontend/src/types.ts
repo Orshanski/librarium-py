@@ -85,9 +85,3 @@ export interface Series {
   author: string;
   bookCount: number;
 }
-
-export interface Shelf {
-  id: number;
-  name: string;
-  bookIds: number[];
-}

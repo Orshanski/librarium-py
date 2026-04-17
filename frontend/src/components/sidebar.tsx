@@ -66,8 +66,8 @@ export function SidebarContent({
       setShowNewShelf(false);
       window.dispatchEvent(new Event("shelves-changed"));
       onNavigate?.();
-    } catch {
-      // silently swallow — no alert on fail
+    } catch (err) {
+      console.warn("Failed to create shelf:", err);
     }
   }
 

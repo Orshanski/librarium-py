@@ -35,6 +35,9 @@ describe("book-detail — shelves", () => {
   it("add book → 500 → UI reverts state (shelf unchecked again)", async () => {
     const user = userEvent.setup();
 
+    let release!: () => void;
+    const inFlight = new Promise<void>((r) => { release = r; });
+
     // Initial shelf list: one non-system shelf, book NOT on it
     server.use(
       http.get("/api/shelves", ({ request }) => {
@@ -48,10 +51,11 @@ describe("book-detail — shelves", () => {
         }
         return HttpResponse.json({ shelves: [] });
       }),
-      // POST returns 500
-      http.post("/api/shelves/:shelfId/books", () =>
-        HttpResponse.json({ detail: "Server error" }, { status: 500 })
-      )
+      // POST holds open until released, then returns 500
+      http.post("/api/shelves/:shelfId/books", async () => {
+        await inFlight;
+        return HttpResponse.json({ detail: "Server error" }, { status: 500 });
+      })
     );
 
     renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
@@ -72,6 +76,12 @@ describe("book-detail — shelves", () => {
     // Click to add — triggers optimistic update (checked), then 500 → revert
     await user.click(checkbox);
 
+    // Optimistic update: checkbox becomes checked immediately
+    await waitFor(() => expect(checkbox).toBeChecked());
+
+    // Release the handler with 500 → optimistic update reverts
+    release();
+
     // After revert: checkbox unchecked again
     await waitFor(() => {
       expect(checkbox).not.toBeChecked();
@@ -80,6 +90,9 @@ describe("book-detail — shelves", () => {
 
   it("remove book → 500 → UI reverts state (shelf checked again)", async () => {
     const user = userEvent.setup();
+
+    let release!: () => void;
+    const inFlight = new Promise<void>((r) => { release = r; });
 
     // Initial shelf list: book IS on shelf 1
     server.use(
@@ -94,10 +107,11 @@ describe("book-detail — shelves", () => {
         }
         return HttpResponse.json({ shelves: [] });
       }),
-      // DELETE returns 500
-      http.delete("/api/shelves/:shelfId/books/:bookId", () =>
-        HttpResponse.json({ detail: "Server error" }, { status: 500 })
-      )
+      // DELETE holds open until released, then returns 500
+      http.delete("/api/shelves/:shelfId/books/:bookId", async () => {
+        await inFlight;
+        return HttpResponse.json({ detail: "Server error" }, { status: 500 });
+      })
     );
 
     renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
@@ -119,6 +133,12 @@ describe("book-detail — shelves", () => {
 
     // Click to remove — triggers optimistic update (unchecked), then 500 → revert
     await user.click(checkbox);
+
+    // Optimistic update: checkbox becomes unchecked immediately
+    await waitFor(() => expect(checkbox).not.toBeChecked());
+
+    // Release the handler with 500 → optimistic update reverts
+    release();
 
     // After revert: checkbox checked again
     await waitFor(() => {
