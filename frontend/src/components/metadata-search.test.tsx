@@ -127,9 +127,11 @@ describe("MetadataSearch", () => {
       expect(capturedUrls.length).toBeGreaterThanOrEqual(2);
     });
 
-    // The latest request should include "google" in the providers param
+    // The latest request should include both providers in the providers= param
     const lastUrl = capturedUrls[capturedUrls.length - 1];
-    expect(lastUrl).toContain("providers=");
-    expect(lastUrl).toContain("google");
+    const params = new URL(lastUrl).searchParams.get("providers");
+    expect(params).not.toBeNull();
+    expect(params!.split(",")).toContain("litres");
+    expect(params!.split(",")).toContain("google");
   });
 });

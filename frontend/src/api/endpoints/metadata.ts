@@ -1,7 +1,16 @@
 import { client } from "../client";
-import type { MetadataResult } from "@/components/metadata-search.types";
 
-export type { MetadataResult };
+export interface MetadataResult {
+  title: string;
+  authors: string;
+  description: string;
+  publisher: string;
+  pubDate: string;
+  isbn: string;
+  tags: string;
+  source: string;
+  coverUrl: string;
+}
 
 export interface MetadataSearchResponse {
   results: MetadataResult[];
@@ -29,5 +38,6 @@ export function fetchCoverProxy(url: string, signal?: AbortSignal): Promise<Blob
 }
 
 export function coverProxyUrl(url: string): string {
-  return `/api/metadata/cover-proxy?url=${encodeURIComponent(url)}`;
+  const params = new URLSearchParams({ url });
+  return `/api/metadata/cover-proxy?${params.toString()}`;
 }

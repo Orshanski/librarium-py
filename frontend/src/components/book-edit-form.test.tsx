@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import BookEditForm from "./book-edit-form";
 import type { Book } from "../types";
 import type { BookEditOptions } from "./book-edit-form.types";
-import { screen } from "@testing-library/react";
 
 const mockBook: Book = {
   id: 42,
@@ -178,6 +177,12 @@ describe("book-edit-form — metadata", () => {
       // The modal closes after apply, so the metadata search modal is no longer visible
       expect(screen.queryByRole("button", { name: /^Поиск$/i })).not.toBeInTheDocument();
     });
+
+    // Form fields must have received the metadata values
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Книга без обложки")).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("Автор Без Обложки")).toBeInTheDocument();
 
     // Neither cover-proxy nor cover upload should have been called (no coverUrl)
     expect(coverProxyCalled).toBe(false);
