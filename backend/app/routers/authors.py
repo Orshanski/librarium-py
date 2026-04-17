@@ -1,7 +1,6 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..database import db_session
@@ -21,7 +20,7 @@ def list_authors(user: dict = Depends(get_current_user), db: sqlite3.Connection 
 def get_author(author_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     result = dal.get_author_by_id(db, author_id)
     if not result:
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Not found")
     return result
 
 
@@ -43,7 +42,7 @@ class MergeBody(BaseModel):
 @router.post("/{author_id}/merge")
 def merge_author(author_id: int, body: MergeBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if body.sourceId == author_id:
-        return JSONResponse({"error": "Нельзя объединить с самим собой"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя объединить с самим собой")
     dal.merge_authors(db, author_id, body.sourceId)
     log.info("Merged author source=%d into target=%d by user_id=%s",
              body.sourceId, author_id, user["userId"])
@@ -54,8 +53,8 @@ def merge_author(author_id: int, body: MergeBody, user: dict = Depends(require_a
 def delete_author(author_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     err = dal.delete_author(db, author_id)
     if err == "not_found":
-        return JSONResponse({"error": "Автор не найден"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Автор не найден")
     if err == "has_books":
-        return JSONResponse({"error": "Нельзя удалить автора с книгами"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя удалить автора с книгами")
     log.info("Deleted author=%d by user_id=%s", author_id, user["userId"])
     return {"ok": True}

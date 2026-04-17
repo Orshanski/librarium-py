@@ -14,6 +14,8 @@ from unittest.mock import patch
 from app.providers.litres import find_litres_id, fetch_similar
 from app.dal.similar import exclude_owned
 
+from tests._helpers import assert_error
+
 
 # ── Helper ──
 
@@ -234,9 +236,7 @@ class TestSimilarEndpoint:
         assert data["error"] is None
 
     def test_nonexistent_book(self, reader_client):
-        resp = reader_client.get("/api/books/999/similar")
-        assert resp.status_code == 404
+        assert_error(reader_client.get("/api/books/999/similar"), 404)
 
-    def test_unauthenticated(self, client):
-        resp = client.get("/api/books/1/similar")
-        assert resp.status_code == 401
+    def test_unauthenticated(self, anon_client):
+        assert_error(anon_client.get("/api/books/1/similar"), 401)

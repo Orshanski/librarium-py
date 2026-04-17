@@ -49,14 +49,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
         raise exc
     _log.error("Unhandled exception on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
-    return JSONResponse({"error": "Internal server error"}, status_code=500)
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
 @app.middleware("http")
 async def csrf_header_middleware(request: Request, call_next):
     if request.url.path.startswith("/api/") and request.method not in _CSRF_SAFE_METHODS:
         if request.headers.get(_CSRF_HEADER) != _CSRF_HEADER_VALUE:
-            return JSONResponse({"error": "Missing required CSRF header"}, status_code=403)
+            return JSONResponse({"detail": "Missing required CSRF header"}, status_code=403)
     response = await call_next(request)
     if (getattr(request.state, "_refresh_token", False)
             and hasattr(request.state, "_refresh_user_id")

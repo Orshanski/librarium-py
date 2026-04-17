@@ -8,8 +8,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
@@ -73,7 +72,7 @@ def update_user(user_id: int, body: UpdateUserBody, user: dict = Depends(require
     data = body.model_dump(exclude_none=True)
     if data.get("role") == "reader":
         if users_dal.is_last_admin(db, user_id):
-            return JSONResponse({"error": "Нельзя понизить последнего админа"}, status_code=400)
+            raise HTTPException(status_code=400, detail="Нельзя понизить последнего админа")
     users_dal.update_user(db, user_id, data)
     log.info("Updated user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
@@ -82,9 +81,9 @@ def update_user(user_id: int, body: UpdateUserBody, user: dict = Depends(require
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if user["userId"] == user_id:
-        return JSONResponse({"error": "Нельзя удалить самого себя"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
     if users_dal.is_last_admin(db, user_id):
-        return JSONResponse({"error": "Нельзя удалить последнего админа"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя удалить последнего админа")
     users_dal.delete_user(db, user_id)
     log.info("Deleted user_id=%d by user_id=%s", user_id, user["userId"])
     return {"ok": True}
@@ -139,11 +138,11 @@ def smtp_test(user: dict = Depends(require_admin), db: sqlite3.Connection = Depe
     smtp_pass = settings_dal.get_setting(db, "smtp_pass")
 
     if not host or not smtp_user:
-        return JSONResponse({"error": "SMTP не настроен"}, status_code=400)
+        raise HTTPException(status_code=400, detail="SMTP не настроен")
 
     db_user = users_dal.get_user_by_id(db, user["userId"])
     if not db_user or not db_user.get("email"):
-        return JSONResponse({"error": "У вас не указан email"}, status_code=400)
+        raise HTTPException(status_code=400, detail="У вас не указан email")
 
     try:
         msg = _build_email("smtp_test.html", "Librarium — тест SMTP", smtp_user, db_user["email"])
@@ -166,4 +165,4 @@ def smtp_test(user: dict = Depends(require_admin), db: sqlite3.Connection = Depe
         return {"ok": True}
     except Exception as e:
         log.warning("SMTP test failed: %s", e)
-        return JSONResponse({"error": "Не удалось отправить тестовое письмо"}, status_code=500)
+        raise HTTPException(status_code=500, detail="Не удалось отправить тестовое письмо")

@@ -1,4 +1,5 @@
 """Tests for PUT /api/books/{id} — metadata update."""
+from tests._helpers import assert_error, assert_ok
 
 
 def get_book(client, book_id):
@@ -8,51 +9,51 @@ def get_book(client, book_id):
 class TestBookUpdate:
     def test_update_title(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"title": "Updated Title"})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert get_book(admin_client, 1)["title"] == "Updated Title"
 
     def test_update_description(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"description": "New description"})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert get_book(admin_client, 1)["description"] == "New description"
 
     def test_update_language(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"language": "en"})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert get_book(admin_client, 1)["language"] == "en"
 
     def test_update_publisher(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"publisher": "New Press"})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert get_book(admin_client, 1)["publisher"] == "New Press"
 
     def test_update_author_ids(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"authorIds": [2, 3]})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         book = get_book(admin_client, 1)
         assert "Cover Writer" in book["authors"]
         assert "Test Autor" in book["authors"]
 
     def test_update_author_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"authorIds": ["Brand New Author"]})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert "Brand New Author" in get_book(admin_client, 1)["authors"]
 
     def test_update_tag_ids_int(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"tagIds": [2]})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         book = get_book(admin_client, 1)
         assert "Классический детектив" in book["tags"]
         assert "Фэнтези" not in book["tags"]
 
     def test_update_tag_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"tagIds": ["Новый Жанр"]})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert "Новый Жанр" in get_book(admin_client, 1)["tags"]
 
     def test_update_series_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"seriesId": "Brand New Series"})
-        assert resp.status_code == 200
+        data = assert_ok(resp)
         assert get_book(admin_client, 1)["series_name"] == "Brand New Series"
 
     def test_partial_update(self, admin_client):
@@ -65,27 +66,27 @@ class TestBookUpdate:
 
     def test_update_isbn(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"isbn": "978-3-16-148410-0"})
-        assert resp.status_code == 200
-        data = admin_client.get("/api/books/1").json()
-        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        data = assert_ok(resp)
+        response_data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in response_data["identifiers"] if i["type"] == "isbn"]
         assert len(isbn_ids) == 1
         assert isbn_ids[0]["value"] == "978-3-16-148410-0"
 
     def test_update_isbn_replace(self, admin_client):
         admin_client.put("/api/books/1", json={"isbn": "111"})
         admin_client.put("/api/books/1", json={"isbn": "222"})
-        data = admin_client.get("/api/books/1").json()
-        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        response_data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in response_data["identifiers"] if i["type"] == "isbn"]
         assert len(isbn_ids) == 1
         assert isbn_ids[0]["value"] == "222"
 
     def test_update_isbn_clear(self, admin_client):
         admin_client.put("/api/books/1", json={"isbn": "999"})
         admin_client.put("/api/books/1", json={"isbn": ""})
-        data = admin_client.get("/api/books/1").json()
-        isbn_ids = [i for i in data["identifiers"] if i["type"] == "isbn"]
+        response_data = admin_client.get("/api/books/1").json()
+        isbn_ids = [i for i in response_data["identifiers"] if i["type"] == "isbn"]
         assert len(isbn_ids) == 0
 
     def test_reader_cannot_update(self, reader_client):
         resp = reader_client.put("/api/books/1", json={"title": "Hacked"})
-        assert resp.status_code == 403
+        assert_error(resp, 403)

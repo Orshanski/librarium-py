@@ -4,8 +4,8 @@ import os
 import re
 import sqlite3
 
-from fastapi import APIRouter, Depends, UploadFile, File
-from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
 from ..auth import get_current_user, require_admin
@@ -50,7 +50,7 @@ def get_cover(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.
     book_dir = str(LIBRARY_DIR / str(book_id))
     cover = find_cover(book_dir)
     if not cover:
-        return Response(status_code=404)
+        raise HTTPException(status_code=404, detail="Cover not found")
 
     cover_path = os.path.join(book_dir, cover)
 
@@ -68,7 +68,7 @@ def get_cover(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.
 @router.post("/api/books/{book_id}/cover")
 async def upload_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     if not get_book_by_id(db, book_id):
-        return JSONResponse({"error": "Book not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Book not found")
 
     parts = (file.filename or "cover.jpg").rsplit(".", 1)
     ext = parts[-1].lower() if len(parts) > 1 else "jpg"
@@ -78,14 +78,14 @@ async def upload_cover(book_id: int, user: dict = Depends(require_admin), db: sq
     size = file.file.tell()
     file.file.seek(0)
     if size > MAX_COVER_SIZE:
-        return JSONResponse({"error": "Файл обложки слишком большой"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Файл обложки слишком большой")
 
     content = await file.read()
 
     try:
         temp_url = cover_service.upload_temp(book_id, content, ext)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        raise HTTPException(status_code=400, detail=str(e))
 
     return JSONResponse({"ok": True, "tempCoverUrl": temp_url})
 
@@ -93,17 +93,17 @@ async def upload_cover(book_id: int, user: dict = Depends(require_admin), db: sq
 @router.get("/api/uploads/cover/{temp_id}")
 def get_temp_cover(temp_id: str, user: dict = Depends(get_current_user)):
     if not re.match(r'^[a-zA-Z0-9]{1,20}$', temp_id):
-        return Response(status_code=400)
+        raise HTTPException(status_code=400, detail="Invalid temp_id")
     for f in os.listdir(str(UPLOADS_DIR)):
         if f.startswith(f"{temp_id}-cover."):
             return FileResponse(str(UPLOADS_DIR / f), headers={"Cache-Control": "no-cache"})
-    return Response(status_code=404)
+    raise HTTPException(status_code=404, detail="Temp cover not found")
 
 
 @router.put("/api/books/{book_id}/cover")
 def commit_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not get_book_by_id(db, book_id):
-        return JSONResponse({"error": "Book not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Book not found")
 
     cover_service.commit(db, book_id)
     log.info("Cover updated book=%d by user_id=%s", book_id, user["userId"])

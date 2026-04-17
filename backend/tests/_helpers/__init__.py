@@ -1,0 +1,14 @@
+"""Shared test helpers for the Librarium backend suite."""
+from tests._helpers.assertions import assert_error, assert_ok, assert_not_found
+from tests._helpers.builders import (
+    login_client, make_user, make_shelf, make_book_via_upload,
+)
+from tests._helpers.db import (
+    connect_test_db, count_rows, fetch_one, fetch_all, row_exists,
+)
+
+__all__ = [
+    "assert_error", "assert_ok", "assert_not_found",
+    "login_client", "make_user", "make_shelf", "make_book_via_upload",
+    "connect_test_db", "count_rows", "fetch_one", "fetch_all", "row_exists",
+]

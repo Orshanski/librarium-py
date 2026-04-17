@@ -304,7 +304,7 @@ export default function AdminPage() {
       setUsers(users.filter((u) => u.id !== deleteUserId));
     } else {
       const err = await res.json();
-      console.error(err.error);
+      console.error(err.detail);
     }
     setDeleteUserId(null);
   }
@@ -329,7 +329,7 @@ export default function AdminPage() {
       setShowNewUser(false);
     } else {
       const err = await res.json();
-      alert(err.error);
+      alert(err.detail);
     }
   }
 
@@ -508,7 +508,7 @@ export default function AdminPage() {
               } else {
                 const data = await res.json();
                 setSmtpStatus("none");
-                setSmtpError(data.error || "Ошибка подключения");
+                setSmtpError(data.detail || "Ошибка подключения");
               }
             }}
           >

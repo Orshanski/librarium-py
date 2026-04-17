@@ -1,8 +1,7 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from ..auth import get_current_user, require_admin
@@ -52,7 +51,7 @@ def list_books(user: dict = Depends(get_current_user), db: sqlite3.Connection = 
 def get_book(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     book = dal.get_book_by_id(db, book_id, user["userId"])
     if not book:
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Not found")
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
     return {"book": book, "files": files, "identifiers": identifiers}
@@ -61,7 +60,7 @@ def get_book(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.C
 @router.put("/{book_id}")
 def update_book(book_id: int, body: UpdateBookBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not dal.book_exists(db, book_id):
-        return JSONResponse({"error": "Book not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Book not found")
     data = body.model_dump(exclude_unset=True)
 
     if "authorIds" in data:
@@ -80,17 +79,17 @@ def update_book(book_id: int, body: UpdateBookBody, user: dict = Depends(require
 async def upload_file(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), file: UploadFile = File(...)):
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in BOOK_EXTENSIONS:
-        return JSONResponse({"error": f"Unsupported format: {ext}"}, status_code=400)
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {ext}")
     content = await file.read()
     if len(content) > MAX_BOOK_SIZE:
-        return JSONResponse({"error": "Файл слишком большой"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Файл слишком большой")
 
     try:
         result = book_service.upload_file(db, book_id, content, ext)
     except LookupError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        raise HTTPException(status_code=404, detail=str(e))
     except FileExistsError as e:
-        return JSONResponse({"error": str(e)}, status_code=409)
+        raise HTTPException(status_code=409, detail=str(e))
 
     log.info("Uploaded file format=%s book=%d by user_id=%s", result["format"], book_id, user["userId"])
     return {"ok": True, "format": result["format"], "size": result["size"]}
@@ -100,12 +99,12 @@ async def upload_file(book_id: int, user: dict = Depends(require_admin), db: sql
 def delete_file(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session), format: str = ""):
     fmt = format.upper()
     if not fmt:
-        return JSONResponse({"error": "format required"}, status_code=400)
+        raise HTTPException(status_code=400, detail="format required")
 
     try:
         book_service.delete_file(db, book_id, fmt)
     except LookupError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        raise HTTPException(status_code=404, detail=str(e))
 
     log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
     return {"ok": True}
@@ -116,7 +115,7 @@ def delete_book(book_id: int, user: dict = Depends(require_admin), db: sqlite3.C
     try:
         book_service.delete_book(db, book_id)
     except LookupError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        raise HTTPException(status_code=404, detail=str(e))
 
     log.info("Deleted book=%d by user_id=%s", book_id, user["userId"])
     return {"ok": True}
