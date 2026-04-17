@@ -2,9 +2,9 @@
 Shared router-layer helpers for entity routers (authors, series, tags, shelves).
 
 Deliberately minimal — three pure functions that encode the exact repetitions
-identified in the E3 spec. NO generic CRUDRouter / endpoint factory / decorator
-magic — no generic CRUDRouter / endpoint factory — three helpers, end of list.
-Adding more helpers here should be a conscious decision, not a drift.
+identified in the E3 spec. No generic CRUDRouter / endpoint factory / decorator
+magic — three helpers, end of list. Adding more here should be a conscious
+decision, not a drift.
 """
 from fastapi import HTTPException
 
@@ -21,7 +21,7 @@ def require_exists(predicate: object, *, detail: str = "Not found") -> None:
 
 
 def raise_delete_error(
-    code: "str | None",
+    code: str | None,
     *,
     not_found_detail: str,
     has_books_detail: str,

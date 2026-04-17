@@ -11,10 +11,12 @@ from app.routers._helpers import (
 
 class TestRequireExists:
     def test_truthy_passes(self):
-        # Should not raise.
-        require_exists(True)
-        require_exists({"id": 1})
-        require_exists([1])
+        # Contract: falsy raises, truthy returns None. Explicit `is None`
+        # asserts make the return-value contract visible in the test — not
+        # just "no exception raised".
+        assert require_exists(True) is None
+        assert require_exists({"id": 1}) is None
+        assert require_exists([1]) is None
 
     def test_falsy_raises_404_with_default_detail(self):
         with pytest.raises(HTTPException) as exc:
@@ -31,11 +33,11 @@ class TestRequireExists:
 
 class TestRaiseDeleteError:
     def test_none_returns_silently(self):
-        # Success code — no raise.
-        raise_delete_error(None, not_found_detail="x", has_books_detail="y")
+        # Success code — no raise. Explicit `is None` asserts the contract.
+        assert raise_delete_error(None, not_found_detail="x", has_books_detail="y") is None
 
     def test_empty_string_returns_silently(self):
-        raise_delete_error("", not_found_detail="x", has_books_detail="y")
+        assert raise_delete_error("", not_found_detail="x", has_books_detail="y") is None
 
     def test_not_found_raises_404(self):
         with pytest.raises(HTTPException) as exc:
@@ -60,13 +62,15 @@ class TestRaiseDeleteError:
     def test_unknown_code_returns_silently(self):
         # Forward-compat: unknown DAL codes don't raise — they fall through
         # to "success" like None. Prevents future DAL additions from breaking
-        # the router unexpectedly. Test is a snapshot of this design choice.
-        raise_delete_error("some_future_code", not_found_detail="x", has_books_detail="y")
+        # the router unexpectedly. Snapshot of this design choice + one
+        # extra case to widen coverage.
+        assert raise_delete_error("some_future_code", not_found_detail="x", has_books_detail="y") is None
+        assert raise_delete_error("deleted", not_found_detail="x", has_books_detail="y") is None
 
 
 class TestGuardSelfMerge:
     def test_different_ids_pass(self):
-        guard_self_merge(1, 2, detail="cannot merge into self")
+        assert guard_self_merge(1, 2, detail="cannot merge into self") is None
 
     def test_same_id_raises_400(self):
         with pytest.raises(HTTPException) as exc:
