@@ -5,19 +5,10 @@ import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import PageHeader from "../components/page-header";
 import Combobox from "../components/combobox";
 import { colors, fonts } from "../theme";
+import { getTagCloud, listTagOptions } from "../api/endpoints/tags";
+import type { CloudTag, DirectoryTag } from "../api/endpoints/tags";
 
 const CLOUD_SIZE = 30;
-
-interface CloudTag {
-  id: number;
-  name: string;
-  book_count: number;
-}
-
-interface DirectoryTag {
-  id: number;
-  name: string;
-}
 
 // Stable shuffle based on name — so cloud doesn't jump on re-render
 function shuffled<T extends { name: string }>(arr: T[]): T[] {
@@ -37,12 +28,12 @@ export default function TagsPage() {
   const [allTags, setAllTags] = useState<DirectoryTag[]>([]);
 
   useEffect(() => {
-    fetch(`/api/tags/cloud?top=${CLOUD_SIZE}`)
-      .then((r) => r.json())
-      .then((data) => setCloudTags(data.tags || []));
-    fetch("/api/filter-options/tags")
-      .then((r) => r.json())
-      .then((data) => setAllTags(data.tags || []));
+    getTagCloud({ top: CLOUD_SIZE })
+      .then((data) => setCloudTags(data.tags || []))
+      .catch((err) => console.warn("Failed to fetch tag cloud:", err));
+    listTagOptions()
+      .then((data) => setAllTags(data.tags || []))
+      .catch((err) => console.warn("Failed to fetch tag options:", err));
     saveBreadcrumbUrl("tags", window.location.pathname + window.location.search);
   }, []);
 

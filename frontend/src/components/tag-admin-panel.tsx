@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { colors, fonts } from "../theme";
 import Combobox, { ComboboxOption } from "./combobox";
 import ConfirmDialog from "./confirm-dialog";
+import { listTagOptions, mapTag } from "../api/endpoints/tags";
 
 interface TagAdminPanelProps {
   tagId: number;
@@ -57,12 +58,11 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/filter-options/tags", { credentials: "include" })
-      .then((r) => r.json())
+    listTagOptions()
       .then((data) => {
         const tags = (data.tags || [])
-          .filter((t: { id: number }) => t.id !== tagId)
-          .map((t: { name: string }) => ({
+          .filter((t) => t.id !== tagId)
+          .map((t) => ({
             value: t.name,
           }));
         setAllTags(tags);
@@ -79,16 +79,10 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdmin
   const doMap = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/tags/${tagId}/map`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onMapped(data.targetId, trimmed);
-      }
+      const data = await mapTag(tagId, trimmed);
+      onMapped(data.targetId, trimmed);
+    } catch (err) {
+      console.warn("Failed to map tag:", err);
     } finally {
       setSaving(false);
     }
