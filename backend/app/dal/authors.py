@@ -1,6 +1,7 @@
 import sqlite3
 from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
+from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
 
 def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
@@ -40,26 +41,21 @@ def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
 
 
 def get_author_by_id(db: sqlite3.Connection, author_id: int):
-    author = dict_from_row(db.execute("SELECT * FROM authors WHERE id = :id", {"id": author_id}).fetchone())
+    author = dict_from_row(db.execute(
+        "SELECT * FROM authors WHERE id = :id", {"id": author_id}
+    ).fetchone())
     if not author:
         return None
 
-    books = dicts_from_rows(db.execute("""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a2.name) as authors,
-            GROUP_CONCAT(DISTINCT t.name) as tags
+    books = dicts_from_rows(db.execute(f"""
+        SELECT {BOOK_LIST_AGGREGATE_COLUMNS}
         FROM books b
-        JOIN book_authors ba ON b.id = ba.book_id AND ba.author_id = :id
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba2 ON b.id = ba2.book_id
-        LEFT JOIN authors a2 ON ba2.author_id = a2.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
+        JOIN book_authors ba_scope ON b.id = ba_scope.book_id AND ba_scope.author_id = :id
+        {BOOK_LIST_JOINS}
         GROUP BY b.id ORDER BY b.added_at DESC
     """, {"id": author_id}).fetchall())
 
     return {"author": author, "books": books}
-
 
 
 def _generate_sort_name(name: str) -> str:

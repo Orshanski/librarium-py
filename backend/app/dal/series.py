@@ -1,6 +1,7 @@
 import sqlite3
 from ..database import dicts_from_rows, dict_from_row
 from .filters import build_book_where
+from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
 
 def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
@@ -50,23 +51,15 @@ def get_series_by_id(db: sqlite3.Connection, series_id: int):
     if not s:
         return None
 
-    books = dicts_from_rows(db.execute("""
-        SELECT b.*, s.name as series_name,
-            GROUP_CONCAT(DISTINCT a.name) as authors,
-            GROUP_CONCAT(DISTINCT t.name) as tags
+    books = dicts_from_rows(db.execute(f"""
+        SELECT {BOOK_LIST_AGGREGATE_COLUMNS}
         FROM books b
-        LEFT JOIN series s ON b.series_id = s.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        LEFT JOIN book_tags bt ON b.id = bt.book_id
-        LEFT JOIN tags t ON bt.tag_id = t.id
+        {BOOK_LIST_JOINS}
         WHERE b.series_id = :id
         GROUP BY b.id ORDER BY b.series_number
     """, {"id": series_id}).fetchall())
 
     return {"series": s, "books": books}
-
-
 
 
 def get_or_create_series(db: sqlite3.Connection, name: str) -> int:

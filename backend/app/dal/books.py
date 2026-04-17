@@ -15,10 +15,10 @@ from .filters import build_book_where
 
 _BOOK_SELECT = """
     SELECT b.*, s.name as series_name,
-        GROUP_CONCAT(DISTINCT a.name) as authors,
-        GROUP_CONCAT(DISTINCT a.id) as author_ids,
-        GROUP_CONCAT(DISTINCT t.name) as tags,
-        GROUP_CONCAT(DISTINCT t.id) as tag_ids,
+        GROUP_CONCAT(DISTINCT a.name ORDER BY a.name) as authors,
+        GROUP_CONCAT(DISTINCT a.id   ORDER BY a.name) as author_ids,
+        GROUP_CONCAT(DISTINCT t.name ORDER BY t.name) as tags,
+        GROUP_CONCAT(DISTINCT t.id   ORDER BY t.name) as tag_ids,
         ub.rating, ub.is_read
     FROM books b
     LEFT JOIN series s ON b.series_id = s.id
