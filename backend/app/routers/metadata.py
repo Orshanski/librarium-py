@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 import requests
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from ..auth import get_current_user
@@ -38,38 +38,40 @@ def _is_allowed_domain(url: str) -> bool:
 @router.get("/cover-proxy")
 def cover_proxy(user: dict = Depends(get_current_user), url: str = ""):
     if not url:
-        return Response(status_code=400)
+        raise HTTPException(status_code=400, detail="URL required")
 
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        return Response(status_code=400)
+        raise HTTPException(status_code=400, detail="URL scheme not allowed")
     if not _is_allowed_domain(url):
-        return Response(status_code=403)
+        raise HTTPException(status_code=403, detail="Domain not in allow-list")
 
     try:
         current_url = url
         for _ in range(_MAX_REDIRECTS + 1):
             if not is_safe_url(current_url):
-                return Response(status_code=403)
+                raise HTTPException(status_code=403, detail="URL points to a non-public address")
             if not _is_allowed_domain(current_url):
-                return Response(status_code=403)
+                raise HTTPException(status_code=403, detail="Domain not in allow-list")
 
             resp = requests.get(current_url, timeout=15, headers=_HEADERS, allow_redirects=False)
 
             if resp.is_redirect:
                 location = resp.headers.get("Location", "")
                 if not location:
-                    return Response(status_code=502)
+                    raise HTTPException(status_code=502, detail="Upstream fetch failed")
                 current_url = requests.compat.urljoin(current_url, location)
                 continue
 
             if resp.status_code != 200:
-                return Response(status_code=resp.status_code)
+                raise HTTPException(status_code=resp.status_code, detail="Upstream error")
             content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
             if not content_type.startswith("image/"):
-                return Response(status_code=400)
+                raise HTTPException(status_code=400, detail="Response is not an image")
             return Response(content=resp.content, media_type=content_type)
 
-        return Response(status_code=502)  # too many redirects
+        raise HTTPException(status_code=502, detail="Too many redirects")
+    except HTTPException:
+        raise
     except Exception:
-        return Response(status_code=502)
+        raise HTTPException(status_code=502, detail="Upstream fetch failed")
