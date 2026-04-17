@@ -15,8 +15,9 @@ afterAll(() => server.close());
 
 // ── jsdom-only polyfills and bootstrap ──
 //
-// These only make sense when `window` exists (vitest environment === jsdom).
-// Tests marked `// @vitest-environment node` skip this block entirely.
+// These only make sense when `window` exists. In node environment (e.g.
+// tests with `// @vitest-environment node`) `window` is undefined and the
+// block is skipped naturally.
 if (typeof window !== "undefined") {
   // 1) matchMedia: jsdom doesn't implement it. ResponsiveProvider reads it at
   //    mount, so without a polyfill any test using renderWithProviders crashes
