@@ -74,3 +74,21 @@ def reader_client(client):
     assert resp.status_code == 200
     assert "librarium_token" in resp.cookies
     return client
+
+
+@pytest.fixture
+def anon_client(client):
+    """Explicit alias for `client` — signals 'anonymous, not logged in'."""
+    return client
+
+
+@pytest.fixture
+def db_test():
+    """Open a fresh SQLite connection to the test DB for direct inspection.
+
+    Auto-closed after test. Use for reads; writes should go through the API.
+    """
+    from tests._helpers.db import connect_test_db
+    conn = connect_test_db()
+    yield conn
+    conn.close()
