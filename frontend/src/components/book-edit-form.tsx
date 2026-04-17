@@ -215,6 +215,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
             } catch (err: unknown) {
               if (err instanceof Error && err.name === "AbortError") return;
               console.warn("Failed to delete format:", err);
+              alert("Не удалось удалить формат");
             } finally {
               setDeleteFormatConfirm(null);
             }

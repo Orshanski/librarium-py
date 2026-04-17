@@ -22,6 +22,12 @@ export interface ClientOptions {
   signal?: AbortSignal;
   /** If true, parse response as Blob (for binary endpoints). */
   blob?: boolean;
+  /**
+   * Optional progress callback for blob downloads. Emits (percent, bytes).
+   * When Content-Length is unknown, percent is -1 and bytes is received so far.
+   * Only active when blob: true.
+   */
+  onProgress?: (percent: number, bytes: number) => void;
 }
 
 const CSRF_METHODS = new Set<HttpMethod>(["POST", "PUT", "PATCH", "DELETE"]);
@@ -113,6 +119,29 @@ export async function client<T>(
   }
 
   if (options.blob) {
+    if (options.onProgress) {
+      const reader = res.body?.getReader();
+      if (!reader) {
+        return (await res.blob()) as T;
+      }
+      const totalHeader = res.headers.get("Content-Length");
+      const total = totalHeader ? Number(totalHeader) : 0;
+      let received = 0;
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total > 0) {
+          options.onProgress(Math.round((received / total) * 100), received);
+        } else {
+          // Unknown size: emit -1 as percent sentinel (matches reader-loading-screen's loadProgress < 0 mode).
+          options.onProgress(-1, received);
+        }
+      }
+      return new Blob(chunks as BlobPart[]) as T;
+    }
     return (await res.blob()) as T;
   }
 

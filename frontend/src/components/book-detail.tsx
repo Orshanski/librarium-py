@@ -166,6 +166,7 @@ export default function BookDetail({
             } catch (err: unknown) {
               if (err instanceof Error && err.name === "AbortError") return;
               console.warn("Failed to delete book:", err);
+              alert("Не удалось удалить книгу");
             } finally {
               setShowDeleteConfirm(false);
             }

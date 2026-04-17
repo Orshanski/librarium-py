@@ -100,15 +100,21 @@ export function setRead(id: number, isRead: boolean): Promise<BookOkResponse> {
   });
 }
 
+export interface DownloadOptions {
+  signal?: AbortSignal;
+  onProgress?: (percent: number, bytes: number) => void;
+}
+
 export function downloadBook(
   id: number,
   format: string,
-  signal?: AbortSignal,
+  opts: DownloadOptions = {},
 ): Promise<Blob> {
   return client<Blob>("GET", `/api/books/${id}/download`, {
     query: { format },
     blob: true,
-    signal,
+    signal: opts.signal,
+    onProgress: opts.onProgress,
   });
 }
 

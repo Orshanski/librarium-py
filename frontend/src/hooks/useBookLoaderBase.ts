@@ -2,8 +2,8 @@
 // point-in-time checks inside async functions, not reactive state.
 import { useState, useRef, useEffect } from "react";
 import { LocalProgress, LocalSettings, getProgress, getSettings as getLocalSettings } from "../utils/offline-storage";
-import type { BookApiResponse } from "../types/api";
 import { getBook, setRead as apiSetRead } from "@/api/endpoints/books";
+import type { BookDetailResponse } from "@/api/endpoints/books";
 
 export interface BookLoaderResult {
   bookBlob: Blob | null;
@@ -48,7 +48,7 @@ export type PostLoadHook = (ctx: {
   id: string;
   format: string;
   blob: File;
-  bookData: BookApiResponse | null;
+  bookData: BookDetailResponse | null;
   fromCache: boolean;
 }) => void;
 
@@ -106,11 +106,11 @@ export function useBookLoaderBase(
 
         // 3. Fetch metadata (online only)
         let title = blobTitle;
-        let bookData: BookApiResponse | null = null;
+        let bookData: BookDetailResponse | null = null;
         if (navigator.onLine) {
           try {
             const data = await getBook(Number(id));
-            bookData = data as unknown as BookApiResponse;
+            bookData = data;
             if (!fromCache) title = bookData.book?.title || "";
           } catch (err: unknown) {
             if (!fromCache) {

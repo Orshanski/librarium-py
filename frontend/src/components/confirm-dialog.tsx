@@ -31,7 +31,7 @@ export default function ConfirmDialog({
           }}>
             Отмена
           </button>
-          <button onClick={onConfirm} style={{
+          <button data-testid="confirm-dialog-submit" onClick={onConfirm} style={{
             padding: "8px 20px", fontSize: 13, fontFamily: "inherit", borderRadius: 6,
             border: "none", backgroundColor: colors.danger, color: "#fff",
             cursor: "pointer", fontWeight: 600,

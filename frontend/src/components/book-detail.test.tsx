@@ -230,15 +230,27 @@ describe("book-detail — books", () => {
     const starSpans = screen.getAllByText("★");
     expect(starSpans.length).toBe(5);
 
-    // Click a star (optimistic update happens immediately)
+    // Initial rating is 3
+    await waitFor(() => {
+      const ratingEl = screen.getByTestId("book-rating");
+      expect(ratingEl.getAttribute("data-rating")).toBe("3");
+    });
+
+    // Click the 1st star → optimistic update to 1
     await user.click(starSpans[0]);
 
-    // Release the handler with 500 → rollback
+    // Optimistic: rating should be 1 immediately
+    await waitFor(() => {
+      const ratingEl = screen.getByTestId("book-rating");
+      expect(ratingEl.getAttribute("data-rating")).toBe("1");
+    });
+
+    // Release the handler with 500 → rollback to 3
     release();
 
-    // After revert, no crash, component is still mounted
     await waitFor(() => {
-      expect(screen.getAllByText("★").length).toBe(5);
+      const ratingEl = screen.getByTestId("book-rating");
+      expect(ratingEl.getAttribute("data-rating")).toBe("3");
     });
   });
 
@@ -321,18 +333,12 @@ describe("book-detail — books", () => {
       expect(screen.getByText(/удалить.*test book/i)).toBeInTheDocument();
     });
 
-    // Find the confirm button in the dialog (not the trigger button)
-    const allButtons = screen.getAllByRole("button");
-    // ConfirmDialog has "Отмена" and "Удалить" buttons
-    const confirmBtn = allButtons.find(b =>
-      b.textContent === "Удалить" && b !== deleteButton
-    );
-    if (confirmBtn) {
-      await user.click(confirmBtn);
-      await waitFor(() => {
-        expect(deleteCalled).toBe(true);
-      });
-    }
+    // Find the confirm button in the dialog deterministically via data-testid
+    const confirmBtn = screen.getByTestId("confirm-dialog-submit");
+    await user.click(confirmBtn);
+    await waitFor(() => {
+      expect(deleteCalled).toBe(true);
+    });
   });
 
   it("delete: on 500 — component stays mounted (no crash)", async () => {
@@ -354,16 +360,11 @@ describe("book-detail — books", () => {
       expect(screen.getByText(/удалить.*test book/i)).toBeInTheDocument();
     });
 
-    const allButtons = screen.getAllByRole("button");
-    const confirmBtn = allButtons.find(b =>
-      b.textContent === "Удалить" && b !== deleteButton
-    );
-    if (confirmBtn) {
-      await user.click(confirmBtn);
-      // On 500 the component should NOT navigate — stays mounted
-      await waitFor(() => {
-        expect(document.body).toBeInTheDocument();
-      });
-    }
+    const confirmBtn = screen.getByTestId("confirm-dialog-submit");
+    await user.click(confirmBtn);
+    // On 500 the component should NOT navigate — stays mounted
+    await waitFor(() => {
+      expect(document.body).toBeInTheDocument();
+    });
   });
 });

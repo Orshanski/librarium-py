@@ -1,6 +1,6 @@
 import { useBookLoaderBase } from "./useBookLoaderBase";
 import type { BookLoaderOptions, BookLoaderResult } from "./useBookLoaderBase";
-import type { BookApiResponse } from "../types/api";
+import type { BookDetailResponse } from "@/api/endpoints/books";
 import { cacheBook, touchBook, getCachedBook, evictLRU } from "../utils/offline-storage";
 import { getCover } from "@/api/endpoints/covers";
 
@@ -38,7 +38,7 @@ export function usePwaBookLoader(options: BookLoaderOptions): BookLoaderResult {
   );
 }
 
-function autoCacheBook(bookId: number, id: string, format: string, blob: Blob, bookData: BookApiResponse) {
+function autoCacheBook(bookId: number, id: string, format: string, blob: Blob, bookData: BookDetailResponse) {
   const bk = bookData.book;
   const allFiles = bookData.files || [];
   (async () => {

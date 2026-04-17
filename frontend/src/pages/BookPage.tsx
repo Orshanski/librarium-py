@@ -6,14 +6,14 @@ import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
 import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
-import { getBook, listBooks } from "@/api/endpoints/books";
+import { getBook, listBooks, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
 
 export default function BookPage() {
   const { id } = useParams();
   const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
-  const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
+  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);

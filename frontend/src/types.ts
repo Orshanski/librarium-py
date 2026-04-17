@@ -26,6 +26,7 @@ export interface RawBook {
   id: number;
   title: string;
   authors: string | null;
+  series_id?: number | null;
   series_name: string | null;
   series_number: number | null;
   tags: string | null;

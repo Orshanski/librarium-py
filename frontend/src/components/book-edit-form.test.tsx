@@ -501,36 +501,21 @@ describe("book-edit-form — books", () => {
       expect(bodyContent).toMatch(/Удалить файл epub/);
     });
 
-    // The ConfirmDialog mounts an overlay div with position:fixed and zIndex:300.
-    // Find the confirm "Удалить" button inside it. The dialog message text was verified above
-    // via waitFor. Now find all buttons with "Удалить" text and pick the one that's newly
-    // added by the dialog (after clicking deleteFormatBtns[0]).
-    const allBtnsAfterClick = screen.getAllByRole("button");
-    // The format "Удалить" buttons are still in DOM (2 of them). The ConfirmDialog adds
-    // another one with "Удалить" as confirmLabel. Find it by position — it's the 3rd.
-    const confirmBtns = allBtnsAfterClick.filter(b => b.textContent?.includes("Удалить"));
-    // We have: epub-delete, fb2-delete, dialog-confirm = 3 total
-    // The dialog confirm is the last one (appended to DOM last)
-    const confirmBtnInDialog = confirmBtns[confirmBtns.length - 1];
+    // Click the confirm button in the dialog deterministically via data-testid
+    const confirmBtnInDialog = screen.getByTestId("confirm-dialog-submit");
+    await user.click(confirmBtnInDialog);
 
-    if (confirmBtnInDialog && confirmBtns.length >= 3) {
-      await user.click(confirmBtnInDialog);
+    await waitFor(() => {
+      expect(deleteCalled).toBe(true);
+    });
 
-      await waitFor(() => {
-        expect(deleteCalled).toBe(true);
-      });
+    expect(deletedFormat).toBe("epub");
 
-      expect(deletedFormat).toBe("epub");
-
-      // The epub format row should be gone from the list
-      await waitFor(() => {
-        const remaining = document.body.textContent || "";
-        // fb2 still there
-        expect(remaining).toMatch(/fb2/);
-      });
-    } else {
-      // Fallback: at minimum the dialog showed (text matched)
-      expect(document.body).toBeInTheDocument();
-    }
+    // The epub format row should be gone from the list
+    await waitFor(() => {
+      const remaining = document.body.textContent || "";
+      // fb2 still there
+      expect(remaining).toMatch(/fb2/);
+    });
   });
 });

@@ -6,15 +6,15 @@ import BookEditForm from "../components/book-edit-form";
 import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.types";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
-import { getBook, updateBook } from "@/api/endpoints/books";
+import { getBook, updateBook, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 
 export default function BookEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<{ format: string; file_size: number }[]>([]);
-  const [identifiers, setIdentifiers] = useState<{ type: string; value: string }[]>([]);
+  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [options, setOptions] = useState<BookEditOptions>();
   const [loading, setLoading] = useState(true);
 
@@ -118,6 +118,7 @@ export default function BookEditPage() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.warn("Failed to save book:", err);
+      alert("Не удалось сохранить изменения");
     }
   }
 
