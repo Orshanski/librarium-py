@@ -99,8 +99,7 @@ class TestCoverUploadValidation:
             "/api/books/2/cover",
             files={"file": ("fake.png", b"not an image at all", "image/png")},
         )
-        assert resp.status_code == 400
-        assert "изображением" in resp.json()["error"]
+        assert_error(resp, 400, message_matches="изображением")
 
     def test_text_file_as_image_rejected(self, admin_client):
         resp = admin_client.post(
