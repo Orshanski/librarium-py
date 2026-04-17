@@ -1,5 +1,5 @@
 """CRUD on shelves themselves."""
-from tests._helpers import assert_ok
+from tests._helpers import assert_error, assert_ok
 
 
 def test_create_shelf(reader_client):
@@ -36,7 +36,7 @@ def test_delete_shelf(reader_client):
     resp = reader_client.delete(f"/api/shelves/{shelf_id}")
     assert_ok(resp)
     resp = reader_client.get(f"/api/shelves/{shelf_id}")
-    assert resp.status_code == 404
+    assert_error(resp, 404)
 
 
 def test_book_shelves_query(reader_client):
