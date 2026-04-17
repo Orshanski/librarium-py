@@ -162,6 +162,8 @@ class TestShelfDetailSnapshot:
         assert multi_book["rating"] == 5
 
     def test_shelf_reading_now_multi_author_exact_string(self, db_with_multi_author):
+        # No user_books row for user 2 / book 100 — covers the `ub.is_read IS NULL`
+        # branch of the reading_now WHERE filter (new reader, never marked read).
         db_with_multi_author.execute(
             "INSERT INTO reading_progress (user_id, book_id, position, fraction, last_read_at) "
             "VALUES (2, 100, '{\"kind\":\"cfi\",\"value\":\"x\"}', 0.5, '2025-01-10 12:00:00')"
