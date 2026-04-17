@@ -314,7 +314,7 @@ describe("book-edit-form — covers", () => {
     await user.upload(coverInput!, fakeFile);
 
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalled();
+      expect(alertSpy).toHaveBeenCalledWith("too big");
     });
 
     alertSpy.mockRestore();

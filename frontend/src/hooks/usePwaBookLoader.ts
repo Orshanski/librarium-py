@@ -2,6 +2,7 @@ import { useBookLoaderBase } from "./useBookLoaderBase";
 import type { BookLoaderOptions, BookLoaderResult } from "./useBookLoaderBase";
 import type { BookApiResponse } from "../types/api";
 import { cacheBook, touchBook, getCachedBook, evictLRU } from "../utils/offline-storage";
+import { getCover } from "@/api/endpoints/covers";
 
 export function usePwaBookLoader(options: BookLoaderOptions): BookLoaderResult {
   return useBookLoaderBase(
@@ -53,9 +54,13 @@ function autoCacheBook(bookId: number, id: string, format: string, blob: Blob, b
     );
     const validFiles = files.filter((f): f is { format: string; fileBlob: Blob; fileSize: number } => f !== null);
     if (validFiles.length === 0) return;
-    const coverResp = await fetch(`/api/covers/${id}?full=1`, { credentials: "include" });
-    if (!coverResp.ok) { console.warn("Failed to fetch cover for caching"); return; }
-    const cover = await coverResp.blob();
+    let cover: Blob;
+    try {
+      cover = await getCover(bookId, true);
+    } catch {
+      console.warn("Failed to fetch cover for caching");
+      return;
+    }
     const authors = (bk.authors || "").split(",").map((a: string) => a.trim()).filter(Boolean);
     try {
       await cacheBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
