@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useIsMobile } from "../responsive";
 import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
+import { listFilterOptions, type FilterKey as ApiFilterKey, type FilterOptionsParams } from "../api/endpoints/filters";
 
 export type FilterKey = "author" | "series" | "genre" | "language";
 
@@ -22,11 +23,11 @@ interface SmartFilterBarProps {
   baseFilters?: ApiFilterParams;
 }
 
-const FILTER_META: Record<FilterKey, { endpoint: string; apiParam: string; label: string; responseKey: string }> = {
-  author: { endpoint: "/api/filter-options/authors", apiParam: "authorIds", label: "Автор", responseKey: "authors" },
-  series: { endpoint: "/api/filter-options/series", apiParam: "seriesIds", label: "Серия", responseKey: "series" },
-  genre: { endpoint: "/api/filter-options/tags", apiParam: "tagIds", label: "Жанр", responseKey: "tags" },
-  language: { endpoint: "/api/filter-options/languages", apiParam: "language", label: "Язык", responseKey: "languages" },
+const FILTER_META: Record<FilterKey, { apiKey: ApiFilterKey; apiParam: string; label: string; responseKey: string }> = {
+  author: { apiKey: "authors", apiParam: "authorIds", label: "Автор", responseKey: "authors" },
+  series: { apiKey: "series", apiParam: "seriesIds", label: "Серия", responseKey: "series" },
+  genre: { apiKey: "tags", apiParam: "tagIds", label: "Жанр", responseKey: "tags" },
+  language: { apiKey: "languages", apiParam: "language", label: "Язык", responseKey: "languages" },
 };
 
 const CACHE_PREFIX = "librarium_filter_options_";
@@ -130,15 +131,24 @@ export default function SmartFilterBar({
 
     const fetches = filterKeys.map(async (key) => {
       const meta = FILTER_META[key];
-      const params = buildQueryParams(key, selected, baseFilters);
-      const url = params.toString() ? `${meta.endpoint}?${params}` : meta.endpoint;
+      const queryParams = buildQueryParams(key, selected, baseFilters);
+
+      // Convert URLSearchParams to FilterOptionsParams object
+      const filterParams: FilterOptionsParams = {};
+      queryParams.forEach((value, paramKey) => {
+        filterParams[paramKey as keyof FilterOptionsParams] = value;
+      });
 
       try {
-        const resp = await fetch(url, { signal: controller.signal });
-        if (!resp.ok) return { key, data: [] };
-        const json = await resp.json();
-        return { key, data: json[meta.responseKey] || [] };
-      } catch {
+        const response = await listFilterOptions(meta.apiKey, filterParams, controller.signal);
+        const data = response[meta.responseKey as keyof typeof response] || [];
+        return { key, data };
+      } catch (err) {
+        // Explicitly skip AbortError — it's expected control flow, not an error to report/setState.
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return null;
+        }
+        // For real errors, return empty data
         return { key, data: [] };
       }
     });
@@ -146,8 +156,11 @@ export default function SmartFilterBar({
     Promise.all(fetches).then((results) => {
       if (controller.signal.aborted) return;
       const newOptions: Record<string, FilterOption[]> = {};
-      for (const { key, data } of results) {
-        newOptions[key] = data;
+      for (const result of results) {
+        if (result !== null) {
+          const { key, data } = result;
+          newOptions[key] = data;
+        }
       }
       setOptions(newOptions);
       saveCachedOptions(filterKeys, newOptions, baseFilters);
