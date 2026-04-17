@@ -4,12 +4,14 @@ from unittest.mock import patch
 from starlette.testclient import TestClient
 
 from app.main import app
+from tests._helpers import assert_error
 
 
 def test_unhandled_exception_returns_500():
     """Patch a DAL function to raise unexpectedly; the global handler must 500.
 
-    Expected-red: handler returns {"error": "Internal server error"}, not {"detail": ...}.
+    Expected-red until E1: handler returns {"error": "Internal server error"},
+    the target contract is {"detail": ...}.
     """
     no_raise = TestClient(app, raise_server_exceptions=False)
     no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
@@ -19,7 +21,4 @@ def test_unhandled_exception_returns_500():
         resp = no_raise.post("/api/auth/login",
                              json={"username": "admin", "password": "admin123"})
 
-    assert resp.status_code == 500, f"Expected 500, got {resp.status_code}. Body: {resp.text}"
-    body = resp.json()
-    assert "error" in body, f"Expected 'error' key in response, got {list(body.keys())}"
-    assert "internal server error" in body["error"].lower(), f"Expected 'internal server error' in {body['error']}"
+    assert_error(resp, 500, message_matches="internal server error")

@@ -1,4 +1,4 @@
-"""Similar books endpoint: auth + business-state contract."""
+"""Similar books endpoint error paths."""
 from tests._helpers import assert_error
 
 
@@ -7,8 +7,9 @@ def test_similar_unauthenticated_is_401(anon_client):
 
 
 def test_similar_nonexistent_book_is_404(reader_client):
-    """Nonexistent book returns 404 with error message."""
-    resp = reader_client.get("/api/books/999999/similar")
-    assert resp.status_code == 404
-    body = resp.json()
-    assert body["error"] == "Not found"
+    """Nonexistent book: 404 with error detail.
+
+    Expected-red until E1: endpoint returns {"error": ...}, target is {"detail": ...}.
+    """
+    assert_error(reader_client.get("/api/books/999999/similar"),
+                 404, message_matches="not found")
