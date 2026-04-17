@@ -1,12 +1,11 @@
-"""Fuzzy search tests.
+"""Fuzzy search — unit + DAL tests.
 
-This file covers:
-
+Scope of this file:
 - unit tests for search_preprocess (pure function)
-- DAL-level tests for search_books that exercise the *new* fuzzy
-  behaviour — cases plain LIKE could not match
-- API-level tests for /api/search (TestSearch class below) migrated in from
-  the old test_catalog_filters.py during T-BE Task 15 decomposition
+- DAL-level tests for search_books that exercise the fuzzy behaviour —
+  cases plain LIKE could not match
+
+API-level tests for /api/search live in test_catalog_search.py.
 
 Fixture data (books 10..14, authors 10..12) is inserted per-test
 rather than via the shared baseline seed so other tests don't need
@@ -239,46 +238,6 @@ class TestSearchBooksFuzzy:
         res = search_books(_get_db(), "проект аве мария")
         if len(res["books"]) >= 2:
             assert res["books"][0]["id"] == _BOOK_PUNCT
-
-
-# ── /api/search API-level regression tests ──
-#
-# These wire-format tests stay here to guard the JSON response contract.
-
-class TestSearch:
-    def test_search_by_title(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": "Minimal"})
-        assert resp.status_code == 200
-        assert len(resp.json()["books"]) >= 1
-
-    def test_search_by_author(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": "Cover"})
-        assert resp.status_code == 200
-        assert len(resp.json()["authors"]) >= 1
-
-    def test_search_by_series(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": "Test Series"})
-        assert resp.status_code == 200
-        assert len(resp.json()["series"]) >= 1
-
-    def test_search_partial_match(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": "Seri"})
-        assert resp.status_code == 200
-        assert len(resp.json()["series"]) >= 1
-
-    def test_search_empty_query(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": ""})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data == {"books": [], "authors": [], "series": []}
-
-    def test_search_no_results(self, reader_client):
-        resp = reader_client.get("/api/search", params={"q": "xyznonexistent"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["books"] == []
-        assert data["authors"] == []
-        assert data["series"] == []
 
 
 # ── Morphology aspirational ──
