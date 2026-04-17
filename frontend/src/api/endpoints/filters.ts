@@ -21,7 +21,11 @@ export interface FilterLanguage {
 
 export type FilterKey = "authors" | "series" | "tags" | "languages";
 
-// Discriminated response — the key determines shape.
+// Per-key response shapes. The backend returns the list under a field matching
+// the key (`{authors: [...]}`, `{series: [...]}`, etc.) — not a tagged union,
+// so we cannot rely on `switch (resp.key)` narrowing. Instead, overloads let
+// the caller get the narrow type for a concrete key literal; the runtime
+// fallback signature returns `FilterOptionsResponse` for dynamic keys.
 export type FilterOptionsResponse =
   | { authors: FilterAuthor[] }
   | { series: FilterSeries[] }
@@ -39,6 +43,34 @@ export interface FilterOptionsParams {
   language?: string;
 }
 
+export function listFilterOptions(
+  key: "authors",
+  params?: FilterOptionsParams,
+  signal?: AbortSignal,
+): Promise<{ authors: FilterAuthor[] }>;
+export function listFilterOptions(
+  key: "series",
+  params?: FilterOptionsParams,
+  signal?: AbortSignal,
+): Promise<{ series: FilterSeries[] }>;
+export function listFilterOptions(
+  key: "tags",
+  params?: FilterOptionsParams,
+  signal?: AbortSignal,
+): Promise<{ tags: FilterTag[] }>;
+export function listFilterOptions(
+  key: "languages",
+  params?: FilterOptionsParams,
+  signal?: AbortSignal,
+): Promise<{ languages: FilterLanguage[] }>;
+// Fallback overload for callers passing a dynamic `FilterKey` (e.g. in a
+// loop over filterKeys). Without this, TS only sees the four literal-key
+// overloads and cannot match a union parameter.
+export function listFilterOptions(
+  key: FilterKey,
+  params?: FilterOptionsParams,
+  signal?: AbortSignal,
+): Promise<FilterOptionsResponse>;
 export function listFilterOptions(
   key: FilterKey,
   params: FilterOptionsParams = {},

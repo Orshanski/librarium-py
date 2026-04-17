@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { setupServer } from "msw/node";
 import { http, HttpResponse, delay } from "msw";
+import { server } from "@/test/msw/server";
 import SmartFilterBar from "./smart-filter-bar";
 
 const mockAuthors = [
@@ -20,109 +21,112 @@ const mockTags = [
   { id: 2, name: "Science" },
 ];
 
-const mockLanguages = [
-  { name: "English" },
-  { name: "Russian" },
-];
+const mockLanguages = [{ name: "English" }, { name: "Russian" }];
 
-const server = setupServer(
-  http.get("*/api/filter-options/authors", () => {
-    return HttpResponse.json({ authors: mockAuthors });
-  }),
-  http.get("*/api/filter-options/series", () => {
-    return HttpResponse.json({ series: mockSeries });
-  }),
-  http.get("*/api/filter-options/tags", () => {
-    return HttpResponse.json({ tags: mockTags });
-  }),
-  http.get("*/api/filter-options/languages", () => {
-    return HttpResponse.json({ languages: mockLanguages });
-  }),
-);
-
-beforeEach(() => {
-  server.listen();
-  sessionStorage.clear();
-});
-
-afterEach(() => {
-  server.close();
-  sessionStorage.clear();
-});
+// Global MSW server is already `listen`ing via src/test/setup.ts.
+// server.resetHandlers() runs automatically in afterEach from that setup.
+//
+// Per-test handlers are registered via server.use(...).
 
 describe("SmartFilterBar", () => {
-  it("happy: renders filter options from API", async () => {
+  it("renders filter options from API", async () => {
+    server.use(
+      http.get("/api/filter-options/authors", () =>
+        HttpResponse.json({ authors: mockAuthors }),
+      ),
+      http.get("/api/filter-options/series", () =>
+        HttpResponse.json({ series: mockSeries }),
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: mockTags }),
+      ),
+      http.get("/api/filter-options/languages", () =>
+        HttpResponse.json({ languages: mockLanguages }),
+      ),
+    );
+
     const user = userEvent.setup();
     render(
       <SmartFilterBar
         filterKeys={["author", "series", "genre", "language"]}
         selected={{}}
         onSelectionChange={() => {}}
-      />
+      />,
     );
 
-    // Wait for at least the author button to appear (options loaded)
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
     });
-
-    // Click author button to open dropdown and see options
-    const authorButton = screen.getByRole("button", { name: /Автор/ });
-    await user.click(authorButton);
-
-    // Now options should be visible
+    await user.click(screen.getByRole("button", { name: /Автор/ }));
     await waitFor(() => {
       expect(screen.getByText("Author One")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("Author One")).toBeInTheDocument();
   });
 
-  it("abort: rapid selection changes prevent race conditions", async () => {
-    // Test that when dependencies change rapidly, the component remains stable
+  it("rapid dependency changes: only latest response is rendered, stale is discarded", async () => {
+    // First handler: slow — simulates an in-flight request that should be
+    // aborted when props change. Returns "First Author".
+    // We DO NOT wait for the slow fetch to resolve. Instead, we immediately
+    // rerender with new props — the useEffect cleanup must call
+    // controller.abort() on the first fetch. The fast handler registered
+    // next returns "Second Author". If abort works, only "Second Author"
+    // ever reaches state; "First Author" must never leak into the UI.
+    server.use(
+      http.get("/api/filter-options/authors", async () => {
+        await delay(100);
+        return HttpResponse.json({ authors: [{ id: 1, name: "First Author" }] });
+      }),
+    );
+
     const { rerender } = render(
       <SmartFilterBar
         filterKeys={["author"]}
-        selected={{ author: ["1"] }}
+        selected={{}}
         onSelectionChange={() => {}}
-      />
+      />,
     );
 
-    // Wait for initial load
-    await waitFor(() => {
-      const buttons = screen.getAllByRole("button");
-      expect(buttons.length).toBeGreaterThan(0);
-    });
+    // Swap handler to a fast one and rerender immediately — while the first
+    // fetch is still sleeping, its AbortController should fire.
+    server.use(
+      http.get("/api/filter-options/authors", () =>
+        HttpResponse.json({ authors: [{ id: 2, name: "Second Author" }] }),
+      ),
+    );
 
-    // Change selection before first effect completes
     rerender(
       <SmartFilterBar
         filterKeys={["author"]}
         selected={{ author: ["2"] }}
         onSelectionChange={() => {}}
-      />
+      />,
     );
 
-    // Component should still render without errors
+    // With `selected.author = ["2"]`, the filter bar renders the selected
+    // name as a chip after options load. Wait for the fast fetch to finish.
     await waitFor(() => {
-      const buttons = screen.getAllByRole("button");
-      expect(buttons.length).toBeGreaterThan(0);
+      expect(screen.getByText("Second Author")).toBeInTheDocument();
     });
+
+    // Give the slow handler's delay(100) a chance to elapse. If abort failed,
+    // the stale response would now overwrite state and "First Author" would
+    // appear. With abort working, it never will.
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(screen.queryByText("First Author")).not.toBeInTheDocument();
+    expect(screen.getByText("Second Author")).toBeInTheDocument();
   });
 
-  it("500 error: gracefully handles server errors without crashing", async () => {
+  it("500 error: empty filter option, no crash, no error UI leaks", async () => {
     const user = userEvent.setup();
 
     server.use(
-      http.get("*/api/filter-options/authors", () => {
-        return HttpResponse.json(
-          { detail: "Internal Server Error" },
-          { status: 500 }
-        );
-      }),
-      http.get("*/api/filter-options/series", () => {
-        return HttpResponse.json({ series: mockSeries });
-      }),
+      http.get("/api/filter-options/authors", () =>
+        HttpResponse.json({ detail: "Internal Server Error" }, { status: 500 }),
+      ),
+      http.get("/api/filter-options/series", () =>
+        HttpResponse.json({ series: mockSeries }),
+      ),
     );
 
     render(
@@ -130,23 +134,26 @@ describe("SmartFilterBar", () => {
         filterKeys={["author", "series"]}
         selected={{}}
         onSelectionChange={() => {}}
-      />
+      />,
     );
 
-    // Wait for series to load (author endpoint returns 500)
+    // Both filter buttons should still render (the failed dimension gets an
+    // empty options list; UI does not crash).
     await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Серия/ })).toBeInTheDocument();
     });
 
-    // Click series button and verify it renders options
-    const seriesButton = screen.getByRole("button", { name: /Серия/ });
-    await user.click(seriesButton);
+    // Error UI should NOT leak into the bar.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Internal Server Error|HTTP 500|ошибка/i),
+    ).not.toBeInTheDocument();
 
+    // Working dimension still loads its options.
+    await user.click(screen.getByRole("button", { name: /Серия/ }));
     await waitFor(() => {
       expect(screen.getByText("Series A")).toBeInTheDocument();
     });
-
-    // Component should not crash
-    expect(screen.getByText("Series A")).toBeInTheDocument();
   });
 });
