@@ -11,14 +11,12 @@ import { useAuth } from "../auth";
 import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { getSeries } from "../api/endpoints/series";
+import type { Series } from "../api/endpoints/series";
+import { NotFoundError } from "../api/errors";
 
-interface SeriesData {
-  id: number;
-  name: string;
-  sort_name: string;
-  book_count: number;
-  authors: string | null;
-}
+// SeriesData is the canonical Series type from the endpoint
+type SeriesData = Series;
 
 export default function SeriesPage() {
   const { id } = useParams();
@@ -32,22 +30,24 @@ export default function SeriesPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/series/${id}`)
-      .then((r) => {
-        if (r.status === 404) {
-          setNotFoundState(true);
-          setLoading(false);
-          return null;
-        }
-        return r.json();
-      })
+    const numericId = Number(id);
+    if (!id || isNaN(numericId)) {
+      setNotFoundState(true);
+      setLoading(false);
+      return;
+    }
+    getSeries(numericId)
       .then((data) => {
-        if (!data) return;
         setSeries(data.series);
         setBooks(data.books || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (err instanceof NotFoundError) {
+          setNotFoundState(true);
+        }
+        setLoading(false);
+      });
   }, [id]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);

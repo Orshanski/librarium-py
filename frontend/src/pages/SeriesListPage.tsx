@@ -6,16 +6,13 @@ import { FilterKey } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
+import { listSeries } from "../api/endpoints/series";
+import type { Series } from "../api/endpoints/series";
 
 const CACHE_KEY = "librarium_series";
 
-interface SeriesItem {
-  id: number;
-  name: string;
-  sort_name: string;
-  book_count: number;
-  authors: string | null;
-}
+// Re-export the canonical Series type for use within this module
+type SeriesItem = Series;
 
 function saveCache(allSeries: SeriesItem[], selected: Record<string, string[]>) {
   try {
@@ -90,13 +87,12 @@ export default function SeriesListPage() {
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
 
-    const params = new URLSearchParams();
-    if (authorFilter.length > 0) params.set("authorIds", authorFilter.join(","));
-    if (tagFilter.length > 0) params.set("tagIds", tagFilter.join(","));
-    if (langFilter.length > 0) params.set("language", langFilter[0]);
+    const params: { authorIds?: string; tagIds?: string; language?: string } = {};
+    if (authorFilter.length > 0) params.authorIds = authorFilter.join(",");
+    if (tagFilter.length > 0) params.tagIds = tagFilter.join(",");
+    if (langFilter.length > 0) params.language = langFilter[0];
 
-    fetch(`/api/series?${params.toString()}`)
-      .then((r) => r.json())
+    listSeries(params)
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);

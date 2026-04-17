@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { colors, fonts } from "../theme";
 import ConfirmDialog from "./confirm-dialog";
+import { listSeries, renameSeries, mergeSeries, deleteSeries } from "../api/endpoints/series";
 
 interface EntityAdminPanelProps {
   entityType: "author" | "series";
@@ -109,21 +110,28 @@ export default function EntityAdminPanel({
   const [deleting, setDeleting] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; label: string; action: () => void } | null>(null);
 
-  const endpoint = entityType === "author" ? "authors" : "series";
   const label = entityType === "author" ? "автора" : "серию";
   const labelCap = entityType === "author" ? "Автор" : "Серия";
 
   const [allEntities, setAllEntities] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
-    const endpoint = entityType === "author" ? "/api/authors" : "/api/series";
-    fetch(endpoint, { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        const list = (entityType === "author" ? data.authors : data.series) || [];
-        setAllEntities(list.filter((e: { id: number }) => e.id !== entityId));
-      })
-      .catch((err) => console.warn("Failed to fetch entities:", err));
+    if (entityType === "series") {
+      listSeries()
+        .then((data) => {
+          setAllEntities(data.series.filter((e) => e.id !== entityId));
+        })
+        .catch((err) => console.warn("Failed to fetch series:", err));
+    } else {
+      // author: keep raw fetch — Task 9 scope
+      fetch("/api/authors", { credentials: "include" })
+        .then((r) => r.json())
+        .then((data) => {
+          const list = (data.authors as { id: number; name: string }[]) || [];
+          setAllEntities(list.filter((e) => e.id !== entityId));
+        })
+        .catch((err) => console.warn("Failed to fetch authors:", err));
+    }
   }, [entityType, entityId]);
 
   const filtered = searchQuery.length >= 2
@@ -135,13 +143,21 @@ export default function EntityAdminPanel({
     if (!trimmed || trimmed === currentName) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/${endpoint}/${entityId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (res.ok) onRenamed(trimmed);
+      if (entityType === "series") {
+        await renameSeries(entityId, trimmed);
+        onRenamed(trimmed);
+      } else {
+        // author: keep raw fetch — Task 9 scope
+        const res = await fetch(`/api/authors/${entityId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name: trimmed }),
+        });
+        if (res.ok) onRenamed(trimmed);
+      }
+    } catch (err) {
+      console.warn("Failed to rename:", err);
     } finally {
       setSaving(false);
     }
@@ -155,13 +171,21 @@ export default function EntityAdminPanel({
         setConfirmAction(null);
         setMerging(true);
         try {
-          const res = await fetch(`/api/${endpoint}/${entityId}/merge`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ sourceId: source.id }),
-          });
-          if (res.ok) onMerged();
+          if (entityType === "series") {
+            await mergeSeries(entityId, source.id);
+            onMerged();
+          } else {
+            // author: keep raw fetch — Task 9 scope
+            const res = await fetch(`/api/authors/${entityId}/merge`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ sourceId: source.id }),
+            });
+            if (res.ok) onMerged();
+          }
+        } catch (err) {
+          console.warn("Failed to merge:", err);
         } finally {
           setMerging(false);
         }
@@ -178,11 +202,19 @@ export default function EntityAdminPanel({
         setConfirmAction(null);
         setDeleting(true);
         try {
-          const res = await fetch(`/api/${endpoint}/${entityId}`, {
-            method: "DELETE",
-            credentials: "include",
-          });
-          if (res.ok) onDeleted();
+          if (entityType === "series") {
+            await deleteSeries(entityId);
+            onDeleted();
+          } else {
+            // author: keep raw fetch — Task 9 scope
+            const res = await fetch(`/api/authors/${entityId}`, {
+              method: "DELETE",
+              credentials: "include",
+            });
+            if (res.ok) onDeleted();
+          }
+        } catch (err) {
+          console.warn("Failed to delete:", err);
         } finally {
           setDeleting(false);
         }
