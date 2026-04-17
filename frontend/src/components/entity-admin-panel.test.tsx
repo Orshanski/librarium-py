@@ -227,4 +227,131 @@ describe("EntityAdminPanel — series mode", () => {
       expect(onRenamed).toHaveBeenCalledWith("Dune Chronicles");
     });
   });
+
+  it("does not call onRenamed when series rename request fails", async () => {
+    setupDefaultHandlers();
+    server.use(
+      http.put("/api/series/:id", () =>
+        HttpResponse.json({ detail: "Server error" }, { status: 500 })
+      )
+    );
+
+    const onRenamed = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="series"
+        entityId={1}
+        currentName="Dune"
+        bookCount={6}
+        onRenamed={onRenamed}
+        onMerged={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    const input = screen.getByDisplayValue("Dune");
+    fireEvent.change(input, { target: { value: "Dune Chronicles" } });
+
+    const saveBtn = screen.getByText("Сохранить");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Сохранить")).toBeInTheDocument();
+    });
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it("calls onMerged after successful series merge", async () => {
+    setupDefaultHandlers();
+    server.use(
+      http.post("/api/series/:id/merge", () =>
+        HttpResponse.json({ ok: true })
+      )
+    );
+
+    const onMerged = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="series"
+        entityId={1}
+        currentName="Dune"
+        bookCount={6}
+        onRenamed={() => {}}
+        onMerged={onMerged}
+        onDeleted={() => {}}
+      />
+    );
+
+    // Wait for series list to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Найти серию-дубликат...")).toBeInTheDocument();
+    });
+
+    // Search for a duplicate
+    const searchInput = screen.getByPlaceholderText("Найти серию-дубликат...");
+    fireEvent.change(searchInput, { target: { value: "Foundation" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Foundation")).toBeInTheDocument();
+    });
+
+    // Click merge button for found series
+    const mergeBtn = screen.getByText("Присоединить");
+    fireEvent.click(mergeBtn);
+
+    // Confirm the dialog
+    await waitFor(() => {
+      const confirmBtns = screen.getAllByText("Присоединить");
+      expect(confirmBtns.length).toBeGreaterThan(0);
+    });
+
+    const confirmBtns = screen.getAllByText("Присоединить");
+    const confirmBtn = confirmBtns[confirmBtns.length - 1];
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(onMerged).toHaveBeenCalled();
+    });
+  });
+
+  it("calls onDeleted after successful series delete (no books)", async () => {
+    setupDefaultHandlers();
+    server.use(
+      http.delete("/api/series/:id", () =>
+        HttpResponse.json({ ok: true })
+      )
+    );
+
+    const onDeleted = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="series"
+        entityId={1}
+        currentName="Empty Series"
+        bookCount={0}
+        onRenamed={() => {}}
+        onMerged={() => {}}
+        onDeleted={onDeleted}
+      />
+    );
+
+    const deleteBtn = screen.getByText("Удалить");
+    fireEvent.click(deleteBtn);
+
+    // Confirm dialog appears
+    await waitFor(() => {
+      expect(screen.getAllByText("Удалить").length).toBeGreaterThan(0);
+    });
+
+    const deleteBtns = screen.getAllByText("Удалить");
+    const confirmDeleteBtn = deleteBtns[deleteBtns.length - 1];
+    fireEvent.click(confirmDeleteBtn);
+
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+  });
 });

@@ -13,6 +13,7 @@ import { getAuthor } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { NotFoundError } from "../api/errors";
 
+// UI-local shape: tags split to string[], sort_name required (post-splitCsv transform).
 interface AuthorData {
   id: number;
   name: string;

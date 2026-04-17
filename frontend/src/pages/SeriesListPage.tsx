@@ -78,7 +78,7 @@ export default function SeriesListPage() {
   useEffect(() => {
     if (restoredRef.current) {
       restoredRef.current = false;
-      return;
+      return () => {}; // skip first run after restore — no cleanup needed
     }
 
     setLoading(true);

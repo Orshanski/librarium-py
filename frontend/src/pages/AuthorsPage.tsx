@@ -78,7 +78,7 @@ export default function AuthorsPage() {
   useEffect(() => {
     if (restoredRef.current) {
       restoredRef.current = false;
-      return; // skip first run after restore
+      return () => {}; // skip first run after restore — no cleanup needed
     }
 
     setLoading(true);
