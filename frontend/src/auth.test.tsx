@@ -72,11 +72,11 @@ describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
       }),
     );
 
-    // Simulate offline condition (network error, not just 401)
+    // Simulate offline condition (network error, not just 401). MSW v2: use
+    // HttpResponse.error() — throwing inside a handler triggers an
+    // "unhandled exception during handler lookup" warning in the test log.
     server.use(
-      http.get("/api/auth/me", () => {
-        throw new Error("Network offline");
-      }),
+      http.get("/api/auth/me", () => HttpResponse.error()),
     );
 
     Object.defineProperty(navigator, "onLine", { value: false, writable: true, configurable: true });

@@ -46,6 +46,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// ── Silence expected console.warn / console.error from error-path tests ──
+//
+// Production code deliberately logs on handled errors (e.g. after F1
+// migrations:
+//   - book-edit-form applyMetadata → console.warn("Failed to apply cover…")
+//   - reader-sync pushProgressToServerCAS → console.warn("Failed to push…")
+//   - sidebar/ShelfPage → console.warn("Failed to create/remove shelf…")
+// When tests deliberately provoke those code paths (500 responses, network
+// errors, etc.), the warn output spams CI logs (GitHub Actions renders
+// stderr in red — the test passes but looks alarming). Silence both streams
+// here; tests that need to assert warn content use `vi.spyOn(console, …)`
+// per-test, which cleanly overrides these defaults.
+beforeEach(() => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
 // ── jsdom-only polyfills and bootstrap ──
 //
 // These only make sense when `window` exists. In node environment (e.g.
@@ -85,4 +102,14 @@ if (typeof window !== "undefined") {
   //    Raw fetch() in components (e.g. sidebar.tsx) relies on this. Without it
   //    tests would run with weaker CSRF/auth semantics than production.
   installFetchCredentials();
+
+  // 4) alert / confirm — jsdom doesn't implement them; error-path tests from
+  //    F1 (h53 book-edit-form, delete UX, save fail in BookEditPage, etc.)
+  //    call `alert(err.message)` and flood the test log with
+  //    `Not implemented: Window's alert() method` stderr noise. Provide noop
+  //    stubs so the CI log stays readable. Tests that need to assert alert
+  //    content use `vi.spyOn(window, "alert")` per-test — spies replace these
+  //    stubs cleanly.
+  window.alert = () => {};
+  window.confirm = () => true;
 }
