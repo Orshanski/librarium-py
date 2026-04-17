@@ -64,11 +64,12 @@ export function getTag(
   query: TagQuery = {},
   signal?: AbortSignal,
 ): Promise<TagBooksResponse> {
-  const q: Record<string, unknown> = {};
-  if (query.authorIds !== undefined) q.authorIds = query.authorIds;
-  if (query.seriesIds !== undefined) q.seriesIds = query.seriesIds;
-  if (query.language !== undefined) q.language = query.language;
-  return client<TagBooksResponse>("GET", `/api/tags/${id}`, { query: q, signal });
+  // client() strips undefined query params; spread passes every defined
+  // field through, so adding a new filter to TagQuery automatically wires.
+  return client<TagBooksResponse>("GET", `/api/tags/${id}`, {
+    query: { ...query },
+    signal,
+  });
 }
 
 export function mapTag(id: number, name: string): Promise<MapTagResponse> {

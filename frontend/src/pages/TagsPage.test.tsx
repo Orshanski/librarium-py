@@ -83,14 +83,19 @@ describe("TagsPage", () => {
       )
     );
 
-    renderWithProviders(<TagsPage />);
+    renderWithProviders(<TagsPage />, { initialEntries: ["/tags"] });
 
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /^Fiction \(10\)$/ })).toBeInTheDocument();
     });
 
-    // Check that breadcrumb was saved
+    // Check that breadcrumb was saved. `.toBeDefined()` would pass on a
+    // null getItem result — use `.not.toBeNull()` + non-empty string.
+    // Exact URL content isn't asserted because TagsPage reads `window.location`
+    // directly (not react-router), which in jsdom is always "/" regardless of
+    // MemoryRouter initialEntries. The meaningful signal here is "saved at all".
     const saved = sessionStorage.getItem("librarium_breadcrumb_tags");
-    expect(saved).toBeDefined();
+    expect(saved).not.toBeNull();
+    expect(saved!.length).toBeGreaterThan(0);
   });
 });

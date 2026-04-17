@@ -105,7 +105,6 @@ export default function TagPage() {
     if (isNaN(tagId)) return;
 
     setLoading(true);
-    sessionStorage.removeItem(cacheKey(tagId));
 
     getTag(tagId, {
       authorIds: authorFilter.length > 0 ? authorFilter.join(",") : undefined,
@@ -113,6 +112,10 @@ export default function TagPage() {
       language: langFilter.length > 0 ? langFilter[0] : undefined,
     })
       .then((data) => {
+        // Invalidate cached snapshot only AFTER a successful fetch. If the
+        // network call fails (transient error), the stale cache is still
+        // better than a blank page; cache is rewritten via the save-effect below.
+        sessionStorage.removeItem(cacheKey(tagId));
         setTag(data.tag);
         setBooks(data.books.map((b) => toBook(b)));
       })

@@ -94,8 +94,8 @@ describe("TagPage", () => {
     });
   });
 
-  it("filters books by author IDs when provided", async () => {
-    let capturedQuery: Record<string, any> = {};
+  it("omits authorIds query param when no filter is applied", async () => {
+    let capturedQuery: Record<string, string> = {};
 
     server.use(
       http.get("/api/tags/:id", ({ request }) => {
@@ -118,20 +118,27 @@ describe("TagPage", () => {
             },
           ],
         });
-      })
+      }),
     );
 
     renderWithProviders(
       <Routes>
         <Route path="/tags/:id" element={<TagPage />} />
       </Routes>,
-      { initialEntries: ["/tags/1"] }
+      { initialEntries: ["/tags/1"] },
     );
 
+    // Assert on the book title (which appears only AFTER fetch resolves)
+    // rather than the tag name (which shows up in breadcrumbs / PageHeader
+    // before the fetch completes) — guarantees server round-trip happened
+    // before we inspect capturedQuery.
     await waitFor(() => {
-      expect(screen.getByText("Fiction")).toBeInTheDocument();
+      expect(screen.getByText("Dune")).toBeInTheDocument();
     });
 
+    // No filter was set → authorIds / seriesIds / language must NOT be sent.
     expect(capturedQuery.authorIds).toBeUndefined();
+    expect(capturedQuery.seriesIds).toBeUndefined();
+    expect(capturedQuery.language).toBeUndefined();
   });
 });
