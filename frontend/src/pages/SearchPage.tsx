@@ -8,27 +8,33 @@ import { colors, fonts } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { searchAll, type SearchResponse } from "../api/endpoints/search";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") || "";
 
-  const [results, setResults] = useState<{ books: RawBook[]; authors: { id: number; name: string; book_count: number }[]; series: { id: number; name: string; authors: string; book_count: number }[] } | null>(null);
+  const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!q.trim()) {
       setResults(null);
+      setError(null);
       return;
     }
     setLoading(true);
-    fetch(`/api/search?q=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
+    setError(null);
+    searchAll(q)
       .then((data) => {
         setResults(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError("Ошибка поиска");
+        setLoading(false);
+      });
   }, [q]);
 
   const { books = [], authors = [], series = [] } = results || {};
@@ -41,6 +47,10 @@ function SearchResults() {
 
   if (loading) {
     return <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Поиск...</div>;
+  }
+
+  if (error) {
+    return <div style={{ fontSize: 14, color: colors.text, padding: 24, backgroundColor: "rgba(255, 0, 0, 0.1)", borderRadius: 6, margin: 24 }}>{error}</div>;
   }
 
   if (!results) return null;
