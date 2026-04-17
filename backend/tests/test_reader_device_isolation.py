@@ -1,5 +1,5 @@
 """Per-device settings isolation."""
-from tests._helpers import assert_error, assert_ok
+from tests._helpers import assert_error
 
 
 class TestReaderSettings:

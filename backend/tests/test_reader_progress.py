@@ -1,5 +1,5 @@
 """Reader progress read/write and basic sync."""
-from tests._helpers import assert_error, assert_ok
+from tests._helpers import assert_error
 
 
 class TestReadingProgress:

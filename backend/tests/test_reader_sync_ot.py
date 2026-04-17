@@ -1,5 +1,5 @@
 """Operational transform sync and version tracking."""
-from tests._helpers import assert_error, assert_ok
+from tests._helpers import assert_error
 
 
 class TestReadingProgressCAS:
