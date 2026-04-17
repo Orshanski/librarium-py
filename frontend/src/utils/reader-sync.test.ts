@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
 import { pushProgressToServerCAS } from "./reader-sync";
@@ -95,6 +95,22 @@ describe("pushProgressToServerCAS — adopt (conflict) path", () => {
   });
 });
 
+describe("pushProgressToServerCAS — failed path (accepted:false, current:null)", () => {
+  it("returns {status: 'failed'} when server returns accepted:false but no current state", async () => {
+    server.use(
+      http.put("/api/reader/progress/42", () =>
+        HttpResponse.json({ accepted: false, current: null }),
+      ),
+    );
+
+    const result = await pushProgressToServerCAS(baseProgress, { deviceName: "test" });
+
+    expect(result.status).toBe("failed");
+    expect(mockSaveProgress).not.toHaveBeenCalled();
+    expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
+  });
+});
+
 describe("pushProgressToServerCAS — failed path", () => {
   it("returns {status: 'failed'} on HTTP 500 error", async () => {
     server.use(
@@ -125,20 +141,23 @@ describe("pushProgressToServerCAS — keepalive option", () => {
   it("passes keepalive: true to fetch when specified", async () => {
     let capturedKeepalive: boolean | undefined;
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      capturedKeepalive = init?.keepalive;
-      return originalFetch(url, init);
-    });
+    try {
+      globalThis.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        capturedKeepalive = init?.keepalive;
+        return originalFetch(url, init);
+      });
 
-    server.use(
-      http.put("/api/reader/progress/42", () =>
-        HttpResponse.json({ accepted: true, version: 4, rebased: false }),
-      ),
-    );
+      server.use(
+        http.put("/api/reader/progress/42", () =>
+          HttpResponse.json({ accepted: true, version: 4, rebased: false }),
+        ),
+      );
 
-    await pushProgressToServerCAS(baseProgress, { deviceName: "desktop", keepalive: true });
+      await pushProgressToServerCAS(baseProgress, { deviceName: "desktop", keepalive: true });
 
-    expect(capturedKeepalive).toBe(true);
-    globalThis.fetch = originalFetch;
+      expect(capturedKeepalive).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

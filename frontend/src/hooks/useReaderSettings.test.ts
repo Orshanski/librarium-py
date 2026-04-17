@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
 import { useReaderSettings } from "./useReaderSettings";
 import type { LocalSettings } from "../utils/offline-storage";
+import type { ReaderSettings } from "@/types/reader-settings";
 
 // Mock offline-storage to avoid real IDB in hook tests
 vi.mock("../utils/offline-storage", () => ({
@@ -95,10 +96,8 @@ describe("useReaderSettings — debounced save on handleSettingsChange", () => {
     const { result } = renderHook(() => useReaderSettings({ deviceName }));
 
     act(() => {
-      result.current.handleSettingsChange({
-        ...result.current.settings,
-        fontSize: 22,
-      } as Parameters<typeof result.current.handleSettingsChange>[0]);
+      const newSettings: ReaderSettings = { ...result.current.settings, fontSize: 22 };
+      result.current.handleSettingsChange(newSettings);
     });
 
     // Should not have saved yet (debounce pending)

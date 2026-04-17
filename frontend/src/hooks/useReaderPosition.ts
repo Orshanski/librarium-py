@@ -123,7 +123,9 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
     if (hasUnsyncedLocal && localProgress) {
       await pushProgressToServerRef.current(localProgress);
     } else if (serverPosition && serverVersion > localServerVersion) {
-      await adoptServerProgressRef.current(bookId, serverProgress as { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number }, { resume: false });
+      if (typeof serverProgress?.position !== "string") return;
+      const narrowed = { ...serverProgress, position: serverProgress.position };
+      await adoptServerProgressRef.current(bookId, narrowed, { resume: false });
     }
   }, []);
 
@@ -146,7 +148,9 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
         const serverVersion = server.version ?? 0;
         const localServerVersion = localProgress?.serverVersion ?? 0;
         if (serverVersion > localServerVersion) {
-          await adoptServerProgress(bookId, server as { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number }, { resume: true });
+          if (typeof server.position !== "string") return;
+          const narrowed = { ...server, position: server.position };
+          await adoptServerProgress(bookId, narrowed, { resume: true });
         }
       } catch (err) {
         console.warn("Failed to refresh progress on resume:", err);
