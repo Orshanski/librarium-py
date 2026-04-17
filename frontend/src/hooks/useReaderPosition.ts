@@ -5,6 +5,7 @@ import {
   adoptServerProgressLocal,
 } from "../utils/offline-storage";
 import { pushProgressToServerCAS } from "../utils/reader-sync";
+import { getProgress as apiGetProgress } from "../api/endpoints/reader";
 
 type PositionKind = "cfi" | "page";
 
@@ -112,9 +113,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
   adoptServerProgressRef.current = adoptServerProgress;
 
   const syncProgressWithServer = useCallback(async (bookId: number, localProgress: LocalProgress | null) => {
-    const serverProgress = await fetch(`/api/reader/progress/${bookId}`, { credentials: "include" })
-      .then((r) => r.ok ? r.json() : null)
-      .catch(() => null);
+    const serverProgress = await apiGetProgress(bookId).catch(() => null);
 
     const hasUnsyncedLocal = Boolean(localProgress && !localProgress.synced);
     const serverPosition = serverProgress?.position ?? null;
@@ -124,7 +123,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
     if (hasUnsyncedLocal && localProgress) {
       await pushProgressToServerRef.current(localProgress);
     } else if (serverPosition && serverVersion > localServerVersion) {
-      await adoptServerProgressRef.current(bookId, serverProgress, { resume: false });
+      await adoptServerProgressRef.current(bookId, serverProgress as { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number }, { resume: false });
     }
   }, []);
 
@@ -142,14 +141,12 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
           return;
         }
 
-        const resp = await fetch(`/api/reader/progress/${id}`, { credentials: "include" });
-        if (!resp.ok) return;
-        const server = await resp.json();
+        const server = await apiGetProgress(bookId).catch(() => null);
         if (!server?.position) return;
         const serverVersion = server.version ?? 0;
         const localServerVersion = localProgress?.serverVersion ?? 0;
         if (serverVersion > localServerVersion) {
-          await adoptServerProgress(bookId, server, { resume: true });
+          await adoptServerProgress(bookId, server as { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number }, { resume: true });
         }
       } catch (err) {
         console.warn("Failed to refresh progress on resume:", err);

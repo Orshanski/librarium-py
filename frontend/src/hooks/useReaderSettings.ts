@@ -5,6 +5,7 @@ import {
   LocalSettings,
   getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,
 } from "../utils/offline-storage";
+import { getSettings, saveSettings } from "../api/endpoints/reader";
 
 interface UseReaderSettingsOptions {
   deviceName: string;
@@ -30,9 +31,7 @@ export function useReaderSettings({ deviceName }: UseReaderSettingsOptions): Use
   }, []);
 
   const syncSettingsWithServer = useCallback(async (localSettings: LocalSettings | null) => {
-    const serverSettings = await fetch("/api/reader/settings", { credentials: "include" })
-      .then((r) => r.ok ? r.json() : null)
-      .catch(() => null);
+    const serverSettings = await getSettings().catch(() => null);
 
     if (serverSettings?.settings && Object.keys(serverSettings.settings).length > 0) {
       if (!localSettings || !localSettings.settings || Object.keys(localSettings.settings).length === 0) {
@@ -43,13 +42,12 @@ export function useReaderSettings({ deviceName }: UseReaderSettingsOptions): Use
         await markSettingsSynced(deviceName);
       } else if (localSettings && !localSettings.synced) {
         // Unsynced local settings — push to server
-        const resp = await fetch("/api/reader/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ settings: localSettings.settings }),
-        }).catch(() => null);
-        if (resp && resp.ok) await markSettingsSynced(deviceName);
+        try {
+          await saveSettings(localSettings.settings);
+          await markSettingsSynced(deviceName);
+        } catch (err) {
+          console.warn("Failed to sync settings with server:", err);
+        }
       }
     }
   }, [deviceName]);
@@ -65,12 +63,9 @@ export function useReaderSettings({ deviceName }: UseReaderSettingsOptions): Use
       }
       saveLocalSettings(deviceName, settingsRecord).catch((err) => console.warn("Failed to save local settings:", err));
       if (navigator.onLine) {
-        fetch("/api/reader/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ settings: newSettings }),
-        }).then((r) => { if (r.ok) markSettingsSynced(deviceName); }).catch((err) => console.warn("Failed to sync settings:", err));
+        saveSettings(settingsRecord)
+          .then(() => markSettingsSynced(deviceName))
+          .catch((err) => console.warn("Failed to sync settings:", err));
       }
     }, 1500);
   }, [deviceName]);

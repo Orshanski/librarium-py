@@ -28,6 +28,8 @@ export interface ClientOptions {
    * Only active when blob: true.
    */
   onProgress?: (percent: number, bytes: number) => void;
+  /** Pass-through to fetch's keepalive option (for unload-time sends). */
+  keepalive?: boolean;
 }
 
 const CSRF_METHODS = new Set<HttpMethod>(["POST", "PUT", "PATCH", "DELETE"]);
@@ -103,6 +105,7 @@ export async function client<T>(
       body,
       credentials: "include",
       signal: options.signal,
+      keepalive: options.keepalive,
     });
   } catch (err) {
     // AbortError — штатный control-flow, пробрасываем без оборачивания.

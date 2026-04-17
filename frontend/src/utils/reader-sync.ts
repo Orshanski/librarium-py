@@ -1,5 +1,6 @@
 import type { LocalProgress } from "./offline-storage";
 import { saveProgress, markProgressSynced, adoptServerProgressLocal } from "./offline-storage";
+import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
 
 /**
  * Result of a CAS PUT to /api/reader/progress.
@@ -38,22 +39,17 @@ export async function pushProgressToServerCAS(
   opts: PushOptions,
 ): Promise<PushResult> {
   try {
-    const resp = await fetch(`/api/reader/progress/${progress.bookId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      keepalive: opts.keepalive,
-      body: JSON.stringify({
+    const data = await apiSaveProgress(
+      progress.bookId,
+      {
         position: progress.position,
         last_device: opts.deviceName,
         last_format: progress.lastFormat,
         fraction: progress.fraction,
         expected_version: progress.serverVersion,
-      }),
-    });
-    if (!resp.ok) return { status: "failed" };
-
-    const data = await resp.json();
+      },
+      { keepalive: opts.keepalive },
+    );
 
     if (data.accepted === true) {
       await saveProgress(progress.bookId, {
@@ -70,13 +66,25 @@ export async function pushProgressToServerCAS(
       };
     }
 
-    if (data.accepted === false && data.current && typeof data.current.position === "string") {
-      const srv = data.current;
-      await adoptServerProgressLocal(progress.bookId, srv, progress.lastFormat);
+    if (
+      data.accepted === false &&
+      data.current &&
+      typeof data.current.position === "string"
+    ) {
+      const srvPosition: string = data.current.position;
+      const srvVersion = data.current.version;
+      const srvNarrowed = {
+        position: srvPosition,
+        fraction: data.current.fraction,
+        last_format: data.current.last_format,
+        last_read_at: data.current.last_read_at,
+        version: srvVersion,
+      };
+      await adoptServerProgressLocal(progress.bookId, srvNarrowed, progress.lastFormat);
       return {
         status: "adopted",
-        adoptedPosition: srv.position,
-        serverVersion: srv.version,
+        adoptedPosition: srvPosition,
+        serverVersion: srvVersion,
       };
     }
 
