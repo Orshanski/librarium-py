@@ -1,10 +1,11 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from ..auth import get_current_user
 from ..database import db_session
+from ._helpers import require_exists
 
 log = logging.getLogger("librarium.shelves")
 from ..dal import shelves as dal
@@ -40,23 +41,20 @@ def create_shelf(body: ShelfBody, user: dict = Depends(get_current_user), db: sq
 @router.get("/{shelf_id}")
 def get_shelf(shelf_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     result = dal.get_shelf_by_id(db, shelf_id, user["userId"])
-    if not result:
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(result)
     return result
 
 
 @router.put("/{shelf_id}")
 def update_shelf(shelf_id: int, body: ShelfBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.shelf_exists(db, shelf_id, user["userId"]):
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(dal.shelf_exists(db, shelf_id, user["userId"]))
     dal.update_shelf(db, shelf_id, body.name)
     return {"ok": True}
 
 
 @router.delete("/{shelf_id}")
 def delete_shelf(shelf_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.shelf_exists(db, shelf_id, user["userId"]):
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(dal.shelf_exists(db, shelf_id, user["userId"]))
     dal.delete_shelf(db, shelf_id)
     log.info("Deleted shelf=%d by user_id=%s", shelf_id, user["userId"])
     return {"ok": True}
@@ -64,15 +62,13 @@ def delete_shelf(shelf_id: int, user: dict = Depends(get_current_user), db: sqli
 
 @router.post("/{shelf_id}/books")
 def add_book(shelf_id: int, body: ShelfBookBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.shelf_exists(db, shelf_id, user["userId"]):
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(dal.shelf_exists(db, shelf_id, user["userId"]))
     dal.add_book_to_shelf(db, shelf_id, body.bookId)
     return {"ok": True}
 
 
 @router.delete("/{shelf_id}/books/{book_id}")
 def remove_book(shelf_id: int, book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    if not dal.shelf_exists(db, shelf_id, user["userId"]):
-        raise HTTPException(status_code=404, detail="Not found")
+    require_exists(dal.shelf_exists(db, shelf_id, user["userId"]))
     dal.remove_book_from_shelf(db, shelf_id, book_id)
     return {"ok": True}
