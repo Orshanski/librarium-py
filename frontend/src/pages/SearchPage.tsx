@@ -40,7 +40,9 @@ function SearchResults() {
       })
       .catch((err: unknown) => {
         // Abort is штатный control-flow — молча выходим, не показываем ошибку.
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Check by `name` (not `instanceof DOMException`) — client.ts rethrows
+        // AbortError as-is, and the concrete class varies between runtimes.
+        if (err instanceof Error && err.name === "AbortError") return;
         setError("Ошибка поиска");
         setLoading(false);
       });

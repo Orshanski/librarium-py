@@ -58,7 +58,7 @@ function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, Filt
   } catch {}
 }
 
-function buildQueryParams(
+export function buildQueryParams(
   key: FilterKey,
   selected: SelectedFilters,
   baseFilters?: ApiFilterParams,
@@ -145,7 +145,9 @@ export default function SmartFilterBar({
         return { key, data };
       } catch (err) {
         // Explicitly skip AbortError — it's expected control flow, not an error to report/setState.
-        if (err instanceof DOMException && err.name === "AbortError") {
+        // Check by `name` (not `instanceof DOMException`) — the concrete class
+        // varies between runtimes; client.ts rethrows AbortError as-is.
+        if (err instanceof Error && err.name === "AbortError") {
           return null;
         }
         // For real errors, return empty data

@@ -80,7 +80,10 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
         const res = await uploadCover(book.id, blob, "cover.jpg");
         setCoverUrl(res.tempCoverUrl);
         setCoverChanged(true);
-      } catch {}
+      } catch (err) {
+        console.warn("Failed to apply cover from metadata:", err);
+        alert("Не удалось загрузить обложку из метаданных");
+      }
     }
     setShowMetadataSearch(false);
   }

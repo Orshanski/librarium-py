@@ -4,12 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { LocalProgress, LocalSettings, getProgress, getSettings as getLocalSettings } from "../utils/offline-storage";
 import { getBook, setRead as apiSetRead } from "@/api/endpoints/books";
 import type { BookDetailResponse } from "@/api/endpoints/books";
+import type { LoadProgress } from "../components/ReaderLoadingScreen";
 
 export interface BookLoaderResult {
   bookBlob: Blob | null;
   bookTitle: string;
   loading: boolean;
-  loadProgress: number;
+  loadProgress: LoadProgress;
   error: string | null;
 }
 
@@ -62,7 +63,7 @@ export function useBookLoaderBase(
   const [bookBlob, setBookBlob] = useState<Blob | null>(null);
   const [bookTitle, setBookTitle] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadProgress, setLoadProgress] = useState<LoadProgress>({ percent: 0, bytes: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const onLocalDataLoadedRef = useRef(options.onLocalDataLoaded);
@@ -83,7 +84,7 @@ export function useBookLoaderBase(
     setBookBlob(null);
     setBookTitle("");
     setLoading(true);
-    setLoadProgress(0);
+    setLoadProgress({ percent: 0, bytes: 0 });
     setError(null);
 
     (async () => {
@@ -100,7 +101,9 @@ export function useBookLoaderBase(
           bookId, id, format,
           download: async () => {
             const { downloadBook } = await import("../utils/book-download");
-            return downloadBook(id, format, setLoadProgress);
+            return downloadBook(id, format, (percent, bytes) =>
+              setLoadProgress({ percent, bytes }),
+            );
           },
         });
 

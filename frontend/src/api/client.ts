@@ -139,7 +139,8 @@ export async function client<T>(
         if (total > 0) {
           options.onProgress(Math.round((received / total) * 100), received);
         } else {
-          // Unknown size: emit -1 as percent sentinel (matches reader-loading-screen's loadProgress < 0 mode).
+          // Unknown total — emit percent = -1 as the "no Content-Length" sentinel;
+          // callers render `bytes` directly in MB instead of a percentage.
           options.onProgress(-1, received);
         }
       }

@@ -172,6 +172,55 @@ describe("book-edit-form — metadata", () => {
     });
   });
 
+  it("applyMetadata with coverUrl: cover-proxy returns 500 → alert called (h53)", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const user = userEvent.setup();
+
+    server.use(
+      http.get("/api/metadata/cover-proxy", () =>
+        HttpResponse.json({ detail: "proxy error" }, { status: 500 }),
+      ),
+      http.get("/api/metadata/search", () =>
+        HttpResponse.json({
+          results: [
+            {
+              title: "Книга с ошибкой обложки",
+              authors: "Автор Ошибка",
+              description: "Описание",
+              publisher: "Издатель",
+              pubDate: "2024",
+              isbn: "000",
+              tags: "тест",
+              source: "litres",
+              coverUrl: "https://example.com/bad-cover.jpg",
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
+    await user.click(metadataBtn);
+    await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Книга с ошибкой обложки")).toBeInTheDocument();
+    });
+
+    const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
+    await user.click(coverDiv);
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith("Не удалось загрузить обложку из метаданных");
+    });
+
+    alertSpy.mockRestore();
+  });
+
   it("applyMetadata WITHOUT coverUrl: no cover-proxy, no cover upload — form fields updated", async () => {
     const user = userEvent.setup();
     let coverProxyCalled = false;

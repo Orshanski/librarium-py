@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
@@ -84,6 +84,108 @@ describe("MetadataSearch", () => {
 
     // No result items visible
     expect(screen.queryByText("Война и мир")).not.toBeInTheDocument();
+  });
+
+  it("rapid provider toggle while in-flight: AbortController discards stale, no AbortError in UI (930)", async () => {
+    // Mirror the pattern from smart-filter-bar.test.tsx "rapid dependency changes" test.
+    // Scenario:
+    //   1. Initial search completes (litres) → results shown.
+    //   2. User toggles Google Books → refetch starts (slow).
+    //   3. User immediately toggles Google Books back off → old fetch aborted, new fetch starts (fast).
+    //   4. Only the final (fast) results appear; stale slow results must not appear; no error in UI.
+    const user = userEvent.setup();
+    let requestCount = 0;
+
+    server.use(
+      http.get("/api/metadata/search", async ({ request }) => {
+        requestCount += 1;
+        const providers = new URL(request.url).searchParams.get("providers") || "";
+        if (requestCount === 1) {
+          // Initial search — fast, litres only
+          return HttpResponse.json({
+            results: [
+              {
+                title: "Начальный результат",
+                authors: "Автор",
+                description: "",
+                publisher: "",
+                pubDate: "",
+                isbn: "",
+                tags: "",
+                source: "litres",
+                coverUrl: "",
+              },
+            ],
+          });
+        }
+        if (providers.includes("google") && requestCount === 2) {
+          // After first toggle — slow, should be aborted
+          await delay(100);
+          return HttpResponse.json({
+            results: [
+              {
+                title: "Медленный результат",
+                authors: "Медленный Автор",
+                description: "",
+                publisher: "",
+                pubDate: "",
+                isbn: "",
+                tags: "",
+                source: "litres,google",
+                coverUrl: "",
+              },
+            ],
+          });
+        }
+        // After second toggle — fast, litres only again
+        return HttpResponse.json({
+          results: [
+            {
+              title: "Быстрый результат",
+              authors: "Быстрый Автор",
+              description: "",
+              publisher: "",
+              pubDate: "",
+              isbn: "",
+              tags: "",
+              source: "litres",
+              coverUrl: "",
+            },
+          ],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <MetadataSearch
+        query="test"
+        onApply={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // Initial search
+    await user.click(screen.getByRole("button", { name: /Поиск/i }));
+    await waitFor(() => {
+      expect(screen.getByText("Начальный результат")).toBeInTheDocument();
+    });
+
+    // Toggle Google Books on (starts slow in-flight request #2)
+    await user.click(screen.getByRole("button", { name: /Google Books/i }));
+    // Immediately toggle it back off (aborts request #2, starts fast request #3)
+    await user.click(screen.getByRole("button", { name: /Google Books/i }));
+
+    // Wait for fast result
+    await waitFor(() => {
+      expect(screen.getByText("Быстрый результат")).toBeInTheDocument();
+    });
+
+    // Give slow handler delay(100) a chance to elapse — stale must not leak
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(screen.queryByText("Медленный результат")).not.toBeInTheDocument();
+    // No AbortError in UI
+    expect(screen.queryByText("Ошибка поиска метаданных")).not.toBeInTheDocument();
   });
 
   it("provider toggle: clicking a provider chip triggers refetch with updated providers= query", async () => {

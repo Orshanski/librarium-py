@@ -3,6 +3,14 @@ import { Navigate } from "react-router-dom";
 import * as authApi from "./api/endpoints/auth";
 import type { User } from "./api/types";
 
+const LOCALSTORAGE_AUTH_KEY = "librarium_user";
+const LOCALSTORAGE_AUTH_SCHEMA_VERSION = 1;
+
+interface CachedAuth {
+  schemaVersion: number;
+  user: User;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -26,16 +34,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         setUser(data);
         try {
-          localStorage.setItem("librarium_user", JSON.stringify(data));
+          const entry: CachedAuth = { schemaVersion: LOCALSTORAGE_AUTH_SCHEMA_VERSION, user: data };
+          localStorage.setItem(LOCALSTORAGE_AUTH_KEY, JSON.stringify(entry));
         } catch {}
       })
       .catch(() => {
         if (!navigator.onLine) {
           try {
-            const cached = localStorage.getItem("librarium_user");
-            if (cached) {
-              setUser(JSON.parse(cached));
-              return;
+            const raw = localStorage.getItem(LOCALSTORAGE_AUTH_KEY);
+            if (raw) {
+              const cached: CachedAuth = JSON.parse(raw);
+              if (cached.schemaVersion === LOCALSTORAGE_AUTH_SCHEMA_VERSION && cached.user) {
+                setUser(cached.user);
+                return;
+              }
             }
           } catch {}
         }
@@ -58,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.logout().catch((err) => console.warn("Logout request failed:", err));
     setUser(null);
     try {
-      localStorage.removeItem("librarium_user");
+      localStorage.removeItem(LOCALSTORAGE_AUTH_KEY);
     } catch {}
   }
 
