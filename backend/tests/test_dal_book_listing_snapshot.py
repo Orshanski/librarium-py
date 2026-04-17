@@ -25,14 +25,14 @@ from app.dal import books as books_dal
 def db_with_multi_author(db):
     """Adds book_id=100 with authors 'Smith' (id=101) then 'Brown' (id=102)
     — non-alphabetical insertion — plus tags id=1 and id=2 (non-alphabetical
-    Cyrillic). Tests can use this book to verify that a future ORDER BY <name>
-    change actually sorts output, because without it the output would follow
-    insertion order (Smith,Brown) not alphabetical (Brown,Smith)."""
+    Cyrillic), and places the book into series 1 at series_number=10 (after
+    book 3 which has series_number=2). This lets series tests verify the
+    GROUP_CONCAT ORDER BY contract alongside the author-page tests."""
     db.execute("INSERT INTO authors (id, name, sort_name) VALUES (101, 'Smith', 'Smith')")
     db.execute("INSERT INTO authors (id, name, sort_name) VALUES (102, 'Brown', 'Brown')")
     db.execute(
-        "INSERT INTO books (id, title, sort_title, language, added_at) "
-        "VALUES (100, 'Multi-Author Book', 'Multi-Author Book', 'en', '2025-01-10 00:00:00')"
+        "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at) "
+        "VALUES (100, 'Multi-Author Book', 'Multi-Author Book', 'en', 1, 10, '2025-01-10 00:00:00')"
     )
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (100, 101)")
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (100, 102)")
@@ -85,6 +85,19 @@ class TestSeriesDetailSnapshot:
         # Books 1 (num 1) and 3 (num 2) belong to series 1
         assert [b["id"] for b in books] == [1, 3]  # ORDER BY b.series_number
         assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+
+    def test_series_1_book_authors_exact_string(self, db_with_multi_author):
+        """Series detail page — authors of each book must be alphabetically sorted
+        by name (contract preserved by shared BOOK_LIST_AGGREGATE_COLUMNS).
+        Book 100 (series_number=10) is inserted with authors Smith then Brown;
+        after migration the shared fragment enforces ORDER BY a.name → 'Brown,Smith'."""
+        result = series_dal.get_series_by_id(db_with_multi_author, 1)
+        assert result is not None
+        # series 1 now has books 1 (num 1), 3 (num 2), 100 (num 10) — ordered by series_number
+        book_ids = [b["id"] for b in result["books"]]
+        assert book_ids == [1, 3, 100]
+        multi_book = next(b for b in result["books"] if b["id"] == 100)
+        assert multi_book["authors"] == "Brown,Smith"
 
 
 class TestTagDetailSnapshot:
