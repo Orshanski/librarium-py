@@ -80,8 +80,3 @@ export interface Author {
   tags: string[];
 }
 
-export interface Series {
-  name: string;
-  author: string;
-  bookCount: number;
-}

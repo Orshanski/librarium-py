@@ -15,15 +15,12 @@ import { getSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { NotFoundError } from "../api/errors";
 
-// SeriesData is the canonical Series type from the endpoint
-type SeriesData = Series;
-
 export default function SeriesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [series, setSeries] = useState<SeriesData | null>(null);
+  const [series, setSeries] = useState<Series | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
@@ -36,18 +33,26 @@ export default function SeriesPage() {
       setLoading(false);
       return;
     }
-    getSeries(numericId)
+
+    const controller = new AbortController();
+
+    getSeries(numericId, controller.signal)
       .then((data) => {
         setSeries(data.series);
         setBooks(data.books || []);
         setLoading(false);
       })
       .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
         if (err instanceof NotFoundError) {
           setNotFoundState(true);
+        } else {
+          console.warn("Failed to fetch series:", err);
         }
         setLoading(false);
       });
+
+    return () => controller.abort();
   }, [id]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);

@@ -11,10 +11,7 @@ import type { Series } from "../api/endpoints/series";
 
 const CACHE_KEY = "librarium_series";
 
-// Re-export the canonical Series type for use within this module
-type SeriesItem = Series;
-
-function saveCache(allSeries: SeriesItem[], selected: Record<string, string[]>) {
+function saveCache(allSeries: Series[], selected: Record<string, string[]>) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -41,7 +38,7 @@ export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
-  const [allSeries, setAllSeries] = useState<SeriesItem[]>([]);
+  const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
@@ -92,12 +89,21 @@ export default function SeriesListPage() {
     if (tagFilter.length > 0) params.tagIds = tagFilter.join(",");
     if (langFilter.length > 0) params.language = langFilter[0];
 
-    listSeries(params)
+    const controller = new AbortController();
+
+    listSeries(params, controller.signal)
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to fetch series list:", err);
+        setAllSeries([]);
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
