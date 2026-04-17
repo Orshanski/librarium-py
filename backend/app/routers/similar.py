@@ -1,7 +1,6 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from ..auth import get_current_user
 from ..database import db_session
 from ..dal.books import get_book_by_id
@@ -17,7 +16,7 @@ def get_similar(book_id: int, user: dict = Depends(get_current_user), db: sqlite
 
     book = get_book_by_id(db, book_id)
     if not book:
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Not found")
 
     title = book["title"]
     authors = book.get("authors") or ""
