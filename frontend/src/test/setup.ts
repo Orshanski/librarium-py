@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "./msw/server";
-import { installFetchCredentials } from "@/api";
+import { installFetchCredentials } from "@/api/credentials";
 
 // ── MSW lifecycle — always, including node-env tests ──
 //

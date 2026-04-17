@@ -160,8 +160,8 @@ export async function client<T>(
  * Minimal fetch for non-API static resources (e.g. /version.txt).
  * Bypasses the typed-API error model — just returns text on 200 or throws.
  */
-export async function fetchStatic(path: string): Promise<string> {
-  const res = await fetch(path);
+export async function fetchStatic(path: string, init?: RequestInit): Promise<string> {
+  const res = await fetch(path, init);
   if (!res.ok) {
     throw new Error(`fetchStatic ${path}: HTTP ${res.status}`);
   }

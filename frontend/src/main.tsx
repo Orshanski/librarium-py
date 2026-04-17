@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth";
 import { ResponsiveProvider } from "./responsive";
-import { installFetchCredentials } from "./api";
+import { installFetchCredentials } from "./api/credentials";
 import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markSettingsSynced } from "./utils/offline-storage";
 import { pushProgressToServerCAS } from "./utils/reader-sync";
 import { saveSettings } from "./api/endpoints/reader";
