@@ -66,12 +66,15 @@ class TestAuthorDetailSnapshot:
         assert [b["id"] for b in books] == [3, 1]
 
     def test_author_100_multi_author_book(self, db_with_multi_author):
-        # Author 101 (Smith) — their page should show the multi-author book
+        # Author 101 (Smith) — their page should show the multi-author book.
+        # After Task 3 migration: the shared fragment sorts authors alphabetically
+        # by name, so the GROUP_CONCAT should be "Brown,Smith" exactly.
         result = authors_dal.get_author_by_id(db_with_multi_author, 101)
         assert result is not None
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        # Set-membership (current pre-refactor: order is non-deterministic)
-        assert set(multi_book["authors"].split(",")) == {"Smith", "Brown"}
+        # Was set-membership — tighten to exact string now that Task 3 wires
+        # the deterministic book_list_query aggregation.
+        assert multi_book["authors"] == "Brown,Smith"
 
 
 class TestSeriesDetailSnapshot:
