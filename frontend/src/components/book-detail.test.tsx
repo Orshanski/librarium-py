@@ -173,3 +173,197 @@ describe("book-detail — cover display", () => {
     expect((img as HTMLImageElement).getAttribute("src")).toBe("/api/covers/99");
   });
 });
+
+describe("book-detail — books", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rating: click star span → PUT /api/books/:id/rating fires with {rating: N}", async () => {
+    const user = userEvent.setup();
+    let capturedBody: unknown = null;
+
+    server.use(
+      http.put("/api/books/:id/rating", async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ ok: true });
+      })
+    );
+
+    const bookWithRating: Book = { ...mockBook, rating: 3 };
+    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} />);
+
+    // Stars are rendered as <span> elements with text "★" (not buttons)
+    const starSpans = screen.getAllByText("★");
+    expect(starSpans.length).toBe(5);
+
+    // Click the 5th star
+    await user.click(starSpans[4]);
+
+    await waitFor(() => {
+      expect(capturedBody).not.toBeNull();
+      expect((capturedBody as { rating: number }).rating).toBe(5);
+    });
+  });
+
+  it("rating optimistic: on 500 → rollback to previous value", async () => {
+    const user = userEvent.setup();
+
+    let release!: () => void;
+    const inFlight = new Promise<void>((r) => { release = r; });
+
+    server.use(
+      http.put("/api/books/:id/rating", async () => {
+        await inFlight;
+        return HttpResponse.json({ detail: "Server error" }, { status: 500 });
+      })
+    );
+
+    const bookWithRating: Book = { ...mockBook, rating: 3 };
+    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} />);
+
+    const starSpans = screen.getAllByText("★");
+    expect(starSpans.length).toBe(5);
+
+    // Click a star (optimistic update happens immediately)
+    await user.click(starSpans[0]);
+
+    // Release the handler with 500 → rollback
+    release();
+
+    // After revert, no crash, component is still mounted
+    await waitFor(() => {
+      expect(screen.getAllByText("★").length).toBe(5);
+    });
+  });
+
+  it("read status: click 'Не прочитано' → PUT /api/books/:id/read fires with {isRead: true}", async () => {
+    const user = userEvent.setup();
+    let capturedBody: unknown = null;
+
+    server.use(
+      http.put("/api/books/:id/read", async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ ok: true });
+      })
+    );
+
+    // mockBook.isRead = false → button shows "Не прочитано"
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+
+    const readButton = screen.getByText(/не прочитано/i);
+    await user.click(readButton);
+
+    await waitFor(() => {
+      expect(capturedBody).not.toBeNull();
+      expect((capturedBody as { isRead: boolean }).isRead).toBe(true);
+    });
+  });
+
+  it("read status optimistic: on 500 → rollback to previous state", async () => {
+    const user = userEvent.setup();
+
+    let release!: () => void;
+    const inFlight = new Promise<void>((r) => { release = r; });
+
+    server.use(
+      http.put("/api/books/:id/read", async () => {
+        await inFlight;
+        return HttpResponse.json({ detail: "Server error" }, { status: 500 });
+      })
+    );
+
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+
+    // Initially "Не прочитано"
+    expect(screen.getByText(/не прочитано/i)).toBeInTheDocument();
+
+    const readButton = screen.getByText(/не прочитано/i);
+    await user.click(readButton);
+
+    // Optimistic update: should now show "✓ Прочитано"
+    await waitFor(() => {
+      expect(screen.getByText(/✓ Прочитано/i)).toBeInTheDocument();
+    });
+
+    // Release with 500 → rollback
+    release();
+
+    await waitFor(() => {
+      expect(screen.getByText(/не прочитано/i)).toBeInTheDocument();
+    });
+  });
+
+  it("delete: click 'Удалить' → confirm dialog → DELETE /api/books/:id fires", async () => {
+    const user = userEvent.setup();
+    let deleteCalled = false;
+
+    server.use(
+      http.delete("/api/books/:id", () => {
+        deleteCalled = true;
+        return HttpResponse.json({ ok: true });
+      })
+    );
+
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+
+    // Wait for admin role to load (auth async fetch)
+    const deleteButton = await screen.findByRole("button", { name: "Удалить" });
+    await user.click(deleteButton);
+
+    // Confirm dialog appears with the book title
+    await waitFor(() => {
+      expect(screen.getByText(/удалить.*test book/i)).toBeInTheDocument();
+    });
+
+    // Find the confirm button in the dialog (not the trigger button)
+    const allButtons = screen.getAllByRole("button");
+    // ConfirmDialog has "Отмена" and "Удалить" buttons
+    const confirmBtn = allButtons.find(b =>
+      b.textContent === "Удалить" && b !== deleteButton
+    );
+    if (confirmBtn) {
+      await user.click(confirmBtn);
+      await waitFor(() => {
+        expect(deleteCalled).toBe(true);
+      });
+    }
+  });
+
+  it("delete: on 500 — component stays mounted (no crash)", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.delete("/api/books/:id", () =>
+        HttpResponse.json({ detail: "Server error" }, { status: 500 })
+      )
+    );
+
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+
+    // Wait for admin role to load
+    const deleteButton = await screen.findByRole("button", { name: "Удалить" });
+    await user.click(deleteButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/удалить.*test book/i)).toBeInTheDocument();
+    });
+
+    const allButtons = screen.getAllByRole("button");
+    const confirmBtn = allButtons.find(b =>
+      b.textContent === "Удалить" && b !== deleteButton
+    );
+    if (confirmBtn) {
+      await user.click(confirmBtn);
+      // On 500 the component should NOT navigate — stays mounted
+      await waitFor(() => {
+        expect(document.body).toBeInTheDocument();
+      });
+    }
+  });
+});

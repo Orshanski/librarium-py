@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { LocalProgress, LocalSettings, getProgress, getSettings as getLocalSettings } from "../utils/offline-storage";
 import type { BookApiResponse } from "../types/api";
+import { getBook, setRead as apiSetRead } from "@/api/endpoints/books";
 
 export interface BookLoaderResult {
   bookBlob: Blob | null;
@@ -107,12 +108,16 @@ export function useBookLoaderBase(
         let title = blobTitle;
         let bookData: BookApiResponse | null = null;
         if (navigator.onLine) {
-          const resp = await fetch(`/api/books/${id}`, { credentials: "include" });
-          if (resp.ok) {
-            bookData = await resp.json() as BookApiResponse;
+          try {
+            const data = await getBook(Number(id));
+            bookData = data as unknown as BookApiResponse;
             if (!fromCache) title = bookData.book?.title || "";
-          } else if (!fromCache) {
-            throw new Error("Failed to fetch book data");
+          } catch (err: unknown) {
+            if (!fromCache) {
+              throw new Error(
+                err instanceof Error ? err.message : "Failed to fetch book data",
+              );
+            }
           }
         }
 
@@ -128,12 +133,9 @@ export function useBookLoaderBase(
 
         // 5. Background: clear is_read + post-load hook
         if (navigator.onLine && bookData?.book?.is_read) {
-          fetch(`/api/books/${id}/read`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ isRead: false }),
-          }).catch((err) => console.warn("Failed to clear is_read:", err));
+          apiSetRead(Number(id), false).catch((err) =>
+            console.warn("Failed to clear is_read:", err),
+          );
         }
         postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromCache });
       } catch (err: unknown) {

@@ -9,6 +9,10 @@ import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./bo
 import { splitCsv } from "../types";
 import { fetchCoverProxy } from "../api/endpoints/metadata";
 import { uploadCover, commitCover, discardCover } from "../api/endpoints/covers";
+import {
+  uploadFile as apiUploadFile,
+  deleteFile as apiDeleteFile,
+} from "@/api/endpoints/books";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
@@ -43,21 +47,20 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
   async function uploadFile(file: File) {
     setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
     try {
-      const res = await fetch(`/api/books/${book.id}/files`, { method: "POST", body: form });
-      const data = await res.json();
-      if (res.ok) {
-        const size = data.size > 1048576 ? `${(data.size / 1048576).toFixed(1)} MB` : `${Math.round(data.size / 1024)} KB`;
-        setFormats((prev) => [...prev, { format: data.format, size }]);
-      } else {
-        alert(data.detail || "Ошибка загрузки");
-      }
-    } catch {
-      alert("Ошибка загрузки");
+      const data = await apiUploadFile(book.id, file);
+      const size =
+        data.size > 1048576
+          ? `${(data.size / 1048576).toFixed(1)} MB`
+          : `${Math.round(data.size / 1024)} KB`;
+      setFormats((prev) => [...prev, { format: data.format, size }]);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      const detail = err instanceof Error ? err.message : "Ошибка загрузки";
+      alert(detail);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   async function applyMetadata(data: MetadataPayload) {
@@ -206,11 +209,15 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
           message={`Удалить файл ${deleteFormatConfirm}?`}
           onCancel={() => setDeleteFormatConfirm(null)}
           onConfirm={async () => {
-            const res = await fetch(`/api/books/${book.id}/files?format=${deleteFormatConfirm}`, { method: "DELETE" });
-            if (res.ok) {
+            try {
+              await apiDeleteFile(book.id, deleteFormatConfirm);
               setFormats((prev) => prev.filter((x) => x.format !== deleteFormatConfirm));
+            } catch (err: unknown) {
+              if (err instanceof Error && err.name === "AbortError") return;
+              console.warn("Failed to delete format:", err);
+            } finally {
+              setDeleteFormatConfirm(null);
             }
-            setDeleteFormatConfirm(null);
           }}
         />
       )}

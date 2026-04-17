@@ -6,6 +6,8 @@ import BookEditForm from "../components/book-edit-form";
 import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.types";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
+import { getBook, updateBook } from "@/api/endpoints/books";
+import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 
 export default function BookEditPage() {
   const { id } = useParams();
@@ -17,26 +19,37 @@ export default function BookEditPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!id) return;
+    const controller = new AbortController();
+
     Promise.all([
-      fetch(`/api/books/${id}`).then((r) => r.json()),
-      fetch("/api/filter-options/authors").then((r) => r.json()),
-      fetch("/api/filter-options/series").then((r) => r.json()),
-      fetch("/api/filter-options/tags").then((r) => r.json()),
-      fetch("/api/filter-options/languages").then((r) => r.json()),
-      fetch("/api/publishers").then((r) => r.json()),
-    ]).then(([bookData, authorsData, seriesData, tagsData, langsData, pubsData]) => {
-      setBook(bookData.book);
-      setFiles(bookData.files || []);
-      setIdentifiers(bookData.identifiers || []);
-      setOptions({
-        authors: authorsData.authors || [],
-        series: seriesData.series || [],
-        tags: tagsData.tags || [],
-        languages: langsData.languages || [],
-        publishers: pubsData.publishers || [],
+      getBook(Number(id), controller.signal),
+      listFilterOptions("authors", {}, controller.signal),
+      listFilterOptions("series", {}, controller.signal),
+      listFilterOptions("tags", {}, controller.signal),
+      listFilterOptions("languages", {}, controller.signal),
+      listPublishers(controller.signal),
+    ])
+      .then(([bookData, authorsData, seriesData, tagsData, langsData, pubsData]) => {
+        setBook(bookData.book);
+        setFiles(bookData.files || []);
+        setIdentifiers(bookData.identifiers || []);
+        setOptions({
+          authors: authorsData.authors || [],
+          series: seriesData.series || [],
+          tags: tagsData.tags || [],
+          languages: langsData.languages || [],
+          publishers: pubsData.publishers || [],
+        });
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to load book edit data:", err);
+        setLoading(false);
       });
-      setLoading(false);
-    }).catch(() => setLoading(false));
+
+    return () => controller.abort();
   }, [id]);
 
   if (loading) {
@@ -95,18 +108,16 @@ export default function BookEditPage() {
       tagIds,
     };
 
-    const res = await fetch(`/api/books/${id}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
+    try {
+      await updateBook(Number(id), body);
       // Invalidate catalog/pages caches so covers and data refresh
       sessionStorage.removeItem("librarium_catalog");
       sessionStorage.removeItem("librarium_authors");
       sessionStorage.removeItem("librarium_series");
       navigate(`/book/${id}`);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      console.warn("Failed to save book:", err);
     }
   }
 

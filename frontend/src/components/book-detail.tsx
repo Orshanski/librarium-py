@@ -11,6 +11,13 @@ import MobileBookDetail from "./mobile/mobile-book-detail";
 import { Shelf } from "./book-detail.types";
 import { listShelves, addBookToShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
 import { getCover } from "@/api/endpoints/covers";
+import {
+  getBook,
+  downloadBook as apiDownloadBook,
+  setRating as apiSetRating,
+  setRead as apiSetRead,
+  deleteBook,
+} from "@/api/endpoints/books";
 
 export default function BookDetail({
   book,
@@ -36,13 +43,14 @@ export default function BookDetail({
     toggleCache(
       { title: book.title, authors: book.authors, manuallyAdded: true },
       async () => {
-        const resp = await fetch(`/api/books/${book.id}`, { credentials: "include" });
-        const data: { files: { format: string; file_size: number }[] } = await resp.json();
+        const data = await getBook(book.id);
         const allFiles = data.files || [];
-        return Promise.all(allFiles.map(async (f: { format: string; file_size: number }) => {
-          const r = await fetch(`/api/books/${book.id}/download?format=${f.format}`, { credentials: "include" });
-          return { format: f.format, fileBlob: await r.blob(), fileSize: f.file_size };
-        }));
+        return Promise.all(
+          allFiles.map(async (f) => {
+            const fileBlob = await apiDownloadBook(book.id, f.format);
+            return { format: f.format, fileBlob, fileSize: f.file_size };
+          }),
+        );
       },
       async () => {
         return getCover(book.id, true);
@@ -65,12 +73,7 @@ export default function BookDetail({
     const previous = rating;
     setRating(nextRating);
     try {
-      const res = await fetch(`/api/books/${book.id}/rating`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating: nextRating }),
-      });
-      if (!res.ok) throw new Error("save rating failed");
+      await apiSetRating(book.id, nextRating);
     } catch {
       setRating(previous ?? null);
     }
@@ -81,12 +84,7 @@ export default function BookDetail({
     const previous = isRead;
     setIsRead(next);
     try {
-      const res = await fetch(`/api/books/${book.id}/read`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isRead: next }),
-      });
-      if (!res.ok) throw new Error("toggle read failed");
+      await apiSetRead(book.id, next);
       if (next) evictFromCache().catch((err) => console.warn("Failed to remove cached book:", err));
     } catch {
       setIsRead(previous);
@@ -161,10 +159,15 @@ export default function BookDetail({
           message={`Удалить «${book.title}»?`}
           onCancel={() => setShowDeleteConfirm(false)}
           onConfirm={async () => {
-            const res = await fetch(`/api/books/${book.id}`, { method: "DELETE" });
-            if (res.ok) {
+            try {
+              await deleteBook(book.id);
               invalidateAllCaches();
               navigate(-1);
+            } catch (err: unknown) {
+              if (err instanceof Error && err.name === "AbortError") return;
+              console.warn("Failed to delete book:", err);
+            } finally {
+              setShowDeleteConfirm(false);
             }
           }}
         />

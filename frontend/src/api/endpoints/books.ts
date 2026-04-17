@@ -1,0 +1,142 @@
+import { client } from "../client";
+import type { RawBook } from "@/types";
+
+export interface FileInfo {
+  format: string;
+  file_size: number;
+}
+
+export interface BookIdentifier {
+  type: string;
+  value: string;
+}
+
+export interface BookDetailResponse {
+  book: RawBook;
+  files: FileInfo[];
+  identifiers: BookIdentifier[];
+}
+
+export interface BookListParams {
+  sort?: string;
+  cursor?: number;
+  pageSize?: number;
+  authorIds?: string; // CSV
+  seriesIds?: string; // CSV
+  tagIds?: string; // CSV
+  language?: string;
+}
+
+export interface BookListResponse {
+  books: RawBook[];
+  hasMore: boolean;
+  nextCursor?: number;
+  total?: number;
+}
+
+export interface BookUpdatePayload {
+  title: string;
+  description: string;
+  language: string;
+  publisher: string | null;
+  pubDate: string | null;
+  seriesId: number | string | null;
+  seriesNumber: number | null;
+  authorIds: (number | string)[];
+  tagIds: (number | string)[];
+}
+
+export interface BookOkResponse {
+  ok: true;
+}
+
+export interface UploadFileResponse {
+  format: string;
+  size: number;
+}
+
+export interface AddFormatResponse {
+  ok: true;
+  format: string;
+}
+
+export function listBooks(
+  params: BookListParams = {},
+  signal?: AbortSignal,
+): Promise<BookListResponse> {
+  return client<BookListResponse>("GET", "/api/books", {
+    query: { ...params },
+    signal,
+  });
+}
+
+export function getBook(
+  id: number,
+  signal?: AbortSignal,
+): Promise<BookDetailResponse> {
+  return client<BookDetailResponse>("GET", `/api/books/${id}`, { signal });
+}
+
+export function updateBook(
+  id: number,
+  body: BookUpdatePayload,
+): Promise<BookOkResponse> {
+  return client<BookOkResponse>("PUT", `/api/books/${id}`, { body });
+}
+
+export function deleteBook(id: number): Promise<BookOkResponse> {
+  return client<BookOkResponse>("DELETE", `/api/books/${id}`);
+}
+
+export function setRating(id: number, rating: number): Promise<BookOkResponse> {
+  return client<BookOkResponse>("PUT", `/api/books/${id}/rating`, {
+    body: { rating },
+  });
+}
+
+export function setRead(id: number, isRead: boolean): Promise<BookOkResponse> {
+  return client<BookOkResponse>("PUT", `/api/books/${id}/read`, {
+    body: { isRead },
+  });
+}
+
+export function downloadBook(
+  id: number,
+  format: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return client<Blob>("GET", `/api/books/${id}/download`, {
+    query: { format },
+    blob: true,
+    signal,
+  });
+}
+
+export function uploadFile(
+  id: number,
+  file: File,
+): Promise<UploadFileResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return client<UploadFileResponse>("POST", `/api/books/${id}/files`, {
+    body: form,
+  });
+}
+
+export function deleteFile(
+  id: number,
+  format: string,
+): Promise<BookOkResponse> {
+  return client<BookOkResponse>("DELETE", `/api/books/${id}/files`, {
+    query: { format },
+  });
+}
+
+export function addFormat(
+  id: number,
+  tempId: string,
+): Promise<AddFormatResponse> {
+  return client<AddFormatResponse>("POST", `/api/books/${id}/add-format`, {
+    body: { tempId },
+  });
+}
