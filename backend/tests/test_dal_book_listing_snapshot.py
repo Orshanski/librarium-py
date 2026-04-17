@@ -42,14 +42,38 @@ def db_with_multi_author(db):
     return db
 
 
-EXPECTED_BASE_COLUMNS = {
-    "id", "title", "sort_title", "series_id", "series_number", "language",
-    "publisher", "pub_date", "description", "cover_path", "added_at",
+# --- Exact column sets per DAL query context ---
+#
+# These lock down the shape of every book-listing response against accidental
+# SELECT drift (spec acceptance: "Full column set asserted via dict.keys()").
+# Any schema/fragment change that adds or removes a column in these queries
+# MUST also update the relevant constant — that's the whole point of snapshot
+# tests.
+#
+# NOTE: `isbn` is NOT in b.* — it lives in `book_identifiers` (separate table)
+# and is attached at the router/DTO layer, not the DAL.
+
+# Entity-detail pages (get_author_by_id / get_series_by_id / get_tag_by_id /
+# get_shelf_by_id default branch). Uses BOOK_LIST_AGGREGATE_COLUMNS only.
+EXPECTED_ENTITY_DETAIL_COLUMNS = {
+    "id", "title", "sort_title", "description", "language", "publisher",
+    "pub_date", "series_id", "series_number", "cover_path", "added_at",
+    "updated_at",
     "series_name", "authors", "tags",
 }
-# NOTE: `isbn` is NOT in b.* — it lives in book_identifiers (separate table).
-# `updated_at`, `author_ids`, `tag_ids`, `rating`, `is_read` may appear
-# depending on the query but are NOT required in every context.
+
+# "best" shelf branch: entity-detail + per-book user rating.
+EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {"rating"}
+
+# "reading_now" shelf branch: entity-detail + reading_progress fields.
+EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+    "fraction", "last_format", "last_read_at",
+}
+
+# books.get_books / books.get_book_by_id: entity-detail + id arrays + user data.
+EXPECTED_BOOKS_FULL_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+    "author_ids", "tag_ids", "rating", "is_read",
+}
 
 
 class TestAuthorDetailSnapshot:
@@ -60,8 +84,8 @@ class TestAuthorDetailSnapshot:
         # Test Author (id=1) is tied to books 1 and 3
         assert {b["id"] for b in books} == {1, 3}
         assert len(books) == 2
-        # Column set — EXPECTED_BASE_COLUMNS subset of each row
-        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+        # Exact column set — guards against accidental SELECT drift.
+        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
         # Outer order (b.added_at DESC): book 3 (2025-01-03) before book 1 (2025-01-01)
         assert [b["id"] for b in books] == [3, 1]
 
@@ -84,7 +108,7 @@ class TestSeriesDetailSnapshot:
         books = result["books"]
         # Books 1 (num 1) and 3 (num 2) belong to series 1
         assert [b["id"] for b in books] == [1, 3]  # ORDER BY b.series_number
-        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
 
     def test_series_1_book_authors_exact_string(self, db_with_multi_author):
         """Series detail page — authors of each book must be alphabetically sorted
@@ -107,7 +131,7 @@ class TestTagDetailSnapshot:
         books = result["books"]
         # Tag 1 (Фэнтези) is on books 1, 3, 5. Order: b.added_at DESC -> 5, 3, 1
         assert [b["id"] for b in books] == [5, 3, 1]
-        assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
+        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
 
     def test_book_5_multi_tag_membership_via_tag_1(self, db):
         # Book 5 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
@@ -128,8 +152,8 @@ class TestShelfDetailSnapshot:
         assert result is not None
         books = result["books"]
         assert [b["id"] for b in books] == [1]
-        # Extra column from the "best" branch
-        assert "rating" in books[0]
+        # Exact column set — entity-detail + branch-specific `rating`
+        assert set(books[0].keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert books[0]["rating"] == 5
 
     def test_shelf_reading_now_empty(self, db):
@@ -158,7 +182,8 @@ class TestShelfDetailSnapshot:
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2)
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
-        assert "rating" in multi_book  # branch-specific extra column
+        # Exact column set for the "best" branch.
+        assert set(multi_book.keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert multi_book["rating"] == 5
 
     def test_shelf_reading_now_multi_author_exact_string(self, db_with_multi_author):
@@ -174,7 +199,8 @@ class TestShelfDetailSnapshot:
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2)
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
-        assert "fraction" in multi_book
+        # Exact column set for the "reading_now" branch.
+        assert set(multi_book.keys()) == EXPECTED_SHELF_READING_NOW_COLUMNS
         assert multi_book["fraction"] == 0.5
 
     def test_shelf_default_multi_author_exact_string(self, db_with_multi_author):
@@ -184,6 +210,8 @@ class TestShelfDetailSnapshot:
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2)
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
+        # Default shelf branch has no user-specific extras.
+        assert set(multi_book.keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
 
 
 class TestBooksSnapshot:
@@ -192,7 +220,7 @@ class TestBooksSnapshot:
         # Default sort = added_desc
         book_ids = [b["id"] for b in resp["books"]]
         assert book_ids == [5, 4, 3, 2, 1]
-        assert EXPECTED_BASE_COLUMNS <= set(resp["books"][0].keys())
+        assert set(resp["books"][0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
 
     def test_get_book_by_id_shape(self, db):
         result = books_dal.get_book_by_id(db, 1)
@@ -200,6 +228,8 @@ class TestBooksSnapshot:
         # Book 1 has 1 author (Test Author) and 1 tag (Фэнтези)
         assert result["authors"] == "Test Author"
         assert result["tags"] == "Фэнтези"
+        # Exact column set — same as get_books row shape.
+        assert set(result.keys()) == EXPECTED_BOOKS_FULL_COLUMNS
 
     def test_get_books_multi_author_membership(self, db_with_multi_author):
         resp = books_dal.get_books(db_with_multi_author, filters={})
