@@ -93,9 +93,12 @@ class TestTagDetailSnapshot:
         assert [b["id"] for b in books] == [5, 3, 1]
         assert EXPECTED_BASE_COLUMNS <= set(books[0].keys())
 
-    def test_tag_5_multi_tag_book_membership(self, db):
-        # Book 5 has tags 1 and 2 — assert membership (order agnostic for baseline)
+    def test_book_5_multi_tag_membership_via_tag_1(self, db):
+        # Book 5 has tags 1 and 2 — fetch via tag 1, assert membership on the
+        # GROUP_CONCAT'd `tags` column (order agnostic for baseline; Task 3+
+        # tightens to exact string once ORDER BY lands).
         result = tags_dal.get_tag_by_id(db, 1)
+        assert result is not None
         book5 = next(b for b in result["books"] if b["id"] == 5)
         assert set(book5["tags"].split(",")) == {"Фэнтези", "Классический детектив"}
 
