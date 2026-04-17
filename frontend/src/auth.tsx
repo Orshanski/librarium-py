@@ -1,14 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { api } from "./api";
-
-interface User {
-  id: number;
-  username: string;
-  displayName: string;
-  email?: string;
-  role: string;
-}
+import * as authApi from "./api/endpoints/auth";
+import type { User } from "./api/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -28,16 +21,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("/api/auth/me")
+    authApi
+      .getMe()
       .then((data) => {
         setUser(data);
-        try { localStorage.setItem("librarium_user", JSON.stringify(data)); } catch {}
+        try {
+          localStorage.setItem("librarium_user", JSON.stringify(data));
+        } catch {}
       })
-      .catch(() => {
+      .catch((err) => {
         if (!navigator.onLine) {
           try {
             const cached = localStorage.getItem("librarium_user");
-            if (cached) { setUser(JSON.parse(cached)); return; }
+            if (cached) {
+              setUser(JSON.parse(cached));
+              return;
+            }
           } catch {}
         }
         setUser(null);
@@ -47,10 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(username: string, password: string) {
     try {
-      const data = await api("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-      });
+      const data = await authApi.login({ username, password });
       setUser(data.user);
       return null;
     } catch (e: unknown) {
@@ -59,9 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" }).catch((err) => console.warn("Logout request failed:", err));
+    await authApi.logout().catch((err) => console.warn("Logout request failed:", err));
     setUser(null);
-    try { localStorage.removeItem("librarium_user"); } catch {}
+    try {
+      localStorage.removeItem("librarium_user");
+    } catch {}
   }
 
   return (
