@@ -1,5 +1,6 @@
 import { colors, fonts } from "../../theme";
 import { MetadataSearchViewProps, metadataProviders } from "../metadata-search.types";
+import { coverProxyUrl } from "../../api/endpoints/metadata";
 
 export default function MobileMetadataSearch({
   searching,
@@ -189,7 +190,7 @@ export default function MobileMetadataSearch({
               >
                 {r.coverUrl ? (
                   <img
-                    src={`/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}`}
+                    src={coverProxyUrl(r.coverUrl)}
                     alt={r.title}
                     style={{ width: "100%", aspectRatio: "2 / 3", objectFit: "cover", display: "block" }}
                   />

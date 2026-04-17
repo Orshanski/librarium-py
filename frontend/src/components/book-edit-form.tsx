@@ -7,6 +7,7 @@ import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 import { splitCsv } from "../types";
+import { fetchCoverProxy } from "../api/endpoints/metadata";
 
 export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
   const isMobile = useIsMobile();
@@ -71,8 +72,7 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
 
     if (data.coverUrl) {
       try {
-        const coverRes = await fetch(`/api/metadata/cover-proxy?url=${encodeURIComponent(data.coverUrl)}`);
-        const blob = await coverRes.blob();
+        const blob = await fetchCoverProxy(data.coverUrl);
         const form = new FormData();
         form.append("file", blob, "cover.jpg");
         const uploadRes = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body: form, credentials: "include" });

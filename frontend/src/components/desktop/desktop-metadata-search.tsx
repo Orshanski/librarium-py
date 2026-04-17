@@ -1,5 +1,6 @@
 import { colors, fonts } from "../../theme";
 import { MetadataSearchViewProps, metadataProviders } from "../metadata-search.types";
+import { coverProxyUrl } from "../../api/endpoints/metadata";
 
 export default function DesktopMetadataSearch({
   searching,
@@ -196,7 +197,7 @@ export default function DesktopMetadataSearch({
               >
                 {r.coverUrl ? (
                   <img
-                    src={`/api/metadata/cover-proxy?url=${encodeURIComponent(r.coverUrl)}`}
+                    src={coverProxyUrl(r.coverUrl)}
                     alt={r.title}
                     style={{ width: "100%", height: "auto", display: "block" }}
                   />

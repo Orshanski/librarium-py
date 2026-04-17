@@ -3,6 +3,7 @@ import { useIsMobile } from "../responsive";
 import DesktopMetadataSearch from "./desktop/desktop-metadata-search";
 import MobileMetadataSearch from "./mobile/mobile-metadata-search";
 import { MetadataResult } from "./metadata-search.types";
+import { searchMetadata } from "../api/endpoints/metadata";
 
 export default function MetadataSearch({
   query,
@@ -23,15 +24,9 @@ export default function MetadataSearch({
   function fetchResults(providerKeys: Set<string>) {
     setSearching(true);
     setError(null);
-    fetch(`/api/metadata/search?q=${encodeURIComponent(searchQuery)}&providers=${Array.from(providerKeys).join(",")}`)
-      .then((r) => {
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}`);
-        }
-        return r.json();
-      })
+    searchMetadata(searchQuery, Array.from(providerKeys))
       .then((data) => {
-        setResults(data.results || []);
+        setResults(data.results);
         setSearching(false);
       })
       .catch(() => {
