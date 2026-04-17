@@ -27,9 +27,9 @@ export class ApiError extends Error {
 }
 
 export class OfflineError extends Error {
-  readonly name = "OfflineError" as const;
   constructor(message = "Offline or network unreachable") {
     super(message);
+    this.name = this.constructor.name;
   }
 }
 
@@ -39,8 +39,10 @@ export class NotFoundError extends ApiError {}
 export class ConflictError extends ApiError {}
 
 export class ValidationError extends ApiError {
+  // Consumers MUST read `fields` (typed), NOT `detail` (JSON-stringified for
+  // debug/logging only). The base-class `detail: string` invariant is
+  // preserved by serializing the array.
   constructor(readonly fields: PydanticDetailItem[], message = "Validation failed") {
-    // `detail` stays the raw JSON for debug visibility; primary consumers use `fields`.
     super(422, JSON.stringify(fields), message);
   }
 }

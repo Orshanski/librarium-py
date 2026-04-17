@@ -38,7 +38,7 @@ function buildUrl(path: string, query?: Record<string, unknown>): string {
 }
 
 async function mapErrorResponse(res: Response): Promise<never> {
-  const body = await res.json().catch(() => ({} as Record<string, unknown>));
+  const body: unknown = await res.json().catch(() => ({}));
   const detail = (body as { detail?: unknown }).detail;
 
   if (res.status === 422) {

@@ -8,6 +8,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  OfflineError,
   ServerError,
   UnauthenticatedError,
   UnknownError,
@@ -130,6 +131,22 @@ describe("client — AbortError passthrough", () => {
       expect(err).toBeInstanceOf(Error);
       expect((err as Error).name).toBe("AbortError");
       expect(err).not.toBeInstanceOf(ApiError);
+    }
+  });
+});
+
+describe("client — OfflineError on network failure", () => {
+  it("maps non-Abort fetch throw to OfflineError", async () => {
+    // Replace window.fetch with a function that throws a non-Abort TypeError
+    // (exactly what the browser does on DNS fail / CORS / offline).
+    const orig = window.fetch;
+    window.fetch = () => Promise.reject(new TypeError("Failed to fetch"));
+    try {
+      await expect(client("GET", "/api/unreachable")).rejects.toBeInstanceOf(
+        OfflineError,
+      );
+    } finally {
+      window.fetch = orig;
     }
   });
 });
