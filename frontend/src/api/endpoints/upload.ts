@@ -86,7 +86,9 @@ export function uploadTempFile(
 
     if (opts.signal) {
       if (opts.signal.aborted) {
-        xhr.abort();
+        const err = new Error("Aborted");
+        err.name = "AbortError";
+        reject(err);
         return;
       }
       opts.signal.addEventListener("abort", () => xhr.abort(), { once: true });

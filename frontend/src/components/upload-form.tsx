@@ -172,17 +172,31 @@ export default function UploadForm() {
       if (g.duplicate && g.duplicateAction === "add-format") {
         // User confirmed: add as format to existing book
         for (const f of readyFiles) {
-          await addFormat(g.duplicate.id, f.tempId).catch((err) => console.warn("Upload cleanup failed:", err));
+          try {
+            await addFormat(g.duplicate.id, f.tempId);
+          } catch (err) {
+            console.warn("Failed to add format:", err);
+            alert("Не удалось добавить формат");
+          }
         }
       } else {
         // First file creates book, rest add as format
         const first = readyFiles[0];
-        const created = await createBookFromUpload(first.tempId, g.metadata).catch(() => null);
-
-        if (created) {
-          for (const f of readyFiles.slice(1)) {
-            await addFormat(created.bookId, f.tempId).catch((err) => console.warn("Upload cleanup failed:", err));
+        try {
+          const created = await createBookFromUpload(first.tempId, g.metadata);
+          if (created) {
+            for (const f of readyFiles.slice(1)) {
+              try {
+                await addFormat(created.bookId, f.tempId);
+              } catch (err) {
+                console.warn("Failed to add format:", err);
+                alert("Не удалось добавить формат");
+              }
+            }
           }
+        } catch (err) {
+          console.warn("Failed to create book:", err);
+          alert("Не удалось создать книгу");
         }
       }
     }
@@ -277,6 +291,7 @@ export default function UploadForm() {
             return (
             <div
               key={g.key}
+              data-testid="upload-group"
               onClick={() => isTarget ? mergeInto(g.key) : undefined}
               style={{
                 border: `1px solid ${isSource ? "rgba(249, 190, 3, 0.6)"

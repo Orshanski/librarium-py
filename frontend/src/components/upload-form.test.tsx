@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
@@ -103,13 +103,12 @@ describe("UploadForm", () => {
     );
 
     const { container } = renderWithProviders(<UploadForm />);
-    await uploadFile(container);
+    const { user } = await uploadFile(container);
 
     await waitFor(() => {
       expect(screen.getByText("Test Book")).toBeInTheDocument();
     });
 
-    const user = userEvent.setup();
     const saveBtn = screen.getByRole("button", { name: /Сохранить всё/i });
     await user.click(saveBtn);
 
@@ -169,10 +168,10 @@ describe("UploadForm", () => {
 
     // Now there are multiple groups, so within each group the ✕ (remove file)
     // button is not shown (only groups.length > 1 shows the per-file ✕ inside group).
-    // Instead use the group remove button (the ✕ at the top of a group card).
-    const removeButtons = screen.getAllByRole("button", { name: "✕" });
-    // Click the first group remove button
-    await user.click(removeButtons[0]);
+    // Instead use the group remove button (the ✕ at the top of the first group card).
+    const groupCards = screen.getAllByTestId("upload-group");
+    const removeBtn = within(groupCards[0]).getByRole("button", { name: "✕" });
+    await user.click(removeBtn);
 
     await waitFor(() => {
       expect(deletedTempId).toBe("abc123");
