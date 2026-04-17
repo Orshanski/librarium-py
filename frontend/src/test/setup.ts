@@ -6,9 +6,9 @@ import { installFetchCredentials } from "@/api";
 // In node environment (no DOM), provide a minimal DOMPurify mock so unit
 // tests like sanitizeHtml can be tested without jsdom overhead.
 if (typeof window === "undefined") {
-  globalThis.DOMPurify = {
+  (globalThis as unknown as { DOMPurify: unknown }).DOMPurify = {
     sanitize: (html: string) => html.replace(/on\w+="[^"]*"/g, ""),
-  } as any;
+  };
 }
 
 // ── jsdom polyfills ──
