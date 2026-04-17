@@ -1,7 +1,6 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..auth import get_current_user, require_admin
 from ..database import db_session
@@ -21,7 +20,7 @@ def list_series(user: dict = Depends(get_current_user), db: sqlite3.Connection =
 def get_series(series_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     result = dal.get_series_by_id(db, series_id)
     if not result:
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Not found")
     return result
 
 
@@ -43,7 +42,7 @@ class MergeBody(BaseModel):
 @router.post("/{series_id}/merge")
 def merge_series(series_id: int, body: MergeBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if body.sourceId == series_id:
-        return JSONResponse({"error": "Нельзя объединить с самой собой"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя объединить с самой собой")
     dal.merge_series(db, series_id, body.sourceId)
     log.info("Merged series source=%d into target=%d by user_id=%s",
              body.sourceId, series_id, user["userId"])
@@ -54,8 +53,8 @@ def merge_series(series_id: int, body: MergeBody, user: dict = Depends(require_a
 def delete_series(series_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     err = dal.delete_series(db, series_id)
     if err == "not_found":
-        return JSONResponse({"error": "Серия не найдена"}, status_code=404)
+        raise HTTPException(status_code=404, detail="Серия не найдена")
     if err == "has_books":
-        return JSONResponse({"error": "Нельзя удалить серию с книгами"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Нельзя удалить серию с книгами")
     log.info("Deleted series=%d by user_id=%s", series_id, user["userId"])
     return {"ok": True}
