@@ -244,13 +244,23 @@ function UserCard({
   );
 }
 
+// ─── Types ──────────────────────────────────────────
+interface NewUserState {
+  username: string;
+  displayName: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  role: "admin" | "reader";
+}
+
 // ─── Main Page ──────────────────────────────────────
 export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<AdminSettings>({});
   const [loading, setLoading] = useState(true);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [newUser, setNewUser] = useState({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
+  const [newUser, setNewUser] = useState<NewUserState>({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [smtpStatus, setSmtpStatus] = useState<"none" | "checking" | "ok">("none");
@@ -313,7 +323,7 @@ export default function AdminPage() {
       const data = await apiCreateUser({
         username: newUser.username,
         password: newUser.password,
-        role: newUser.role as "admin" | "reader",
+        role: newUser.role,
         displayName: newUser.displayName || undefined,
         email: newUser.email || undefined,
       });
@@ -322,7 +332,7 @@ export default function AdminPage() {
         username: newUser.username,
         display_name: newUser.displayName || newUser.username,
         email: newUser.email || null,
-        role: newUser.role as "admin" | "reader",
+        role: newUser.role,
       }]);
       setNewUser({ username: "", displayName: "", email: "", password: "", passwordConfirm: "", role: "reader" });
       setShowNewUser(false);
@@ -408,7 +418,7 @@ export default function AdminPage() {
                   <select
                     style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none", paddingRight: 32, cursor: "pointer", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
                     value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
                   >
                     <option value="reader" style={{ background: "#16162a", color: "#ccc" }}>reader</option>
                     <option value="admin" style={{ background: "#16162a", color: "#ccc" }}>admin</option>

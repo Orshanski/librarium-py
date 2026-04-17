@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import AdminPage from "./AdminPage";
+import type { UpdateUserBody } from "../api/endpoints/admin";
 
 const ADMIN_USER = {
   id: 1,
@@ -109,14 +110,19 @@ describe("AdminPage", () => {
 
   describe("Delete user (self — 400 error)", () => {
     it("shows alert when trying to delete self, keeps user in list", async () => {
-      // The current user from defaultHandlers is id=1 (admin)
-      // READER_USER has id=2, so deleting them triggers a different path
-      // We test delete-self scenario by having delete return 400
-      setupDefaultHandlers();
-      const user = userEvent.setup();
-
+      // Simulate the session user being id=1. We render a list where id=1
+      // is a reader (so the delete button is visible), and DELETE /api/admin/users/1
+      // returns 400 "Нельзя удалить самого себя" — exactly what the backend
+      // does when the session user tries to remove their own account.
+      const SELF_USER = { id: 1, username: "admin", display_name: "Test Admin", email: "admin@test.local", role: "reader" as const };
       server.use(
-        http.delete("/api/admin/users/2", () =>
+        http.get("/api/admin/users", () =>
+          HttpResponse.json({ users: [SELF_USER] })
+        ),
+        http.get("/api/admin/settings", () =>
+          HttpResponse.json(DEFAULT_SETTINGS)
+        ),
+        http.delete("/api/admin/users/1", () =>
           HttpResponse.json(
             { detail: "Нельзя удалить самого себя" },
             { status: 400 }
@@ -124,10 +130,11 @@ describe("AdminPage", () => {
         )
       );
 
+      const user = userEvent.setup();
       renderWithProviders(<AdminPage />);
-      await waitFor(() => screen.getByText("Test Reader"));
+      await waitFor(() => screen.getByRole("button", { name: "Удалить" }));
 
-      // Click Delete on reader user
+      // Click Delete on the self user (id=1)
       await user.click(screen.getByRole("button", { name: "Удалить" }));
 
       // Confirm dialog — click confirm
@@ -140,7 +147,7 @@ describe("AdminPage", () => {
       });
 
       // User should still be in the list
-      expect(screen.getByText("Test Reader")).toBeInTheDocument();
+      expect(screen.getAllByText("Test Admin").length).toBeGreaterThan(0);
     });
 
     it("removes user from list on successful delete", async () => {
@@ -162,6 +169,40 @@ describe("AdminPage", () => {
 
       await waitFor(() => {
         expect(screen.queryByText("Test Reader")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Update user", () => {
+    it("updateUser: PUT body has correct shape when display name is saved", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let capturedBody: UpdateUserBody | null = null;
+
+      server.use(
+        http.put("/api/admin/users/:id", async ({ request }) => {
+          capturedBody = await request.json() as UpdateUserBody;
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      // Open name edit for the reader user (only reader has "Имя" button visible alongside "Удалить")
+      const nameButtons = screen.getAllByRole("button", { name: "Имя" });
+      await user.click(nameButtons[nameButtons.length - 1]);
+
+      // The edit panel opens — clear the field and type a new name
+      await waitFor(() => screen.getByDisplayValue("Test Reader"));
+      const nameInput = screen.getByDisplayValue("Test Reader");
+      await user.clear(nameInput);
+      await user.type(nameInput, "New Name");
+
+      await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual({ displayName: "New Name" });
       });
     });
   });
