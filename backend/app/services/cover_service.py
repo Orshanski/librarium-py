@@ -16,6 +16,7 @@ from ..dal.books import update_cover_path
 from ..exceptions import BadInputError, NotFoundError
 from ..fs_utils import move_with_rollback
 from . import thumb
+from .temp_cleanup import cleanup_old_uploads
 
 log = logging.getLogger("librarium.covers")
 
@@ -57,6 +58,12 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     """
     if not books_dal.book_exists(db, book_id):
         raise NotFoundError("Book not found")
+
+    # Self-healing orphan GC: снести brew-старые temp'ы до того как положим
+    # свой. Без scheduler/cron — пользовательский upload-поток сам себя
+    # обслуживает.
+    cleanup_old_uploads()
+
     # Validate image
     try:
         img = Image.open(io.BytesIO(content))

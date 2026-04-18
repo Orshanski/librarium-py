@@ -48,3 +48,71 @@ def test_find_temp_file_and_covers(tmp_path, monkeypatch):
     covers = sorted(temp_cleanup.find_temp_covers("xyz789"))
     assert covers == ["xyz789-cover.jpg", "xyz789-cover.png"]
     assert temp_cleanup.find_temp_covers("missing") == []
+
+
+# ── cleanup_old_uploads ──
+
+def test_cleanup_old_uploads_removes_old_preserves_fresh(tmp_path, monkeypatch):
+    """Lazy orphan GC: файлы старше _GRACE_SECONDS удалены, свежие сохранены."""
+    import os
+    import time
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup, "UPLOADS_DIR", tmp_path)
+
+    old_file = tmp_path / "old-cover.jpg"
+    fresh_file = tmp_path / "fresh-cover.jpg"
+    old_file.write_bytes(b"old orphan")
+    fresh_file.write_bytes(b"in-flight session")
+
+    # Старый файл: mtime на 2 часа назад (больше чем _GRACE_SECONDS=3600).
+    old_ts = time.time() - 7200
+    os.utime(old_file, (old_ts, old_ts))
+
+    removed = temp_cleanup.cleanup_old_uploads()
+
+    assert removed == 1
+    assert not old_file.exists()
+    assert fresh_file.exists()
+
+
+def test_cleanup_old_uploads_no_files_returns_zero(tmp_path, monkeypatch):
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup, "UPLOADS_DIR", tmp_path)
+    assert temp_cleanup.cleanup_old_uploads() == 0
+
+
+def test_cleanup_old_uploads_all_fresh(tmp_path, monkeypatch):
+    """Если все файлы свежие — ничего не удаляется, count=0."""
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup, "UPLOADS_DIR", tmp_path)
+
+    (tmp_path / "a.fb2").write_bytes(b"a")
+    (tmp_path / "b-cover.jpg").write_bytes(b"b")
+
+    assert temp_cleanup.cleanup_old_uploads() == 0
+    assert (tmp_path / "a.fb2").exists()
+    assert (tmp_path / "b-cover.jpg").exists()
+
+
+def test_cleanup_old_uploads_missing_dir_no_crash(tmp_path, monkeypatch):
+    """Если UPLOADS_DIR не существует — возвращает 0, не падает."""
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup, "UPLOADS_DIR", tmp_path / "does-not-exist")
+    assert temp_cleanup.cleanup_old_uploads() == 0
+
+
+def test_cleanup_old_uploads_ignores_directories(tmp_path, monkeypatch):
+    """Subdirectories старше grace не трогаются — UPLOADS_DIR плоский, их быть
+    не должно, но если появились — не наше дело их сносить."""
+    import os
+    import time
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup, "UPLOADS_DIR", tmp_path)
+
+    old_subdir = tmp_path / "old_subdir"
+    old_subdir.mkdir()
+    old_ts = time.time() - 7200
+    os.utime(old_subdir, (old_ts, old_ts))
+
+    assert temp_cleanup.cleanup_old_uploads() == 0
+    assert old_subdir.exists()
