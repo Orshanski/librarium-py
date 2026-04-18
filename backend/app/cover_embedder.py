@@ -11,6 +11,8 @@ from pathlib import Path
 from lxml import etree
 from PIL import Image
 
+from .exceptions import BadInputError
+
 log = logging.getLogger("librarium.cover_embedder")
 
 NS = {
@@ -57,7 +59,7 @@ def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
             "/fb:FictionBook/fb:description/fb:title-info", namespaces=NS
         )
         if not title_info:
-            raise ValueError("FB2 file has no <title-info> element")
+            raise BadInputError("FB2 file has no <title-info> element")
 
         cover_id = "cover"
 

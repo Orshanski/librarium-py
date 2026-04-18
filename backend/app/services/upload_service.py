@@ -8,6 +8,7 @@ import uuid
 import zipfile
 
 from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE, db_path_for
+from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..parsers import parse_book
 from ..enrichers import enrich_metadata, resolve_genres
 from ..pdf_linearize import linearize_pdf_in_place
@@ -55,18 +56,18 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
         with zipfile.ZipFile(zip_path) as zf:
             book_files = [n for n in zf.namelist() if n.rsplit(".", 1)[-1].lower() in BOOK_EXTENSIONS]
             if len(book_files) == 0:
-                raise ValueError("ZIP не содержит книг (fb2/epub/pdf)")
+                raise BadInputError("ZIP не содержит книг (fb2/epub/pdf)")
             if len(book_files) > 1:
-                raise ValueError(f"ZIP содержит несколько книг: {', '.join(book_files)}")
+                raise BadInputError(f"ZIP содержит несколько книг: {', '.join(book_files)}")
             book_name = book_files[0]
             info = zf.getinfo(book_name)
             if info.file_size > MAX_BOOK_SIZE:
-                raise ValueError("Файл внутри ZIP слишком большой")
+                raise BadInputError("Файл внутри ZIP слишком большой")
             ext = book_name.rsplit(".", 1)[-1].lower()
             filename_hint = os.path.basename(book_name)
             extracted = zf.read(book_name)
     except zipfile.BadZipFile:
-        raise ValueError("Повреждённый ZIP")
+        raise BadInputError("Повреждённый ZIP")
     finally:
         if os.path.exists(zip_path):
             os.remove(zip_path)
@@ -112,8 +113,8 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
         # Deduplication
         duplicate = _check_duplicate(db, meta.title, meta.authors)
 
-    except ValueError:
-        # ValueError from _extract_from_zip — re-raise for router to handle
+    except BadInputError:
+        # Domain validation error from _extract_from_zip — middleware → 400.
         raise
     except Exception:
         for path in temp_artifacts:
@@ -149,11 +150,11 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
     """
     title = metadata.get("title", "").strip()
     if not title:
-        raise ValueError("Title required")
+        raise BadInputError("Title required")
 
     temp_file = find_temp_file(temp_id)
     if not temp_file:
-        raise ValueError("Temp file not found")
+        raise BadInputError("Temp file not found")
 
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
@@ -232,16 +233,16 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     """
     temp_file = find_temp_file(temp_id)
     if not temp_file:
-        raise ValueError("Temp file not found")
+        raise BadInputError("Temp file not found")
 
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
 
     if not book_exists(db, book_id):
-        raise LookupError("Книга не найдена")
+        raise NotFoundError("Книга не найдена")
 
     if book_file_exists(db, book_id, fmt):
-        raise FileExistsError(f"Формат {fmt} уже есть")
+        raise ConflictError(f"Формат {fmt} уже есть")
 
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
