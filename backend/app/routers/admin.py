@@ -16,6 +16,7 @@ from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..database import db_session
 from ..exceptions import BadInputError
+from ..services import admin_service
 
 log = logging.getLogger("librarium.admin")
 
@@ -58,51 +59,31 @@ class UpdateUserBody(BaseModel):
 
 @router.get("/users")
 def list_users(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    return {"users": users_dal.get_all_users(db)}
+    return admin_service.list_users(db)
 
 
 @router.post("/users")
 def create_user(body: CreateUserBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    uid = users_dal.create_user(db, body.username, body.password, body.role, body.displayName, body.email)
-    log.info("Created user=%s role=%s by user_id=%s", body.username, body.role, user["userId"])
+    uid = admin_service.create_user(
+        db, body.username, body.password, body.role, body.displayName, body.email,
+        actor_id=user["userId"],
+    )
     return {"id": uid}
 
 
 @router.put("/users/{user_id}")
 def update_user(user_id: int, body: UpdateUserBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    data = body.model_dump(exclude_none=True)
-    if data.get("role") == "reader":
-        if users_dal.is_last_admin(db, user_id):
-            raise BadInputError("Нельзя понизить последнего админа")
-    users_dal.update_user(db, user_id, data)
-    log.info("Updated user_id=%d by user_id=%s", user_id, user["userId"])
+    admin_service.update_user(db, user_id, body.model_dump(exclude_none=True), actor_id=user["userId"])
     return {"ok": True}
 
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    if user["userId"] == user_id:
-        raise BadInputError("Нельзя удалить самого себя")
-    if users_dal.is_last_admin(db, user_id):
-        raise BadInputError("Нельзя удалить последнего админа")
-    users_dal.delete_user(db, user_id)
-    log.info("Deleted user_id=%d by user_id=%s", user_id, user["userId"])
+    admin_service.delete_user(db, user_id, actor_id=user["userId"])
     return {"ok": True}
 
 
 # --- Settings ---
-
-_SMTP_PASS_MASK = "••••••"
-
-ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
-
-
-@router.get("/settings")
-def get_settings(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    result = settings_dal.get_all_settings(db)
-    if result.get("smtp_pass"):
-        result["smtp_pass"] = _SMTP_PASS_MASK
-    return result
 
 
 class UpdateSettingsBody(BaseModel):
@@ -113,19 +94,14 @@ class UpdateSettingsBody(BaseModel):
     smtp_pass: str | None = None
 
 
+@router.get("/settings")
+def get_settings(user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+    return admin_service.get_settings(db)
+
+
 @router.put("/settings")
 def update_settings(body: UpdateSettingsBody, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    data = body.model_dump(exclude_none=True)
-    # Don't overwrite real password with the mask shown in UI
-    if data.get("smtp_pass") == _SMTP_PASS_MASK:
-        del data["smtp_pass"]
-    changed = []
-    for key, value in data.items():
-        if key in ALLOWED_SETTINGS:
-            settings_dal.set_setting(db, key, value)
-            changed.append(key)
-    if changed:
-        log.info("Updated settings=%s by user_id=%s", ",".join(changed), user["userId"])
+    admin_service.update_settings(db, body.model_dump(exclude_none=True), actor_id=user["userId"])
     return {"ok": True}
 
 
