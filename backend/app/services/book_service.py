@@ -98,3 +98,27 @@ def update_book(db: sqlite3.Connection, book_id: int, data: dict) -> None:
         data["seriesId"] = resolve_series(db, data["seriesId"])
 
     dal.update_book(db, book_id, data)
+
+
+def list_books(
+    db: sqlite3.Connection,
+    user: dict,
+    *,
+    sort: str,
+    cursor: int,
+    page_size: int,
+    author_ids: list[int] | None,
+    tag_ids: list[int] | None,
+    series_ids: list[int] | None,
+    language: str | None,
+) -> dict:
+    """Paginated catalog listing with user-scoped filters."""
+    from . import filters_service
+    filters = filters_service.build_catalog_filters(
+        user,
+        author_ids=author_ids,
+        tag_ids=tag_ids,
+        series_ids=series_ids,
+        language=language,
+    )
+    return dal.get_books(db, filters, sort, cursor, page_size)
