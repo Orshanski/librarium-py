@@ -8,7 +8,7 @@ from ..config import LIBRARY_DIR
 from ..dal import books as dal
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
-from . import thumb
+from . import filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 
@@ -18,6 +18,11 @@ log = logging.getLogger("librarium.books")
 class UploadResult(TypedDict):
     format: str
     size: int
+
+
+class BookListPage(TypedDict):
+    books: list[dict]
+    hasMore: bool
 
 
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
@@ -98,3 +103,26 @@ def update_book(db: sqlite3.Connection, book_id: int, data: dict) -> None:
         data["seriesId"] = resolve_series(db, data["seriesId"])
 
     dal.update_book(db, book_id, data)
+
+
+def list_books(
+    db: sqlite3.Connection,
+    user_id: int,
+    *,
+    sort: str,
+    cursor: int,
+    page_size: int,
+    author_ids: list[int] | None,
+    tag_ids: list[int] | None,
+    series_ids: list[int] | None,
+    language: str | None,
+) -> BookListPage:
+    """Paginated catalog listing with user-scoped filters."""
+    filters = filters_service.build_catalog_filters(
+        user_id,
+        author_ids=author_ids,
+        tag_ids=tag_ids,
+        series_ids=series_ids,
+        language=language,
+    )
+    return dal.get_books(db, filters, sort, cursor, page_size)

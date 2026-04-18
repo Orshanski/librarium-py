@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from ..auth import get_current_user, require_admin
 from ..config import MAX_BOOK_SIZE
-from ..dal import books as dal
 from ..database import db_session
 from ..exceptions import BadInputError
 from ..services import book_service
@@ -44,17 +43,17 @@ def list_books(
     seriesIds: str = "",
     language: str = "",
 ):
-    pageSize = min(pageSize, 100)
-    filters: dict = {"userId": user["userId"]}
-    if ids := parse_ids(authorIds):
-        filters["authorIds"] = ids
-    if ids := parse_ids(tagIds):
-        filters["tagIds"] = ids
-    if ids := parse_ids(seriesIds):
-        filters["seriesIds"] = ids
-    if language:
-        filters["language"] = language
-    return dal.get_books(db, filters, sort, cursor, pageSize)
+    return book_service.list_books(
+        db,
+        user["userId"],
+        sort=sort,
+        cursor=cursor,
+        page_size=min(pageSize, 100),
+        author_ids=parse_ids(authorIds),
+        tag_ids=parse_ids(tagIds),
+        series_ids=parse_ids(seriesIds),
+        language=language or None,
+    )
 
 
 @router.get("/{book_id}")

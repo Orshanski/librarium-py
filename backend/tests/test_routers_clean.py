@@ -1,6 +1,5 @@
 """Architecture tests — migrated роутеры не содержат inline HTTPException
-(кроме metadata.py:101 dynamic forward и admin.py:169 SMTP broad, которые
-documented inline per Non-goals спеки).
+(кроме metadata.py:101 dynamic forward, которые documented inline per Non-goals спеки).
 
 После каждой T6-T15 таски проверяется что конкретный router — clean.
 Это регрессионная защита: случайное возвращение `raise HTTPException` в
@@ -17,9 +16,9 @@ def _has_no_http_exception(path: Path) -> bool:
     """Проверяет что файл не содержит `raise HTTPException` — именно raise-site,
     а не импорт или строковое упоминание в docstring/comment.
 
-    `raise HTTPException(...)` — inline mapping паттерн, который мы мигрируем.
-    Файл может импортировать HTTPException (например, admin.py всё ещё имеет
-    его для SMTP handler'а), но не должен raise-ить из migrated endpoint'ов.
+    `raise HTTPException(...)` — inline mapping паттерн. Файл может импортировать
+    HTTPException по любым причинам, но не должен raise-ить из migrated endpoint'ов.
+    Актуально только для `metadata.py` (dynamic forward), см. TestPartiallyCleanRouters.
     """
     source = path.read_text(encoding="utf-8")
     return "raise HTTPException" not in source
@@ -73,6 +72,10 @@ class TestCleanRouters:
         Не router, но часть request-handling chain — должен быть clean."""
         assert _has_no_http_exception(APP_DIR / "auth.py")
 
+    def test_admin_has_no_http_exception(self):
+        """admin.py полностью clean после T14 — SMTP в mail_service."""
+        assert _has_no_http_exception(ROUTERS_DIR / "admin.py")
+
 
 class TestServiceLayerDiscipline:
     """Router → service → DAL: router не импортирует DAL напрямую."""
@@ -82,6 +85,57 @@ class TestServiceLayerDiscipline:
 
     def test_series_router_uses_only_service(self):
         assert _has_no_direct_dal_import(ROUTERS_DIR / "series.py")
+
+    def test_filter_options_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "filter_options.py")
+
+    def test_books_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "books.py")
+
+    def test_user_books_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "user_books.py")
+
+    def test_reader_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "reader.py")
+
+    def test_publishers_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "publishers.py")
+
+    def test_search_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "search.py")
+
+    def test_download_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "download.py")
+
+    def test_similar_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "similar.py")
+
+    def test_covers_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "covers.py")
+
+    def test_auth_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "auth.py")
+
+    def test_admin_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "admin.py")
+
+    def test_no_direct_dal_import_in_any_router(self):
+        """Meta-check: grep all router files for `from ..dal`. Catches new routers
+        added without accompanying TestServiceLayerDiscipline entry.
+
+        Exceptions:
+          - `__init__.py`, `_entity_crud.py`, `_validators.py`, `params.py` — helpers, not endpoints
+          - `metadata.py` — uses providers, not DAL; DAL imports prohibited by the global rule already
+        """
+        exceptions = {"__init__.py", "_entity_crud.py", "_validators.py", "params.py"}
+        offending = []
+        for f in ROUTERS_DIR.glob("*.py"):
+            if f.name in exceptions:
+                continue
+            source = f.read_text(encoding="utf-8")
+            if "from ..dal" in source:
+                offending.append(f.name)
+        assert not offending, f"Routers with direct DAL import: {offending}"
 
 
 class TestValidatorsCentralized:
@@ -110,15 +164,8 @@ class TestPartiallyCleanRouters:
     """Routers с одним documented inline HTTPException (остальные — middleware).
 
     Per Non-goals спеки:
-      - admin.py:169 SMTP broad exception — остаётся inline.
       - metadata.py:101 dynamic forward — остаётся inline.
     """
-
-    def test_admin_has_only_smtp_exception(self):
-        """admin.py содержит ровно 1 'raise HTTPException' (SMTP test endpoint)."""
-        source = (ROUTERS_DIR / "admin.py").read_text(encoding="utf-8")
-        count = source.count("raise HTTPException")
-        assert count == 1, f"Expected 1 HTTPException (SMTP), got {count}"
 
     def test_metadata_has_only_dynamic_forward(self):
         """metadata.py содержит ровно 1 'raise HTTPException' — line 67

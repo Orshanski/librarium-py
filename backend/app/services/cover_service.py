@@ -3,13 +3,15 @@ import io
 import logging
 import os
 import sqlite3
+from pathlib import Path
 
 from PIL import Image
 
 from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
 from ..cover_embedder import embed_cover
-from ..dal.books import get_book_by_id, update_cover_path
-from ..exceptions import BadInputError
+from ..dal import books as books_dal
+from ..dal.books import update_cover_path
+from ..exceptions import BadInputError, NotFoundError
 from ..fs_utils import move_with_rollback
 from . import thumb
 
@@ -17,16 +19,22 @@ log = logging.getLogger("librarium.covers")
 
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
+_THUMB_HEIGHT = 300
 
 Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
 
 
-def upload_temp(book_id: int, content: bytes, ext: str) -> str:
+def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> str:
     """Validate image and save as temp cover.
 
     Returns temp cover URL path.
-    Raises ValueError on invalid image.
+
+    Raises:
+      NotFoundError: if book doesn't exist
+      BadInputError: if image is unsupported format or corrupted
     """
+    if not books_dal.book_exists(db, book_id):
+        raise NotFoundError("Book not found")
     # Validate image
     try:
         img = Image.open(io.BytesIO(content))
@@ -55,6 +63,8 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
 
     Returns True if a cover was committed, False if no temp cover found.
     """
+    if not books_dal.book_exists(db, book_id):
+        raise NotFoundError("Book not found")
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
 
@@ -123,3 +133,59 @@ def find_cover(book_dir: str) -> str | None:
     if not os.path.isdir(book_dir):
         return None
     return next((f for f in os.listdir(book_dir) if f.startswith("cover.") and "bak" not in f), None)
+
+
+def get_cover_path(book_id: int) -> str:
+    """Resolve full cover path for a book. Raises NotFoundError if no cover exists."""
+    book_dir = str(LIBRARY_DIR / str(book_id))
+    cover = find_cover(book_dir)
+    if not cover:
+        raise NotFoundError("Cover not found")
+    return os.path.join(book_dir, cover)
+
+
+def get_thumb(book_id: int, cover_path: str) -> str | None:
+    """Generate (or return cached) thumbnail for a cover.
+
+    Returns thumb path on success, or None on any failure. Caller (router)
+    decides fallback (e.g. serve full cover when thumb generation failed).
+    """
+    thumb_path = str(thumb.THUMBS_DIR / f"{book_id}.jpg")
+    try:
+        if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
+            return thumb_path
+        original = Image.open(cover_path)
+        try:
+            ratio = _THUMB_HEIGHT / original.height
+            new_size = (int(original.width * ratio), _THUMB_HEIGHT)
+            resized = original.resize(new_size, Image.LANCZOS)
+        finally:
+            original.close()
+        try:
+            converted = resized.convert("RGB")
+        finally:
+            resized.close()
+        try:
+            converted.save(thumb_path, "JPEG", quality=80)
+        finally:
+            converted.close()
+        return thumb_path
+    except Exception as e:
+        log.warning("Failed to generate thumbnail for book=%d: %s", book_id, e)
+        return None
+
+
+def get_temp_cover_path(temp_id: str) -> str:
+    """Resolve temp cover path by temp_id. Raises NotFoundError if absent."""
+    for f in os.listdir(str(UPLOADS_DIR)):
+        if f.startswith(f"{temp_id}-cover."):
+            return str(UPLOADS_DIR / f)
+    raise NotFoundError("Temp cover not found")
+
+
+def discard_temp(db: sqlite3.Connection, book_id: int) -> None:
+    """Remove any temp cover files for a book. Raises NotFoundError if book doesn't exist."""
+    if not books_dal.book_exists(db, book_id):
+        raise NotFoundError("Book not found")
+    for f in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
+        os.remove(f)

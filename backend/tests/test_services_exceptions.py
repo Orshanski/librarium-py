@@ -182,7 +182,7 @@ class TestCoverServiceRaises:
         from app.services import cover_service
         # Plain text — не валидное изображение.
         with pytest.raises(BadInputError, match="не является изображением|повреждён"):
-            cover_service.upload_temp(book_id=1, content=b"not-an-image", ext="jpg")
+            cover_service.upload_temp(db, book_id=1, content=b"not-an-image", ext="jpg")
 
 
 # ---------- T3: upload_service migration ----------

@@ -16,7 +16,7 @@ def test_unhandled_exception_returns_500():
     no_raise = TestClient(app, raise_server_exceptions=False)
     no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
-    with patch("app.routers.auth.users_dal.get_user_by_username",
+    with patch("app.services.auth_service.dal.get_user_by_username",
                side_effect=RuntimeError("boom")):
         resp = no_raise.post("/api/auth/login",
                              json={"username": "admin", "password": "admin123"})
