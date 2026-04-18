@@ -29,13 +29,25 @@ def create_baseline():
 
 @pytest.fixture(autouse=True)
 def reset_test_data():
-    """Перед каждым тестом: скопировать baseline → .test-data."""
+    """Перед каждым тестом: скопировать baseline → .test-data.
+
+    Защита от редких FS-race'ов на macOS/APFS:
+    - `ignore_errors=True` в rmtree — если остался busy file-handle (thumb
+      generator, sqlite connection) из предыдущего teardown'а, одиночный
+      OSError не валит весь последующий тест; copytree накатит поверх.
+    - `dirs_exist_ok=True` в copytree — если rmtree не добил полностью.
+    - Guard на пропавший BASELINE_DIR — пересоздаём через seed_baseline,
+      если state drift (segfault / teardown error) снёс baseline.
+    """
     from app.database import reset_db
     reset_db()
 
-    if TEST_DATA_DIR.exists():
-        shutil.rmtree(TEST_DATA_DIR)
-    shutil.copytree(BASELINE_DIR, TEST_DATA_DIR)
+    if not BASELINE_DIR.exists():
+        from tests.seed import seed_baseline
+        seed_baseline()
+
+    shutil.rmtree(TEST_DATA_DIR, ignore_errors=True)
+    shutil.copytree(BASELINE_DIR, TEST_DATA_DIR, dirs_exist_ok=True)
 
     yield
 
