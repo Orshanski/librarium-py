@@ -104,6 +104,9 @@ class TestServiceLayerDiscipline:
     def test_download_router_uses_only_service(self):
         assert _has_no_direct_dal_import(ROUTERS_DIR / "download.py")
 
+    def test_similar_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "similar.py")
+
 
 class TestValidatorsCentralized:
     """Reusable Pydantic validators вынесены в _validators.py — роутеры

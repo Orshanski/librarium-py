@@ -188,8 +188,8 @@ class TestExcludeOwned:
 # ── Block 4: TestSimilarEndpoint ──
 
 class TestSimilarEndpoint:
-    @patch("app.routers.similar.fetch_similar")
-    @patch("app.routers.similar.find_litres_id")
+    @patch("app.services.similar_service.fetch_similar")
+    @patch("app.services.similar_service.find_litres_id")
     def test_happy_path(self, mock_find, mock_fetch, reader_client):
         mock_find.return_value = 123
         mock_fetch.return_value = [
@@ -206,7 +206,7 @@ class TestSimilarEndpoint:
         assert set(book.keys()) == {"title", "authors", "coverUrl", "litresUrl", "rating", "ratingCount"}
         assert book["title"] == "New Recommendation"
 
-    @patch("app.routers.similar.find_litres_id")
+    @patch("app.services.similar_service.find_litres_id")
     def test_find_service_unavailable(self, mock_find, reader_client):
         mock_find.side_effect = ConnectionError("Litres down")
         resp = reader_client.get("/api/books/1/similar")
@@ -215,8 +215,8 @@ class TestSimilarEndpoint:
         assert data["books"] == []
         assert data["error"] == "service_unavailable"
 
-    @patch("app.routers.similar.fetch_similar")
-    @patch("app.routers.similar.find_litres_id")
+    @patch("app.services.similar_service.fetch_similar")
+    @patch("app.services.similar_service.find_litres_id")
     def test_fetch_service_unavailable(self, mock_find, mock_fetch, reader_client):
         mock_find.return_value = 123
         mock_fetch.side_effect = ConnectionError("Litres similar down")
@@ -226,7 +226,7 @@ class TestSimilarEndpoint:
         assert data["books"] == []
         assert data["error"] == "service_unavailable"
 
-    @patch("app.routers.similar.find_litres_id")
+    @patch("app.services.similar_service.find_litres_id")
     def test_not_found_on_litres(self, mock_find, reader_client):
         mock_find.return_value = None
         resp = reader_client.get("/api/books/1/similar")
