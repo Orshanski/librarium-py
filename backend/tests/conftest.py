@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -29,15 +30,21 @@ def create_baseline():
 
 @pytest.fixture(autouse=True)
 def reset_test_data():
-    """Перед каждым тестом: скопировать baseline → .test-data.
+    """Перед каждым тестом: atomic swap .test-data на свежую копию baseline.
 
-    Защита от редких FS-race'ов на macOS/APFS:
-    - `ignore_errors=True` в rmtree — если остался busy file-handle (thumb
-      generator, sqlite connection) из предыдущего teardown'а, одиночный
-      OSError не валит весь последующий тест; copytree накатит поверх.
-    - `dirs_exist_ok=True` в copytree — если rmtree не добил полностью.
-    - Guard на пропавший BASELINE_DIR — пересоздаём через seed_baseline,
-      если state drift (segfault / teardown error) снёс baseline.
+    Схема: (1) копия baseline в tempdir-sibling `.test-data-new-*`, (2) атомарный
+    rename старого `.test-data` → `.test-data-old-*`, (3) атомарный rename нового
+    → `.test-data`, (4) lazy cleanup старого.
+
+    Почему atomic swap, а не rmtree+copytree с ignore_errors: последний молча
+    оставляет leftover-файлы (temp-covers, thumbs, uploads), не представленные
+    в baseline — они переживают setup и создают order-dependent тесты. Atomic
+    rename гарантирует, что `.test-data` после setup'а идентичен baseline
+    бит-в-бит, без прошлых артефактов. Rename на одном volume атомарен даже на
+    APFS и не нарывается на busy-handle в целевом dir.
+
+    Guard на пропавший BASELINE_DIR — пересоздаём через seed_baseline, если
+    state drift (segfault / teardown error в tearDown) снёс baseline.
     """
     from app.database import reset_db
     reset_db()
@@ -46,12 +53,40 @@ def reset_test_data():
         from tests.seed import seed_baseline
         seed_baseline()
 
-    shutil.rmtree(TEST_DATA_DIR, ignore_errors=True)
-    shutil.copytree(BASELINE_DIR, TEST_DATA_DIR, dirs_exist_ok=True)
+    # 0. Best-effort cleanup хвостов от аварийно завершённых прошлых прогонов.
+    # Уникальные имена через mkdtemp означают, что коллизий с именами не будет,
+    # но хвосты накапливались бы без уборки.
+    for leftover in PROJECT_ROOT.glob(".test-data-old-*"):
+        shutil.rmtree(leftover, ignore_errors=True)
+    for leftover in PROJECT_ROOT.glob(".test-data-new-*"):
+        shutil.rmtree(leftover, ignore_errors=True)
+
+    # 1. Готовим новую копию baseline в sibling-tempdir (на том же volume).
+    new_dir = Path(tempfile.mkdtemp(prefix=".test-data-new-", dir=PROJECT_ROOT))
+    # mkdtemp создал пустой dir; shutil.copytree требует чтобы dst НЕ существовал.
+    new_dir.rmdir()
+    shutil.copytree(BASELINE_DIR, new_dir)
+
+    # 2. Если старый TEST_DATA_DIR существует — rename его в old-sibling.
+    # Rename без try/except: если не удалось — fixture падает, и это корректно,
+    # потому что продолжать с грязным/заблокированным `.test-data` нельзя.
+    old_dir = None
+    if TEST_DATA_DIR.exists():
+        old_dir = Path(tempfile.mkdtemp(prefix=".test-data-old-", dir=PROJECT_ROOT))
+        old_dir.rmdir()
+        TEST_DATA_DIR.rename(old_dir)  # атомарный rename на одном volume
+
+    # 3. Атомарный rename нового под правильное имя.
+    new_dir.rename(TEST_DATA_DIR)
 
     yield
 
     reset_db()
+
+    # 4. Best-effort cleanup старого дерева после теста. Не блокирует никого:
+    # setup следующего теста всё равно подчистит хвосты в шаге 0.
+    if old_dir is not None:
+        shutil.rmtree(old_dir, ignore_errors=True)
 
 
 @pytest.fixture
