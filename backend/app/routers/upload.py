@@ -1,17 +1,16 @@
 import logging
-import os
 import sqlite3
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
-from ..config import UPLOADS_DIR, MAX_BOOK_SIZE
+from ..config import MAX_BOOK_SIZE
 from ..database import db_session
 from ..exceptions import BadInputError
+from ..services.temp_cleanup import cleanup_temp_session
 from ..services.upload_service import (
-    upload_and_parse, create_book, add_format,
-    find_temp_file, find_temp_covers, BOOK_EXTENSIONS,
+    upload_and_parse, create_book, add_format, BOOK_EXTENSIONS,
 )
 from ._validators import TempIdStr
 
@@ -73,13 +72,8 @@ async def upload_file(
 def cleanup_temp(
     temp_id: TempIdStr,
     user: dict = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
 ):
-    book_file = find_temp_file(temp_id)
-    if book_file:
-        os.remove(str(UPLOADS_DIR / book_file))
-    for f in find_temp_covers(temp_id):
-        os.remove(str(UPLOADS_DIR / f))
+    cleanup_temp_session(temp_id)
     return {"ok": True}
 
 

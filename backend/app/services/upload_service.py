@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import re
 import sqlite3
 import uuid
 import zipfile
@@ -20,25 +19,13 @@ from .book_file_writer import (
     book_dir_and_dst, prepare_book_format_path, register_and_linearize,
 )
 from .entity_resolver import resolve_authors, resolve_tags, resolve_series
+from .temp_cleanup import (
+    cleanup_temp_session, find_temp_covers, find_temp_file,
+)
 
 log = logging.getLogger("librarium.upload")
 
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
-
-
-def find_temp_file(temp_id: str) -> str | None:
-    """Find temp file by exact tempId match: {tempId}.{ext}"""
-    pattern = re.compile(rf'^{re.escape(temp_id)}\.(\w+)$')
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if pattern.match(f):
-            return f
-    return None
-
-
-def find_temp_covers(temp_id: str) -> list[str]:
-    """Find temp cover files by exact tempId match: {tempId}-cover.{ext}"""
-    pattern = re.compile(rf'^{re.escape(temp_id)}-cover\.(\w+)$')
-    return [f for f in os.listdir(str(UPLOADS_DIR)) if pattern.match(f)]
 
 
 def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
@@ -227,10 +214,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     with move_with_rollback(src, dst):
         register_and_linearize(db, book_id, dst, ext)
 
-    # Tail cleanup — temporary inline; will be replaced by cleanup_temp_session in T4.
-    for f in find_temp_covers(temp_id):
-        os.remove(str(UPLOADS_DIR / f))
-
+    cleanup_temp_session(temp_id)
     return fmt
 
 
