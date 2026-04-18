@@ -105,7 +105,18 @@ describe("TagAdminPanel", () => {
         HttpResponse.json({ tags: [] }),
       ),
       http.put("/api/tags/:id/map", () =>
-        HttpResponse.json({ detail: "Name required" }, { status: 400 }),
+        HttpResponse.json(
+          {
+            detail: [
+              {
+                loc: ["body", "name"],
+                msg: "String should have at least 1 character",
+                type: "string_too_short",
+              },
+            ],
+          },
+          { status: 422 },
+        ),
       ),
     );
 
@@ -121,7 +132,7 @@ describe("TagAdminPanel", () => {
 
     // Inline error visible — aria role="alert".
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/name required|не удалось/i);
+    expect(alert).toHaveTextContent(/validation failed|не удалось/i);
     expect(onMapped).not.toHaveBeenCalled();
   });
 
