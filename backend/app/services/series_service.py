@@ -13,6 +13,8 @@ def get_series(db: sqlite3.Connection, series_id: int) -> dict:
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:
+    """DAL не проверяет существование; поведение сохраняется.
+    Bug librarium-py-xzx.1 (silently succeeds on missing id) — отдельная задача."""
     dal.rename_series(db, series_id, name)
 
 
