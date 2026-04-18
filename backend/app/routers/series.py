@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 
 from ..auth import get_current_user
 from ..database import db_session
-from ..dal import series as dal
 from ..services import series_service
 from .params import parse_ids
 from ._entity_crud import register_entity_crud
@@ -22,12 +21,12 @@ def list_series(
     tagIds: str = "",
     language: str = "",
 ):
-    return dal.get_series(
+    return series_service.list_series(
         db,
-        parse_ids(authorIds),
-        parse_ids(tagIds),
-        language or None,
         user_id=user["userId"],
+        author_ids=parse_ids(authorIds),
+        tag_ids=parse_ids(tagIds),
+        language=language or None,
     )
 
 

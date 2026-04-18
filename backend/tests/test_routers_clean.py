@@ -25,6 +25,13 @@ def _has_no_http_exception(path: Path) -> bool:
     return "raise HTTPException" not in source
 
 
+def _has_no_direct_dal_import(path: Path) -> bool:
+    """Проверяет что router не импортирует DAL напрямую — весь доступ к данным
+    должен идти через service-слой."""
+    source = path.read_text(encoding="utf-8")
+    return "from ..dal" not in source
+
+
 class TestCleanRouters:
     """Migrated routers (ноль HTTPException import или raise)."""
 
@@ -60,6 +67,32 @@ class TestCleanRouters:
 
     def test_auth_router_clean(self):
         assert _has_no_http_exception(ROUTERS_DIR / "auth.py")
+
+
+class TestServiceLayerDiscipline:
+    """Router → service → DAL: router не импортирует DAL напрямую."""
+
+    def test_authors_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "authors.py")
+
+    def test_series_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "series.py")
+
+
+class TestValidatorsCentralized:
+    """Reusable Pydantic validators вынесены в _validators.py — никаких
+    regex-дублей по router-файлам (drift-protection)."""
+
+    TEMP_ID_PATTERN = "[a-zA-Z0-9]+"  # substring — ловит и `[a-zA-Z0-9]{1,20}` и `[a-zA-Z0-9]+`
+
+    def test_temp_id_pattern_only_in_validators(self):
+        """Regex для temp_id (inline `r'^[a-zA-Z0-9]...'`) встречается только
+        в _validators.py, не в upload.py/covers.py/books.py."""
+        for name in ("upload.py", "covers.py", "books.py"):
+            source = (ROUTERS_DIR / name).read_text(encoding="utf-8")
+            assert self.TEMP_ID_PATTERN not in source, (
+                f"{name}: inline temp_id regex duplicates _validators.py"
+            )
 
     def test_auth_dependency_module_clean(self):
         """backend/app/auth.py (dependency для get_current_user/require_admin).

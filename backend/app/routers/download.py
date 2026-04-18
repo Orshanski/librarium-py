@@ -1,9 +1,7 @@
 import os
 import sqlite3
-
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
-
 from ..auth import get_current_user
 from ..config import LIBRARY_DIR
 from ..dal.books import get_book_by_id, get_book_files

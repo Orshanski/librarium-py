@@ -5,6 +5,16 @@ from ..dal import series as dal
 from ..exceptions import BadInputError, NotFoundError
 
 
+def list_series(
+    db: sqlite3.Connection,
+    user_id: int,
+    author_ids: list[int] | None,
+    tag_ids: list[int] | None,
+    language: str | None,
+) -> list[dict]:
+    return dal.get_series(db, author_ids, tag_ids, language, user_id=user_id)
+
+
 def get_series(db: sqlite3.Connection, series_id: int) -> dict:
     result = dal.get_series_by_id(db, series_id)
     if not result:
@@ -13,8 +23,9 @@ def get_series(db: sqlite3.Connection, series_id: int) -> dict:
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:
-    """DAL не проверяет существование; поведение сохраняется.
-    Bug librarium-py-xzx.1 (silently succeeds on missing id) — отдельная задача."""
+    """Переименовать серию. Raises NotFoundError если серия не существует."""
+    if not dal.get_series_by_id(db, series_id):
+        raise NotFoundError("Серия не найдена")
     dal.rename_series(db, series_id, name)
 
 

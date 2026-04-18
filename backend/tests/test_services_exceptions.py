@@ -33,6 +33,10 @@ class TestAuthorsService:
         with pytest.raises(NotFoundError, match="Автор не найден"):
             authors_service.delete_author(db, 999999)
 
+    def test_rename_missing_raises_not_found(self, db):
+        with pytest.raises(NotFoundError, match="Автор не найден"):
+            authors_service.rename_author(db, 999999, "Whatever")
+
 
 # ---------- T4: series_service ----------
 
@@ -50,6 +54,10 @@ class TestSeriesService:
     def test_delete_missing_propagates_not_found(self, db):
         with pytest.raises(NotFoundError, match="Серия не найдена"):
             series_service.delete_series(db, 999999)
+
+    def test_rename_missing_raises_not_found(self, db):
+        with pytest.raises(NotFoundError, match="Серия не найдена"):
+            series_service.rename_series(db, 999999, "Whatever")
 
 
 # ---------- T4: shelves_service ----------
@@ -117,7 +125,7 @@ class TestBookServiceRaises:
 
 class TestBookServiceGetBook:
     def test_missing_book_raises_not_found(self, db):
-        with pytest.raises(NotFoundError, match="Not found"):
+        with pytest.raises(NotFoundError, match="Book not found"):
             book_service.get_book(db, 999999, user_id=1)
 
     def test_existing_book_returns_full_dict(self, db):

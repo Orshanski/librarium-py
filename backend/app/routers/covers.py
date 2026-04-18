@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 
-from fastapi import APIRouter, Depends, File, Path, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
@@ -15,6 +15,7 @@ from ..exceptions import BadInputError, NotFoundError
 from ..services import cover_service
 from ..services.cover_service import find_cover
 from ..services.thumb import THUMBS_DIR
+from ._validators import TempIdStr
 
 log = logging.getLogger("librarium.covers")
 
@@ -98,7 +99,7 @@ async def upload_cover(
 
 @router.get("/api/uploads/cover/{temp_id}")
 def get_temp_cover(
-    temp_id: str = Path(..., pattern=r'^[a-zA-Z0-9]{1,20}$'),
+    temp_id: TempIdStr,
     user: dict = Depends(get_current_user),
 ):
     for f in os.listdir(str(UPLOADS_DIR)):

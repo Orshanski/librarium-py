@@ -2,7 +2,7 @@ import logging
 import os
 import sqlite3
 
-from fastapi import APIRouter, Depends, File, Path, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
@@ -13,6 +13,7 @@ from ..services.upload_service import (
     upload_and_parse, create_book, add_format,
     find_temp_file, find_temp_covers, BOOK_EXTENSIONS,
 )
+from ._validators import TempIdStr
 
 log = logging.getLogger("librarium.upload")
 
@@ -34,12 +35,12 @@ class CreateBookMetadata(BaseModel):
 
 
 class CreateBookBody(BaseModel):
-    tempId: str = Field(min_length=1, max_length=20, pattern=r'^[a-zA-Z0-9]+$')
+    tempId: TempIdStr
     metadata: CreateBookMetadata = Field(default_factory=CreateBookMetadata)
 
 
 class AddFormatBody(BaseModel):
-    tempId: str = Field(min_length=1, max_length=20, pattern=r'^[a-zA-Z0-9]+$')
+    tempId: TempIdStr
 
 
 @router.post("/api/upload")
@@ -70,7 +71,7 @@ async def upload_file(
 
 @router.delete("/api/uploads/{temp_id}")
 def cleanup_temp(
-    temp_id: str = Path(..., pattern=r'^[a-zA-Z0-9]{1,20}$'),
+    temp_id: TempIdStr,
     user: dict = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):

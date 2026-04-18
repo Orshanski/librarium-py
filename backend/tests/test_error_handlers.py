@@ -60,6 +60,10 @@ def app_with_handlers():
     def _raw_key():
         raise KeyError("raw key")
 
+    @app.get("/raise-raw-index-error")
+    def _raw_index():
+        raise IndexError("raw index")
+
     @app.get("/raise-raw-file-exists")
     def _raw_file_exists():
         raise FileExistsError("raw file exists")
@@ -123,6 +127,11 @@ class TestHandlerIsolation:
     def test_raw_key_error_is_500(self, client):
         """KeyError — подкласс LookupError, но НЕ NotFoundError. → 500."""
         resp = client.get("/raise-raw-key-error")
+        assert resp.status_code == 500
+
+    def test_raw_index_error_is_500(self, client):
+        """IndexError — подкласс LookupError, но НЕ NotFoundError. → 500."""
+        resp = client.get("/raise-raw-index-error")
         assert resp.status_code == 500
 
     def test_raw_file_exists_is_500(self, client):

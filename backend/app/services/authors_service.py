@@ -5,6 +5,15 @@ from ..dal import authors as dal
 from ..exceptions import BadInputError, NotFoundError
 
 
+def list_authors(
+    db: sqlite3.Connection,
+    user_id: int,
+    tag_ids: list[int] | None,
+    language: str | None,
+) -> list[dict]:
+    return dal.get_authors(db, tag_ids, language, user_id=user_id)
+
+
 def get_author(db: sqlite3.Connection, author_id: int) -> dict:
     result = dal.get_author_by_id(db, author_id)
     if not result:
@@ -13,8 +22,9 @@ def get_author(db: sqlite3.Connection, author_id: int) -> dict:
 
 
 def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> None:
-    """DAL не проверяет существование; поведение сохраняется.
-    Bug librarium-py-xzx.1 (silently succeeds on missing id) — отдельная задача."""
+    """Переименовать автора. Raises NotFoundError если автор не существует."""
+    if not dal.get_author_by_id(db, author_id):
+        raise NotFoundError("Автор не найден")
     dal.rename_author(db, author_id, name)
 
 

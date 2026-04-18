@@ -1,9 +1,8 @@
 import logging
 import sqlite3
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel
 
 from ..auth import get_current_user, require_admin
 from ..config import MAX_BOOK_SIZE
@@ -12,14 +11,12 @@ from ..database import db_session
 from ..exceptions import BadInputError
 from ..services import book_service
 from ..services.upload_service import BOOK_EXTENSIONS
+from ._validators import NonBlankStr
 from .params import parse_ids
 
 log = logging.getLogger("librarium.books")
 
 router = APIRouter(prefix="/api/books", tags=["books"])
-
-
-NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class UpdateBookBody(BaseModel):

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 
 from ..auth import get_current_user
 from ..database import db_session
-from ..dal import authors as dal
 from ..services import authors_service
 from .params import parse_ids
 from ._entity_crud import register_entity_crud
@@ -21,7 +20,12 @@ def list_authors(
     tagIds: str = "",
     language: str = "",
 ):
-    return dal.get_authors(db, parse_ids(tagIds), language or None, user_id=user["userId"])
+    return authors_service.list_authors(
+        db,
+        user_id=user["userId"],
+        tag_ids=parse_ids(tagIds),
+        language=language or None,
+    )
 
 
 register_entity_crud(router, service=authors_service, logger=log, entity_label="author")

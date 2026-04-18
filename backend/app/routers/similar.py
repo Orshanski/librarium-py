@@ -7,7 +7,7 @@ from ..auth import get_current_user
 from ..dal.books import get_book_by_id
 from ..dal.similar import exclude_owned
 from ..database import db_session
-from ..exceptions import NotFoundError
+from ..exceptions import BadInputError, ForbiddenError, NotFoundError, UpstreamError
 from ..providers.litres import find_litres_id, fetch_similar
 
 log = logging.getLogger("librarium.similar")
@@ -37,6 +37,13 @@ def get_similar(
         similar = fetch_similar(litres_id)
         similar = exclude_owned(db, similar)
         return {"books": similar, "source": "litres", "error": None}
+    except (BadInputError, ForbiddenError, NotFoundError, UpstreamError):
+        # Наши domain exceptions — propagate к middleware, не маскировать под
+        # "service_unavailable". Сейчас third-party провайдеры (litres) их не
+        # raise'ят, но защита от будущих изменений в providers.
+        raise
     except Exception as e:
+        # Third-party/network errors — endpoint graceful-degrade с
+        # error:"service_unavailable" вместо 502 (UX-decision, legacy).
         log.warning("Similar books error for book_id=%d: %s", book_id, e)
         return {"books": [], "source": "litres", "error": "service_unavailable"}

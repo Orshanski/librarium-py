@@ -93,10 +93,10 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
 
 
 def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> dict:
-    """Get book with files and identifiers. Raises NotFoundError если не существует."""
+    """Get book with files and identifiers. Raises NotFoundError if book absent."""
     book = dal.get_book_by_id(db, book_id, user_id)
     if not book:
-        raise NotFoundError("Not found")
+        raise NotFoundError("Book not found")
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
     return {"book": book, "files": files, "identifiers": identifiers}
