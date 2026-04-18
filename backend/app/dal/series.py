@@ -1,5 +1,6 @@
 import sqlite3
 from ..database import dicts_from_rows, dict_from_row
+from ..exceptions import BadInputError, NotFoundError
 from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
@@ -79,13 +80,17 @@ def merge_series(db: sqlite3.Connection, target_id: int, source_id: int):
     db.execute("DELETE FROM series WHERE id = :source", {"source": source_id})
 
 
-def delete_series(db: sqlite3.Connection, series_id: int) -> str | None:
-    """Удаляет серию. Возвращает None если удалена, иначе причину ошибки."""
+def delete_series(db: sqlite3.Connection, series_id: int) -> None:
+    """Удаляет серию.
+
+    Raises:
+        NotFoundError: если серия не существует.
+        BadInputError: если у серии есть книги (каскадное удаление запрещено).
+    """
     exists = db.execute("SELECT 1 FROM series WHERE id = :id", {"id": series_id}).fetchone()
     if not exists:
-        return "not_found"
+        raise NotFoundError("Серия не найдена")
     count = db.execute("SELECT COUNT(*) as c FROM books WHERE series_id = :id", {"id": series_id}).fetchone()["c"]
     if count > 0:
-        return "has_books"
+        raise BadInputError("Нельзя удалить серию с книгами")
     db.execute("DELETE FROM series WHERE id = :id", {"id": series_id})
-    return None
