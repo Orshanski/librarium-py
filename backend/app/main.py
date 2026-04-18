@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .auth import create_token
 from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
+from .error_handlers import register_error_handlers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +38,8 @@ from .routers import reader as reader_router
 app = FastAPI(
     title="Librarium",
 )
+
+register_error_handlers(app)
 
 _log = logging.getLogger("librarium")
 _CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
