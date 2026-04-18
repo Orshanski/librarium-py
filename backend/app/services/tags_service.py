@@ -23,6 +23,8 @@ def get_tag(
 
 
 def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> dict:
+    """Renames tag to `name`, или merges в existing tag с таким именем.
+    Raises NotFoundError если tag_id не существует."""
     if not dal.tag_exists(db, tag_id):
         raise NotFoundError("Not found")
     return dal.map_tag(db, tag_id, name)

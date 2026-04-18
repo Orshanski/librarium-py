@@ -82,10 +82,11 @@ def register_entity_crud(
         user: dict = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
-        rename_fn(db, entity_id, body.name.strip())
+        name = body.name.strip()
+        rename_fn(db, entity_id, name)
         logger.info(
             "Renamed %s=%d to=%s by user_id=%s",
-            entity_label, entity_id, body.name.strip(), user["userId"],
+            entity_label, entity_id, name, user["userId"],
         )
         return {"ok": True}
 
