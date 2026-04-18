@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from PIL import Image
 
 from tests._helpers import assert_error, assert_ok
@@ -180,3 +181,82 @@ class TestCoverEdgeCases:
         preview = admin_client.get("/api/uploads/cover/2")
         assert preview.status_code == 200
         assert preview.content == second_jpeg
+
+
+def test_commit_move_failure_preserves_old_cover(admin_client, db):
+    """При падении move во время commit старая обложка на диске сохраняется.
+
+    Используется book_id=2: baseline seed даёт ему cover.jpg (см. seed.py:76);
+    book_id=1 обложки не имеет, для этого теста не подходит. После T1
+    cover_service.commit делает move+DB внутри move_with_rollback, старая
+    обложка удаляется только после успеха. Мокаем move на OSError →
+    проверяем что старая обложка цела и её mtime не изменился.
+    """
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    book_dir = Path(LIBRARY_DIR) / "2"
+    old_cover_before = find_cover(str(book_dir))
+    assert old_cover_before is not None, "baseline должен иметь старую обложку у book 2"
+    old_mtime = (book_dir / old_cover_before).stat().st_mtime
+
+    # Загрузить temp cover через реальный API.
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+
+    # Мокаем move на OSError — commit должен упасть, старая обложка сохраниться.
+    with patch("app.fs_utils.shutil.move", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            cover_service.commit(db, book_id=2)
+
+    assert (book_dir / old_cover_before).exists()
+    assert (book_dir / old_cover_before).stat().st_mtime == old_mtime
+
+
+def test_commit_db_failure_preserves_old_cover_same_ext(admin_client, db):
+    """DB-failure при overwrite одноименного файла — старая обложка восстанавливается.
+
+    Сценарий: у book 2 cover.jpg (baseline). Админ загружает новый jpg — dst
+    совпадает со старым путём, `shutil.move` перетирает файл. Если затем
+    `update_cover_path` роняет → `move_with_rollback` удаляет dst целиком,
+    старая обложка должна быть восстановлена из backup'а.
+
+    Bug был обнаружен в ветке w0g: generic move_with_rollback не знает про
+    overwritten dst и удаляет всё, оставляя книгу без файла обложки, хотя
+    cover_path в БД откатится. После фикса commit делает backup старого
+    файла перед move и восстанавливает его при exception.
+    """
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    book_dir = Path(LIBRARY_DIR) / "2"
+    old_cover_before = find_cover(str(book_dir))
+    assert old_cover_before == "cover.jpg", "baseline: book 2 должен иметь cover.jpg"
+    old_content = (book_dir / old_cover_before).read_bytes()
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+
+    # Mock update_cover_path → DB failure ПОСЛЕ успешного overwrite move'а.
+    with patch(
+        "app.services.cover_service.update_cover_path",
+        side_effect=RuntimeError("simulated db failure"),
+    ):
+        with pytest.raises(RuntimeError):
+            cover_service.commit(db, book_id=2)
+
+    # Старая обложка должна быть на месте с оригинальным содержимым.
+    assert (book_dir / "cover.jpg").exists(), "старая обложка должна быть восстановлена"
+    assert (book_dir / "cover.jpg").read_bytes() == old_content, \
+        "содержимое старой обложки не должно быть затёрто новым"
+    # Backup не должен остаться на диске после rollback.
+    assert not (book_dir / "cover.jpg.bak").exists(), \
+        "bak должен быть переименован обратно в cover.jpg"

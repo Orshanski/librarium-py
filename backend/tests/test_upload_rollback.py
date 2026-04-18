@@ -24,7 +24,7 @@ def test_create_book_rollback_on_move_failure(admin_client):
                           cookies=admin_client.cookies)
     no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
 
-    with patch("app.services.upload_service.shutil.move",
+    with patch("app.fs_utils.shutil.move",
                side_effect=OSError("disk full")):
         resp = no_raise.post("/api/books/create", json={
             "tempId": temp_id,
