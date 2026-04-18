@@ -73,3 +73,10 @@ class TestPartiallyCleanRouters:
         source = (ROUTERS_DIR / "admin.py").read_text(encoding="utf-8")
         count = source.count("raise HTTPException")
         assert count == 1, f"Expected 1 HTTPException (SMTP), got {count}"
+
+    def test_metadata_has_only_dynamic_forward(self):
+        """metadata.py содержит ровно 1 'raise HTTPException' — line 67
+        dynamic upstream status forward. Остальные 9 → custom exceptions."""
+        source = (ROUTERS_DIR / "metadata.py").read_text(encoding="utf-8")
+        count = source.count("raise HTTPException")
+        assert count == 1, f"Expected 1 HTTPException (dynamic forward), got {count}"

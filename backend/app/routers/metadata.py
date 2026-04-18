@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from ..auth import get_current_user
+from ..exceptions import BadInputError, ForbiddenError, UpstreamError
 from ..providers import search_metadata
 from ..ssrf import is_safe_url
 
@@ -38,40 +39,44 @@ def _is_allowed_domain(url: str) -> bool:
 @router.get("/cover-proxy")
 def cover_proxy(user: dict = Depends(get_current_user), url: str = ""):
     if not url:
-        raise HTTPException(status_code=400, detail="URL required")
+        raise BadInputError("URL required")
 
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="URL scheme not allowed")
+        raise BadInputError("URL scheme not allowed")
     if not _is_allowed_domain(url):
-        raise HTTPException(status_code=403, detail="Domain not in allow-list")
+        raise ForbiddenError("Domain not in allow-list")
 
     try:
         current_url = url
         for _ in range(_MAX_REDIRECTS + 1):
             if not is_safe_url(current_url):
-                raise HTTPException(status_code=403, detail="URL points to a non-public address")
+                raise ForbiddenError("URL points to a non-public address")
             if not _is_allowed_domain(current_url):
-                raise HTTPException(status_code=403, detail="Domain not in allow-list")
+                raise ForbiddenError("Domain not in allow-list")
 
             resp = requests.get(current_url, timeout=15, headers=_HEADERS, allow_redirects=False)
 
             if resp.is_redirect:
                 location = resp.headers.get("Location", "")
                 if not location:
-                    raise HTTPException(status_code=502, detail="Upstream fetch failed")
+                    raise UpstreamError("Upstream fetch failed")
                 current_url = requests.compat.urljoin(current_url, location)
                 continue
 
             if resp.status_code != 200:
+                # Dynamic forward — status от upstream runtime, middleware не может
+                # это мапить. Единственное documented inline HTTPException в этом файле.
                 raise HTTPException(status_code=resp.status_code, detail="Upstream error")
             content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
             if not content_type.startswith("image/"):
-                raise HTTPException(status_code=400, detail="Response is not an image")
+                raise BadInputError("Response is not an image")
             return Response(content=resp.content, media_type=content_type)
 
-        raise HTTPException(status_code=502, detail="Too many redirects")
-    except HTTPException:
+        raise UpstreamError("Too many redirects")
+    except (HTTPException, BadInputError, ForbiddenError, UpstreamError):
+        # Наши custom и dynamic forward — propagate без обёртки.
         raise
     except Exception:
-        raise HTTPException(status_code=502, detail="Upstream fetch failed")
+        # Unknown error (network, DNS, etc.) — wrap в UpstreamError → 502.
+        raise UpstreamError("Upstream fetch failed")
