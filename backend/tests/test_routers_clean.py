@@ -49,3 +49,18 @@ class TestCleanRouters:
 
     def test_similar_py_clean(self):
         assert _has_no_http_exception(ROUTERS_DIR / "similar.py")
+
+
+class TestPartiallyCleanRouters:
+    """Routers с одним documented inline HTTPException (остальные — middleware).
+
+    Per Non-goals спеки:
+      - admin.py:147-168 SMTP broad exception — остаётся inline.
+      - metadata.py:67 dynamic forward — остаётся inline.
+    """
+
+    def test_admin_has_only_smtp_exception(self):
+        """admin.py содержит ровно 1 'raise HTTPException' (SMTP test endpoint)."""
+        source = (ROUTERS_DIR / "admin.py").read_text(encoding="utf-8")
+        count = source.count("raise HTTPException")
+        assert count == 1, f"Expected 1 HTTPException (SMTP), got {count}"
