@@ -1,5 +1,5 @@
 """Architecture tests — migrated роутеры не содержат inline HTTPException
-(кроме metadata.py:67 dynamic forward и admin.py:168 SMTP broad, которые
+(кроме metadata.py:101 dynamic forward и admin.py:169 SMTP broad, которые
 documented inline per Non-goals спеки).
 
 После каждой T6-T15 таски проверяется что конкретный router — clean.
@@ -68,6 +68,11 @@ class TestCleanRouters:
     def test_auth_router_clean(self):
         assert _has_no_http_exception(ROUTERS_DIR / "auth.py")
 
+    def test_auth_dependency_module_clean(self):
+        """backend/app/auth.py (dependency для get_current_user/require_admin).
+        Не router, но часть request-handling chain — должен быть clean."""
+        assert _has_no_http_exception(APP_DIR / "auth.py")
+
 
 class TestServiceLayerDiscipline:
     """Router → service → DAL: router не импортирует DAL напрямую."""
@@ -80,32 +85,33 @@ class TestServiceLayerDiscipline:
 
 
 class TestValidatorsCentralized:
-    """Reusable Pydantic validators вынесены в _validators.py — никаких
-    regex-дублей по router-файлам (drift-protection)."""
+    """Reusable Pydantic validators вынесены в _validators.py — роутеры
+    используют именованные aliases, не определяют constraints inline."""
 
-    TEMP_ID_PATTERN = "[a-zA-Z0-9]+"  # substring — ловит и `[a-zA-Z0-9]{1,20}` и `[a-zA-Z0-9]+`
+    def test_upload_uses_tempid_alias(self):
+        source = (ROUTERS_DIR / "upload.py").read_text(encoding="utf-8")
+        assert "from ._validators import" in source and "TempIdStr" in source
+        assert "StringConstraints" not in source, (
+            "upload.py использует StringConstraints напрямую — должно быть через _validators.py"
+        )
 
-    def test_temp_id_pattern_only_in_validators(self):
-        """Regex для temp_id (inline `r'^[a-zA-Z0-9]...'`) встречается только
-        в _validators.py, не в upload.py/covers.py/books.py."""
-        for name in ("upload.py", "covers.py", "books.py"):
-            source = (ROUTERS_DIR / name).read_text(encoding="utf-8")
-            assert self.TEMP_ID_PATTERN not in source, (
-                f"{name}: inline temp_id regex duplicates _validators.py"
-            )
+    def test_covers_uses_tempid_alias(self):
+        source = (ROUTERS_DIR / "covers.py").read_text(encoding="utf-8")
+        assert "from ._validators import" in source and "TempIdStr" in source
+        assert "StringConstraints" not in source
 
-    def test_auth_dependency_module_clean(self):
-        """backend/app/auth.py (dependency для get_current_user/require_admin).
-        Не router, но часть request-handling chain — должен быть clean."""
-        assert _has_no_http_exception(APP_DIR / "auth.py")
+    def test_books_uses_nonblank_alias(self):
+        source = (ROUTERS_DIR / "books.py").read_text(encoding="utf-8")
+        assert "from ._validators import" in source and "NonBlankStr" in source
+        assert "StringConstraints" not in source
 
 
 class TestPartiallyCleanRouters:
     """Routers с одним documented inline HTTPException (остальные — middleware).
 
     Per Non-goals спеки:
-      - admin.py:147-168 SMTP broad exception — остаётся inline.
-      - metadata.py:67 dynamic forward — остаётся inline.
+      - admin.py:169 SMTP broad exception — остаётся inline.
+      - metadata.py:101 dynamic forward — остаётся inline.
     """
 
     def test_admin_has_only_smtp_exception(self):
