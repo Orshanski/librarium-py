@@ -10,6 +10,7 @@ from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 ROUTERS_DIR = BACKEND_ROOT / "app" / "routers"
+APP_DIR = BACKEND_ROOT / "app"
 
 
 def _has_no_http_exception(path: Path) -> bool:
@@ -49,6 +50,14 @@ class TestCleanRouters:
 
     def test_similar_py_clean(self):
         assert _has_no_http_exception(ROUTERS_DIR / "similar.py")
+
+    def test_auth_router_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "auth.py")
+
+    def test_auth_dependency_module_clean(self):
+        """backend/app/auth.py (dependency для get_current_user/require_admin).
+        Не router, но часть request-handling chain — должен быть clean."""
+        assert _has_no_http_exception(APP_DIR / "auth.py")
 
 
 class TestPartiallyCleanRouters:
