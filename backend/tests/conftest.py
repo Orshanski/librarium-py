@@ -92,3 +92,18 @@ def db_test():
     conn = connect_test_db()
     yield conn
     conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _clear_auth_rate_limit_state():
+    """Clear auth rate-limit dict between tests to prevent 429 carry-over.
+
+    Tests that exercise login failures (e.g. test_errors_auth.py,
+    test_errors_500.py) leave entries in auth_service._login_attempts; without
+    this fixture, later tests that happen to use the same test-client IP
+    (typically 'testclient') can see unexpected 429s depending on test order.
+    """
+    from app.services import auth_service as _auth_service
+    _auth_service._login_attempts.clear()
+    yield
+    _auth_service._login_attempts.clear()

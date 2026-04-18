@@ -61,7 +61,8 @@ def get_temp_cover(temp_id: TempIdStr, user: dict = Depends(get_current_user)):
 
 @router.put("/api/books/{book_id}/cover")
 def commit_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    cover_service.commit(db, book_id)
+    if not cover_service.commit(db, book_id):
+        raise BadInputError("No pending cover to commit")
     log.info("Cover updated book=%d by user_id=%s", book_id, user["userId"])
     return JSONResponse({"ok": True})
 

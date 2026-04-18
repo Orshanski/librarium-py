@@ -5,6 +5,7 @@ the extraction from the router).
 """
 import logging
 import sqlite3
+import threading
 import time
 from collections import defaultdict
 
@@ -17,10 +18,12 @@ log = logging.getLogger("librarium.auth")
 _MAX_ATTEMPTS = 5
 _WINDOW_SEC = 300
 _MAX_TRACKED_IPS = 10_000
+_login_attempts_lock = threading.Lock()
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 
 
-def _purge_expired(now: float) -> None:
+def _purge_expired_locked(now: float) -> None:
+    """Caller must hold _login_attempts_lock."""
     expired = [ip for ip, ts in _login_attempts.items()
                if all(now - t >= _WINDOW_SEC for t in ts)]
     for ip in expired:
@@ -28,23 +31,26 @@ def _purge_expired(now: float) -> None:
 
 
 def _check_rate_limit(ip: str) -> bool:
-    now = time.monotonic()
-    if len(_login_attempts) > _MAX_TRACKED_IPS:
-        _purge_expired(now)
-    attempts = _login_attempts[ip]
-    _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SEC]
-    if not _login_attempts[ip]:
-        del _login_attempts[ip]
-        return True
-    return len(_login_attempts[ip]) < _MAX_ATTEMPTS
+    with _login_attempts_lock:
+        now = time.monotonic()
+        if len(_login_attempts) > _MAX_TRACKED_IPS:
+            _purge_expired_locked(now)
+        attempts = _login_attempts[ip]
+        _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SEC]
+        if not _login_attempts[ip]:
+            del _login_attempts[ip]
+            return True
+        return len(_login_attempts[ip]) < _MAX_ATTEMPTS
 
 
 def _record_attempt(ip: str) -> None:
-    _login_attempts[ip].append(time.monotonic())
+    with _login_attempts_lock:
+        _login_attempts[ip].append(time.monotonic())
 
 
 def _clear_attempts(ip: str) -> None:
-    _login_attempts.pop(ip, None)
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
 
 
 def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tuple[str, dict]:
