@@ -24,13 +24,22 @@ _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 _THUMB_HEIGHT = 300
 
 # Legitimate best-effort failure modes для embed_cover: FS I/O, повреждённые
-# архивы / XML, domain-ограничения (FB2 без title-info). Программные баги
-# (AttributeError, TypeError, ValueError и т.д.) НЕ маскируются — падают наверх.
+# архивы / XML, non-UTF-8 байты в OPF/container.xml, domain-ограничения
+# (FB2 без title-info). Программные баги (AttributeError, TypeError,
+# чистый ValueError из-под нашего кода) НЕ маскируются — падают наверх.
+#
+# Carve-out: BadInputError — domain exception embed_cover_fb2 при FB2 без
+# <title-info>. Хоть формально он наследует ValueError, семантически это
+# malformed data (как XMLSyntaxError), не программный баг — поэтому здесь.
+# По lxml: LxmlSyntaxError — корневой для XMLSyntaxError и ParseError;
+# ParserError — отдельная ветка (parser state issues), тоже data-quality.
 _EMBED_BEST_EFFORT_EXCEPTIONS = (
     OSError,
+    UnicodeDecodeError,
     zipfile.BadZipFile,
     zipfile.LargeZipFile,
-    etree.XMLSyntaxError,
+    etree.LxmlSyntaxError,
+    etree.ParserError,
     BadInputError,
 )
 
@@ -129,10 +138,10 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     thumb.invalidate(book_id)
 
     # Embed cover into book files (best-effort).
-    # Catch только легитимные failure modes: FS-ошибки, corrupt archive/XML,
-    # FB2 без title-info. Программные баги (AttributeError, TypeError etc.)
-    # пропускаем наверх — основной commit уже прошёл, но внезапная
-    # AttributeError должна падать в логи stack-trace'ом, не тихо warning'ом.
+    # Catch только легитимные failure modes (см. _EMBED_BEST_EFFORT_EXCEPTIONS).
+    # Программные баги (AttributeError, TypeError и т.д.) пропускаем наверх —
+    # основной commit уже прошёл, но внезапная AttributeError должна падать в
+    # логи stack-trace'ом, не тихо warning'ом.
     try:
         embed_cover(db, book_id)
     except _EMBED_BEST_EFFORT_EXCEPTIONS as e:

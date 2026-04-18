@@ -15,10 +15,17 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.sqlite"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
+# Posix-style prefix записываемых в DB путей (см. db_path_for). Single source
+# of truth — download_service и прочие потребители должны использовать эту
+# константу, чтобы при смене схемы (например, префикса) не было латентного
+# расхождения.
+DB_PATH_PREFIX = "data/library"
+
+
 def db_path_for(book_id: int, filename: str) -> str:
     """Relative path stored in DB for a book file or cover.
     Resolved at serve time relative to DATA_DIR's parent (project root)."""
-    return f"data/library/{book_id}/{filename}"
+    return f"{DB_PATH_PREFIX}/{book_id}/{filename}"
 
 
 # Ensure directories exist

@@ -3,14 +3,9 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..config import LIBRARY_DIR
+from ..config import DB_PATH_PREFIX, LIBRARY_DIR
 from ..dal import books as dal
 from ..exceptions import NotFoundError
-
-# `config.db_path_for` pins this prefix for all file_path entries stored in
-# book_files. Нужно, чтобы привязать DB-путь к LIBRARY_DIR независимо от того,
-# где смонтирован DATA_DIR (в тестах DATA_DIR != PROJECT_ROOT/data).
-_DB_PATH_PREFIX = "data/library"
 
 
 @dataclass
@@ -50,7 +45,7 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     # LIBRARY_DIR — так путь работает одинаково в prod и в тестах, где
     # DATA_DIR смонтирован под другим именем.
     try:
-        rel_in_library = Path(target["file_path"]).relative_to(_DB_PATH_PREFIX)
+        rel_in_library = Path(target["file_path"]).relative_to(DB_PATH_PREFIX)
     except ValueError:
         raise NotFoundError("File not found")
     candidate = LIBRARY_DIR / rel_in_library
