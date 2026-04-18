@@ -1,10 +1,13 @@
 import logging
 import sqlite3
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends
+
 from ..auth import get_current_user
-from ..database import db_session
 from ..dal.books import get_book_by_id
 from ..dal.similar import exclude_owned
+from ..database import db_session
+from ..exceptions import NotFoundError
 from ..providers.litres import find_litres_id, fetch_similar
 
 log = logging.getLogger("librarium.similar")
@@ -12,11 +15,14 @@ router = APIRouter(tags=["similar"])
 
 
 @router.get("/api/books/{book_id}/similar")
-def get_similar(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-
+def get_similar(
+    book_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(db_session),
+):
     book = get_book_by_id(db, book_id)
     if not book:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise NotFoundError("Not found")
 
     title = book["title"]
     authors = book.get("authors") or ""

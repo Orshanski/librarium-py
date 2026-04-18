@@ -1,0 +1,51 @@
+"""Architecture tests — migrated роутеры не содержат inline HTTPException
+(кроме metadata.py:67 dynamic forward и admin.py:168 SMTP broad, которые
+documented inline per Non-goals спеки).
+
+После каждой T6-T15 таски проверяется что конкретный router — clean.
+Это регрессионная защита: случайное возвращение `raise HTTPException` в
+любой из этих файлов сразу провалит architecture test.
+"""
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+ROUTERS_DIR = BACKEND_ROOT / "app" / "routers"
+
+
+def _has_no_http_exception(path: Path) -> bool:
+    source = path.read_text(encoding="utf-8")
+    return "HTTPException" not in source
+
+
+class TestCleanRouters:
+    """Migrated routers (ноль HTTPException import или raise)."""
+
+    def test_shelves_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "shelves.py")
+
+    def test_tags_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "tags.py")
+
+    def test_authors_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "authors.py")
+
+    def test_series_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "series.py")
+
+    def test_entity_crud_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "_entity_crud.py")
+
+    def test_books_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "books.py")
+
+    def test_upload_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "upload.py")
+
+    def test_covers_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "covers.py")
+
+    def test_download_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "download.py")
+
+    def test_similar_py_clean(self):
+        assert _has_no_http_exception(ROUTERS_DIR / "similar.py")
