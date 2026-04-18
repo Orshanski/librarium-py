@@ -1,5 +1,4 @@
 """Book file download — resolve path with traversal guard."""
-import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,6 +6,11 @@ from pathlib import Path
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
 from ..exceptions import NotFoundError
+
+# `config.db_path_for` pins this prefix for all file_path entries stored in
+# book_files. Нужно, чтобы привязать DB-путь к LIBRARY_DIR независимо от того,
+# где смонтирован DATA_DIR (в тестах DATA_DIR != PROJECT_ROOT/data).
+_DB_PATH_PREFIX = "data/library"
 
 
 @dataclass
@@ -18,6 +22,11 @@ class DownloadTarget:
 
 def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> DownloadTarget:
     """Resolve file path for book download.
+
+    Использует `file_path` из `book_files` DAL row как source-of-truth — DB
+    знает настоящий путь. Раньше сервис перестраивал путь по convention
+    `LIBRARY_DIR/book_id/book.ext`, что даёт 404, если file_path в DB хоть
+    чуть-чуть расходится с конвенцией.
 
     Args:
         fmt: Format code (case-insensitive, e.g. "epub", "fb2", "pdf").
@@ -36,7 +45,16 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     if not target:
         raise NotFoundError("Format not available")
 
-    candidate = Path(LIBRARY_DIR, str(book_id), f"book.{fmt.lower()}")
+    # file_path в DB — путь вида "data/library/{book_id}/{filename}"
+    # (см. config.db_path_for). Берём часть внутри library и склеиваем с
+    # LIBRARY_DIR — так путь работает одинаково в prod и в тестах, где
+    # DATA_DIR смонтирован под другим именем.
+    try:
+        rel_in_library = Path(target["file_path"]).relative_to(_DB_PATH_PREFIX)
+    except ValueError:
+        raise NotFoundError("File not found")
+    candidate = LIBRARY_DIR / rel_in_library
+
     try:
         resolved = candidate.resolve()
         resolved.relative_to(LIBRARY_DIR.resolve())
@@ -44,10 +62,9 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
         raise NotFoundError("File not found")
     if not resolved.is_file():
         raise NotFoundError("File not found")
-    file_path = str(resolved)
 
     return DownloadTarget(
-        path=file_path,
+        path=str(resolved),
         filename=f"{book['title']}.{fmt.lower()}",
         media_type="application/octet-stream",
     )
