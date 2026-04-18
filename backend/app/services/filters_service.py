@@ -5,14 +5,14 @@ All callers pass already-normalized lists; query parsing stays in routers (parse
 """
 import sqlite3
 
-from ..dal.authors import list_author_options
-from ..dal.filters import list_language_options
-from ..dal.series import list_series_options
-from ..dal.tags import list_tag_options
+from ..dal import authors as _authors_dal
+from ..dal import filters as _filters_dal
+from ..dal import series as _series_dal
+from ..dal import tags as _tags_dal
 
 
 def build_catalog_filters(
-    user: dict,
+    user_id: int,
     *,
     author_ids: list[int] | None = None,
     tag_ids: list[int] | None = None,
@@ -24,7 +24,7 @@ def build_catalog_filters(
     Router is responsible for parsing raw query strings to typed lists
     (see routers/params.py::parse_ids).
     """
-    filters: dict = {"userId": user["userId"]}
+    filters: dict = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
@@ -36,17 +36,17 @@ def build_catalog_filters(
     return filters
 
 
-def get_author_options(db: sqlite3.Connection, filters: dict) -> dict:
-    return {"authors": list_author_options(db, filters)}
+def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+    return _authors_dal.list_author_options(db, filters)
 
 
-def get_tag_options(db: sqlite3.Connection, filters: dict) -> dict:
-    return {"tags": list_tag_options(db, filters)}
+def list_tag_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+    return _tags_dal.list_tag_options(db, filters)
 
 
-def get_series_options(db: sqlite3.Connection, filters: dict) -> dict:
-    return {"series": list_series_options(db, filters)}
+def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+    return _series_dal.list_series_options(db, filters)
 
 
-def get_language_options(db: sqlite3.Connection, filters: dict) -> dict:
-    return {"languages": list_language_options(db, filters)}
+def list_language_options(db: sqlite3.Connection, filters: dict) -> list[str]:
+    return _filters_dal.list_language_options(db, filters)

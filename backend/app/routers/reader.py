@@ -61,7 +61,7 @@ def api_get_progress(book_id: int, user: dict = Depends(get_current_user), db: s
 
 
 @router.put("/api/reader/progress/{book_id}")
-def api_save_progress(book_id: int, body: ReadingProgressBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def api_save_progress(book_id: int, body: ReadingProgressBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> dict:
     return reader_service.save_progress(
         db, user["userId"], book_id,
         body.position, body.last_device, body.last_format, body.fraction,

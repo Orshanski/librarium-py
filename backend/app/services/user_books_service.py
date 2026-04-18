@@ -9,8 +9,8 @@ def set_rating(db: sqlite3.Connection, user_id: int, book_id: int, rating: int |
 
 
 def set_read(db: sqlite3.Connection, user_id: int, book_id: int, is_read: bool) -> None:
-    dal.set_read(db, user_id, book_id, is_read)
+    dal.set_read(db, user_id, book_id, int(is_read))
 
 
 def set_hidden(db: sqlite3.Connection, user_id: int, book_id: int, is_hidden: bool) -> None:
-    dal.set_hidden(db, user_id, book_id, is_hidden)
+    dal.set_hidden(db, user_id, book_id, int(is_hidden))

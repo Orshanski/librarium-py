@@ -18,12 +18,12 @@ def author_options(
     language: str = "",
 ):
     filters = filters_service.build_catalog_filters(
-        user,
+        user["userId"],
         tag_ids=parse_ids(tagIds),
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return filters_service.get_author_options(db, filters)
+    return {"authors": filters_service.list_author_options(db, filters)}
 
 
 @router.get("/tags")
@@ -35,12 +35,12 @@ def tag_options(
     language: str = "",
 ):
     filters = filters_service.build_catalog_filters(
-        user,
+        user["userId"],
         author_ids=parse_ids(authorIds),
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return filters_service.get_tag_options(db, filters)
+    return {"tags": filters_service.list_tag_options(db, filters)}
 
 
 @router.get("/series")
@@ -52,12 +52,12 @@ def series_options(
     language: str = "",
 ):
     filters = filters_service.build_catalog_filters(
-        user,
+        user["userId"],
         author_ids=parse_ids(authorIds),
         tag_ids=parse_ids(tagIds),
         language=language or None,
     )
-    return filters_service.get_series_options(db, filters)
+    return {"series": filters_service.list_series_options(db, filters)}
 
 
 @router.get("/languages")
@@ -69,9 +69,9 @@ def language_options(
     seriesIds: str = "",
 ):
     filters = filters_service.build_catalog_filters(
-        user,
+        user["userId"],
         author_ids=parse_ids(authorIds),
         tag_ids=parse_ids(tagIds),
         series_ids=parse_ids(seriesIds),
     )
-    return filters_service.get_language_options(db, filters)
+    return {"languages": filters_service.list_language_options(db, filters)}

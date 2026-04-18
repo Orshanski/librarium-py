@@ -45,7 +45,7 @@ def list_books(
 ):
     return book_service.list_books(
         db,
-        user,
+        user["userId"],
         sort=sort,
         cursor=cursor,
         page_size=min(pageSize, 100),
