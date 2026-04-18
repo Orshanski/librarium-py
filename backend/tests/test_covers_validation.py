@@ -215,3 +215,48 @@ def test_commit_move_failure_preserves_old_cover(admin_client, db):
 
     assert (book_dir / old_cover_before).exists()
     assert (book_dir / old_cover_before).stat().st_mtime == old_mtime
+
+
+def test_commit_db_failure_preserves_old_cover_same_ext(admin_client, db):
+    """DB-failure при overwrite одноименного файла — старая обложка восстанавливается.
+
+    Сценарий: у book 2 cover.jpg (baseline). Админ загружает новый jpg — dst
+    совпадает со старым путём, `shutil.move` перетирает файл. Если затем
+    `update_cover_path` роняет → `move_with_rollback` удаляет dst целиком,
+    старая обложка должна быть восстановлена из backup'а.
+
+    Bug был обнаружен в ветке w0g: generic move_with_rollback не знает про
+    overwritten dst и удаляет всё, оставляя книгу без файла обложки, хотя
+    cover_path в БД откатится. После фикса commit делает backup старого
+    файла перед move и восстанавливает его при exception.
+    """
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    book_dir = Path(LIBRARY_DIR) / "2"
+    old_cover_before = find_cover(str(book_dir))
+    assert old_cover_before == "cover.jpg", "baseline: book 2 должен иметь cover.jpg"
+    old_content = (book_dir / old_cover_before).read_bytes()
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+
+    # Mock update_cover_path → DB failure ПОСЛЕ успешного overwrite move'а.
+    with patch(
+        "app.services.cover_service.update_cover_path",
+        side_effect=RuntimeError("simulated db failure"),
+    ):
+        with pytest.raises(RuntimeError):
+            cover_service.commit(db, book_id=2)
+
+    # Старая обложка должна быть на месте с оригинальным содержимым.
+    assert (book_dir / "cover.jpg").exists(), "старая обложка должна быть восстановлена"
+    assert (book_dir / "cover.jpg").read_bytes() == old_content, \
+        "содержимое старой обложки не должно быть затёрто новым"
+    # Backup не должен остаться на диске после rollback.
+    assert not (book_dir / "cover.jpg.bak").exists(), \
+        "bak должен быть переименован обратно в cover.jpg"

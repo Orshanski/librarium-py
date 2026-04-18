@@ -72,16 +72,36 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     src = str(UPLOADS_DIR / temp_file)
     dst = os.path.join(book_dir, f"cover.{ext}")
     old = find_cover(book_dir)
+    old_path = os.path.join(book_dir, old) if old else None
 
-    # Move + DB защищены move_with_rollback: при exception внутри with-блока
-    # dst удаляется, старая обложка остаётся на месте (она ещё не тронута).
-    with move_with_rollback(src, dst):
-        update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
+    # Если у книги уже есть обложка — сначала переименовываем её в .bak. Это
+    # снимает проблему с одноименным overwrite'ом: `shutil.move` в
+    # move_with_rollback без backup'а перетёр бы старый файл, а при
+    # последующем exception (e.g. DB-failure) `os.remove(dst)` удалил бы
+    # перетёртое содержимое целиком, оставив книгу без файла обложки.
+    # `find_cover` игнорирует *.bak, так что промежуточное состояние
+    # снаружи не видно.
+    old_bak = None
+    if old_path:
+        old_bak = f"{old_path}.bak"
+        os.rename(old_path, old_bak)
 
-    # Старая обложка удаляется ПОСЛЕ успеха move+DB: при падении move книга
-    # сохраняет старую обложку вместо того чтобы остаться без неё.
-    if old and old != f"cover.{ext}":
-        os.remove(os.path.join(book_dir, old))
+    try:
+        with move_with_rollback(src, dst):
+            update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
+    except Exception:
+        # move/DB провалились → восстанавливаем старую обложку из bak.
+        # move_with_rollback уже удалил dst если успел его создать; но если
+        # shutil.move упал при overwrite — dst может частично существовать.
+        if old_bak and os.path.exists(old_bak):
+            if os.path.exists(dst):
+                os.remove(dst)
+            os.rename(old_bak, old_path)
+        raise
+
+    # Success: старая обложка (теперь в bak) больше не нужна — удаляем.
+    if old_bak:
+        os.remove(old_bak)
 
     thumb.invalidate(book_id)
 
