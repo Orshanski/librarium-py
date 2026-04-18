@@ -2,19 +2,18 @@
 import logging
 import sqlite3
 
-from ..dal.books import get_book_by_id
-from ..dal.similar import exclude_owned
-from ..exceptions import BadInputError, ForbiddenError, NotFoundError, UpstreamError
+from ..dal import books as books_dal
+from ..dal import similar as similar_dal
+from ..exceptions import NotFoundError
 from ..providers.litres import fetch_similar, find_litres_id
 
 log = logging.getLogger("librarium.similar")
 
 _SOURCE = "litres"
-_EMPTY_OK = {"books": [], "source": _SOURCE, "error": None}
 
 
 def get_similar(db: sqlite3.Connection, book_id: int) -> dict:
-    book = get_book_by_id(db, book_id)
+    book = books_dal.get_book_by_id(db, book_id)
     if not book:
         raise NotFoundError("Not found")
 
@@ -26,13 +25,10 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> dict:
     try:
         litres_id = find_litres_id(query, title)
         if not litres_id:
-            return _EMPTY_OK
+            return {"books": [], "source": _SOURCE, "error": None}
         similar = fetch_similar(litres_id)
-        similar = exclude_owned(db, similar)
+        similar = similar_dal.exclude_owned(db, similar)
         return {"books": similar, "source": _SOURCE, "error": None}
-    except (BadInputError, ForbiddenError, NotFoundError, UpstreamError):
-        # Доменные исключения propagate к middleware (правило 4cv).
-        raise
     except Exception as e:
         # Third-party/network errors — graceful degrade (UX decision, legacy).
         log.warning("Similar books error for book_id=%d: %s", book_id, e)

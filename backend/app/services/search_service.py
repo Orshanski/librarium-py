@@ -4,7 +4,6 @@ import sqlite3
 from ..dal import books as dal
 
 _MAX_LIMIT = 100
-_EMPTY_RESULT = {"books": [], "authors": [], "series": []}
 
 
 def search(db: sqlite3.Connection, query: str, limit: int) -> dict:
@@ -15,5 +14,5 @@ def search(db: sqlite3.Connection, query: str, limit: int) -> dict:
     """
     q = query.strip()
     if not q:
-        return _EMPTY_RESULT
+        return {"books": [], "authors": [], "series": []}
     return dal.search_books(db, q, min(limit, _MAX_LIMIT))

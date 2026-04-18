@@ -2,6 +2,7 @@
 import os
 import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
@@ -16,9 +17,15 @@ class DownloadTarget:
 
 
 def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> DownloadTarget:
-    """Resolve file path for book download. Raises NotFoundError on any failure.
+    """Resolve file path for book download.
 
-    Traversal guard: realpath must remain inside LIBRARY_DIR after resolution.
+    Args:
+        fmt: Format code (case-insensitive, e.g. "epub", "fb2", "pdf").
+            Must match a format recorded in the book_files table.
+
+    Raises:
+        NotFoundError: if the book, format, or file is missing, or if the
+        resolved path escapes LIBRARY_DIR (traversal guard).
     """
     book = dal.get_book_by_id(db, book_id)
     if not book:
@@ -29,11 +36,15 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     if not target:
         raise NotFoundError("Format not available")
 
-    file_path = os.path.realpath(
-        os.path.join(str(LIBRARY_DIR), str(book_id), f"book.{fmt.lower()}")
-    )
-    if not file_path.startswith(str(LIBRARY_DIR.resolve())) or not os.path.isfile(file_path):
+    candidate = Path(LIBRARY_DIR, str(book_id), f"book.{fmt.lower()}")
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(LIBRARY_DIR.resolve())
+    except (ValueError, OSError):
         raise NotFoundError("File not found")
+    if not resolved.is_file():
+        raise NotFoundError("File not found")
+    file_path = str(resolved)
 
     return DownloadTarget(
         path=file_path,
