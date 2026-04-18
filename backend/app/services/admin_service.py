@@ -8,8 +8,8 @@ from ..exceptions import BadInputError
 
 log = logging.getLogger("librarium.admin")
 
-ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
-SMTP_PASS_MASK = "••••••"
+_ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
+_SMTP_PASS_MASK = "••••••"
 
 
 # --- Users ---
@@ -46,17 +46,17 @@ def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:
 def get_settings(db: sqlite3.Connection) -> dict:
     result = settings_dal.get_all_settings(db)
     if result.get("smtp_pass"):
-        result["smtp_pass"] = SMTP_PASS_MASK
+        result["smtp_pass"] = _SMTP_PASS_MASK
     return result
 
 
 def update_settings(db: sqlite3.Connection, data: dict, actor_id: int) -> None:
     # Don't overwrite real password with mask shown in UI
-    if data.get("smtp_pass") == SMTP_PASS_MASK:
+    if data.get("smtp_pass") == _SMTP_PASS_MASK:
         del data["smtp_pass"]
     changed = []
     for key, value in data.items():
-        if key in ALLOWED_SETTINGS:
+        if key in _ALLOWED_SETTINGS:
             settings_dal.set_setting(db, key, value)
             changed.append(key)
     if changed:

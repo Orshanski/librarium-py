@@ -16,9 +16,9 @@ def _has_no_http_exception(path: Path) -> bool:
     """Проверяет что файл не содержит `raise HTTPException` — именно raise-site,
     а не импорт или строковое упоминание в docstring/comment.
 
-    `raise HTTPException(...)` — inline mapping паттерн, который мы мигрируем.
-    Файл может импортировать HTTPException (например, admin.py всё ещё имеет
-    его для SMTP handler'а), но не должен raise-ить из migrated endpoint'ов.
+    `raise HTTPException(...)` — inline mapping паттерн. Файл может импортировать
+    HTTPException по любым причинам, но не должен raise-ить из migrated endpoint'ов.
+    Актуально только для `metadata.py` (dynamic forward), см. TestPartiallyCleanRouters.
     """
     source = path.read_text(encoding="utf-8")
     return "raise HTTPException" not in source

@@ -28,7 +28,10 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     """Validate image and save as temp cover.
 
     Returns temp cover URL path.
-    Raises ValueError on invalid image.
+
+    Raises:
+      NotFoundError: if book doesn't exist
+      BadInputError: if image is unsupported format or corrupted
     """
     if not books_dal.book_exists(db, book_id):
         raise NotFoundError("Book not found")
@@ -147,8 +150,7 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
     Returns thumb path on success, or None on any failure. Caller (router)
     decides fallback (e.g. serve full cover when thumb generation failed).
     """
-    from .thumb import THUMBS_DIR
-    thumb_path = str(THUMBS_DIR / f"{book_id}.jpg")
+    thumb_path = str(thumb.THUMBS_DIR / f"{book_id}.jpg")
     try:
         if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
             return thumb_path
@@ -168,8 +170,8 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
         finally:
             converted.close()
         return thumb_path
-    except Exception:
-        log.warning("Failed to generate thumbnail for book=%d", book_id)
+    except Exception as e:
+        log.warning("Failed to generate thumbnail for book=%d: %s", book_id, e)
         return None
 
 

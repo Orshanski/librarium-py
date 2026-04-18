@@ -19,7 +19,7 @@ from ..exceptions import BadInputError, UpstreamError
 
 log = logging.getLogger("librarium.mail")
 
-# services/ → app/ → librarium-py/ → frontend/public/logo.png
+# services/ → app/ → backend/ → librarium-py/ → frontend/public/logo.png
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 _LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "public" / "logo.png"
 
@@ -80,5 +80,5 @@ def send_test_email(db: sqlite3.Connection, user_id: int) -> None:
         if server:
             try:
                 server.quit()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("SMTP quit failed: %s", e)
