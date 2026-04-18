@@ -147,7 +147,9 @@ class TestCoverEdgeCases:
         assert data == {"ok": True}
 
     def test_temp_preview_non_alphanumeric_id(self, reader_client):
-        assert_error(reader_client.get("/api/uploads/cover/abc-def_!@#"), 400)
+        """После T11: Path(pattern=r'^[a-zA-Z0-9]{1,20}$') → 422 ValidationError."""
+        resp = reader_client.get("/api/uploads/cover/abc-def_!@#")
+        assert resp.status_code == 422
 
     def test_oversized_cover_rejected(self, admin_client):
         with patch("app.routers.covers.MAX_COVER_SIZE", 100):
