@@ -142,10 +142,10 @@ class TestCoverEdgeCases:
     def test_commit_nonexistent_book(self, admin_client):
         assert_error(admin_client.put("/api/books/999/cover"), 404)
 
-    def test_commit_without_upload_is_noop(self, admin_client):
+    def test_commit_without_upload_returns_400(self, admin_client):
+        """PUT /cover без предшествующего POST — теперь honest 400 (было silent 200)."""
         resp = admin_client.put("/api/books/1/cover")
-        data = assert_ok(resp)
-        assert data == {"ok": True}
+        assert_error(resp, 400)
 
     def test_temp_preview_non_alphanumeric_id(self, reader_client):
         """После T11: Path(pattern=r'^[a-zA-Z0-9]{1,20}$') → 422 ValidationError."""
