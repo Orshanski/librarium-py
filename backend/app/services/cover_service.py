@@ -10,6 +10,7 @@ from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
 from ..cover_embedder import embed_cover
 from ..dal.books import get_book_by_id, update_cover_path
 from ..exceptions import BadInputError
+from ..fs_utils import move_with_rollback
 from . import thumb
 
 log = logging.getLogger("librarium.covers")
@@ -70,25 +71,28 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     ext = temp_file.rsplit(".", 1)[-1]
     src = str(UPLOADS_DIR / temp_file)
     dst = os.path.join(book_dir, f"cover.{ext}")
-
-    # Remove old cover
     old = find_cover(book_dir)
-    if old:
+
+    # Move + DB защищены move_with_rollback: при exception внутри with-блока
+    # dst удаляется, старая обложка остаётся на месте (она ещё не тронута).
+    with move_with_rollback(src, dst):
+        update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
+
+    # Старая обложка удаляется ПОСЛЕ успеха move+DB: при падении move книга
+    # сохраняет старую обложку вместо того чтобы остаться без неё.
+    if old and old != f"cover.{ext}":
         os.remove(os.path.join(book_dir, old))
 
-    # Move temp → library
-    os.rename(src, dst)
-
-    # Update DB
-    update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
-
-    # Invalidate thumb
     thumb.invalidate(book_id)
 
-    # Embed cover into book files (best-effort)
+    # Embed cover into book files (best-effort).
     try:
         embed_cover(db, book_id)
     except Exception as e:
+        # Широкий catch сохраняется: основной commit уже прошёл (move+DB
+        # закоммичены), embed это best-effort проход по book-файлам
+        # (FB2/EPUB cover embed). Сужение до конкретных типов — отдельная
+        # задача error-handling, не DRY-консолидации.
         log.warning("Failed to embed cover into book files: %s", e)
 
     return True

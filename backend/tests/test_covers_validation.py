@@ -180,3 +180,36 @@ class TestCoverEdgeCases:
         preview = admin_client.get("/api/uploads/cover/2")
         assert preview.status_code == 200
         assert preview.content == second_jpeg
+
+
+def test_commit_move_failure_preserves_old_cover(admin_client, db):
+    """При падении move во время commit старая обложка на диске сохраняется.
+
+    Baseline: book 2 имеет cover.jpg. После T1 в cover_service.commit порядок
+    действий: move+DB в move_with_rollback → удаление старой обложки только
+    после успеха. Мокаем move на OSError → проверяем что старая обложка цела.
+    """
+    import pytest
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    book_dir = Path(LIBRARY_DIR) / "2"
+    old_cover_before = find_cover(str(book_dir))
+    assert old_cover_before is not None, "baseline должен иметь старую обложку у book 2"
+    old_mtime = (book_dir / old_cover_before).stat().st_mtime
+
+    # Загрузить temp cover через реальный API.
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+
+    # Мокаем move на OSError — commit должен упасть, старая обложка сохраниться.
+    with patch("app.fs_utils.shutil.move", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            cover_service.commit(db, book_id=2)
+
+    assert (book_dir / old_cover_before).exists()
+    assert (book_dir / old_cover_before).stat().st_mtime == old_mtime
