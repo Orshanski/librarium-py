@@ -20,7 +20,7 @@ from .book_file_writer import (
 )
 from .entity_resolver import resolve_authors, resolve_tags, resolve_series
 from .temp_cleanup import (
-    cleanup_temp_session, find_temp_covers, find_temp_file,
+    cleanup_old_uploads, cleanup_temp_session, find_temp_covers, find_temp_file,
 )
 
 log = logging.getLogger("librarium.upload")
@@ -68,6 +68,9 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
     temp_id = str(uuid.uuid4())[:8]
     filename_hint = filename
     temp_artifacts: list[str] = []
+
+    # Self-healing orphan GC: снести старые temp'ы до того как положим свои.
+    cleanup_old_uploads()
 
     try:
         # ZIP extraction
