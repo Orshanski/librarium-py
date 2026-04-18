@@ -12,6 +12,8 @@ def move_with_rollback(src: str, dst: str) -> Iterator[str]:
     Использует shutil.move — работает cross-filesystem (fallback copy+delete),
     в отличие от os.rename, который падает с Invalid cross-device link.
     """
+    # Если move сам бросает — exception пробрасывается наверх без rollback:
+    # dst не создан, откатывать нечего.
     shutil.move(src, dst)
     try:
         yield dst

@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from PIL import Image
 
 from tests._helpers import assert_error, assert_ok
@@ -185,11 +186,12 @@ class TestCoverEdgeCases:
 def test_commit_move_failure_preserves_old_cover(admin_client, db):
     """При падении move во время commit старая обложка на диске сохраняется.
 
-    Baseline: book 2 имеет cover.jpg. После T1 в cover_service.commit порядок
-    действий: move+DB в move_with_rollback → удаление старой обложки только
-    после успеха. Мокаем move на OSError → проверяем что старая обложка цела.
+    Используется book_id=2: baseline seed даёт ему cover.jpg (см. seed.py:76);
+    book_id=1 обложки не имеет, для этого теста не подходит. После T1
+    cover_service.commit делает move+DB внутри move_with_rollback, старая
+    обложка удаляется только после успеха. Мокаем move на OSError →
+    проверяем что старая обложка цела и её mtime не изменился.
     """
-    import pytest
     from app.config import LIBRARY_DIR
     from app.services import cover_service
     from app.services.cover_service import find_cover

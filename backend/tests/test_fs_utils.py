@@ -40,6 +40,21 @@ class TestMoveWithRollback:
         for dst in dsts:
             assert not dst.exists()
 
+    def test_move_itself_fails_no_rollback(self, tmp_path, monkeypatch):
+        """Если shutil.move сам бросает (источник не существует, permission и т.п.),
+        exception пробрасывается наверх без rollback — dst не создан."""
+        from app import fs_utils
+
+        def boom(src, dst):
+            raise OSError("move failed")
+
+        monkeypatch.setattr(fs_utils.shutil, "move", boom)
+        dst = tmp_path / "dst.txt"
+        with pytest.raises(OSError, match="move failed"):
+            with move_with_rollback("/nonexistent", str(dst)):
+                pass
+        assert not dst.exists()
+
 
 class TestWriteWithRollback:
     def test_happy_write(self, tmp_path):
