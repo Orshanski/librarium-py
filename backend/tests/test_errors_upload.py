@@ -29,3 +29,16 @@ def test_reader_cannot_create_book(reader_client):
     resp = reader_client.post("/api/books/create",
                               json={"tempId": "abc", "metadata": {}})
     assert_error(resp, 403)
+
+
+def test_delete_temp_invalid_pattern_is_422(admin_client):
+    """После T10: Path(pattern=r'^[a-zA-Z0-9]{1,20}$') → 422 ValidationError
+    на нелегальные символы в temp_id."""
+    resp = admin_client.delete("/api/uploads/bad!@#id")
+    assert resp.status_code == 422
+
+
+def test_delete_temp_too_long_is_422(admin_client):
+    """Pattern ограничивает temp_id 20 символами."""
+    resp = admin_client.delete("/api/uploads/" + "a" * 21)
+    assert resp.status_code == 422

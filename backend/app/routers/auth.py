@@ -4,7 +4,7 @@ import sqlite3
 import time
 from collections import defaultdict
 
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -12,6 +12,7 @@ from ..auth import verify_password, create_token, get_current_user, get_client_i
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
 from ..dal import users as users_dal
+from ..exceptions import AuthError, RateLimitError
 
 log = logging.getLogger("librarium.auth")
 
@@ -61,14 +62,14 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
     ip = get_client_ip(request)
     if not _check_rate_limit(ip):
         log.warning("Login RATE LIMITED ip=%s", ip)
-        raise HTTPException(status_code=429, detail="Too many login attempts, try again later")
+        raise RateLimitError("Too many login attempts, try again later")
 
     user = users_dal.get_user_by_username(db, body.username)
 
     if not user or not verify_password(body.password, user["password_hash"]):
         _record_attempt(ip)
         log.warning("Login FAILED user=%s ip=%s", body.username, ip)
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise AuthError("Invalid credentials")
 
     _clear_attempts(ip)
     log.info("Login OK user=%s ip=%s", user["username"], ip)
@@ -96,7 +97,7 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
 def me(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     db_user = users_dal.get_user_by_id(db, user["userId"])
     if not db_user:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise AuthError("User not found")
     return {
         "id": db_user["id"],
         "username": db_user["username"],

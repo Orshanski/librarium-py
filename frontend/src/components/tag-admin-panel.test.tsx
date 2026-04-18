@@ -105,7 +105,18 @@ describe("TagAdminPanel", () => {
         HttpResponse.json({ tags: [] }),
       ),
       http.put("/api/tags/:id/map", () =>
-        HttpResponse.json({ detail: "Name required" }, { status: 400 }),
+        HttpResponse.json(
+          {
+            detail: [
+              {
+                loc: ["body", "name"],
+                msg: "String should have at least 1 character",
+                type: "string_too_short",
+              },
+            ],
+          },
+          { status: 422 },
+        ),
       ),
     );
 
@@ -120,8 +131,10 @@ describe("TagAdminPanel", () => {
     await user.click(screen.getByRole("button", { name: /Сопоставить/ }));
 
     // Inline error visible — aria role="alert".
+    // 422 from backend → frontend raises ValidationError with default
+    // message "Validation failed" (see api/errors.ts:45).
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/name required|не удалось/i);
+    expect(alert).toHaveTextContent(/validation failed/i);
     expect(onMapped).not.toHaveBeenCalled();
   });
 

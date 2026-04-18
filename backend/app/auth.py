@@ -3,9 +3,10 @@ from typing import Any
 
 import bcrypt
 import jwt
-from fastapi import Request, HTTPException
+from fastapi import Request
 
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
+from .exceptions import AuthError, ForbiddenError
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -34,13 +35,13 @@ def decode_token(token: str) -> dict[str, Any]:
 def get_current_user(request: Request) -> dict[str, Any]:
     token = request.cookies.get(COOKIE_NAME)
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise AuthError("Not authenticated")
     try:
         payload = decode_token(token)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise AuthError("Token expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise AuthError("Invalid token")
     if token_needs_refresh(payload):
         request.state._refresh_token = True
         request.state._refresh_user_id = payload["userId"]
@@ -70,5 +71,5 @@ def get_client_ip(request: Request) -> str:
 def require_admin(request: Request) -> dict[str, Any]:
     user = get_current_user(request)
     if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise ForbiddenError("Admin access required")
     return user

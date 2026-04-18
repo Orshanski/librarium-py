@@ -1,12 +1,9 @@
 #!/bin/bash
-# Claude Code pre-push hook: audit and auto-fix security vulnerabilities.
-# Runs only when the Bash command is "git push ...".
-
-input=$(cat)
-cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
-
-# Only act on git push
-echo "$cmd" | grep -qE '^git push' || exit 0
+# Git pre-push hook: audit and auto-fix security vulnerabilities.
+# Blocks push if high-severity vulnerabilities remain after auto-fix.
+#
+# Install (для новых клонов репо):
+#   ln -sf ../../scripts/security-audit.sh .git/hooks/pre-push
 
 REPO=$(git rev-parse --show-toplevel)
 FAILED=0
@@ -35,5 +32,8 @@ if [ -f "$REPO/frontend/package.json" ]; then
 fi
 
 if [ "$FAILED" -ne 0 ]; then
-    echo '{"decision":"block","reason":"Unfixable security vulnerabilities found. Fix them before pushing."}'
+    echo "❌ Unfixable security vulnerabilities found. Fix them before pushing." >&2
+    exit 1
 fi
+
+exit 0

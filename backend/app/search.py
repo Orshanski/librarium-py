@@ -1,9 +1,6 @@
 """Shared fuzzy search toolkit.
 
 Custom rapidfuzz-backed scorer for UI search (books, authors, series).
-Provider-matching / duplicate detection lives in its own workflow
-(see bead librarium-py-7o2) and will reuse `search_preprocess` when
-ready.
 """
 from rapidfuzz import utils
 from rapidfuzz.distance import Indel

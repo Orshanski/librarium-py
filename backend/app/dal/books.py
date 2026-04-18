@@ -180,7 +180,8 @@ def search_books(db: sqlite3.Connection, query: str, limit=50):
     response tight, matching the pre-fuzzy behaviour.
 
     `find_duplicates_by_title` (upload dedup) and provider matching
-    are deliberately out of scope — see bead librarium-py-7o2.
+    are deliberately out of scope — они используют простой LIKE-match,
+    fuzzy-migration планируется отдельно.
     """
     q = (query or "").strip()
     if not q:
@@ -288,9 +289,8 @@ def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, valu
 def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[dict]:
     # Still on LIKE intentionally — upload dedup lives with provider
     # matching (Google Books / Литрес author & series reconciliation),
-    # tracked separately as librarium-py-7o2. When that ships, this
-    # function migrates to rapidfuzz with a stricter score_cutoff
-    # (~85) and reuses search_preprocess from app.search.
+    # миграция на rapidfuzz со стриктным score_cutoff (~85) и reuse
+    # search_preprocess из app.search запланирована отдельно.
     escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped}%"
     rows = db.execute("""

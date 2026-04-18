@@ -9,6 +9,7 @@ from PIL import Image
 from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
 from ..cover_embedder import embed_cover
 from ..dal.books import get_book_by_id, update_cover_path
+from ..exceptions import BadInputError
 from . import thumb
 
 log = logging.getLogger("librarium.covers")
@@ -30,12 +31,12 @@ def upload_temp(book_id: int, content: bytes, ext: str) -> str:
         img = Image.open(io.BytesIO(content))
         fmt = (img.format or "").upper()
         if fmt not in _ALLOWED_IMAGE_FORMATS:
-            raise ValueError(f"Неподдерживаемый формат: {fmt or 'unknown'}")
+            raise BadInputError(f"Неподдерживаемый формат: {fmt or 'unknown'}")
         img.load()
-    except ValueError:
+    except BadInputError:
         raise
     except Exception:
-        raise ValueError("Файл не является изображением или повреждён")
+        raise BadInputError("Файл не является изображением или повреждён")
 
     # Clean old temp covers for this book
     for old in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):

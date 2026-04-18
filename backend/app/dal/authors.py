@@ -1,5 +1,6 @@
 import sqlite3
 from ..database import dicts_from_rows, dict_from_row
+from ..exceptions import BadInputError, NotFoundError
 from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
@@ -91,13 +92,17 @@ def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int):
     db.execute("DELETE FROM authors WHERE id = :source", {"source": source_id})
 
 
-def delete_author(db: sqlite3.Connection, author_id: int) -> str | None:
-    """Удаляет автора. Возвращает None если удален, иначе причину ошибки."""
+def delete_author(db: sqlite3.Connection, author_id: int) -> None:
+    """Удаляет автора.
+
+    Raises:
+        NotFoundError: если автор не существует.
+        BadInputError: если у автора есть книги (каскадное удаление запрещено).
+    """
     exists = db.execute("SELECT 1 FROM authors WHERE id = :id", {"id": author_id}).fetchone()
     if not exists:
-        return "not_found"
+        raise NotFoundError("Автор не найден")
     count = db.execute("SELECT COUNT(*) as c FROM book_authors WHERE author_id = :id", {"id": author_id}).fetchone()["c"]
     if count > 0:
-        return "has_books"
+        raise BadInputError("Нельзя удалить автора с книгами")
     db.execute("DELETE FROM authors WHERE id = :id", {"id": author_id})
-    return None

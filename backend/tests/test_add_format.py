@@ -110,8 +110,9 @@ def test_delete_format(admin_client):
 
 
 def test_delete_format_missing_param(admin_client):
+    """После T9: Pydantic Query(..., min_length=1) → 422 RequestValidationError."""
     resp = admin_client.delete("/api/books/1/files")
-    assert_error(resp, 400, message_matches="format required")
+    assert resp.status_code == 422
 
 
 def test_delete_format_nonexistent(admin_client):
