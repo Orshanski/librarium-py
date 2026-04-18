@@ -262,14 +262,17 @@ describe("AdminPage", () => {
       });
     });
 
-    it("error path: smtp-test 400 shows error message", async () => {
+    it("error path: smtp-test 500 shows error message", async () => {
       setupDefaultHandlers();
       const user = userEvent.setup();
 
       server.use(
         http.put("/api/admin/settings", () => HttpResponse.json({ ok: true })),
         http.post("/api/admin/smtp-test", () =>
-          HttpResponse.json({ detail: "Connection refused" }, { status: 400 })
+          HttpResponse.json(
+            { detail: "Не удалось отправить тестовое письмо" },
+            { status: 500 }
+          )
         )
       );
 
@@ -279,7 +282,9 @@ describe("AdminPage", () => {
       await user.click(screen.getByRole("button", { name: "Проверить подключение" }));
 
       await waitFor(() => {
-        expect(screen.getByText("Connection refused")).toBeInTheDocument();
+        expect(
+          screen.getByText("Не удалось отправить тестовое письмо")
+        ).toBeInTheDocument();
       });
     });
   });

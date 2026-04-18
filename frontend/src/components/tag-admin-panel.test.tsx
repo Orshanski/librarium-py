@@ -131,8 +131,10 @@ describe("TagAdminPanel", () => {
     await user.click(screen.getByRole("button", { name: /Сопоставить/ }));
 
     // Inline error visible — aria role="alert".
+    // 422 from backend → frontend raises ValidationError with default
+    // message "Validation failed" (see api/errors.ts:45).
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/validation failed|не удалось/i);
+    expect(alert).toHaveTextContent(/validation failed/i);
     expect(onMapped).not.toHaveBeenCalled();
   });
 
