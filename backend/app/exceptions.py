@@ -24,7 +24,7 @@ class ConflictError(FileExistsError):
 
 
 class ForbiddenError(PermissionError):
-    """Access denied доменной политикой. → 403.
+    """Access denied доменной политикой (SSRF whitelist, etc.). → 403.
 
     Отличается от AuthError: ForbiddenError — 'знаю кто ты, нельзя',
     AuthError — 'не знаю кто ты' / 'токен невалиден'.

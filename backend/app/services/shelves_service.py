@@ -1,13 +1,24 @@
 """Service-layer для shelves: raise NotFoundError на отсутствующие shelves."""
 import sqlite3
+from typing import TypedDict
 
 from ..dal import shelves as dal
 from ..exceptions import NotFoundError
 
 
-def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> dict:
+class _BookShelfEntry(TypedDict):
+    id: int
+    has_book: bool
+
+
+class ShelvesList(TypedDict, total=False):
+    shelves: list[dict]
+    bookShelves: list[_BookShelfEntry]
+
+
+def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> ShelvesList:
     shelves = dal.get_shelves(db, user_id)
-    result: dict = {"shelves": shelves}
+    result: ShelvesList = {"shelves": shelves}
     if book_id is not None:
         on_shelf_ids = dal.get_book_shelf_ids(db, book_id, user_id)
         result["bookShelves"] = [

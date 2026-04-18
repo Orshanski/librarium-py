@@ -81,6 +81,11 @@ def app_with_handlers():
 
 @pytest.fixture
 def client(app_with_handlers):
+    # raise_server_exceptions=False: TestClient по умолчанию re-raise'ит серверные
+    # 500-errors в test-коде (удобно для стектрейса). Здесь нам надо именно
+    # проверить что unhandled ValueError/LookupError/KeyError становятся HTTP 500
+    # через generic Exception handler (см. TestHandlerIsolation) — для этого
+    # нужен обычный response object, не exception.
     return TestClient(app_with_handlers, raise_server_exceptions=False)
 
 
