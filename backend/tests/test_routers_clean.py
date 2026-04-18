@@ -119,6 +119,24 @@ class TestServiceLayerDiscipline:
     def test_admin_router_uses_only_service(self):
         assert _has_no_direct_dal_import(ROUTERS_DIR / "admin.py")
 
+    def test_no_direct_dal_import_in_any_router(self):
+        """Meta-check: grep all router files for `from ..dal`. Catches new routers
+        added without accompanying TestServiceLayerDiscipline entry.
+
+        Exceptions:
+          - `__init__.py`, `_entity_crud.py`, `_validators.py`, `params.py` — helpers, not endpoints
+          - `metadata.py` — uses providers, not DAL; DAL imports prohibited by the global rule already
+        """
+        exceptions = {"__init__.py", "_entity_crud.py", "_validators.py", "params.py"}
+        offending = []
+        for f in ROUTERS_DIR.glob("*.py"):
+            if f.name in exceptions:
+                continue
+            source = f.read_text(encoding="utf-8")
+            if "from ..dal" in source:
+                offending.append(f.name)
+        assert not offending, f"Routers with direct DAL import: {offending}"
+
 
 class TestValidatorsCentralized:
     """Reusable Pydantic validators вынесены в _validators.py — роутеры
