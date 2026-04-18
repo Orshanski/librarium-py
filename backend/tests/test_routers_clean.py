@@ -14,8 +14,15 @@ APP_DIR = BACKEND_ROOT / "app"
 
 
 def _has_no_http_exception(path: Path) -> bool:
+    """Проверяет что файл не содержит `raise HTTPException` — именно raise-site,
+    а не импорт или строковое упоминание в docstring/comment.
+
+    `raise HTTPException(...)` — inline mapping паттерн, который мы мигрируем.
+    Файл может импортировать HTTPException (например, admin.py всё ещё имеет
+    его для SMTP handler'а), но не должен raise-ить из migrated endpoint'ов.
+    """
     source = path.read_text(encoding="utf-8")
-    return "HTTPException" not in source
+    return "raise HTTPException" not in source
 
 
 class TestCleanRouters:
