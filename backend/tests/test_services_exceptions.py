@@ -112,6 +112,60 @@ class TestBookServiceRaises:
             book_service.delete_book(db, 999999)
 
 
+# ---------- T9: book_service.get_book / update_book ----------
+
+
+class TestBookServiceGetBook:
+    def test_missing_book_raises_not_found(self, db):
+        with pytest.raises(NotFoundError, match="Not found"):
+            book_service.get_book(db, 999999, user_id=1)
+
+    def test_existing_book_returns_full_dict(self, db):
+        """Baseline: book 1 existing — возвращает dict с book/files/identifiers keys."""
+        result = book_service.get_book(db, 1, user_id=1)
+        assert "book" in result
+        assert "files" in result
+        assert "identifiers" in result
+
+
+class TestBookServiceUpdateBook:
+    def test_missing_book_raises_not_found(self, db):
+        with pytest.raises(NotFoundError, match="Book not found"):
+            book_service.update_book(db, 999999, {"title": "whatever"})
+
+    def test_update_existing_book_without_resolves(self, db):
+        """Simple field update — без resolve_*."""
+        book_service.update_book(db, 1, {"description": "Updated description"})
+        row = db.execute("SELECT description FROM books WHERE id=1").fetchone()
+        assert row["description"] == "Updated description"
+
+    def test_update_resolves_authorids_from_string(self, db):
+        """authorIds='New Author' — resolve внутри service создаёт нового автора
+        и обновляет привязку книги."""
+        book_service.update_book(db, 1, {"authorIds": "Totally New Author T9"})
+        rows = db.execute(
+            "SELECT a.name FROM authors a JOIN book_authors ba ON ba.author_id=a.id WHERE ba.book_id=1"
+        ).fetchall()
+        names = [r["name"] for r in rows]
+        assert "Totally New Author T9" in names
+
+    def test_update_resolves_tagids_from_string(self, db):
+        book_service.update_book(db, 1, {"tagIds": "BrandNewTagT9"})
+        rows = db.execute(
+            "SELECT t.name FROM tags t JOIN book_tags bt ON bt.tag_id=t.id WHERE bt.book_id=1"
+        ).fetchall()
+        names = [r["name"] for r in rows]
+        assert "BrandNewTagT9" in names
+
+    def test_update_resolves_series_from_string(self, db):
+        book_service.update_book(db, 1, {"seriesId": "Brand New Series T9"})
+        row = db.execute(
+            "SELECT s.name FROM series s JOIN books b ON b.series_id=s.id WHERE b.id=1"
+        ).fetchone()
+        assert row is not None
+        assert row["name"] == "Brand New Series T9"
+
+
 # ---------- T3: cover_service migration ----------
 
 

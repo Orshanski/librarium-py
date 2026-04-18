@@ -8,6 +8,7 @@ from ..config import LIBRARY_DIR, db_path_for
 from ..dal import books as dal
 from ..exceptions import ConflictError, NotFoundError
 from . import thumb
+from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .upload_service import maybe_linearize
 
 log = logging.getLogger("librarium.books")
@@ -89,3 +90,29 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
         thumb.invalidate(book_id)
     except OSError:
         log.warning("Failed to remove thumb for book %d", book_id)
+
+
+def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> dict:
+    """Get book with files and identifiers. Raises NotFoundError если не существует."""
+    book = dal.get_book_by_id(db, book_id, user_id)
+    if not book:
+        raise NotFoundError("Not found")
+    files = dal.get_book_files(db, book_id)
+    identifiers = dal.get_book_identifiers(db, book_id)
+    return {"book": book, "files": files, "identifiers": identifiers}
+
+
+def update_book(db: sqlite3.Connection, book_id: int, data: dict) -> None:
+    """Update book fields. Resolves authorIds/tagIds/seriesId raw input to IDs
+    (creates entities if missing). Raises NotFoundError если книга не существует."""
+    if not dal.book_exists(db, book_id):
+        raise NotFoundError("Book not found")
+
+    if "authorIds" in data:
+        data["authorIds"] = resolve_authors(db, data["authorIds"])
+    if "tagIds" in data:
+        data["tagIds"] = resolve_tags(db, data["tagIds"])
+    if "seriesId" in data:
+        data["seriesId"] = resolve_series(db, data["seriesId"])
+
+    dal.update_book(db, book_id, data)

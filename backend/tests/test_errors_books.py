@@ -43,9 +43,10 @@ def test_get_nonexistent_book_is_404(reader_client):
 
 # --- 400 paths (validation) ---
 
-def test_delete_file_without_format_param_is_400(admin_client):
+def test_delete_file_without_format_param_is_422(admin_client):
+    """После T9: Pydantic Query(min_length=1) → 422 ValidationError."""
     resp = admin_client.delete("/api/books/1/files")
-    assert_error(resp, 400, message_matches="format required")
+    assert resp.status_code == 422
 
 
 def test_upload_unsupported_format_to_book_is_400(admin_client):
