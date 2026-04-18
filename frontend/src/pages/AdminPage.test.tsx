@@ -262,7 +262,7 @@ describe("AdminPage", () => {
       });
     });
 
-    it("error path: smtp-test 500 shows error message", async () => {
+    it("error path: smtp-test 502 shows error message", async () => {
       setupDefaultHandlers();
       const user = userEvent.setup();
 
@@ -271,7 +271,7 @@ describe("AdminPage", () => {
         http.post("/api/admin/smtp-test", () =>
           HttpResponse.json(
             { detail: "Не удалось отправить тестовое письмо" },
-            { status: 500 }
+            { status: 502 }
           )
         )
       );

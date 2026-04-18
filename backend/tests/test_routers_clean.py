@@ -1,6 +1,5 @@
 """Architecture tests — migrated роутеры не содержат inline HTTPException
-(кроме metadata.py:101 dynamic forward и admin.py:169 SMTP broad, которые
-documented inline per Non-goals спеки).
+(кроме metadata.py:101 dynamic forward, которые documented inline per Non-goals спеки).
 
 После каждой T6-T15 таски проверяется что конкретный router — clean.
 Это регрессионная защита: случайное возвращение `raise HTTPException` в
@@ -73,6 +72,10 @@ class TestCleanRouters:
         Не router, но часть request-handling chain — должен быть clean."""
         assert _has_no_http_exception(APP_DIR / "auth.py")
 
+    def test_admin_has_no_http_exception(self):
+        """admin.py полностью clean после T14 — SMTP в mail_service."""
+        assert _has_no_http_exception(ROUTERS_DIR / "admin.py")
+
 
 class TestServiceLayerDiscipline:
     """Router → service → DAL: router не импортирует DAL напрямую."""
@@ -113,6 +116,9 @@ class TestServiceLayerDiscipline:
     def test_auth_router_uses_only_service(self):
         assert _has_no_direct_dal_import(ROUTERS_DIR / "auth.py")
 
+    def test_admin_router_uses_only_service(self):
+        assert _has_no_direct_dal_import(ROUTERS_DIR / "admin.py")
+
 
 class TestValidatorsCentralized:
     """Reusable Pydantic validators вынесены в _validators.py — роутеры
@@ -140,15 +146,8 @@ class TestPartiallyCleanRouters:
     """Routers с одним documented inline HTTPException (остальные — middleware).
 
     Per Non-goals спеки:
-      - admin.py:169 SMTP broad exception — остаётся inline.
       - metadata.py:101 dynamic forward — остаётся inline.
     """
-
-    def test_admin_has_only_smtp_exception(self):
-        """admin.py содержит ровно 1 'raise HTTPException' (SMTP test endpoint)."""
-        source = (ROUTERS_DIR / "admin.py").read_text(encoding="utf-8")
-        count = source.count("raise HTTPException")
-        assert count == 1, f"Expected 1 HTTPException (SMTP), got {count}"
 
     def test_metadata_has_only_dynamic_forward(self):
         """metadata.py содержит ровно 1 'raise HTTPException' — line 67
