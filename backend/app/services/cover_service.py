@@ -3,8 +3,10 @@ import io
 import logging
 import os
 import sqlite3
+import zipfile
 from pathlib import Path
 
+from lxml import etree
 from PIL import Image
 
 from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
@@ -20,6 +22,17 @@ log = logging.getLogger("librarium.covers")
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 _THUMB_HEIGHT = 300
+
+# Legitimate best-effort failure modes для embed_cover: FS I/O, повреждённые
+# архивы / XML, domain-ограничения (FB2 без title-info). Программные баги
+# (AttributeError, TypeError, ValueError и т.д.) НЕ маскируются — падают наверх.
+_EMBED_BEST_EFFORT_EXCEPTIONS = (
+    OSError,
+    zipfile.BadZipFile,
+    zipfile.LargeZipFile,
+    etree.XMLSyntaxError,
+    BadInputError,
+)
 
 Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
 
@@ -116,13 +129,13 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     thumb.invalidate(book_id)
 
     # Embed cover into book files (best-effort).
+    # Catch только легитимные failure modes: FS-ошибки, corrupt archive/XML,
+    # FB2 без title-info. Программные баги (AttributeError, TypeError etc.)
+    # пропускаем наверх — основной commit уже прошёл, но внезапная
+    # AttributeError должна падать в логи stack-trace'ом, не тихо warning'ом.
     try:
         embed_cover(db, book_id)
-    except Exception as e:
-        # Широкий catch сохраняется: основной commit уже прошёл (move+DB
-        # закоммичены), embed это best-effort проход по book-файлам
-        # (FB2/EPUB cover embed). Сужение до конкретных типов — отдельная
-        # задача error-handling, не DRY-консолидации.
+    except _EMBED_BEST_EFFORT_EXCEPTIONS as e:
         log.warning("Failed to embed cover into book files: %s", e)
 
     return True
