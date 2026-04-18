@@ -5,7 +5,7 @@ from tests._helpers import assert_error
 def test_login_rate_limit_returns_429(anon_client):
     """5 failed attempts from one IP → 6th returns 429."""
     # Clear shared state (rate-limiter is a module-level global)
-    from app.routers.auth import _login_attempts
+    from app.services.auth_service import _login_attempts
     _login_attempts.clear()
 
     for _ in range(5):
