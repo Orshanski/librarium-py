@@ -2,31 +2,28 @@ import asyncio
 import logging
 import os
 import re
-import shutil
 import sqlite3
 import uuid
 import zipfile
+from contextlib import ExitStack
 
-from ..config import UPLOADS_DIR, LIBRARY_DIR, MAX_BOOK_SIZE, db_path_for
-from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
+from ..exceptions import BadInputError
+from ..fs_utils import move_with_rollback
 from ..parsers import parse_book
 from ..enrichers import enrich_metadata, resolve_genres
-from ..pdf_linearize import linearize_pdf_in_place
 from ..dal.books import (
-    create_book as dal_create_book, add_book_file, update_cover_path,
-    add_book_identifier, book_exists, book_file_exists, find_duplicates_by_title,
+    create_book as dal_create_book, update_cover_path, add_book_identifier,
+    find_duplicates_by_title,
+)
+from .book_file_writer import (
+    book_dir_and_dst, prepare_book_format_path, register_and_linearize,
 )
 from .entity_resolver import resolve_authors, resolve_tags, resolve_series
 
 log = logging.getLogger("librarium.upload")
 
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
-
-
-def maybe_linearize(path: str, ext: str) -> None:
-    """Linearize PDF in place if ext is pdf. No-op for other formats."""
-    if ext == "pdf":
-        linearize_pdf_in_place(path)
 
 
 def find_temp_file(temp_id: str) -> str | None:
@@ -146,7 +143,8 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
     """Create book from uploaded temp file.
 
     Returns book_id.
-    Rollback: removes moved files + empty dir on failure.
+    Rollback: multi-file move откатывается через ExitStack; при исключении
+    внутри with-блока book + cover откатываются автоматически.
     """
     title = metadata.get("title", "").strip()
     if not title:
@@ -157,7 +155,6 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
         raise BadInputError("Temp file not found")
 
     ext = temp_file.rsplit(".", 1)[-1]
-    fmt = ext.upper()
 
     series_number = None
     if metadata.get("seriesNumber"):
@@ -166,59 +163,45 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
         except ValueError:
             pass
 
-    book_dir = ""
-    moved_paths: list[str] = []
+    author_ids = resolve_authors(db, metadata.get("authors", ""))
+    series_id = resolve_series(db, metadata.get("series", ""))
+    tag_ids = resolve_tags(db, metadata.get("tags", ""))
+
+    book_id = dal_create_book(db, {
+        "title": title,
+        "description": metadata.get("description") or None,
+        "language": metadata.get("language") or None,
+        "publisher": metadata.get("publisher") or None,
+        "pubDate": metadata.get("pubDate") or None,
+        "seriesId": series_id,
+        "seriesNumber": series_number,
+        "authorIds": author_ids,
+        "tagIds": tag_ids,
+    })
+
+    book_dir, book_dst = book_dir_and_dst(book_id, ext)
+    src = str(UPLOADS_DIR / temp_file)
 
     try:
-        author_ids = resolve_authors(db, metadata.get("authors", ""))
-        series_id = resolve_series(db, metadata.get("series", ""))
-        tag_ids = resolve_tags(db, metadata.get("tags", ""))
+        with ExitStack() as stack:
+            stack.enter_context(move_with_rollback(src, book_dst))
+            register_and_linearize(db, book_id, book_dst, ext)
 
-        book_id = dal_create_book(db, {
-            "title": title,
-            "description": metadata.get("description") or None,
-            "language": metadata.get("language") or None,
-            "publisher": metadata.get("publisher") or None,
-            "pubDate": metadata.get("pubDate") or None,
-            "seriesId": series_id,
-            "seriesNumber": series_number,
-            "authorIds": author_ids,
-            "tagIds": tag_ids,
-        })
+            cover_files = find_temp_covers(temp_id)
+            if cover_files:
+                cover_src = str(UPLOADS_DIR / cover_files[0])
+                cover_ext = cover_src.rsplit(".", 1)[-1]
+                cover_dst = os.path.join(book_dir, f"cover.{cover_ext}")
+                stack.enter_context(move_with_rollback(cover_src, cover_dst))
+                update_cover_path(db, book_id, db_path_for(book_id, f"cover.{cover_ext}"))
 
-        # File operations
-        book_dir = str(LIBRARY_DIR / str(book_id))
-        os.makedirs(book_dir, exist_ok=True)
-
-        src_file = str(UPLOADS_DIR / temp_file)
-        dst_file = os.path.join(book_dir, f"book.{ext}")
-        shutil.move(src_file, dst_file)
-        moved_paths.append(dst_file)
-
-        maybe_linearize(dst_file, ext)
-
-        file_size = os.path.getsize(dst_file)
-        add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
-
-        # Cover
-        cover_files = find_temp_covers(temp_id)
-        if cover_files:
-            cover_src = str(UPLOADS_DIR / cover_files[0])
-            cover_ext_name = cover_src.rsplit(".", 1)[-1]
-            cover_dst = os.path.join(book_dir, f"cover.{cover_ext_name}")
-            shutil.move(cover_src, cover_dst)
-            moved_paths.append(cover_dst)
-            update_cover_path(db, book_id, db_path_for(book_id, f"cover.{cover_ext_name}"))
-
-        # ISBN
-        if metadata.get("isbn"):
-            add_book_identifier(db, book_id, "isbn", metadata["isbn"])
-
+            if metadata.get("isbn"):
+                add_book_identifier(db, book_id, "isbn", metadata["isbn"])
     except Exception:
-        for path in moved_paths:
-            if os.path.exists(path):
-                os.remove(path)
-        if book_dir and os.path.isdir(book_dir) and not os.listdir(book_dir):
+        # После ExitStack-rollback файлов в book_dir не осталось — убираем пустой
+        # каталог, иначе library/ накапливает orphan-директории (baseline до w0g
+        # чистил пустой dir в except-ветке).
+        if os.path.isdir(book_dir) and not os.listdir(book_dir):
             os.rmdir(book_dir)
         raise
 
@@ -229,7 +212,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     """Add a format to an existing book from uploaded temp file.
 
     Returns format string (e.g. "PDF").
-    Rollback: removes destination file on failure.
+    Rollback: move_with_rollback убирает dst при исключении внутри with-блока.
     """
     temp_file = find_temp_file(temp_id)
     if not temp_file:
@@ -237,32 +220,13 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
 
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
+    dst = prepare_book_format_path(db, book_id, fmt, ext)
+    src = str(UPLOADS_DIR / temp_file)
 
-    if not book_exists(db, book_id):
-        raise NotFoundError("Книга не найдена")
+    with move_with_rollback(src, dst):
+        register_and_linearize(db, book_id, dst, ext)
 
-    if book_file_exists(db, book_id, fmt):
-        raise ConflictError(f"Формат {fmt} уже есть")
-
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    os.makedirs(book_dir, exist_ok=True)
-    dst = ""
-
-    try:
-        src = str(UPLOADS_DIR / temp_file)
-        dst = os.path.join(book_dir, f"book.{ext}")
-        shutil.move(src, dst)
-
-        maybe_linearize(dst, ext)
-
-        file_size = os.path.getsize(dst)
-        add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
-    except Exception:
-        if dst and os.path.exists(dst):
-            os.remove(dst)
-        raise
-
-    # Clean temp covers after success
+    # Tail cleanup — временный inline; заменится на cleanup_temp_session в T4.
     for f in find_temp_covers(temp_id):
         os.remove(str(UPLOADS_DIR / f))
 

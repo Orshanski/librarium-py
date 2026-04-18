@@ -4,12 +4,13 @@ import shutil
 import sqlite3
 from typing import TypedDict
 
-from ..config import LIBRARY_DIR, db_path_for
+from ..config import LIBRARY_DIR
 from ..dal import books as dal
-from ..exceptions import ConflictError, NotFoundError
+from ..exceptions import NotFoundError
+from ..fs_utils import write_with_rollback
 from . import thumb
+from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
-from .upload_service import maybe_linearize
 
 log = logging.getLogger("librarium.books")
 
@@ -22,32 +23,13 @@ class UploadResult(TypedDict):
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
     """Write a book file to disk and register in DB.
 
-    Rollback: removes file on DB failure.
+    Rollback: removes file on DB failure via write_with_rollback.
     """
     fmt = ext.upper()
-
-    if not dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
-    if dal.book_file_exists(db, book_id, fmt):
-        raise ConflictError(f"Формат {fmt} уже есть")
-
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    os.makedirs(book_dir, exist_ok=True)
-    file_path = os.path.join(book_dir, f"book.{ext}")
-
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    maybe_linearize(file_path, ext)
-
-    try:
-        file_size = os.path.getsize(file_path)
-        dal.add_book_file(db, book_id, fmt, db_path_for(book_id, f"book.{ext}"), file_size)
-    except Exception:
-        os.remove(file_path)
-        raise
-
-    return {"format": fmt, "size": file_size}
+    dst = prepare_book_format_path(db, book_id, fmt, ext)
+    with write_with_rollback(dst, content):
+        size = register_and_linearize(db, book_id, dst, ext)
+    return {"format": fmt, "size": size}
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
