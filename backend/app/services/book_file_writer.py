@@ -2,12 +2,11 @@
 
 Используется тремя call sites:
 - book_service.upload_file (content из памяти)
-- upload_service.add_format (файл из temp через shutil.move)
+- upload_service.add_format (файл из temp)
 - upload_service.create_book (новая книга из temp + опционально cover)
 
 Функции оставлены узкими: guards + path build, либо linearize + DAL. Rollback
-FS-операций — ответственность caller'а (через fs_utils.move_with_rollback /
-write_with_rollback).
+FS-операций — ответственность caller'а (через fs_utils context managers).
 """
 import os
 import sqlite3
@@ -19,11 +18,9 @@ from ..pdf_linearize import linearize_pdf_in_place
 
 
 def book_dir_and_dst(book_id: int, ext: str) -> tuple[str, str]:
-    """Построить путь к каталогу книги и к файлу book.{ext}, создать каталог.
+    """Построить путь к book_dir + dst-файлу `book.{ext}`. Создать book_dir.
 
-    Публичный helper: используется внутри prepare_book_format_path и в
-    upload_service.create_book (книга новая, guards не нужны, но путь
-    строится через единый helper).
+    Возвращает `(book_dir, dst)`. Каталог может существовать — `exist_ok=True`.
     """
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
@@ -55,7 +52,9 @@ def register_and_linearize(
     """Linearize если PDF, зарегистрировать в DAL, вернуть размер.
 
     Size измеряется ПОСЛЕ linearize — linearize_pdf_in_place меняет размер PDF,
-    caller'у нужно актуальное значение.
+    caller'у нужно актуальное значение. `os.path.getsize` делается всегда,
+    даже для non-PDF — caller получает size из единого источника и не
+    дублирует `len(content)` или `os.stat` на своей стороне.
 
     Без FS rollback: caller управляет откатом через fs_utils.move_with_rollback
     или write_with_rollback — при DAL-failure rollback сработает автоматически.

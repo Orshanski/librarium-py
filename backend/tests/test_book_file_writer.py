@@ -70,7 +70,7 @@ class TestRegisterAndLinearize:
         row = get_book_file(db, 1, "EPUB")
         assert row is not None
 
-    def test_pdf_calls_linearize_before_size(self, db, tmp_path, monkeypatch):
+    def test_pdf_size_measured_after_linearize(self, db, tmp_path, monkeypatch):
         """Size измеряется ПОСЛЕ linearize — linearize меняет размер PDF."""
         from app import config
         from app.services import book_file_writer

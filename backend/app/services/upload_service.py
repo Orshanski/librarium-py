@@ -143,8 +143,8 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
     """Create book from uploaded temp file.
 
     Returns book_id.
-    Rollback: multi-file move откатывается через ExitStack; при исключении
-    внутри with-блока book + cover откатываются автоматически.
+    Rollback: multi-file moves unwound via ExitStack — on exception inside the
+    with-block both the book file and the optional cover roll back automatically.
     """
     title = metadata.get("title", "").strip()
     if not title:
@@ -198,9 +198,10 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
             if metadata.get("isbn"):
                 add_book_identifier(db, book_id, "isbn", metadata["isbn"])
     except Exception:
-        # После ExitStack-rollback файлов в book_dir не осталось — убираем пустой
-        # каталог, иначе library/ накапливает orphan-директории (baseline до w0g
-        # чистил пустой dir в except-ветке).
+        # ExitStack rolled back the moves → book_dir is empty. Remove it, otherwise
+        # library/ accumulates orphan dirs from failed create_book attempts: DAL
+        # rollback releases the book_id for the next create, but the empty dir
+        # stays around forever.
         if os.path.isdir(book_dir) and not os.listdir(book_dir):
             os.rmdir(book_dir)
         raise
@@ -212,7 +213,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     """Add a format to an existing book from uploaded temp file.
 
     Returns format string (e.g. "PDF").
-    Rollback: move_with_rollback убирает dst при исключении внутри with-блока.
+    Rollback: move_with_rollback removes dst on exception inside the with-block.
     """
     temp_file = find_temp_file(temp_id)
     if not temp_file:
@@ -226,7 +227,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     with move_with_rollback(src, dst):
         register_and_linearize(db, book_id, dst, ext)
 
-    # Tail cleanup — временный inline; заменится на cleanup_temp_session в T4.
+    # Tail cleanup — temporary inline; will be replaced by cleanup_temp_session in T4.
     for f in find_temp_covers(temp_id):
         os.remove(str(UPLOADS_DIR / f))
 
