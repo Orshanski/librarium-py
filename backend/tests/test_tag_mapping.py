@@ -117,7 +117,14 @@ class TestMapTagEndpoint:
         assert_error(admin_client.put("/api/tags/999/map", json={"name": "Whatever"}), 404)
 
     def test_empty_name(self, admin_client):
-        assert_error(admin_client.put("/api/tags/1/map", json={"name": "  "}), 400)
+        """После T7: Pydantic str_strip_whitespace + min_length=1 даёт 422 на whitespace-only."""
+        resp = admin_client.put("/api/tags/1/map", json={"name": "  "})
+        assert resp.status_code == 422
+
+    def test_blank_name_rejected(self, admin_client):
+        """Пустая строка тоже 422 (Pydantic min_length=1 не зависит от strip)."""
+        resp = admin_client.put("/api/tags/1/map", json={"name": ""})
+        assert resp.status_code == 422
 
 
 class TestUploadMapping:
