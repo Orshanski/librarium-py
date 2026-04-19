@@ -7,14 +7,12 @@ from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 from .filters import build_book_where
 
 
-def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    filters: dict = {}
+def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: str | None = None):
+    filters: CatalogFilters = {"userId": user_id}
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
-    if user_id:
-        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 

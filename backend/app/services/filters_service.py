@@ -1,6 +1,6 @@
 """Catalog query filter assembly.
 
-Single source of truth for filter-dict used by book listings and options endpoints.
+Single source of truth for `CatalogFilters` used by book listings and options endpoints.
 All callers pass already-normalized lists; query parsing stays in routers (parse_ids).
 """
 import sqlite3
@@ -20,7 +20,7 @@ def build_catalog_filters(
     series_ids: list[int] | None = None,
     language: str | None = None,
 ) -> CatalogFilters:
-    """Assemble filter-dict scoped to the user.
+    """Assemble `CatalogFilters` scoped to the user.
 
     Router is responsible for parsing raw query strings to typed lists
     (see routers/params.py::parse_ids).

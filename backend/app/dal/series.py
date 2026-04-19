@@ -17,16 +17,14 @@ def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list
     """, params).fetchall())
 
 
-def get_series(db: sqlite3.Connection, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    filters: dict = {}
+def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
+    filters: CatalogFilters = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
-    if user_id:
-        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 

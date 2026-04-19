@@ -34,6 +34,11 @@ def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_i
     if not tag:
         return None
 
+    # filters stays untyped pending `librarium-py-t3ze`: detail pages
+    # (author/series/tag) do not propagate user_id -> hidden-books filter
+    # is not applied. Once that bug is fixed, `user_id` will flow in and
+    # this local becomes `CatalogFilters` automatically (same as
+    # get_authors / get_series after hl8.3.1 follow-up).
     filters: dict = {}
     if author_ids:
         filters["authorIds"] = author_ids

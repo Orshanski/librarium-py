@@ -8,8 +8,8 @@ class CatalogFilters(TypedDict):
     Constructed in ``filters_service.build_catalog_filters``; consumed by
     ``dal.books.get_books``, ``dal.filters.build_book_where``, and the
     four ``list_*_options`` DAL functions. ``userId`` is always present
-    (user scoping is universal); the other keys are absent when the
-    corresponding filter is not requested (not present as empty/None).
+    (user scoping is universal); the other keys are omitted entirely when the
+    corresponding filter is not requested — they are never set to empty list or None.
     """
 
     userId: int

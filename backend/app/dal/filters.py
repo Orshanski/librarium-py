@@ -16,7 +16,7 @@ def build_book_where(
     Supported filter keys: userId, authorIds, tagIds, seriesIds, language.
 
     Args:
-        filters: dict with filter keys/values
+        filters: `CatalogFilters` — user scope plus optional dimension filters
         exclude: optional key to skip (for cross-dimension filter options)
         extra_clauses: additional (sql_fragment, params_dict) tuples.
             Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.

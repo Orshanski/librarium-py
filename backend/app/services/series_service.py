@@ -12,7 +12,7 @@ def list_series(
     tag_ids: list[int] | None,
     language: str | None,
 ) -> list[dict]:
-    return dal.get_series(db, author_ids, tag_ids, language, user_id=user_id)
+    return dal.get_series(db, user_id=user_id, author_ids=author_ids, tag_ids=tag_ids, language=language)
 
 
 def get_series(db: sqlite3.Connection, series_id: int) -> dict:

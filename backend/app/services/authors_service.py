@@ -11,7 +11,7 @@ def list_authors(
     tag_ids: list[int] | None,
     language: str | None,
 ) -> list[dict]:
-    return dal.get_authors(db, tag_ids, language, user_id=user_id)
+    return dal.get_authors(db, user_id=user_id, tag_ids=tag_ids, language=language)
 
 
 def get_author(db: sqlite3.Connection, author_id: int) -> dict:
