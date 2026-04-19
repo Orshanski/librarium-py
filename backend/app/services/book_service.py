@@ -2,10 +2,14 @@ import logging
 import os
 import shutil
 import sqlite3
-from typing import TypedDict
+from typing import cast
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
+from ..dtos.books import (
+    BookDetailResponse, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    UploadFileResponse,
+)
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
 from . import filters_service, thumb
@@ -15,17 +19,7 @@ from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 log = logging.getLogger("librarium.books")
 
 
-class UploadResult(TypedDict):
-    format: str
-    size: int
-
-
-class BookListPage(TypedDict):
-    books: list[dict]
-    hasMore: bool
-
-
-def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
+def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadFileResponse:
     """Write a book file to disk and register in DB.
 
     Rollback: removes file on DB failure via write_with_rollback.
@@ -34,7 +28,7 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     dst = prepare_book_format_path(db, book_id, fmt, ext)
     with write_with_rollback(dst, content):
         size = register_and_linearize(db, book_id, dst, ext)
-    return {"format": fmt, "size": size}
+    return UploadFileResponse(ok=True, format=fmt, size=size)
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
@@ -79,22 +73,23 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
         log.warning("Failed to remove thumb for book %d", book_id)
 
 
-def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> dict:
+def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailResponse:
     """Get book with files and identifiers. Raises NotFoundError if book absent."""
     book = dal.get_book_by_id(db, book_id, user_id)
     if not book:
         raise NotFoundError("Book not found")
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
-    return {"book": book, "files": files, "identifiers": identifiers}
+    return BookDetailResponse(book=book, files=files, identifiers=identifiers)
 
 
-def update_book(db: sqlite3.Connection, book_id: int, data: dict) -> None:
+def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:
     """Update book fields. Resolves authorIds/tagIds/seriesId raw input to IDs
-    (creates entities if missing). Raises NotFoundError если книга не существует."""
+    (creates entities if missing). Raises NotFoundError if the book is absent."""
     if not dal.book_exists(db, book_id):
         raise NotFoundError("Book not found")
 
+    data: BookUpdateData = cast(BookUpdateData, body.model_dump(exclude_unset=True))
     if "authorIds" in data:
         data["authorIds"] = resolve_authors(db, data["authorIds"])
     if "tagIds" in data:
@@ -116,7 +111,7 @@ def list_books(
     tag_ids: list[int] | None,
     series_ids: list[int] | None,
     language: str | None,
-) -> BookListPage:
+) -> BookListResponse:
     """Paginated catalog listing with user-scoped filters."""
     filters = filters_service.build_catalog_filters(
         user_id,
@@ -125,4 +120,5 @@ def list_books(
         series_ids=series_ids,
         language=language,
     )
-    return dal.get_books(db, filters, sort, cursor, page_size)
+    page: BookListPage = dal.get_books(db, filters, sort, cursor, page_size)
+    return BookListResponse(books=page["books"], hasMore=page["hasMore"])

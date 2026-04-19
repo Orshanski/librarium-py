@@ -2,6 +2,7 @@
 import sqlite3
 
 from ..dal import series as dal
+from ..dtos.entities import SeriesDetailResponse, SeriesListResponse
 from ..exceptions import BadInputError, NotFoundError
 
 
@@ -11,15 +12,16 @@ def list_series(
     author_ids: list[int] | None,
     tag_ids: list[int] | None,
     language: str | None,
-) -> list[dict]:
-    return dal.get_series(db, author_ids, tag_ids, language, user_id=user_id)
+) -> SeriesListResponse:
+    result = dal.get_series(db, user_id=user_id, author_ids=author_ids, tag_ids=tag_ids, language=language)
+    return SeriesListResponse(series=result["series"])
 
 
-def get_series(db: sqlite3.Connection, series_id: int) -> dict:
+def get_series(db: sqlite3.Connection, series_id: int) -> SeriesDetailResponse:
     result = dal.get_series_by_id(db, series_id)
     if not result:
         raise NotFoundError("Not found")
-    return result
+    return SeriesDetailResponse(series=result["series"], books=result["books"])
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:

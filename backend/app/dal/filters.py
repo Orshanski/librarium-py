@@ -1,10 +1,12 @@
 """Shared WHERE clause builder and filter options for book queries."""
 import sqlite3
+
 from ..database import dicts_from_rows
+from ..dtos.catalog import CatalogFilters, LanguageOptionRow
 
 
 def build_book_where(
-    filters: dict,
+    filters: CatalogFilters,
     *,
     exclude: str | None = None,
     extra_clauses: list[tuple[str, dict]] | None = None,
@@ -14,7 +16,7 @@ def build_book_where(
     Supported filter keys: userId, authorIds, tagIds, seriesIds, language.
 
     Args:
-        filters: dict with filter keys/values
+        filters: `CatalogFilters` — user scope plus optional dimension filters
         exclude: optional key to skip (for cross-dimension filter options)
         extra_clauses: additional (sql_fragment, params_dict) tuples.
             Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.
@@ -62,7 +64,7 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def list_language_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[LanguageOptionRow]:
     """Language options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="language")
     lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"

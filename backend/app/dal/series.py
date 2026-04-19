@@ -1,11 +1,14 @@
 import sqlite3
+
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import FilterOptionRow, SeriesDetailRow, SeriesList
 from ..exceptions import BadInputError, NotFoundError
-from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+from .filters import build_book_where
 
 
-def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Series options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="seriesIds")
     return dicts_from_rows(db.execute(f"""
@@ -15,16 +18,14 @@ def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_series(db: sqlite3.Connection, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    filters: dict = {}
+def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None) -> SeriesList:
+    filters: CatalogFilters = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
-    if user_id:
-        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 
@@ -35,13 +36,13 @@ def get_series(db: sqlite3.Connection, author_ids: list[int] | None = None, tag_
         JOIN books b ON b.series_id = s.id
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
-        {where} GROUP BY s.id
+        {where} GROUP BY s.id ORDER BY s.sort_name COLLATE NOCASE
     """, params).fetchall())
 
     return {"series": series}
 
 
-def get_series_by_id(db: sqlite3.Connection, series_id: int):
+def get_series_by_id(db: sqlite3.Connection, series_id: int) -> SeriesDetailRow | None:
     s = dict_from_row(db.execute("""
         SELECT s.*, COUNT(b.id) as book_count
         FROM series s
@@ -69,11 +70,11 @@ def get_or_create_series(db: sqlite3.Connection, name: str) -> int:
     return row["id"]
 
 
-def rename_series(db: sqlite3.Connection, series_id: int, name: str):
+def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:
     db.execute("UPDATE series SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": series_id})
 
 
-def merge_series(db: sqlite3.Connection, target_id: int, source_id: int):
+def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     """Переносит книги source -> target, удаляет source."""
     db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
                {"target": target_id, "source": source_id})

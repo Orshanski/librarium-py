@@ -1,6 +1,6 @@
 """Catalog query filter assembly.
 
-Single source of truth for filter-dict used by book listings and options endpoints.
+Single source of truth for `CatalogFilters` used by book listings and options endpoints.
 All callers pass already-normalized lists; query parsing stays in routers (parse_ids).
 """
 import sqlite3
@@ -9,6 +9,11 @@ from ..dal import authors as _authors_dal
 from ..dal import filters as _filters_dal
 from ..dal import series as _series_dal
 from ..dal import tags as _tags_dal
+from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import (
+    AuthorOptionsResponse, TagOptionsResponse,
+    SeriesOptionsResponse, LanguageOptionsResponse,
+)
 
 
 def build_catalog_filters(
@@ -18,13 +23,13 @@ def build_catalog_filters(
     tag_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
     language: str | None = None,
-) -> dict:
-    """Assemble filter-dict scoped to the user.
+) -> CatalogFilters:
+    """Assemble `CatalogFilters` scoped to the user.
 
     Router is responsible for parsing raw query strings to typed lists
     (see routers/params.py::parse_ids).
     """
-    filters: dict = {"userId": user_id}
+    filters: CatalogFilters = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
@@ -36,17 +41,17 @@ def build_catalog_filters(
     return filters
 
 
-def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
-    return _authors_dal.list_author_options(db, filters)
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> AuthorOptionsResponse:
+    return AuthorOptionsResponse(authors=_authors_dal.list_author_options(db, filters))
 
 
-def list_tag_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
-    return _tags_dal.list_tag_options(db, filters)
+def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> TagOptionsResponse:
+    return TagOptionsResponse(tags=_tags_dal.list_tag_options(db, filters))
 
 
-def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
-    return _series_dal.list_series_options(db, filters)
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> SeriesOptionsResponse:
+    return SeriesOptionsResponse(series=_series_dal.list_series_options(db, filters))
 
 
-def list_language_options(db: sqlite3.Connection, filters: dict) -> list[str]:
-    return _filters_dal.list_language_options(db, filters)
+def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> LanguageOptionsResponse:
+    return LanguageOptionsResponse(languages=_filters_dal.list_language_options(db, filters))

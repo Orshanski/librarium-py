@@ -1,18 +1,19 @@
 import sqlite3
+
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import AuthorDetailRow, AuthorsList, FilterOptionRow
 from ..exceptions import BadInputError, NotFoundError
-from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+from .filters import build_book_where
 
 
-def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
-    filters: dict = {}
+def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: str | None = None) -> AuthorsList:
+    filters: CatalogFilters = {"userId": user_id}
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
-    if user_id:
-        filters["userId"] = user_id
 
     where, params = build_book_where(filters)
 
@@ -30,7 +31,7 @@ def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, langua
     return {"authors": authors}
 
 
-def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Author options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="authorIds")
     return dicts_from_rows(db.execute(f"""
@@ -41,7 +42,7 @@ def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
     """, params).fetchall())
 
 
-def get_author_by_id(db: sqlite3.Connection, author_id: int):
+def get_author_by_id(db: sqlite3.Connection, author_id: int) -> AuthorDetailRow | None:
     author = dict_from_row(db.execute(
         "SELECT * FROM authors WHERE id = :id", {"id": author_id}
     ).fetchone())
@@ -77,12 +78,12 @@ def get_or_create_author(db: sqlite3.Connection, name: str) -> int:
     return row["id"]
 
 
-def rename_author(db: sqlite3.Connection, author_id: int, name: str):
+def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> None:
     sort_name = _generate_sort_name(name)
     db.execute("UPDATE authors SET name = :name, sort_name = :sort WHERE id = :id", {"name": name, "sort": sort_name, "id": author_id})
 
 
-def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int):
+def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     """Переносит книги source -> target, удаляет source."""
     db.execute("""
         INSERT OR IGNORE INTO book_authors (book_id, author_id)

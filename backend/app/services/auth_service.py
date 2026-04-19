@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from ..auth import create_token, verify_password
 from ..dal import users as dal
+from ..dtos.auth import AuthUserResponse
 from ..exceptions import AuthError, RateLimitError
 
 log = logging.getLogger("librarium.auth")
@@ -53,8 +54,8 @@ def _clear_attempts(ip: str) -> None:
         _login_attempts.pop(ip, None)
 
 
-def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tuple[str, dict]:
-    """Authenticate user. Returns (token, user_public_dict).
+def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tuple[str, AuthUserResponse]:
+    """Authenticate user. Returns (token, user_response).
 
     Raises:
       RateLimitError: if too many attempts from ip
@@ -73,23 +74,24 @@ def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tupl
     _clear_attempts(ip)
     log.info("Login OK user=%s ip=%s", user["username"], ip)
     token = create_token(user["id"], user["role"])
-    return token, {
-        "id": user["id"],
-        "username": user["username"],
-        "displayName": user["display_name"],
-        "email": user.get("email"),
-        "role": user["role"],
-    }
+    user_response = AuthUserResponse(
+        id=user["id"],
+        username=user["username"],
+        displayName=user["display_name"],
+        email=user.get("email"),
+        role=user["role"],
+    )
+    return token, user_response
 
 
-def get_me(db: sqlite3.Connection, user_id: int) -> dict:
+def get_me(db: sqlite3.Connection, user_id: int) -> AuthUserResponse:
     db_user = dal.get_user_by_id(db, user_id)
     if not db_user:
         raise AuthError("User not found")
-    return {
-        "id": db_user["id"],
-        "username": db_user["username"],
-        "displayName": db_user["display_name"],
-        "email": db_user["email"],
-        "role": db_user["role"],
-    }
+    return AuthUserResponse(
+        id=db_user["id"],
+        username=db_user["username"],
+        displayName=db_user["display_name"],
+        email=db_user["email"],
+        role=db_user["role"],
+    )

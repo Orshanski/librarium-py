@@ -4,6 +4,18 @@ import sqlite3
 from rapidfuzz import process
 
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.books import (
+    BookCreateData,
+    BookFileLookup,
+    BookFileRow,
+    BookIdentifierRow,
+    BookListPage,
+    BookListRow,
+    BookUpdateData,
+    DuplicateHit,
+)
+from ..dtos.catalog import CatalogFilters
+from ..dtos.search import SearchResults
 from ..search import (
     AUTHORS_SERIES_LIMIT,
     SEARCH_SCORE_CUTOFF,
@@ -38,7 +50,7 @@ ORDER = {
 }
 
 
-def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0, page_size=50):
+def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc", cursor=0, page_size=50) -> BookListPage:
     where, params = build_book_where(filters)
     uid = filters.get("userId")
     ub_join = f"AND ub.user_id = :uid" if uid else "AND 0"
@@ -63,7 +75,7 @@ def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0
     return {"books": books, "hasMore": has_more}
 
 
-def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None):
+def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None) -> BookListRow | None:
     ub_join = "AND ub.user_id = :uid" if user_id else "AND 0"
     row = db.execute(f"""
         {_BOOK_SELECT} {ub_join}
@@ -72,19 +84,19 @@ def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = N
     return dict_from_row(row)
 
 
-def get_book_files(db: sqlite3.Connection, book_id: int):
+def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:
     return dicts_from_rows(db.execute(
         "SELECT id, format, file_path, file_size FROM book_files WHERE book_id = :id", {"id": book_id}
     ).fetchall())
 
 
-def get_book_identifiers(db: sqlite3.Connection, book_id: int):
+def get_book_identifiers(db: sqlite3.Connection, book_id: int) -> list[BookIdentifierRow]:
     return dicts_from_rows(db.execute(
         "SELECT type, value FROM book_identifiers WHERE book_id = :id", {"id": book_id}
     ).fetchall())
 
 
-def get_all_publishers(db: sqlite3.Connection):
+def get_all_publishers(db: sqlite3.Connection) -> list[str]:
     """Publisher directory: sorted alphabetically."""
     return [r["publisher"] for r in db.execute(
         "SELECT DISTINCT publisher FROM books WHERE publisher IS NOT NULL AND publisher != '' ORDER BY publisher COLLATE NOCASE"
@@ -95,30 +107,30 @@ def _sort_title(title: str) -> str:
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 
-def create_book(db: sqlite3.Connection, data: dict) -> int:
+def create_book(db: sqlite3.Connection, data: BookCreateData) -> int:
     cur = db.execute("""
         INSERT INTO books (title, sort_title, description, language, publisher, pub_date, series_id, series_number, cover_path)
         VALUES (:title, :sort_title, :description, :language, :publisher, :pub_date, :series_id, :series_number, :cover_path)
     """, {
         "title": data["title"],
-        "sort_title": data.get("sortTitle") or _sort_title(data["title"]),
+        "sort_title": data.get("sort_title") or _sort_title(data["title"]),
         "description": data.get("description"),
         "language": data.get("language"),
         "publisher": data.get("publisher"),
-        "pub_date": data.get("pubDate"),
-        "series_id": data.get("seriesId"),
-        "series_number": data.get("seriesNumber"),
-        "cover_path": data.get("coverPath"),
+        "pub_date": data.get("pub_date"),
+        "series_id": data.get("series_id"),
+        "series_number": data.get("series_number"),
+        "cover_path": data.get("cover_path"),
     })
     book_id = cur.lastrowid
-    for aid in data.get("authorIds", []):
+    for aid in data.get("author_ids", []):
         db.execute("INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)", (book_id, aid))
-    for tid in data.get("tagIds", []):
+    for tid in data.get("tag_ids", []):
         db.execute("INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)", (book_id, tid))
     return book_id
 
 
-def update_book(db: sqlite3.Connection, book_id: int, data: dict):
+def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> None:
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
 
@@ -156,11 +168,11 @@ def update_book(db: sqlite3.Connection, book_id: int, data: dict):
 
 
 
-def delete_book(db: sqlite3.Connection, book_id: int):
+def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     db.execute("DELETE FROM books WHERE id = ?", (book_id,))
 
 
-def search_books(db: sqlite3.Connection, query: str, limit=50):
+def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     """Fuzzy UI search across books, authors, and series.
 
     Uses a custom rapidfuzz-compatible scorer (`token_min_ratio` in
@@ -258,35 +270,35 @@ def book_file_exists(db: sqlite3.Connection, book_id: int, fmt: str) -> bool:
     return db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone() is not None
 
 
-def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int):
+def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int) -> None:
     db.execute(
         "INSERT OR IGNORE INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
         (book_id, fmt, file_path, file_size),
     )
 
 
-def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str):
+def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str) -> BookFileLookup | None:
     return dict_from_row(db.execute(
         "SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?",
         (book_id, fmt),
     ).fetchone())
 
 
-def delete_book_file(db: sqlite3.Connection, file_id: int):
+def delete_book_file(db: sqlite3.Connection, file_id: int) -> None:
     db.execute("DELETE FROM book_files WHERE id = ?", (file_id,))
 
 
-def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str):
+def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str) -> None:
     db.execute("UPDATE books SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                (cover_path, book_id))
 
 
-def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, value: str):
+def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, value: str) -> None:
     db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, ?, ?)",
                (book_id, id_type, value))
 
 
-def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[dict]:
+def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[DuplicateHit]:
     # Still on LIKE intentionally — upload dedup lives with provider
     # matching (Google Books / Литрес author & series reconciliation),
     # миграция на rapidfuzz со стриктным score_cutoff (~85) и reuse
