@@ -1,11 +1,13 @@
 import sqlite3
+
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.catalog import CatalogFilters
 from ..exceptions import BadInputError, NotFoundError
-from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+from .filters import build_book_where
 
 
-def list_series_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
     """Series options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="seriesIds")
     return dicts_from_rows(db.execute(f"""

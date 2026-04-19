@@ -1,7 +1,9 @@
 import sqlite3
+
 from ..database import dicts_from_rows, dict_from_row
-from .filters import build_book_where
+from ..dtos.catalog import CatalogFilters
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+from .filters import build_book_where
 
 
 def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
@@ -16,7 +18,7 @@ def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
 
 
 
-def list_tag_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
     """Tag options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="tagIds")
     return dicts_from_rows(db.execute(f"""

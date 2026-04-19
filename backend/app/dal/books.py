@@ -4,6 +4,7 @@ import sqlite3
 from rapidfuzz import process
 
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.catalog import CatalogFilters
 from ..search import (
     AUTHORS_SERIES_LIMIT,
     SEARCH_SCORE_CUTOFF,
@@ -38,7 +39,7 @@ ORDER = {
 }
 
 
-def get_books(db: sqlite3.Connection, filters: dict, sort="added_desc", cursor=0, page_size=50):
+def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc", cursor=0, page_size=50):
     where, params = build_book_where(filters)
     uid = filters.get("userId")
     ub_join = f"AND ub.user_id = :uid" if uid else "AND 0"

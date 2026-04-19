@@ -1,8 +1,10 @@
 import sqlite3
+
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.catalog import CatalogFilters
 from ..exceptions import BadInputError, NotFoundError
-from .filters import build_book_where
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+from .filters import build_book_where
 
 
 def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, language: str | None = None, user_id: int | None = None):
@@ -30,7 +32,7 @@ def get_authors(db: sqlite3.Connection, tag_ids: list[int] | None = None, langua
     return {"authors": authors}
 
 
-def list_author_options(db: sqlite3.Connection, filters: dict) -> list[dict]:
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
     """Author options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="authorIds")
     return dicts_from_rows(db.execute(f"""
