@@ -33,6 +33,11 @@ class CurrentUser:
     ``AuthError("Invalid token")``. The specific malformed-reason is logged
     at WARNING via the ``librarium.auth`` logger for ops diagnostics, but
     never leaks to the client response body.
+
+    Adding a role: extend ``UserRole`` first, then update JWT-issuing
+    code (``create_token``) to emit it. Runtime accepts any non-empty
+    string, but mypy will flag new ``user.role == "<new>"`` comparisons
+    until ``UserRole`` is updated.
     """
 
     user_id: int

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
@@ -139,8 +140,9 @@ def test_token_without_iat_not_refreshed(anon_client):
     assert COOKIE_NAME not in resp.cookies
 
 
-def test_malformed_jwt_missing_user_id(anon_client):
-    """JWT with valid signature but missing `userId` must yield 401, not 500."""
+def test_malformed_jwt_missing_user_id(anon_client, caplog):
+    """JWT with valid signature but missing `userId`: client sees 401 "Invalid token";
+    ops sees specific reason in librarium.auth WARNING log."""
     now = datetime.now(timezone.utc)
     token = pyjwt.encode(
         {"role": "admin", "iat": now, "exp": now + timedelta(hours=1)},
@@ -148,12 +150,15 @@ def test_malformed_jwt_missing_user_id(anon_client):
         algorithm=JWT_ALGORITHM,
     )
     anon_client.cookies.set(COOKIE_NAME, token)
-    resp = anon_client.get("/api/auth/me")
-    assert_error(resp, 401)
+    with caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        resp = anon_client.get("/api/auth/me")
+    assert_error(resp, 401, message_matches="invalid token")
+    assert "userId missing" in caplog.text
 
 
-def test_malformed_jwt_wrong_user_id_type(anon_client):
-    """JWT with `userId` as string must yield 401, not 500."""
+def test_malformed_jwt_wrong_user_id_type(anon_client, caplog):
+    """JWT with `userId` as string: client sees 401 "Invalid token";
+    ops sees "userId not int" in librarium.auth WARNING log."""
     now = datetime.now(timezone.utc)
     token = pyjwt.encode(
         {"userId": "not-int", "role": "admin", "iat": now, "exp": now + timedelta(hours=1)},
@@ -161,5 +166,7 @@ def test_malformed_jwt_wrong_user_id_type(anon_client):
         algorithm=JWT_ALGORITHM,
     )
     anon_client.cookies.set(COOKIE_NAME, token)
-    resp = anon_client.get("/api/auth/me")
-    assert_error(resp, 401)
+    with caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        resp = anon_client.get("/api/auth/me")
+    assert_error(resp, 401, message_matches="invalid token")
+    assert "userId not int" in caplog.text
