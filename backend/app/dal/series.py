@@ -36,7 +36,7 @@ def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | 
         JOIN books b ON b.series_id = s.id
         LEFT JOIN book_authors ba ON b.id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.id
-        {where} GROUP BY s.id
+        {where} GROUP BY s.id ORDER BY s.sort_name COLLATE NOCASE
     """, params).fetchall())
 
     return {"series": series}

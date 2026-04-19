@@ -30,7 +30,13 @@ def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[Fi
     """, params).fetchall())
 
 
-def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_ids=None, language=None) -> TagDetailRow | None:
+def get_tag_by_id(
+    db: sqlite3.Connection,
+    tag_id: int,
+    author_ids: list[int] | None = None,
+    series_ids: list[int] | None = None,
+    language: str | None = None,
+) -> TagDetailRow | None:
     tag = dict_from_row(db.execute("SELECT * FROM tags WHERE id = :id", {"id": tag_id}).fetchone())
     if not tag:
         return None
