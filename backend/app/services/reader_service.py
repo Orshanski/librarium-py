@@ -4,7 +4,7 @@ import uuid
 from typing import Any
 
 from ..dal import reader as dal
-from ..dtos.reader import ReaderSettingsBody
+from ..dtos.reader import ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody
 
 
 def get_or_create_device_id(cookie_value: str | None) -> str:
@@ -26,8 +26,16 @@ def save_settings(db: sqlite3.Connection, user_id: int, device_id: str, body: Re
     dal.save_reader_settings(db, user_id, device_id, body.settings)
 
 
-def get_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> dict:
-    return dal.get_reading_progress(db, user_id, book_id)
+def get_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> ReadingProgressResponse:
+    row = dal.get_reading_progress(db, user_id, book_id)
+    return ReadingProgressResponse(
+        position=row["position"],
+        last_device=row["last_device"],
+        last_format=row["last_format"],
+        fraction=row["fraction"],
+        last_read_at=row["last_read_at"],
+        version=row["version"],
+    )
 
 
 def save_progress(
@@ -39,7 +47,14 @@ def save_progress(
     last_format: str = "",
     fraction: float = 0,
     expected_version: int = 0,
-) -> dict:
-    return dal.save_reading_progress(
+) -> ProgressSaveResponse:
+    result = dal.save_reading_progress(
         db, user_id, book_id, position, last_device, last_format, fraction, expected_version,
+    )
+    return ProgressSaveResponse(
+        accepted=result["accepted"],
+        version=result.get("version"),
+        rebased=result.get("rebased"),
+        retry_exhausted=result.get("retry_exhausted"),
+        current=result.get("current"),
     )

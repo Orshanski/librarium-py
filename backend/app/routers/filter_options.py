@@ -3,13 +3,17 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos.entities import (
+    AuthorOptionsResponse, LanguageOptionsResponse,
+    SeriesOptionsResponse, TagOptionsResponse,
+)
 from ..services import filters_service
 from .params import parse_ids
 
 router = APIRouter(prefix="/api/filter-options", tags=["filter-options"])
 
 
-@router.get("/authors")
+@router.get("/authors", response_model=AuthorOptionsResponse)
 def author_options(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
@@ -23,10 +27,10 @@ def author_options(
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return {"authors": filters_service.list_author_options(db, filters)}
+    return AuthorOptionsResponse(authors=filters_service.list_author_options(db, filters))
 
 
-@router.get("/tags")
+@router.get("/tags", response_model=TagOptionsResponse)
 def tag_options(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
@@ -40,10 +44,10 @@ def tag_options(
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return {"tags": filters_service.list_tag_options(db, filters)}
+    return TagOptionsResponse(tags=filters_service.list_tag_options(db, filters))
 
 
-@router.get("/series")
+@router.get("/series", response_model=SeriesOptionsResponse)
 def series_options(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
@@ -57,10 +61,10 @@ def series_options(
         tag_ids=parse_ids(tagIds),
         language=language or None,
     )
-    return {"series": filters_service.list_series_options(db, filters)}
+    return SeriesOptionsResponse(series=filters_service.list_series_options(db, filters))
 
 
-@router.get("/languages")
+@router.get("/languages", response_model=LanguageOptionsResponse)
 def language_options(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
@@ -74,4 +78,4 @@ def language_options(
         tag_ids=parse_ids(tagIds),
         series_ids=parse_ids(seriesIds),
     )
-    return {"languages": filters_service.list_language_options(db, filters)}
+    return LanguageOptionsResponse(languages=filters_service.list_language_options(db, filters))

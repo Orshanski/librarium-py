@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from ..auth import CurrentUser, require_admin
 from ..config import MAX_BOOK_SIZE
 from ..database import db_session
-from ..dtos.upload import CreateBookBody, AddFormatBody
+from ..dtos import OkResponse
+from ..dtos.upload import AddFormatResponse, CreateBookBody, CreateBookResponse, AddFormatBody, UploadParseResponse
 from ..exceptions import BadInputError
 from ..services.temp_cleanup import cleanup_temp_session
 from ..services.upload_service import (
@@ -19,7 +20,7 @@ log = logging.getLogger("librarium.upload")
 router = APIRouter(tags=["upload"])
 
 
-@router.post("/api/upload")
+@router.post("/api/upload", response_model=UploadParseResponse)
 async def upload_file(
     user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
@@ -41,20 +42,20 @@ async def upload_file(
     content = await file.read()
     result = await upload_and_parse(db, content, filename)
 
-    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result["tempId"], filename, user.user_id)
+    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.tempId, filename, user.user_id)
     return result
 
 
-@router.delete("/api/uploads/{temp_id}")
+@router.delete("/api/uploads/{temp_id}", response_model=OkResponse)
 def cleanup_temp(
     temp_id: TempIdStr,
     user: CurrentUser = Depends(require_admin),
 ):
     cleanup_temp_session(temp_id)
-    return {"ok": True}
+    return OkResponse()
 
 
-@router.post("/api/books/create")
+@router.post("/api/books/create", response_model=CreateBookResponse)
 def create_book_from_upload(
     body: CreateBookBody,
     user: CurrentUser = Depends(require_admin),
@@ -62,10 +63,10 @@ def create_book_from_upload(
 ):
     book_id = create_book(db, body.tempId, body.metadata)
     log.info("Created book=%d by user_id=%s", book_id, user.user_id)
-    return {"bookId": book_id}
+    return CreateBookResponse(bookId=book_id)
 
 
-@router.post("/api/books/{book_id}/add-format")
+@router.post("/api/books/{book_id}/add-format", response_model=AddFormatResponse)
 def add_format_endpoint(
     book_id: int,
     body: AddFormatBody,
@@ -74,4 +75,4 @@ def add_format_endpoint(
 ):
     fmt = add_format(db, book_id, body.tempId)
     log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
-    return {"ok": True, "format": fmt}
+    return AddFormatResponse(format=fmt)

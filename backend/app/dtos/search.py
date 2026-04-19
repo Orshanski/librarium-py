@@ -1,5 +1,7 @@
-"""TypedDicts for /api/search query results."""
-from typing import TypedDict
+"""TypedDicts and Response DTOs for /api/search query results."""
+from typing import Any, TypedDict
+
+from pydantic import BaseModel
 
 
 class SearchBookHit(TypedDict):
@@ -27,3 +29,20 @@ class SearchResults(TypedDict):
     books: list[SearchBookHit]
     authors: list[SearchAuthorHit]
     series: list[SearchSeriesHit]
+
+
+# ---------------------------------------------------------------------------
+# Response DTOs (L4) — Pydantic, service→router boundary only.
+# ---------------------------------------------------------------------------
+
+
+class SearchResponse(BaseModel):
+    """Response for GET /api/search.
+
+    Wire format: {"books": [...], "authors": [...], "series": [...]}
+    Items are raw SearchBookHit / SearchAuthorHit / SearchSeriesHit dicts
+    (snake_case) — preserving pre-L4 wire format.
+    """
+    books: list[Any]
+    authors: list[Any]
+    series: list[Any]

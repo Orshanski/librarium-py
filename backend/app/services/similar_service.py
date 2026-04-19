@@ -4,6 +4,7 @@ import sqlite3
 
 from ..dal import books as books_dal
 from ..dal import similar as similar_dal
+from ..dtos.similar import SimilarResponse
 from ..exceptions import BadInputError, ForbiddenError, NotFoundError, UpstreamError
 from ..providers.litres import fetch_similar, find_litres_id
 
@@ -12,7 +13,7 @@ log = logging.getLogger("librarium.similar")
 _SOURCE = "litres"
 
 
-def get_similar(db: sqlite3.Connection, book_id: int) -> dict:
+def get_similar(db: sqlite3.Connection, book_id: int) -> SimilarResponse:
     book = books_dal.get_book_by_id(db, book_id)
     if not book:
         raise NotFoundError("Not found")
@@ -25,10 +26,10 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> dict:
     try:
         litres_id = find_litres_id(query, title)
         if not litres_id:
-            return {"books": [], "source": _SOURCE, "error": None}
+            return SimilarResponse(books=[], source=_SOURCE, error=None)
         similar = fetch_similar(litres_id)
         similar = similar_dal.exclude_owned(db, similar)
-        return {"books": similar, "source": _SOURCE, "error": None}
+        return SimilarResponse(books=similar, source=_SOURCE, error=None)
     except (BadInputError, ForbiddenError, NotFoundError, UpstreamError):
         # Domain exceptions propagate to middleware — они означают validation/auth/
         # upstream failure с конкретной семантикой, не "temporary network blip".
@@ -41,4 +42,4 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> dict:
     except Exception as e:
         # Third-party/network errors — graceful degrade (UX decision, legacy).
         log.warning("Similar books error for book_id=%d: %s", book_id, e)
-        return {"books": [], "source": _SOURCE, "error": "service_unavailable"}
+        return SimilarResponse(books=[], source=_SOURCE, error="service_unavailable")

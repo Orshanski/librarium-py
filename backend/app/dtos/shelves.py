@@ -1,5 +1,5 @@
-"""Shelves request DTOs."""
-from typing import NotRequired, TypedDict
+"""Shelves request DTOs and Response DTOs."""
+from typing import Any, NotRequired, TypedDict
 
 from pydantic import BaseModel
 
@@ -94,3 +94,34 @@ class BookShelfEntry(TypedDict):
     not returned directly from DAL."""
     id: int
     has_book: bool
+
+
+# ---------------------------------------------------------------------------
+# Response DTOs (L4) — Pydantic, service→router boundary only. R-B: never
+# imported from DAL; construction in service layer.
+# ---------------------------------------------------------------------------
+
+
+class ShelvesListResponse(BaseModel):
+    """Response for GET /api/shelves.
+
+    Wire format:
+      without bookId: {"shelves": [...]}
+      with bookId:    {"shelves": [...], "bookShelves": [...]}
+
+    Pre-L4 the service returned a ShelvesList TypedDict (total=False), which
+    FastAPI serialized as a plain dict without the bookShelves key when absent.
+    We preserve this by setting bookShelves=None and using
+    response_model_exclude_none=True on the endpoint.
+    """
+    shelves: list[Any]
+    bookShelves: list[Any] | None = None
+
+
+class ShelfDetailResponse(BaseModel):
+    """Response for GET /api/shelves/{shelf_id}.
+
+    Wire format: {"shelf": {...}, "books": [...]}
+    """
+    shelf: Any
+    books: list[Any]

@@ -2,6 +2,7 @@
 import sqlite3
 
 from ..dal import authors as dal
+from ..dtos.entities import AuthorDetailResponse, AuthorsListResponse
 from ..exceptions import BadInputError, NotFoundError
 
 
@@ -10,15 +11,16 @@ def list_authors(
     user_id: int,
     tag_ids: list[int] | None,
     language: str | None,
-) -> list[dict]:
-    return dal.get_authors(db, user_id=user_id, tag_ids=tag_ids, language=language)
+) -> AuthorsListResponse:
+    result = dal.get_authors(db, user_id=user_id, tag_ids=tag_ids, language=language)
+    return AuthorsListResponse(authors=result["authors"])
 
 
-def get_author(db: sqlite3.Connection, author_id: int) -> dict:
+def get_author(db: sqlite3.Connection, author_id: int) -> AuthorDetailResponse:
     result = dal.get_author_by_id(db, author_id)
     if not result:
         raise NotFoundError("Not found")
-    return result
+    return AuthorDetailResponse(author=result["author"], books=result["books"])
 
 
 def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> None:

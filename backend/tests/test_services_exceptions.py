@@ -130,12 +130,14 @@ class TestBookServiceGetBook:
         with pytest.raises(NotFoundError, match="Book not found"):
             book_service.get_book(db, 999999, user_id=1)
 
-    def test_existing_book_returns_full_dict(self, db):
-        """Baseline: book 1 existing — возвращает dict с book/files/identifiers keys."""
+    def test_existing_book_returns_detail_response(self, db):
+        """Baseline: book 1 existing — returns BookDetailResponse with book/files/identifiers."""
+        from app.dtos.books import BookDetailResponse
         result = book_service.get_book(db, 1, user_id=1)
-        assert "book" in result
-        assert "files" in result
-        assert "identifiers" in result
+        assert isinstance(result, BookDetailResponse)
+        assert result.book is not None
+        assert isinstance(result.files, list)
+        assert isinstance(result.identifiers, list)
 
 
 class TestBookServiceUpdateBook:

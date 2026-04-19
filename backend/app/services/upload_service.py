@@ -8,7 +8,7 @@ from contextlib import ExitStack
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
 from ..dtos.books import BookCreateData
-from ..dtos.upload import CreateBookMetadata
+from ..dtos.upload import CreateBookMetadata, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
 from ..parsers import parse_book
@@ -60,10 +60,10 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
     return extracted, ext, filename_hint
 
 
-async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str) -> dict:
+async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str) -> UploadParseResponse:
     """Upload temp book file, parse metadata, check duplicates.
 
-    Returns response dict ready for JSON serialization.
+    Returns UploadParseResponse ready for JSON serialization.
     Rollback: cleans up temp artifacts created by this call on failure.
     """
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -111,10 +111,10 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
                 os.remove(path)
         raise
 
-    return {
-        "tempId": temp_id,
-        "format": ext.upper(),
-        "metadata": {
+    return UploadParseResponse(
+        tempId=temp_id,
+        format=ext.upper(),
+        metadata={
             "title": meta.title,
             "authors": ", ".join(meta.authors),
             "series": meta.series or "",
@@ -127,8 +127,8 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
             "isbn": meta.isbn or "",
             "coverUrl": cover_url,
         },
-        "duplicate": duplicate,
-    }
+        duplicate=duplicate,
+    )
 
 
 def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetadata) -> int:

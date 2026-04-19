@@ -1,5 +1,5 @@
-"""Entity (authors, series, tags) request DTOs."""
-from typing import TypedDict
+"""Entity (authors, series, tags) request DTOs and Response DTOs."""
+from typing import Any, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -144,3 +144,82 @@ class EntityBookRow(TypedDict):
     series_name: str | None
     authors: str | None
     tags: str | None
+
+
+# ---------------------------------------------------------------------------
+# Response DTOs (L4) — Pydantic, service→router boundary only. R-B: never
+# imported from DAL; construction in service layer.
+# ---------------------------------------------------------------------------
+
+
+class AuthorDetailResponse(BaseModel):
+    """Response for GET /api/authors/{id}.
+
+    Wire format: {"author": {...}, "books": [...]}
+    The nested dicts are raw TypedDicts (AuthorSummary, EntityBookRow) with
+    snake_case keys — preserving pre-L4 passthrough.
+    """
+    author: Any
+    books: list[Any]
+
+
+class AuthorsListResponse(BaseModel):
+    """Response for GET /api/authors."""
+    authors: list[Any]
+
+
+class SeriesDetailResponse(BaseModel):
+    """Response for GET /api/series/{id}.
+
+    Wire format: {"series": {...}, "books": [...]}
+    """
+    series: Any
+    books: list[Any]
+
+
+class SeriesListResponse(BaseModel):
+    """Response for GET /api/series."""
+    series: list[Any]
+
+
+class TagDetailResponse(BaseModel):
+    """Response for GET /api/tags/{id}.
+
+    Wire format: {"tag": {...}, "books": [...]}
+    """
+    tag: Any
+    books: list[Any]
+
+
+class TagCloudResponse(BaseModel):
+    """Response for GET /api/tags/cloud."""
+    tags: list[Any]
+
+
+class TagMapResponse(BaseModel):
+    """Response for PUT /api/tags/{id}/map.
+
+    Wire format: {"ok": True, "targetId": int}
+    """
+    ok: bool = True
+    targetId: int
+
+
+class AuthorOptionsResponse(BaseModel):
+    """Response for GET /api/filter-options/authors."""
+    authors: list[Any]
+
+
+class TagOptionsResponse(BaseModel):
+    """Response for GET /api/filter-options/tags."""
+    tags: list[Any]
+
+
+class SeriesOptionsResponse(BaseModel):
+    """Response for GET /api/filter-options/series."""
+    series: list[Any]
+
+
+class LanguageOptionsResponse(BaseModel):
+    """Response for GET /api/filter-options/languages."""
+    languages: list[Any]

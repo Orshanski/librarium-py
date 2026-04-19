@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
-from ..dtos.entities import MapBody
+from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..services import tags_service
 from .params import parse_ids
 
@@ -13,7 +13,7 @@ log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 
-@router.get("/cloud")
+@router.get("/cloud", response_model=TagCloudResponse)
 def tag_cloud(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
@@ -22,7 +22,7 @@ def tag_cloud(
     return tags_service.tag_cloud(db, top)
 
 
-@router.get("/{tag_id}")
+@router.get("/{tag_id}", response_model=TagDetailResponse)
 def get_tag(
     tag_id: int,
     user: CurrentUser = Depends(get_current_user),
@@ -36,7 +36,7 @@ def get_tag(
     )
 
 
-@router.put("/{tag_id}/map")
+@router.put("/{tag_id}/map", response_model=TagMapResponse)
 def map_tag(
     tag_id: int,
     body: MapBody,
@@ -44,9 +44,10 @@ def map_tag(
     db: sqlite3.Connection = Depends(db_session),
 ):
     result = tags_service.map_tag(db, tag_id, body.name)
-    action = "renamed" if result["renamed"] else "merged"
+    # renamed=True when target stays the same tag; merged when target differs.
+    action = "renamed" if result.targetId == tag_id else "merged"
     log.info(
         "Tag %s: %d → %s (target=%d) by user_id=%s",
-        action, tag_id, body.name, result["target_id"], user.user_id,
+        action, tag_id, body.name, result.targetId, user.user_id,
     )
-    return {"ok": True, "targetId": result["target_id"]}
+    return result

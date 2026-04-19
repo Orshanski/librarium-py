@@ -24,10 +24,12 @@ Detail-строки (not-found, has-books, self-merge) — inside service functi
 import logging
 import sqlite3
 from types import ModuleType
+from typing import Any
 from fastapi import APIRouter, Depends
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
+from ..dtos import OkResponse
 from ..dtos.entities import RenameBody, MergeBody
 
 
@@ -37,6 +39,7 @@ def register_entity_crud(
     service: ModuleType,
     logger: logging.Logger,
     entity_label: str,
+    detail_response_model: type[Any] | None = None,
 ) -> None:
     """Register 4 shared CRUD endpoints on ``router``.
 
@@ -49,6 +52,10 @@ def register_entity_crud(
         exceptions (NotFoundError, BadInputError) — middleware handles HTTP maps.
       - ``logger``: caller's module logger for info lines on rename/merge/delete.
       - ``entity_label``: singular noun used in log lines (``"author"``, ``"series"``).
+      - ``detail_response_model``: optional Pydantic model class for the GET
+        /{entity_id} response_model annotation (L4 Response DTOs). When None,
+        no annotation is added (backward compat for tests/routers that call
+        the factory without a model).
     """
     get_fn = getattr(service, f"get_{entity_label}")
     rename_fn = getattr(service, f"rename_{entity_label}")
@@ -59,7 +66,11 @@ def register_entity_crud(
     )
     delete_fn = getattr(service, f"delete_{entity_label}")
 
-    @router.get("/{entity_id}")
+    get_kwargs: dict[str, Any] = {}
+    if detail_response_model is not None:
+        get_kwargs["response_model"] = detail_response_model
+
+    @router.get("/{entity_id}", **get_kwargs)
     def get_entity(
         entity_id: int,
         user: CurrentUser = Depends(get_current_user),
@@ -67,7 +78,7 @@ def register_entity_crud(
     ):
         return get_fn(db, entity_id)
 
-    @router.put("/{entity_id}")
+    @router.put("/{entity_id}", response_model=OkResponse)
     def rename_entity(
         entity_id: int,
         body: RenameBody,
@@ -80,9 +91,9 @@ def register_entity_crud(
             "Renamed %s=%d to=%s by user_id=%s",
             entity_label, entity_id, name, user.user_id,
         )
-        return {"ok": True}
+        return OkResponse()
 
-    @router.post("/{entity_id}/merge")
+    @router.post("/{entity_id}/merge", response_model=OkResponse)
     def merge_entity(
         entity_id: int,
         body: MergeBody,
@@ -94,9 +105,9 @@ def register_entity_crud(
             "Merged %s source=%d into target=%d by user_id=%s",
             entity_label, body.sourceId, entity_id, user.user_id,
         )
-        return {"ok": True}
+        return OkResponse()
 
-    @router.delete("/{entity_id}")
+    @router.delete("/{entity_id}", response_model=OkResponse)
     def delete_entity(
         entity_id: int,
         user: CurrentUser = Depends(require_admin),
@@ -104,4 +115,4 @@ def register_entity_crud(
     ):
         delete_fn(db, entity_id)
         logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user.user_id)
-        return {"ok": True}
+        return OkResponse()

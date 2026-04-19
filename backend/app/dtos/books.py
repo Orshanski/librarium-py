@@ -1,5 +1,5 @@
-"""Book request DTOs and write-input TypedDicts."""
-from typing import NotRequired, TypedDict
+"""Book request DTOs, write-input TypedDicts, and Response DTOs."""
+from typing import Any, NotRequired, TypedDict
 
 from pydantic import BaseModel
 
@@ -125,3 +125,57 @@ class BookListPage(TypedDict):
     """
     books: list[BookListRow]
     hasMore: bool
+
+
+# ---------------------------------------------------------------------------
+# Response DTOs (L4) — Pydantic, service→router boundary only. R-B: never
+# used as DAL row type; construction happens in service layer only.
+# ---------------------------------------------------------------------------
+
+
+class BookFileItem(BaseModel):
+    """File entry in BookDetailResponse.files — preserves snake_case wire keys
+    matching the pre-L4 BookFileRow dict passthrough."""
+    id: int
+    format: str
+    file_path: str
+    file_size: int | None = None
+
+
+class BookIdentifierItem(BaseModel):
+    """Identifier entry in BookDetailResponse.identifiers."""
+    type: str
+    value: str
+
+
+class BookDetailResponse(BaseModel):
+    """Response for GET /api/books/{book_id}.
+
+    Wire format: {"book": {...}, "files": [...], "identifiers": [...]}
+    The `book` field is the raw BookListRow dict (snake_case, preserving the
+    pre-L4 passthrough). We accept Any here to avoid re-declaring all ~18
+    BookListRow fields in a nested Pydantic model — the row arrives as a
+    TypedDict/dict and is serialized as-is by FastAPI's JSON encoder.
+    """
+    model_config = {"arbitrary_types_allowed": True}
+
+    book: Any
+    files: list[BookFileItem]
+    identifiers: list[BookIdentifierItem]
+
+
+class BookListResponse(BaseModel):
+    """Response for GET /api/books (paginated catalog).
+
+    Wire format: {"books": [...], "hasMore": bool}
+    Same as BookListPage TypedDict but as Pydantic for response_model.
+    """
+    books: list[Any]
+    hasMore: bool
+
+
+class UploadFileResponse(BaseModel):
+    """Response for POST /api/books/{book_id}/files."""
+    ok: bool = True
+    format: str
+    size: int
