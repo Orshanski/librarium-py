@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -9,6 +10,8 @@ from fastapi import Request
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
 from .exceptions import AuthError, ForbiddenError
 
+log = logging.getLogger("librarium.auth")
+
 UserRole = Literal["admin", "reader"]
 
 
@@ -17,13 +20,19 @@ class CurrentUser:
     """Typed auth context: the user making the current request.
 
     Constructed from a decoded JWT payload via `from_payload`. Frozen so
-    handlers cannot mutate it mid-request. JWT keys (``userId``, ``role``)
-    are isolated inside ``from_payload``; consumers read ``user_id`` / ``role``.
-    Extra payload keys (e.g. ``iat``, ``exp``) are ignored.
+    handlers cannot mutate it mid-request. JWT keys (``userId`` → ``user_id``,
+    ``role`` → ``role``) are mapped inside ``from_payload``; consumers read
+    the typed attributes, not the raw payload. Extra payload keys
+    (e.g. ``iat``, ``exp``) are ignored.
 
     Precondition: the caller has already verified the JWT signature via
     ``decode_token``. ``from_payload`` only validates payload shape, not
     authenticity.
+
+    Client-visible error contract: any shape violation raises a generic
+    ``AuthError("Invalid token")``. The specific malformed-reason is logged
+    at WARNING via the ``librarium.auth`` logger for ops diagnostics, but
+    never leaks to the client response body.
     """
 
     user_id: int
@@ -32,19 +41,24 @@ class CurrentUser:
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "CurrentUser":
         if "userId" not in payload:
-            raise AuthError("Invalid token: userId missing")
+            log.warning("JWT malformed: userId missing")
+            raise AuthError("Invalid token")
         user_id = payload["userId"]
         # bool-guard: Python treats `bool` as `int` subclass — without this,
         # True / False would pass the int check.
         if isinstance(user_id, bool) or not isinstance(user_id, int):
-            raise AuthError("Invalid token: userId not int")
+            log.warning("JWT malformed: userId not int (got %s)", type(user_id).__name__)
+            raise AuthError("Invalid token")
         if "role" not in payload:
-            raise AuthError("Invalid token: role missing")
+            log.warning("JWT malformed: role missing")
+            raise AuthError("Invalid token")
         role = payload["role"]
         if not isinstance(role, str):
-            raise AuthError("Invalid token: role not string")
+            log.warning("JWT malformed: role not string (got %s)", type(role).__name__)
+            raise AuthError("Invalid token")
         if not role:
-            raise AuthError("Invalid token: role empty")
+            log.warning("JWT malformed: role empty")
+            raise AuthError("Invalid token")
         # mypy cannot narrow a plain str to Literal["admin", "reader"] after
         # isinstance; runtime accepts any non-empty string. The Literal gives
         # compile-time safety on downstream `user.role == "admin"` checks.
