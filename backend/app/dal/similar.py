@@ -1,7 +1,9 @@
 import sqlite3
 
+from ..dtos.similar import SimilarCandidate
 
-def exclude_owned(db: sqlite3.Connection, candidates: list[dict]) -> list[dict]:
+
+def exclude_owned(db: sqlite3.Connection, candidates: list[SimilarCandidate]) -> list[SimilarCandidate]:
     """Filter out books that already exist in the library by title + first author."""
     if not candidates:
         return candidates

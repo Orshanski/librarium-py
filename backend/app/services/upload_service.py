@@ -7,7 +7,7 @@ import zipfile
 from contextlib import ExitStack
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
-from ..dtos.books import BookCreateData
+from ..dtos.books import BookCreateData, DuplicateHit
 from ..dtos.upload import CreateBookMetadata, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
@@ -224,7 +224,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     return fmt
 
 
-def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> dict | None:
+def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> DuplicateHit | None:
     if not title:
         return None
     rows = find_duplicates_by_title(db, title)
@@ -240,5 +240,5 @@ def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> 
     return None
 
 
-def _row_as_hit(r: dict) -> dict:
+def _row_as_hit(r: DuplicateHit) -> DuplicateHit:
     return {"id": r["id"], "title": r["title"], "authors": r["authors"]}

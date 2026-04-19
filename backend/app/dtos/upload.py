@@ -3,6 +3,8 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, StringConstraints
 
+from .books import DuplicateHit
+
 TempIdStr = Annotated[str, StringConstraints(pattern=r'^[a-zA-Z0-9]{1,20}$')]
 """Temp upload ID: 1-20 alphanumeric chars."""
 
@@ -50,7 +52,7 @@ class UploadParseResponse(BaseModel):
     tempId: str
     format: str
     metadata: Any  # CreateBookMetadata-shaped dict from upload_service
-    duplicate: Any | None = None
+    duplicate: DuplicateHit | None = None
 
 
 class CreateBookResponse(BaseModel):

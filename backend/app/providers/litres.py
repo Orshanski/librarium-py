@@ -2,6 +2,7 @@ import re
 import logging
 import requests
 from . import MetadataResult
+from ..dtos.similar import SimilarCandidate
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ def find_litres_id(query: str, title: str) -> int | None:
     return None
 
 
-def fetch_similar(litres_id: int) -> list[dict]:
+def fetch_similar(litres_id: int) -> list[SimilarCandidate]:
     """Fetch similar books from Litres, filter and normalize."""
     resp = _session.get(SIMILAR_URL.format(litres_id), params={
         "limit": 24,
