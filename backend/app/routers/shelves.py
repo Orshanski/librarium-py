@@ -2,22 +2,14 @@ import logging
 import sqlite3
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos.shelves import ShelfBody, ShelfBookBody
 from ..services import shelves_service
 
 log = logging.getLogger("librarium.shelves")
 router = APIRouter(prefix="/api/shelves", tags=["shelves"])
-
-
-class ShelfBody(BaseModel):
-    name: str
-
-
-class ShelfBookBody(BaseModel):
-    bookId: int
 
 
 @router.get("")

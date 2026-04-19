@@ -25,18 +25,10 @@ import logging
 import sqlite3
 from types import ModuleType
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
-
-
-class _RenameBody(BaseModel):
-    name: str
-
-
-class _MergeBody(BaseModel):
-    sourceId: int
+from ..dtos.entities import _RenameBody, _MergeBody
 
 
 def register_entity_crud(

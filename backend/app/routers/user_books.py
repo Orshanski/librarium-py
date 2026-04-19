@@ -1,23 +1,11 @@
 import sqlite3
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos.user_books import RatingBody, ReadBody, HiddenBody
 from ..services import user_books_service
 
 router = APIRouter(tags=["user-books"])
-
-
-class RatingBody(BaseModel):
-    rating: int | None = Field(None, ge=1, le=5)
-
-
-class ReadBody(BaseModel):
-    isRead: bool
-
-
-class HiddenBody(BaseModel):
-    isHidden: bool
 
 
 @router.put("/api/books/{book_id}/rating")

@@ -2,11 +2,11 @@ import logging
 import sqlite3
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, require_admin
 from ..config import MAX_BOOK_SIZE
 from ..database import db_session
+from ..dtos.upload import CreateBookBody, AddFormatBody
 from ..exceptions import BadInputError
 from ..services.temp_cleanup import cleanup_temp_session
 from ..services.upload_service import (
@@ -17,29 +17,6 @@ from ._validators import TempIdStr
 log = logging.getLogger("librarium.upload")
 
 router = APIRouter(tags=["upload"])
-
-
-class CreateBookMetadata(BaseModel):
-    title: str
-    authors: str = ""
-    series: str = ""
-    seriesNumber: str = ""
-    description: str = ""
-    language: str = ""
-    tags: str = ""
-    publisher: str = ""
-    pubDate: str = ""
-    isbn: str = ""
-    coverUrl: str | None = None
-
-
-class CreateBookBody(BaseModel):
-    tempId: TempIdStr
-    metadata: CreateBookMetadata = Field(default_factory=CreateBookMetadata)
-
-
-class AddFormatBody(BaseModel):
-    tempId: TempIdStr
 
 
 @router.post("/api/upload")
@@ -83,7 +60,7 @@ def create_book_from_upload(
     user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):
-    book_id = create_book(db, body.tempId, body.metadata.model_dump())
+    book_id = create_book(db, body.tempId, body.metadata)
     log.info("Created book=%d by user_id=%s", book_id, user.user_id)
     return {"bookId": book_id}
 

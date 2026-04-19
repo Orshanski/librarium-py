@@ -1,25 +1,12 @@
 import sqlite3
-from typing import Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos.reader import ReaderSettingsBody, ReadingProgressBody
 from ..services import reader_service
 
 router = APIRouter(tags=["reader"])
-
-
-class ReaderSettingsBody(BaseModel):
-    settings: dict[str, Any] = Field(default_factory=dict)
-
-
-class ReadingProgressBody(BaseModel):
-    position: str
-    last_device: str = ""
-    last_format: str = ""
-    fraction: float = Field(0, ge=0, le=1)
-    expected_version: int = Field(0, ge=0)
 
 
 DEVICE_COOKIE = "device_id"
@@ -49,7 +36,7 @@ def api_get_settings(request: Request, user: CurrentUser = Depends(get_current_u
 @router.put("/api/reader/settings")
 def api_save_settings(body: ReaderSettingsBody, request: Request, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
-    reader_service.save_settings(db, user.user_id, device_id, body.settings)
+    reader_service.save_settings(db, user.user_id, device_id, body)
     response = JSONResponse({"ok": True})
     _set_device_cookie(response, device_id)
     return response

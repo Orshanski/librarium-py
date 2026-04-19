@@ -2,11 +2,11 @@ import logging
 import sqlite3
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..config import MAX_BOOK_SIZE
 from ..database import db_session
+from ..dtos.books import UpdateBookBody
 from ..exceptions import BadInputError
 from ..services import book_service
 from ..services.upload_service import BOOK_EXTENSIONS
@@ -16,19 +16,6 @@ from .params import parse_ids
 log = logging.getLogger("librarium.books")
 
 router = APIRouter(prefix="/api/books", tags=["books"])
-
-
-class UpdateBookBody(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pubDate: str | None = None
-    seriesId: int | str | None = None
-    seriesNumber: float | None = None
-    authorIds: list[int | str] | None = None
-    tagIds: list[int | str] | None = None
-    isbn: str | None = None
 
 
 @router.get("")
@@ -68,7 +55,7 @@ def update_book(
     user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):
-    book_service.update_book(db, book_id, body.model_dump(exclude_unset=True))
+    book_service.update_book(db, book_id, body)
     log.info("Updated book=%d by user_id=%s", book_id, user.user_id)
     return {"ok": True}
 

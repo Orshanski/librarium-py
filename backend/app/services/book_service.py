@@ -2,10 +2,11 @@ import logging
 import os
 import shutil
 import sqlite3
-from typing import TypedDict
+from typing import TypedDict, cast
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
+from ..dtos.books import UpdateBookBody, BookUpdateData
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
 from . import filters_service, thumb
@@ -89,12 +90,13 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> dict:
     return {"book": book, "files": files, "identifiers": identifiers}
 
 
-def update_book(db: sqlite3.Connection, book_id: int, data: dict) -> None:
+def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:
     """Update book fields. Resolves authorIds/tagIds/seriesId raw input to IDs
-    (creates entities if missing). Raises NotFoundError если книга не существует."""
+    (creates entities if missing). Raises NotFoundError if the book is absent."""
     if not dal.book_exists(db, book_id):
         raise NotFoundError("Book not found")
 
+    data: BookUpdateData = cast(BookUpdateData, body.model_dump(exclude_unset=True))
     if "authorIds" in data:
         data["authorIds"] = resolve_authors(db, data["authorIds"])
     if "tagIds" in data:

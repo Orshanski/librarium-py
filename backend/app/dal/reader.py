@@ -1,6 +1,8 @@
 import json
 import sqlite3
 from datetime import datetime, timezone
+from typing import Any
+
 from ..database import dict_from_row
 
 
@@ -14,7 +16,7 @@ def get_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str) 
     return json.loads(row["settings"])
 
 
-def save_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str, settings: dict):
+def save_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str, settings: dict[str, Any]) -> None:
     db.execute("""
         INSERT INTO reader_settings (user_id, device_type, settings)
         VALUES (:uid, :dt, :s)

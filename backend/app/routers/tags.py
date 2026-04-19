@@ -2,10 +2,10 @@ import logging
 import sqlite3
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
+from ..dtos.entities import MapBody
 from ..services import tags_service
 from .params import parse_ids
 
@@ -34,11 +34,6 @@ def get_tag(
     return tags_service.get_tag(
         db, tag_id, parse_ids(authorIds), parse_ids(seriesIds), language or None
     )
-
-
-class MapBody(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
-    name: str = Field(..., min_length=1)
 
 
 @router.put("/{tag_id}/map")

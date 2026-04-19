@@ -1,42 +1,16 @@
 import logging
 import sqlite3
-from typing import Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, require_admin
 from ..database import db_session
+from ..dtos.admin import CreateUserBody, UpdateUserBody, UpdateSettingsBody
 from ..services import admin_service, mail_service
 
 log = logging.getLogger("librarium.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-
-# --- Request models ---
-
-class CreateUserBody(BaseModel):
-    username: str = Field(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9_]+$')
-    password: str = Field(min_length=4)
-    role: Literal["admin", "reader"] = "reader"
-    displayName: str | None = None
-    email: str | None = None
-
-
-class UpdateUserBody(BaseModel):
-    displayName: str | None = None
-    email: str | None = None
-    password: str | None = None
-    role: Literal["admin", "reader"] | None = None
-
-
-class UpdateSettingsBody(BaseModel):
-    app_name: str | None = None
-    smtp_host: str | None = None
-    smtp_port: str | None = None
-    smtp_user: str | None = None
-    smtp_pass: str | None = None
 
 
 # --- Users ---
@@ -57,7 +31,7 @@ def create_user(body: CreateUserBody, user: CurrentUser = Depends(require_admin)
 
 @router.put("/users/{user_id}")
 def update_user(user_id: int, body: UpdateUserBody, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    admin_service.update_user(db, user_id, body.model_dump(exclude_none=True), actor_id=user.user_id)
+    admin_service.update_user(db, user_id, body, actor_id=user.user_id)
     return {"ok": True}
 
 
@@ -76,7 +50,7 @@ def get_settings(user: CurrentUser = Depends(require_admin), db: sqlite3.Connect
 
 @router.put("/settings")
 def update_settings(body: UpdateSettingsBody, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
-    admin_service.update_settings(db, body.model_dump(exclude_none=True), actor_id=user.user_id)
+    admin_service.update_settings(db, body, actor_id=user.user_id)
     return {"ok": True}
 
 

@@ -4,21 +4,16 @@ import sqlite3
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user, get_client_ip, COOKIE_NAME
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
+from ..dtos.auth import LoginRequest
 from ..services import auth_service
 
 log = logging.getLogger("librarium.auth")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
 
 
 @router.post("/login")

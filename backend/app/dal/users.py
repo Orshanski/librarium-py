@@ -1,7 +1,8 @@
 import sqlite3
 
-from ..database import dict_from_row, dicts_from_rows
 from ..auth import hash_password
+from ..database import dict_from_row, dicts_from_rows
+from ..dtos.admin import UserUpdateData
 
 
 def get_user_by_id(db: sqlite3.Connection, user_id: int):
@@ -34,7 +35,7 @@ def create_user(db: sqlite3.Connection, username: str, password: str, role="read
     return user_id
 
 
-def update_user(db: sqlite3.Connection, user_id: int, data: dict):
+def update_user(db: sqlite3.Connection, user_id: int, data: UserUpdateData) -> None:
     sets, params = [], {"id": user_id}
     if "displayName" in data:
         sets.append("display_name = :dn")

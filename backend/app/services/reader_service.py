@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from ..dal import reader as dal
+from ..dtos.reader import ReaderSettingsBody
 
 
 def get_or_create_device_id(cookie_value: str | None) -> str:
@@ -18,8 +19,10 @@ def get_settings(db: sqlite3.Connection, user_id: int, device_id: str) -> dict[s
     return dal.get_reader_settings(db, user_id, device_id)
 
 
-def save_settings(db: sqlite3.Connection, user_id: int, device_id: str, settings: dict[str, Any]) -> None:
-    dal.save_reader_settings(db, user_id, device_id, settings)
+def save_settings(db: sqlite3.Connection, user_id: int, device_id: str, body: ReaderSettingsBody) -> None:
+    # opaque JSON blob — passes through typed on router↔service boundary
+    # but stays dict[str, Any] on service↔DAL (see spec Non-goals).
+    dal.save_reader_settings(db, user_id, device_id, body.settings)
 
 
 def get_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> dict:

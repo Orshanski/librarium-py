@@ -7,6 +7,8 @@ import zipfile
 from contextlib import ExitStack
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
+from ..dtos.books import BookCreateData
+from ..dtos.upload import CreateBookMetadata
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
 from ..parsers import parse_book
@@ -129,14 +131,14 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
     }
 
 
-def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
+def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetadata) -> int:
     """Create book from uploaded temp file.
 
     Returns book_id.
     Rollback: multi-file moves unwound via ExitStack — on exception inside the
     with-block both the book file and the optional cover roll back automatically.
     """
-    title = metadata.get("title", "").strip()
+    title = metadata.title.strip()
     if not title:
         raise BadInputError("Title required")
 
@@ -147,27 +149,28 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
     ext = temp_file.rsplit(".", 1)[-1]
 
     series_number = None
-    if metadata.get("seriesNumber"):
+    if metadata.seriesNumber:
         try:
-            series_number = float(metadata["seriesNumber"])
+            series_number = float(metadata.seriesNumber)
         except ValueError:
             pass
 
-    author_ids = resolve_authors(db, metadata.get("authors", ""))
-    series_id = resolve_series(db, metadata.get("series", ""))
-    tag_ids = resolve_tags(db, metadata.get("tags", ""))
+    author_ids = resolve_authors(db, metadata.authors)
+    series_id = resolve_series(db, metadata.series)
+    tag_ids = resolve_tags(db, metadata.tags)
 
-    book_id = dal_create_book(db, {
+    create_data: BookCreateData = {
         "title": title,
-        "description": metadata.get("description") or None,
-        "language": metadata.get("language") or None,
-        "publisher": metadata.get("publisher") or None,
-        "pubDate": metadata.get("pubDate") or None,
-        "seriesId": series_id,
-        "seriesNumber": series_number,
-        "authorIds": author_ids,
-        "tagIds": tag_ids,
-    })
+        "description": metadata.description or None,
+        "language": metadata.language or None,
+        "publisher": metadata.publisher or None,
+        "pub_date": metadata.pubDate or None,
+        "series_id": series_id,
+        "series_number": series_number,
+        "author_ids": author_ids,
+        "tag_ids": tag_ids,
+    }
+    book_id = dal_create_book(db, create_data)
 
     book_dir, book_dst = book_dir_and_dst(book_id, ext)
     src = str(UPLOADS_DIR / temp_file)
@@ -185,8 +188,8 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: dict) -> int:
                 stack.enter_context(move_with_rollback(cover_src, cover_dst))
                 update_cover_path(db, book_id, db_path_for(book_id, f"cover.{cover_ext}"))
 
-            if metadata.get("isbn"):
-                add_book_identifier(db, book_id, "isbn", metadata["isbn"])
+            if metadata.isbn:
+                add_book_identifier(db, book_id, "isbn", metadata.isbn)
     except Exception:
         # ExitStack rolled back the moves → book_dir is empty. Remove it, otherwise
         # library/ accumulates orphan dirs from failed create_book attempts: DAL

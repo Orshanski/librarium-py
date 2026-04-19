@@ -6,6 +6,8 @@ service-функции без HTTP — поэтому эффективно unit-
 """
 import pytest
 
+from app.dtos.books import UpdateBookBody
+from app.dtos.upload import CreateBookMetadata
 from app.exceptions import BadInputError, ConflictError, NotFoundError
 from app.services import (
     authors_service,
@@ -139,18 +141,18 @@ class TestBookServiceGetBook:
 class TestBookServiceUpdateBook:
     def test_missing_book_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Book not found"):
-            book_service.update_book(db, 999999, {"title": "whatever"})
+            book_service.update_book(db, 999999, UpdateBookBody(title="whatever"))
 
     def test_update_existing_book_without_resolves(self, db):
         """Simple field update — без resolve_*."""
-        book_service.update_book(db, 1, {"description": "Updated description"})
+        book_service.update_book(db, 1, UpdateBookBody(description="Updated description"))
         row = db.execute("SELECT description FROM books WHERE id=1").fetchone()
         assert row["description"] == "Updated description"
 
     def test_update_resolves_authorids_from_string(self, db):
-        """authorIds='New Author' — resolve внутри service создаёт нового автора
+        """authorIds=['New Author'] — resolve внутри service создаёт нового автора
         и обновляет привязку книги."""
-        book_service.update_book(db, 1, {"authorIds": "Totally New Author T9"})
+        book_service.update_book(db, 1, UpdateBookBody(authorIds=["Totally New Author T9"]))
         rows = db.execute(
             "SELECT a.name FROM authors a JOIN book_authors ba ON ba.author_id=a.id WHERE ba.book_id=1"
         ).fetchall()
@@ -158,7 +160,7 @@ class TestBookServiceUpdateBook:
         assert "Totally New Author T9" in names
 
     def test_update_resolves_tagids_from_string(self, db):
-        book_service.update_book(db, 1, {"tagIds": "BrandNewTagT9"})
+        book_service.update_book(db, 1, UpdateBookBody(tagIds=["BrandNewTagT9"]))
         rows = db.execute(
             "SELECT t.name FROM tags t JOIN book_tags bt ON bt.tag_id=t.id WHERE bt.book_id=1"
         ).fetchall()
@@ -166,7 +168,7 @@ class TestBookServiceUpdateBook:
         assert "BrandNewTagT9" in names
 
     def test_update_resolves_series_from_string(self, db):
-        book_service.update_book(db, 1, {"seriesId": "Brand New Series T9"})
+        book_service.update_book(db, 1, UpdateBookBody(seriesId="Brand New Series T9"))
         row = db.execute(
             "SELECT s.name FROM series s JOIN books b ON b.series_id=s.id WHERE b.id=1"
         ).fetchone()
@@ -192,12 +194,12 @@ class TestUploadServiceRaises:
     def test_create_book_missing_title_raises_bad_input(self, db):
         from app.services import upload_service
         with pytest.raises(BadInputError, match="Title required"):
-            upload_service.create_book(db, temp_id="nonexistent", metadata={"title": ""})
+            upload_service.create_book(db, temp_id="nonexistent", metadata=CreateBookMetadata(title=""))
 
     def test_create_book_missing_temp_raises_bad_input(self, db):
         from app.services import upload_service
         with pytest.raises(BadInputError, match="Temp file not found"):
-            upload_service.create_book(db, temp_id="doesnotexist", metadata={"title": "X"})
+            upload_service.create_book(db, temp_id="doesnotexist", metadata=CreateBookMetadata(title="X"))
 
     def test_add_format_missing_temp_raises_bad_input(self, db):
         from app.services import upload_service

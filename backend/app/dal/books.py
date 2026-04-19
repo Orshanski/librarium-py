@@ -4,6 +4,7 @@ import sqlite3
 from rapidfuzz import process
 
 from ..database import dicts_from_rows, dict_from_row
+from ..dtos.books import BookCreateData, BookUpdateData
 from ..dtos.catalog import CatalogFilters
 from ..search import (
     AUTHORS_SERIES_LIMIT,
@@ -96,30 +97,30 @@ def _sort_title(title: str) -> str:
     return re.sub(r"^(The|A|An)\s+", "", title, flags=re.IGNORECASE)
 
 
-def create_book(db: sqlite3.Connection, data: dict) -> int:
+def create_book(db: sqlite3.Connection, data: BookCreateData) -> int:
     cur = db.execute("""
         INSERT INTO books (title, sort_title, description, language, publisher, pub_date, series_id, series_number, cover_path)
         VALUES (:title, :sort_title, :description, :language, :publisher, :pub_date, :series_id, :series_number, :cover_path)
     """, {
         "title": data["title"],
-        "sort_title": data.get("sortTitle") or _sort_title(data["title"]),
+        "sort_title": data.get("sort_title") or _sort_title(data["title"]),
         "description": data.get("description"),
         "language": data.get("language"),
         "publisher": data.get("publisher"),
-        "pub_date": data.get("pubDate"),
-        "series_id": data.get("seriesId"),
-        "series_number": data.get("seriesNumber"),
-        "cover_path": data.get("coverPath"),
+        "pub_date": data.get("pub_date"),
+        "series_id": data.get("series_id"),
+        "series_number": data.get("series_number"),
+        "cover_path": data.get("cover_path"),
     })
     book_id = cur.lastrowid
-    for aid in data.get("authorIds", []):
+    for aid in data.get("author_ids", []):
         db.execute("INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)", (book_id, aid))
-    for tid in data.get("tagIds", []):
+    for tid in data.get("tag_ids", []):
         db.execute("INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)", (book_id, tid))
     return book_id
 
 
-def update_book(db: sqlite3.Connection, book_id: int, data: dict):
+def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> None:
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
 
