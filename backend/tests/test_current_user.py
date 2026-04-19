@@ -73,7 +73,7 @@ def test_from_payload_role_not_string(caplog, bad_role):
     # Pin the type-name detail for one representative case so a refactor
     # dropping `(got %s)` from the log format gets caught.
     if bad_role == 123:
-        assert "int" in caplog.text
+        assert "(got int)" in caplog.text
 
 
 def test_from_payload_role_empty_string(caplog):
