@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 import logging
 
-from ..auth import get_current_user, require_admin
+from ..auth import CurrentUser, get_current_user, require_admin
 from ..config import MAX_COVER_SIZE
 from ..database import db_session
 from ..exceptions import BadInputError
@@ -18,7 +18,7 @@ router = APIRouter(tags=["covers"])
 @router.get("/api/covers/{book_id}")
 def get_cover(
     book_id: int,
-    user: dict = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
     full: int = 0,
 ):
@@ -35,7 +35,7 @@ def get_cover(
 @router.post("/api/books/{book_id}/cover")
 async def upload_cover(
     book_id: int,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
     file: UploadFile = File(...),
 ):
@@ -54,20 +54,20 @@ async def upload_cover(
 
 
 @router.get("/api/uploads/cover/{temp_id}")
-def get_temp_cover(temp_id: TempIdStr, user: dict = Depends(get_current_user)):
+def get_temp_cover(temp_id: TempIdStr, user: CurrentUser = Depends(get_current_user)):
     path = cover_service.get_temp_cover_path(temp_id)
     return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
 @router.put("/api/books/{book_id}/cover")
-def commit_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def commit_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     if not cover_service.commit(db, book_id):
         raise BadInputError("No pending cover to commit")
-    log.info("Cover updated book=%d by user_id=%s", book_id, user["userId"])
+    log.info("Cover updated book=%d by user_id=%s", book_id, user.user_id)
     return JSONResponse({"ok": True})
 
 
 @router.delete("/api/books/{book_id}/cover")
-def discard_cover(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def discard_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     cover_service.discard_temp(db, book_id)
     return JSONResponse({"ok": True})

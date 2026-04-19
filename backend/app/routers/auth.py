@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ..auth import get_current_user, get_client_ip, COOKIE_NAME
+from ..auth import CurrentUser, get_current_user, get_client_ip, COOKIE_NAME
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
 from ..services import auth_service
@@ -39,15 +39,15 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
 
 
 @router.get("/me")
-def me(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return auth_service.get_me(db, user["userId"])
+def me(user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+    return auth_service.get_me(db, user.user_id)
 
 
 @router.post("/logout")
 def logout(request: Request):
     try:
         user = get_current_user(request)
-        log.info("Logout user_id=%s", user["userId"])
+        log.info("Logout user_id=%s", user.user_id)
     except Exception:
         pass
     response = JSONResponse({"ok": True})

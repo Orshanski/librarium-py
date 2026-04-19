@@ -1,7 +1,7 @@
 import sqlite3
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
-from ..auth import get_current_user
+from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..services import download_service
 
@@ -12,7 +12,7 @@ router = APIRouter(tags=["download"])
 def download_book(
     book_id: int,
     format: str,
-    user: dict = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
 ):
     target = download_service.resolve_download(db, book_id, format)

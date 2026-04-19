@@ -1,0 +1,89 @@
+"""Unit tests for CurrentUser — typed auth context from JWT payload.
+
+Factory validates payload shape before construction. On any shape violation,
+the client sees a generic ``AuthError("Invalid token")``; ops sees a specific
+reason in the ``librarium.auth`` WARNING log.
+"""
+import logging
+from dataclasses import FrozenInstanceError
+
+import pytest
+
+from app.auth import CurrentUser
+from app.exceptions import AuthError
+
+
+def test_from_payload_happy_path(caplog):
+    with caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        user = CurrentUser.from_payload({"userId": 42, "role": "admin", "iat": 1, "exp": 2})
+    assert user.user_id == 42
+    assert user.role == "admin"
+    assert "JWT malformed" not in caplog.text
+
+
+def test_from_payload_happy_path_reader(caplog):
+    with caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        user = CurrentUser.from_payload({"userId": 7, "role": "reader"})
+    assert user.user_id == 7
+    assert user.role == "reader"
+    assert "JWT malformed" not in caplog.text
+
+
+def test_from_payload_missing_user_id(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"role": "admin"})
+    assert "userId missing" in caplog.text
+
+
+def test_from_payload_user_id_not_int(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": "not-int", "role": "admin"})
+    assert "userId not int" in caplog.text
+
+
+def test_from_payload_user_id_bool_true_rejected(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": True, "role": "admin"})
+    assert "userId not int" in caplog.text
+
+
+def test_from_payload_user_id_bool_false_rejected(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": False, "role": "admin"})
+    assert "userId not int" in caplog.text
+
+
+def test_from_payload_missing_role(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": 1})
+    assert "role missing" in caplog.text
+
+
+@pytest.mark.parametrize("bad_role", [None, 123, [], {}])
+def test_from_payload_role_not_string(caplog, bad_role):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": 1, "role": bad_role})
+    assert "role not string" in caplog.text
+    # Pin the type-name detail for one representative case so a refactor
+    # dropping `(got %s)` from the log format gets caught.
+    if bad_role == 123:
+        assert "(got int)" in caplog.text
+
+
+def test_from_payload_role_empty_string(caplog):
+    with pytest.raises(AuthError, match=r"^Invalid token$"), \
+         caplog.at_level(logging.WARNING, logger="librarium.auth"):
+        CurrentUser.from_payload({"userId": 1, "role": ""})
+    assert "role empty" in caplog.text
+
+
+def test_instance_is_frozen():
+    user = CurrentUser.from_payload({"userId": 1, "role": "admin"})
+    with pytest.raises(FrozenInstanceError):
+        user.role = "reader"  # type: ignore[misc]
