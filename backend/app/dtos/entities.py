@@ -2,11 +2,11 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class _RenameBody(BaseModel):
+class RenameBody(BaseModel):
     name: str
 
 
-class _MergeBody(BaseModel):
+class MergeBody(BaseModel):
     sourceId: int
 
 

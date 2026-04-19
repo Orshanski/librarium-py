@@ -54,7 +54,7 @@ def get_settings(db: sqlite3.Connection) -> dict:
 
 
 def update_settings(db: sqlite3.Connection, body: UpdateSettingsBody, actor_id: int) -> None:
-    data: dict[str, str] = body.model_dump(exclude_none=True)
+    data: dict[str, str] = cast(dict[str, str], body.model_dump(exclude_none=True))
     # Don't overwrite real password with mask shown in UI
     if data.get("smtp_pass") == _SMTP_PASS_MASK:
         del data["smtp_pass"]

@@ -20,8 +20,9 @@ def get_settings(db: sqlite3.Connection, user_id: int, device_id: str) -> dict[s
 
 
 def save_settings(db: sqlite3.Connection, user_id: int, device_id: str, body: ReaderSettingsBody) -> None:
-    # opaque JSON blob — passes through typed on router↔service boundary
-    # but stays dict[str, Any] on service↔DAL (see spec Non-goals).
+    # Body is typed at the router/service boundary; the settings blob
+    # itself stays dict[str, Any] all the way to DAL (opaque JSON,
+    # see spec Non-goals).
     dal.save_reader_settings(db, user_id, device_id, body.settings)
 
 

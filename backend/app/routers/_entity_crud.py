@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
-from ..dtos.entities import _RenameBody, _MergeBody
+from ..dtos.entities import RenameBody, MergeBody
 
 
 def register_entity_crud(
@@ -70,7 +70,7 @@ def register_entity_crud(
     @router.put("/{entity_id}")
     def rename_entity(
         entity_id: int,
-        body: _RenameBody,
+        body: RenameBody,
         user: CurrentUser = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
@@ -85,7 +85,7 @@ def register_entity_crud(
     @router.post("/{entity_id}/merge")
     def merge_entity(
         entity_id: int,
-        body: _MergeBody,
+        body: MergeBody,
         user: CurrentUser = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
