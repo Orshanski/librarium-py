@@ -2,13 +2,12 @@ import logging
 import os
 import sqlite3
 
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request, Response, Depends
 
 from ..auth import CurrentUser, get_current_user, get_client_ip, COOKIE_NAME
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
-from ..dtos.auth import AuthUserResponse, LoginRequest
+from ..dtos.auth import AuthUserResponse, AuthLoginResponse, AuthLogoutResponse, LoginRequest
 from ..services import auth_service
 
 log = logging.getLogger("librarium.auth")
@@ -16,11 +15,15 @@ log = logging.getLogger("librarium.auth")
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login")
-def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends(db_session)):
+@router.post("/login", response_model=AuthLoginResponse)
+def login(
+    body: LoginRequest,
+    request: Request,
+    response: Response,
+    db: sqlite3.Connection = Depends(db_session),
+) -> AuthLoginResponse:
     ip = get_client_ip(request)
-    token, user_response = auth_service.login(db, body.username, body.password, ip)
-    response = JSONResponse({"ok": True, "user": user_response.model_dump()})
+    token, user = auth_service.login(db, body.username, body.password, ip)
     response.set_cookie(
         COOKIE_NAME,
         token,
@@ -30,7 +33,7 @@ def login(body: LoginRequest, request: Request, db: sqlite3.Connection = Depends
         max_age=JWT_EXPIRE_HOURS * 3600,
         path="/",
     )
-    return response
+    return AuthLoginResponse(user=user)
 
 
 @router.get("/me", response_model=AuthUserResponse)
@@ -38,13 +41,12 @@ def me(user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = D
     return auth_service.get_me(db, user.user_id)
 
 
-@router.post("/logout")
-def logout(request: Request):
+@router.post("/logout", response_model=AuthLogoutResponse)
+def logout(request: Request, response: Response) -> AuthLogoutResponse:
     try:
         user = get_current_user(request)
         log.info("Logout user_id=%s", user.user_id)
     except Exception:
         pass
-    response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME, path="/")
-    return response
+    return AuthLogoutResponse()

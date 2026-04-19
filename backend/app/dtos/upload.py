@@ -1,5 +1,5 @@
 """Upload request DTOs and Response DTOs."""
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -51,7 +51,7 @@ class UploadParseResponse(BaseModel):
     """
     tempId: str
     format: str
-    metadata: Any  # CreateBookMetadata-shaped dict from upload_service
+    metadata: CreateBookMetadata
     duplicate: DuplicateHit | None = None
 
 

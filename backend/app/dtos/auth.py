@@ -29,6 +29,17 @@ class AuthUserResponse(BaseModel):
     role: Literal["admin", "reader"]
 
 
+class AuthLoginResponse(BaseModel):
+    """Response for POST /api/auth/login."""
+    ok: bool = True
+    user: AuthUserResponse
+
+
+class AuthLogoutResponse(BaseModel):
+    """Response for POST /api/auth/logout."""
+    ok: bool = True
+
+
 # ---------------------------------------------------------------------------
 # Read-path TypedDicts — one per distinct SELECT shape (R-A).
 # ---------------------------------------------------------------------------

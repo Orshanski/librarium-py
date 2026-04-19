@@ -114,19 +114,19 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
     return UploadParseResponse(
         tempId=temp_id,
         format=ext.upper(),
-        metadata={
-            "title": meta.title,
-            "authors": ", ".join(meta.authors),
-            "series": meta.series or "",
-            "seriesNumber": str(meta.series_number).rstrip("0").rstrip(".") if meta.series_number else "",
-            "description": meta.description or "",
-            "language": meta.language or "",
-            "tags": ", ".join(meta.genres),
-            "publisher": meta.publisher or "",
-            "pubDate": meta.pub_date or "",
-            "isbn": meta.isbn or "",
-            "coverUrl": cover_url,
-        },
+        metadata=CreateBookMetadata(
+            title=meta.title,
+            authors=", ".join(meta.authors),
+            series=meta.series or "",
+            seriesNumber=str(meta.series_number).rstrip("0").rstrip(".") if meta.series_number else "",
+            description=meta.description or "",
+            language=meta.language or "",
+            tags=", ".join(meta.genres),
+            publisher=meta.publisher or "",
+            pubDate=meta.pub_date or "",
+            isbn=meta.isbn or "",
+            coverUrl=cover_url,
+        ),
         duplicate=duplicate,
     )
 
@@ -229,16 +229,11 @@ def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> 
         return None
     rows = find_duplicates_by_title(db, title)
     for r in rows:
-        hit = _row_as_hit(r)
         if not authors:
             if r["title"].lower() == title.lower():
-                return hit
+                return r
             continue
         r_authors = (r["authors"] or "").lower()
         if any(a.lower() in r_authors for a in authors):
-            return hit
+            return r
     return None
-
-
-def _row_as_hit(r: DuplicateHit) -> DuplicateHit:
-    return {"id": r["id"], "title": r["title"], "authors": r["authors"]}

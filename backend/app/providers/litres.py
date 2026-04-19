@@ -160,7 +160,7 @@ def fetch_similar(litres_id: int) -> list[SimilarCandidate]:
             continue
 
         rating_data = item.get("rating", {})
-        rating_avg = rating_data.get("rated_avg", 0)
+        rating_avg = float(rating_data.get("rated_avg", 0) or 0.0)
         rating_count = rating_data.get("rated_total_count", 0)
         if rating_count < 5:
             continue
