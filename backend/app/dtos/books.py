@@ -81,14 +81,25 @@ class BookListRow(TypedDict):
     tags: str | None
     tag_ids: str | None
     rating: int | None
-    is_read: int | None
+    is_read: int | None  # SQLite BOOLEAN stored as 0/1; NULL via LEFT JOIN
 
 
 class BookFileRow(TypedDict):
     id: int
     format: str
     file_path: str
-    file_size: int
+    # file_size: schema allows NULL (INTEGER without NOT NULL); every
+    # current insert site provides a value, but the type reflects the
+    # column contract, not the insert invariant.
+    file_size: int | None
+
+
+class BookFileLookup(TypedDict):
+    """Narrow lookup shape from `dal.books.get_book_file` — returns only
+    `id` and `file_path`, not the full `BookFileRow` (R-A: distinct shape,
+    distinct TypedDict)."""
+    id: int
+    file_path: str
 
 
 class BookIdentifierRow(TypedDict):
@@ -105,6 +116,12 @@ class DuplicateHit(TypedDict):
 
 
 class BookListPage(TypedDict):
-    """Paginated response shape from `dal.books.get_books`."""
+    """Paginated response shape from `dal.books.get_books`.
+
+    The `books` list is at most `page_size` long. `hasMore` is derived
+    from a `page_size + 1` peek at the DAL level: if the underlying query
+    returned one extra row, `hasMore=True` and the row is trimmed before
+    return.
+    """
     books: list[BookListRow]
     hasMore: bool

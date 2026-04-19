@@ -6,7 +6,7 @@ from typing import TypedDict, cast
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
-from ..dtos.books import BookListPage, UpdateBookBody, BookUpdateData
+from ..dtos.books import BookListPage, BookUpdateData, UpdateBookBody
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
 from . import filters_service, thumb

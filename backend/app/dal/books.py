@@ -6,6 +6,7 @@ from rapidfuzz import process
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.books import (
     BookCreateData,
+    BookFileLookup,
     BookFileRow,
     BookIdentifierRow,
     BookListPage,
@@ -95,7 +96,7 @@ def get_book_identifiers(db: sqlite3.Connection, book_id: int) -> list[BookIdent
     ).fetchall())
 
 
-def get_all_publishers(db: sqlite3.Connection):
+def get_all_publishers(db: sqlite3.Connection) -> list[str]:
     """Publisher directory: sorted alphabetically."""
     return [r["publisher"] for r in db.execute(
         "SELECT DISTINCT publisher FROM books WHERE publisher IS NOT NULL AND publisher != '' ORDER BY publisher COLLATE NOCASE"
@@ -276,7 +277,7 @@ def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str
     )
 
 
-def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str):
+def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str) -> BookFileLookup | None:
     return dict_from_row(db.execute(
         "SELECT id, file_path FROM book_files WHERE book_id = ? AND format = ?",
         (book_id, fmt),

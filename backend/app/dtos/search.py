@@ -1,4 +1,4 @@
-"""TypedDicts and Response DTOs for /api/search."""
+"""TypedDicts for /api/search query results."""
 from typing import TypedDict
 
 
@@ -12,7 +12,7 @@ class SearchBookHit(TypedDict):
 
 class SearchAuthorHit(TypedDict):
     id: int
-    name: str | None
+    name: str  # authors.name is TEXT NOT NULL per schema
     book_count: int
 
 
