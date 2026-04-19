@@ -27,14 +27,29 @@ def test_from_payload_missing_user_id():
         CurrentUser.from_payload({"role": "admin"})
 
 
+def test_from_payload_user_id_not_int():
+    with pytest.raises(AuthError):
+        CurrentUser.from_payload({"userId": "not-int", "role": "admin"})
+
+
+def test_from_payload_user_id_bool_true_rejected():
+    with pytest.raises(AuthError):
+        CurrentUser.from_payload({"userId": True, "role": "admin"})
+
+
+def test_from_payload_user_id_bool_false_rejected():
+    with pytest.raises(AuthError):
+        CurrentUser.from_payload({"userId": False, "role": "admin"})
+
+
 def test_from_payload_missing_role():
     with pytest.raises(AuthError):
         CurrentUser.from_payload({"userId": 1})
 
 
-def test_from_payload_user_id_not_int():
+def test_from_payload_role_not_string():
     with pytest.raises(AuthError):
-        CurrentUser.from_payload({"userId": "not-int", "role": "admin"})
+        CurrentUser.from_payload({"userId": 1, "role": 123})
 
 
 def test_from_payload_role_empty_string():
@@ -42,7 +57,7 @@ def test_from_payload_role_empty_string():
         CurrentUser.from_payload({"userId": 1, "role": ""})
 
 
-def test_current_user_is_frozen():
+def test_from_payload_result_is_frozen():
     user = CurrentUser(user_id=1, role="admin")
     with pytest.raises(FrozenInstanceError):
         user.role = "reader"  # type: ignore[misc]

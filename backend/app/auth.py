@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 
 import bcrypt
 import jwt
@@ -8,6 +8,8 @@ from fastapi import Request
 
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
 from .exceptions import AuthError, ForbiddenError
+
+UserRole = Literal["admin", "reader"]
 
 
 @dataclass(frozen=True)
@@ -17,21 +19,36 @@ class CurrentUser:
     Constructed from a decoded JWT payload via `from_payload`. Frozen so
     handlers cannot mutate it mid-request. JWT keys (``userId``, ``role``)
     are isolated inside ``from_payload``; consumers read ``user_id`` / ``role``.
+    Extra payload keys (e.g. ``iat``, ``exp``) are ignored.
+
+    Precondition: the caller has already verified the JWT signature via
+    ``decode_token``. ``from_payload`` only validates payload shape, not
+    authenticity.
     """
+
     user_id: int
-    role: str
+    role: UserRole
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "CurrentUser":
-        user_id = payload.get("userId")
-        role = payload.get("role")
-        # bool-guard: Python treats `bool` as `int` subclass —
-        # without this, `True` / `False` would pass the int check.
-        if not isinstance(user_id, int) or isinstance(user_id, bool):
-            raise AuthError("Invalid token: userId missing or not int")
-        if not isinstance(role, str) or not role:
+        if "userId" not in payload:
+            raise AuthError("Invalid token: userId missing")
+        user_id = payload["userId"]
+        # bool-guard: Python treats `bool` as `int` subclass — without this,
+        # True / False would pass the int check.
+        if isinstance(user_id, bool) or not isinstance(user_id, int):
+            raise AuthError("Invalid token: userId not int")
+        if "role" not in payload:
             raise AuthError("Invalid token: role missing")
-        return cls(user_id=user_id, role=role)
+        role = payload["role"]
+        if not isinstance(role, str):
+            raise AuthError("Invalid token: role not string")
+        if not role:
+            raise AuthError("Invalid token: role empty")
+        # mypy cannot narrow a plain str to Literal["admin", "reader"] after
+        # isinstance; runtime accepts any non-empty string. The Literal gives
+        # compile-time safety on downstream `user.role == "admin"` checks.
+        return cls(user_id=user_id, role=role)  # type: ignore[arg-type]
 
 
 def verify_password(plain: str, hashed: str) -> bool:
