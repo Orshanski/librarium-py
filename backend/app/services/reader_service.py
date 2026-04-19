@@ -7,6 +7,7 @@ from ..dal import reader as dal
 from ..dtos.reader import (
     ProgressAcceptedResponse, ProgressRejectedResponse,
     ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody,
+    ReadingProgressBody,
 )
 
 
@@ -45,14 +46,11 @@ def save_progress(
     db: sqlite3.Connection,
     user_id: int,
     book_id: int,
-    position: str,
-    last_device: str,
-    last_format: str = "",
-    fraction: float = 0,
-    expected_version: int = 0,
+    body: ReadingProgressBody,
 ) -> ProgressSaveResponse:
     result = dal.save_reading_progress(
-        db, user_id, book_id, position, last_device, last_format, fraction, expected_version,
+        db, user_id, book_id,
+        body.position, body.last_device, body.last_format, body.fraction, body.expected_version,
     )
     if result["accepted"]:
         return ProgressAcceptedResponse(

@@ -10,6 +10,7 @@ from ..dal import filters as _filters_dal
 from ..dal import series as _series_dal
 from ..dal import tags as _tags_dal
 from ..dtos.catalog import CatalogFilters, LanguageOptionRow
+from ..dtos.entities import FilterOptionRow
 
 
 def build_catalog_filters(
@@ -37,15 +38,15 @@ def build_catalog_filters(
     return filters
 
 
-def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     return _authors_dal.list_author_options(db, filters)
 
 
-def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     return _tags_dal.list_tag_options(db, filters)
 
 
-def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     return _series_dal.list_series_options(db, filters)
 
 

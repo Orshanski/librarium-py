@@ -1,11 +1,13 @@
 import sqlite3
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 import logging
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..config import MAX_COVER_SIZE
 from ..database import db_session
+from ..dtos import OkResponse
+from ..dtos.covers import CoverUploadResponse
 from ..exceptions import BadInputError
 from ..services import cover_service
 from ._validators import TempIdStr
@@ -32,13 +34,13 @@ def get_cover(
     return FileResponse(thumb_path, media_type="image/jpeg", headers=headers)
 
 
-@router.post("/api/books/{book_id}/cover")
+@router.post("/api/books/{book_id}/cover", response_model=CoverUploadResponse)
 async def upload_cover(
     book_id: int,
     user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
     file: UploadFile = File(...),
-):
+) -> CoverUploadResponse:
     parts = (file.filename or "cover.jpg").rsplit(".", 1)
     ext = parts[-1].lower() if len(parts) > 1 else "jpg"
 
@@ -50,7 +52,7 @@ async def upload_cover(
 
     content = await file.read()
     temp_url = cover_service.upload_temp(db, book_id, content, ext)
-    return JSONResponse({"ok": True, "tempCoverUrl": temp_url})
+    return CoverUploadResponse(tempCoverUrl=temp_url)
 
 
 @router.get("/api/uploads/cover/{temp_id}")
@@ -59,15 +61,15 @@ def get_temp_cover(temp_id: TempIdStr, user: CurrentUser = Depends(get_current_u
     return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
-@router.put("/api/books/{book_id}/cover")
-def commit_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+@router.put("/api/books/{book_id}/cover", response_model=OkResponse)
+def commit_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
     if not cover_service.commit(db, book_id):
         raise BadInputError("No pending cover to commit")
     log.info("Cover updated book=%d by user_id=%s", book_id, user.user_id)
-    return JSONResponse({"ok": True})
+    return OkResponse()
 
 
-@router.delete("/api/books/{book_id}/cover")
-def discard_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+@router.delete("/api/books/{book_id}/cover", response_model=OkResponse)
+def discard_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
     cover_service.discard_temp(db, book_id)
-    return JSONResponse({"ok": True})
+    return OkResponse()

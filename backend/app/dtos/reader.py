@@ -8,6 +8,11 @@ class ReaderSettingsBody(BaseModel):
     settings: dict[str, Any] = Field(default_factory=dict)
 
 
+class ReaderSettingsGetResponse(BaseModel):
+    """Response for GET /api/reader/settings."""
+    settings: dict[str, Any]
+
+
 class ReadingProgressBody(BaseModel):
     position: str
     last_device: str = ""

@@ -1,11 +1,12 @@
 import sqlite3
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Request, Response
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos import OkResponse
 from ..dtos.reader import (
     ProgressSaveResponse, ReadingProgressResponse,
     ReaderSettingsBody, ReadingProgressBody,
+    ReaderSettingsGetResponse,
 )
 from ..services import reader_service
 
@@ -27,22 +28,20 @@ def _set_device_cookie(response, device_id: str):
     )
 
 
-@router.get("/api/reader/settings")
-def api_get_settings(request: Request, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+@router.get("/api/reader/settings", response_model=ReaderSettingsGetResponse)
+def api_get_settings(request: Request, response: Response, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> ReaderSettingsGetResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     settings = reader_service.get_settings(db, user.user_id, device_id)
-    response = JSONResponse({"settings": settings})
     _set_device_cookie(response, device_id)
-    return response
+    return ReaderSettingsGetResponse(settings=settings)
 
 
-@router.put("/api/reader/settings")
-def api_save_settings(body: ReaderSettingsBody, request: Request, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+@router.put("/api/reader/settings", response_model=OkResponse)
+def api_save_settings(body: ReaderSettingsBody, request: Request, response: Response, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     reader_service.save_settings(db, user.user_id, device_id, body)
-    response = JSONResponse({"ok": True})
     _set_device_cookie(response, device_id)
-    return response
+    return OkResponse()
 
 
 @router.get("/api/reader/progress/{book_id}", response_model=ReadingProgressResponse)
@@ -52,8 +51,4 @@ def api_get_progress(book_id: int, user: CurrentUser = Depends(get_current_user)
 
 @router.put("/api/reader/progress/{book_id}", response_model=ProgressSaveResponse)
 def api_save_progress(book_id: int, body: ReadingProgressBody, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return reader_service.save_progress(
-        db, user.user_id, book_id,
-        body.position, body.last_device, body.last_format, body.fraction,
-        body.expected_version,
-    )
+    return reader_service.save_progress(db, user.user_id, book_id, body)
