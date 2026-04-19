@@ -36,8 +36,8 @@ class CurrentUser:
 
     Adding a role: extend ``UserRole`` first, then update JWT-issuing
     code (``create_token``) to emit it. Runtime accepts any non-empty
-    string, but mypy will flag new ``user.role == "<new>"`` comparisons
-    until ``UserRole`` is updated.
+    string; ``UserRole`` is the source of truth for downstream
+    ``user.role == "<new>"`` comparisons.
     """
 
     user_id: int
