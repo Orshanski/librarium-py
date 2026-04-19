@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     if ssl:
         cert_dir = os.path.expanduser("~/dev-ca")
-        kwargs["ssl_keyfile"] = os.path.join(cert_dir, "librarium.key")
-        kwargs["ssl_certfile"] = os.path.join(cert_dir, "librarium.crt")
+        kwargs["ssl_keyfile"] = os.path.join(cert_dir, "tailscale.key")
+        kwargs["ssl_certfile"] = os.path.join(cert_dir, "tailscale.crt")
 
     uvicorn.run("app.main:app", **kwargs)
