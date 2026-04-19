@@ -89,21 +89,33 @@ def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
 
-def get_current_user(request: Request) -> dict[str, Any]:
+def get_current_user(request: Request) -> CurrentUser:
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise AuthError("Not authenticated")
     try:
         payload = decode_token(token)
     except jwt.ExpiredSignatureError:
+        log.warning("JWT decode failed: expired signature")
         raise AuthError("Token expired")
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as exc:
+        # I-1 (round 4 review): log the decode-failure class so every
+        # invalid-token path is observable in `librarium.auth`, matching
+        # the from_payload log coverage.
+        log.warning("JWT decode failed: %s", type(exc).__name__)
         raise AuthError("Invalid token")
+
+    # Validate shape BEFORE touching payload[...] in refresh branch — turns
+    # malformed tokens into AuthError (401), not KeyError (500).
+    user = CurrentUser.from_payload(payload)
+
     if token_needs_refresh(payload):
         request.state._refresh_token = True
-        request.state._refresh_user_id = payload["userId"]
-        request.state._refresh_role = payload["role"]
-    return payload
+        # Source from the validated CurrentUser — not payload[...] again.
+        # Spec §115 forward-looking note from Layer 1.
+        request.state._refresh_user_id = user.user_id
+        request.state._refresh_role = user.role
+    return user
 
 
 def token_needs_refresh(payload: dict[str, Any]) -> bool:
@@ -125,8 +137,8 @@ def get_client_ip(request: Request) -> str:
     )
 
 
-def require_admin(request: Request) -> dict[str, Any]:
+def require_admin(request: Request) -> CurrentUser:
     user = get_current_user(request)
-    if user.get("role") != "admin":
+    if user.role != "admin":
         raise ForbiddenError("Admin access required")
     return user

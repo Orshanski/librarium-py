@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from ..auth import get_current_user
+from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..services import reader_service
 
@@ -38,32 +38,32 @@ def _set_device_cookie(response, device_id: str):
 
 
 @router.get("/api/reader/settings")
-def api_get_settings(request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def api_get_settings(request: Request, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
-    settings = reader_service.get_settings(db, user["userId"], device_id)
+    settings = reader_service.get_settings(db, user.user_id, device_id)
     response = JSONResponse({"settings": settings})
     _set_device_cookie(response, device_id)
     return response
 
 
 @router.put("/api/reader/settings")
-def api_save_settings(body: ReaderSettingsBody, request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def api_save_settings(body: ReaderSettingsBody, request: Request, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
-    reader_service.save_settings(db, user["userId"], device_id, body.settings)
+    reader_service.save_settings(db, user.user_id, device_id, body.settings)
     response = JSONResponse({"ok": True})
     _set_device_cookie(response, device_id)
     return response
 
 
 @router.get("/api/reader/progress/{book_id}")
-def api_get_progress(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return reader_service.get_progress(db, user["userId"], book_id)
+def api_get_progress(book_id: int, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+    return reader_service.get_progress(db, user.user_id, book_id)
 
 
 @router.put("/api/reader/progress/{book_id}")
-def api_save_progress(book_id: int, body: ReadingProgressBody, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> dict:
+def api_save_progress(book_id: int, body: ReadingProgressBody, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> dict:
     return reader_service.save_progress(
-        db, user["userId"], book_id,
+        db, user.user_id, book_id,
         body.position, body.last_device, body.last_format, body.fraction,
         body.expected_version,
     )

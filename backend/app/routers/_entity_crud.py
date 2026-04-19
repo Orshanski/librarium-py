@@ -27,7 +27,7 @@ from types import ModuleType
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from ..auth import get_current_user, require_admin
+from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 
 
@@ -70,7 +70,7 @@ def register_entity_crud(
     @router.get("/{entity_id}")
     def get_entity(
         entity_id: int,
-        user: dict = Depends(get_current_user),
+        user: CurrentUser = Depends(get_current_user),
         db: sqlite3.Connection = Depends(db_session),
     ):
         return get_fn(db, entity_id)
@@ -79,14 +79,14 @@ def register_entity_crud(
     def rename_entity(
         entity_id: int,
         body: _RenameBody,
-        user: dict = Depends(require_admin),
+        user: CurrentUser = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
         name = body.name.strip()
         rename_fn(db, entity_id, name)
         logger.info(
             "Renamed %s=%d to=%s by user_id=%s",
-            entity_label, entity_id, name, user["userId"],
+            entity_label, entity_id, name, user.user_id,
         )
         return {"ok": True}
 
@@ -94,22 +94,22 @@ def register_entity_crud(
     def merge_entity(
         entity_id: int,
         body: _MergeBody,
-        user: dict = Depends(require_admin),
+        user: CurrentUser = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
         merge_fn(db, entity_id, body.sourceId)
         logger.info(
             "Merged %s source=%d into target=%d by user_id=%s",
-            entity_label, body.sourceId, entity_id, user["userId"],
+            entity_label, body.sourceId, entity_id, user.user_id,
         )
         return {"ok": True}
 
     @router.delete("/{entity_id}")
     def delete_entity(
         entity_id: int,
-        user: dict = Depends(require_admin),
+        user: CurrentUser = Depends(require_admin),
         db: sqlite3.Connection = Depends(db_session),
     ):
         delete_fn(db, entity_id)
-        logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user["userId"])
+        logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user.user_id)
         return {"ok": True}

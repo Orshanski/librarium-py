@@ -3,7 +3,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from ..auth import get_current_user
+from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..services import authors_service
 from .params import parse_ids
@@ -15,14 +15,14 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 
 @router.get("")
 def list_authors(
-    user: dict = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
     tagIds: str = "",
     language: str = "",
 ):
     return authors_service.list_authors(
         db,
-        user_id=user["userId"],
+        user_id=user.user_id,
         tag_ids=parse_ids(tagIds),
         language=language or None,
     )

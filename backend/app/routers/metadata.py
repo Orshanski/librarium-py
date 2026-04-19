@@ -5,7 +5,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from ..auth import get_current_user
+from ..auth import CurrentUser, get_current_user
 from ..exceptions import BadInputError, ForbiddenError, UpstreamError
 from ..providers import search_metadata
 from ..ssrf import is_safe_url
@@ -30,7 +30,7 @@ class _UpstreamStatusForward(Exception):
 
 
 @router.get("/search")
-def search(user: dict = Depends(get_current_user), q: str = "", providers: str = "litres"):
+def search(user: CurrentUser = Depends(get_current_user), q: str = "", providers: str = "litres"):
     if not q.strip():
         return {"results": []}
     provider_list = [p.strip() for p in providers.split(",") if p.strip()]
@@ -83,7 +83,7 @@ def _fetch_cover_content(url: str) -> Response:
 
 
 @router.get("/cover-proxy")
-def cover_proxy(user: dict = Depends(get_current_user), url: str = ""):
+def cover_proxy(user: CurrentUser = Depends(get_current_user), url: str = ""):
     if not url:
         raise BadInputError("URL required")
 

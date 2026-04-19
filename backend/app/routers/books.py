@@ -4,7 +4,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import BaseModel
 
-from ..auth import get_current_user, require_admin
+from ..auth import CurrentUser, get_current_user, require_admin
 from ..config import MAX_BOOK_SIZE
 from ..database import db_session
 from ..exceptions import BadInputError
@@ -33,7 +33,7 @@ class UpdateBookBody(BaseModel):
 
 @router.get("")
 def list_books(
-    user: dict = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
     sort: str = "added_desc",
     cursor: int = 0,
@@ -45,7 +45,7 @@ def list_books(
 ):
     return book_service.list_books(
         db,
-        user["userId"],
+        user.user_id,
         sort=sort,
         cursor=cursor,
         page_size=min(pageSize, 100),
@@ -57,26 +57,26 @@ def list_books(
 
 
 @router.get("/{book_id}")
-def get_book(book_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return book_service.get_book(db, book_id, user["userId"])
+def get_book(book_id: int, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+    return book_service.get_book(db, book_id, user.user_id)
 
 
 @router.put("/{book_id}")
 def update_book(
     book_id: int,
     body: UpdateBookBody,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):
     book_service.update_book(db, book_id, body.model_dump(exclude_unset=True))
-    log.info("Updated book=%d by user_id=%s", book_id, user["userId"])
+    log.info("Updated book=%d by user_id=%s", book_id, user.user_id)
     return {"ok": True}
 
 
 @router.post("/{book_id}/files")
 async def upload_file(
     book_id: int,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
     file: UploadFile = File(...),
 ):
@@ -89,25 +89,25 @@ async def upload_file(
 
     result = book_service.upload_file(db, book_id, content, ext)
 
-    log.info("Uploaded file format=%s book=%d by user_id=%s", result["format"], book_id, user["userId"])
+    log.info("Uploaded file format=%s book=%d by user_id=%s", result["format"], book_id, user.user_id)
     return {"ok": True, "format": result["format"], "size": result["size"]}
 
 
 @router.delete("/{book_id}/files")
 def delete_file(
     book_id: int,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
     format: NonBlankStr = Query(...),
 ):
     fmt = format.upper()
     book_service.delete_file(db, book_id, fmt)
-    log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
+    log.info("Deleted file format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
     return {"ok": True}
 
 
 @router.delete("/{book_id}")
-def delete_book(book_id: int, user: dict = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def delete_book(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
     book_service.delete_book(db, book_id)
-    log.info("Deleted book=%d by user_id=%s", book_id, user["userId"])
+    log.info("Deleted book=%d by user_id=%s", book_id, user.user_id)
     return {"ok": True}

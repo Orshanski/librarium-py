@@ -4,7 +4,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel, Field
 
-from ..auth import require_admin
+from ..auth import CurrentUser, require_admin
 from ..config import MAX_BOOK_SIZE
 from ..database import db_session
 from ..exceptions import BadInputError
@@ -44,7 +44,7 @@ class AddFormatBody(BaseModel):
 
 @router.post("/api/upload")
 async def upload_file(
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
     file: UploadFile = File(...),
 ):
@@ -64,14 +64,14 @@ async def upload_file(
     content = await file.read()
     result = await upload_and_parse(db, content, filename)
 
-    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result["tempId"], filename, user["userId"])
+    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result["tempId"], filename, user.user_id)
     return result
 
 
 @router.delete("/api/uploads/{temp_id}")
 def cleanup_temp(
     temp_id: TempIdStr,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
 ):
     cleanup_temp_session(temp_id)
     return {"ok": True}
@@ -80,11 +80,11 @@ def cleanup_temp(
 @router.post("/api/books/create")
 def create_book_from_upload(
     body: CreateBookBody,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):
     book_id = create_book(db, body.tempId, body.metadata.model_dump())
-    log.info("Created book=%d by user_id=%s", book_id, user["userId"])
+    log.info("Created book=%d by user_id=%s", book_id, user.user_id)
     return {"bookId": book_id}
 
 
@@ -92,9 +92,9 @@ def create_book_from_upload(
 def add_format_endpoint(
     book_id: int,
     body: AddFormatBody,
-    user: dict = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(db_session),
 ):
     fmt = add_format(db, book_id, body.tempId)
-    log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user["userId"])
+    log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
     return {"ok": True, "format": fmt}

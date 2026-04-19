@@ -3,7 +3,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from ..auth import get_current_user
+from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..services import series_service
 from .params import parse_ids
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 @router.get("")
 def list_series(
-    user: dict = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
     authorIds: str = "",
     tagIds: str = "",
@@ -23,7 +23,7 @@ def list_series(
 ):
     return series_service.list_series(
         db,
-        user_id=user["userId"],
+        user_id=user.user_id,
         author_ids=parse_ids(authorIds),
         tag_ids=parse_ids(tagIds),
         language=language or None,

@@ -137,3 +137,29 @@ def test_token_without_iat_not_refreshed(anon_client):
     resp = anon_client.get("/api/auth/me")
     assert_ok(resp)
     assert COOKIE_NAME not in resp.cookies
+
+
+def test_malformed_jwt_missing_user_id(anon_client):
+    """JWT with valid signature but missing `userId` must yield 401, not 500."""
+    now = datetime.now(timezone.utc)
+    token = pyjwt.encode(
+        {"role": "admin", "iat": now, "exp": now + timedelta(hours=1)},
+        SECRET_KEY,
+        algorithm=JWT_ALGORITHM,
+    )
+    anon_client.cookies.set(COOKIE_NAME, token)
+    resp = anon_client.get("/api/auth/me")
+    assert_error(resp, 401)
+
+
+def test_malformed_jwt_wrong_user_id_type(anon_client):
+    """JWT with `userId` as string must yield 401, not 500."""
+    now = datetime.now(timezone.utc)
+    token = pyjwt.encode(
+        {"userId": "not-int", "role": "admin", "iat": now, "exp": now + timedelta(hours=1)},
+        SECRET_KEY,
+        algorithm=JWT_ALGORITHM,
+    )
+    anon_client.cookies.set(COOKIE_NAME, token)
+    resp = anon_client.get("/api/auth/me")
+    assert_error(resp, 401)
