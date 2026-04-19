@@ -59,9 +59,10 @@ class CurrentUser:
         if not role:
             log.warning("JWT malformed: role empty")
             raise AuthError("Invalid token")
-        # mypy cannot narrow a plain str to Literal["admin", "reader"] after
-        # isinstance; runtime accepts any non-empty string. The Literal gives
-        # compile-time safety on downstream `user.role == "admin"` checks.
+        # Runtime intentionally accepts any non-empty string so unexpected JWT
+        # roles produce ForbiddenError downstream (in require_admin / route
+        # guards), not AuthError here. Literal is type-level only; the ignore
+        # documents the deliberate runtime widening of the nominal type.
         return cls(user_id=user_id, role=role)  # type: ignore[arg-type]
 
 
