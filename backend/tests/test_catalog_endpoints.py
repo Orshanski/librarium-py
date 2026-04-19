@@ -72,5 +72,33 @@ class TestTags:
         ids = {b["id"] for b in data["books"]}
         assert ids == {3, 5}
 
+    def test_tag_detail_filter_author_plus_language(self, reader_client):
+        """Cross-dimension: authorIds × language narrows to the intersection."""
+        data = reader_client.get(
+            "/api/tags/1", params={"authorIds": "1", "language": "en"}
+        ).json()
+        ids = {b["id"] for b in data["books"]}
+        # author=1 → {1, 3}; language=en → {3, 5}; ∩ = {3}
+        assert ids == {3}
+
+    def test_tag_detail_filter_author_plus_series(self, reader_client):
+        """Cross-dimension: authorIds × seriesIds."""
+        data = reader_client.get(
+            "/api/tags/1", params={"authorIds": "1", "seriesIds": "1"}
+        ).json()
+        ids = {b["id"] for b in data["books"]}
+        # author=1 → {1, 3}; series=1 → {1, 3}; ∩ = {1, 3}
+        assert ids == {1, 3}
+
+    def test_tag_detail_filter_all_three(self, reader_client):
+        """Cross-dimension: authorIds × seriesIds × language."""
+        data = reader_client.get(
+            "/api/tags/1",
+            params={"authorIds": "1", "seriesIds": "1", "language": "en"},
+        ).json()
+        ids = {b["id"] for b in data["books"]}
+        # {1,3} ∩ {1,3} ∩ {3,5} = {3}
+        assert ids == {3}
+
     def test_tag_not_found(self, reader_client):
         assert_error(reader_client.get("/api/tags/999"), 404)
