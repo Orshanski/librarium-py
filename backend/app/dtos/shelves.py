@@ -17,11 +17,27 @@ class ShelfBookBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ShelfBaseRow(TypedDict):
+    """Raw `SELECT * FROM shelves` row — used by dal.shelves.get_shelf_by_id.
+
+    No `book_count` column — that aggregate is added only in the list path
+    (`get_shelves`) via a separate count query, not via this SELECT. R-A:
+    distinct shape from `ShelfRow`."""
+    id: int
+    name: str
+    user_id: int
+    is_system: int
+    system_code: str | None
+    created_at: str
+
+
 class ShelfRow(TypedDict):
-    """Row from dal.shelves.get_shelves.
-    Columns: SELECT sh.* (all shelves columns) + COUNT(...) as book_count.
-    book_count is always present in the query result; is_system is an int
-    (SQLite BOOLEAN stored as 0/1)."""
+    """Row from dal.shelves.get_shelves — base shelves columns plus the
+    `book_count` aggregate (real SQL COUNT for user shelves, separate
+    COUNT queries for system shelves).
+
+    `is_system` is an int (SQLite BOOLEAN stored as 0/1). R-A: distinct
+    from `ShelfBaseRow` because `book_count` is always present here."""
     id: int
     name: str
     user_id: int
@@ -65,8 +81,9 @@ class ShelfBookRow(TypedDict):
 
 class ShelfDetailRow(TypedDict):
     """Return shape of dal.shelves.get_shelf_by_id — envelope containing
-    the shelf metadata row and its book rows."""
-    shelf: ShelfRow
+    the shelf metadata row (without aggregate `book_count`) and its book
+    rows. Uses ShelfBaseRow, not ShelfRow (R-A)."""
+    shelf: ShelfBaseRow
     books: list[ShelfBookRow]
 
 

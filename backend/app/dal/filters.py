@@ -2,7 +2,7 @@
 import sqlite3
 
 from ..database import dicts_from_rows
-from ..dtos.catalog import CatalogFilters
+from ..dtos.catalog import CatalogFilters, LanguageOptionRow
 
 
 def build_book_where(
@@ -64,7 +64,7 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[LanguageOptionRow]:
     """Language options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="language")
     lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"

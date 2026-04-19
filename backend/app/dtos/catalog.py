@@ -17,3 +17,9 @@ class CatalogFilters(TypedDict):
     tagIds: NotRequired[list[int]]
     seriesIds: NotRequired[list[int]]
     language: NotRequired[str]
+
+
+class LanguageOptionRow(TypedDict):
+    """Row from `dal.filters.list_language_options` — single `name` column
+    aliased from `b.language`."""
+    name: str

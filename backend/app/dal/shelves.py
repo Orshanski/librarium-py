@@ -2,7 +2,7 @@ import sqlite3
 from typing import cast
 
 from ..database import dict_from_row, dicts_from_rows
-from ..dtos.shelves import ShelfDetailRow, ShelfRow
+from ..dtos.shelves import ShelfBaseRow, ShelfDetailRow, ShelfRow
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
 
@@ -65,7 +65,7 @@ def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int) -> Shel
             GROUP BY b.id ORDER BY sb.added_at DESC
         """, {"id": shelf_id}).fetchall())
 
-    return cast(ShelfDetailRow, {"shelf": cast(ShelfRow, shelf), "books": books})
+    return cast(ShelfDetailRow, {"shelf": cast(ShelfBaseRow, shelf), "books": books})
 
 
 def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
