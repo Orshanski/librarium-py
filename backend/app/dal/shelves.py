@@ -1,9 +1,12 @@
 import sqlite3
+from typing import cast
+
 from ..database import dict_from_row, dicts_from_rows
+from ..dtos.shelves import ShelfDetailRow, ShelfRow
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 
 
-def get_shelves(db: sqlite3.Connection, user_id: int):
+def get_shelves(db: sqlite3.Connection, user_id: int) -> list[ShelfRow]:
     shelves = dicts_from_rows(db.execute("""
         SELECT sh.*, COUNT(sb.book_id) as book_count
         FROM shelves sh LEFT JOIN shelf_books sb ON sh.id = sb.shelf_id
@@ -23,10 +26,10 @@ def get_shelves(db: sqlite3.Connection, user_id: int):
                 WHERE rp.user_id = :uid AND rp.position IS NOT NULL
                     AND (ub.is_read IS NULL OR ub.is_read != 1)
             """, {"uid": user_id}).fetchone()[0]
-    return shelves
+    return cast(list[ShelfRow], shelves)
 
 
-def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int):
+def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int) -> ShelfDetailRow | None:
     shelf = dict_from_row(db.execute(
         "SELECT * FROM shelves WHERE id = :id AND user_id = :uid",
         {"id": shelf_id, "uid": user_id},
@@ -62,7 +65,7 @@ def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int):
             GROUP BY b.id ORDER BY sb.added_at DESC
         """, {"id": shelf_id}).fetchall())
 
-    return {"shelf": shelf, "books": books}
+    return cast(ShelfDetailRow, {"shelf": cast(ShelfRow, shelf), "books": books})
 
 
 def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
@@ -78,19 +81,19 @@ def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
     return cur.lastrowid
 
 
-def update_shelf(db: sqlite3.Connection, shelf_id: int, name: str):
+def update_shelf(db: sqlite3.Connection, shelf_id: int, name: str) -> None:
     db.execute("UPDATE shelves SET name = :n WHERE id = :id AND is_system = 0", {"n": name, "id": shelf_id})
 
 
-def delete_shelf(db: sqlite3.Connection, shelf_id: int):
+def delete_shelf(db: sqlite3.Connection, shelf_id: int) -> None:
     db.execute("DELETE FROM shelves WHERE id = :id AND is_system = 0", {"id": shelf_id})
 
 
-def add_book_to_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int):
+def add_book_to_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int) -> None:
     db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)", {"sid": shelf_id, "bid": book_id})
 
 
-def remove_book_from_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int):
+def remove_book_from_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int) -> None:
     db.execute("DELETE FROM shelf_books WHERE shelf_id = :sid AND book_id = :bid", {"sid": shelf_id, "bid": book_id})
 
 
@@ -101,7 +104,7 @@ _SYSTEM_SHELVES = [
 ]
 
 
-def ensure_system_shelves(db: sqlite3.Connection, user_id: int):
+def ensure_system_shelves(db: sqlite3.Connection, user_id: int) -> None:
     """Ensure all system shelves exist for the user."""
     existing = {r["system_code"] for r in dicts_from_rows(
         db.execute("SELECT system_code FROM shelves WHERE user_id = :uid AND is_system = 1",

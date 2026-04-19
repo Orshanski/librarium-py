@@ -168,7 +168,7 @@ def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> N
 
 
 
-def delete_book(db: sqlite3.Connection, book_id: int):
+def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     db.execute("DELETE FROM books WHERE id = ?", (book_id,))
 
 
@@ -270,7 +270,7 @@ def book_file_exists(db: sqlite3.Connection, book_id: int, fmt: str) -> bool:
     return db.execute("SELECT id FROM book_files WHERE book_id = ? AND format = ?", (book_id, fmt)).fetchone() is not None
 
 
-def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int):
+def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str, file_size: int) -> None:
     db.execute(
         "INSERT OR IGNORE INTO book_files (book_id, format, file_path, file_size) VALUES (?, ?, ?, ?)",
         (book_id, fmt, file_path, file_size),
@@ -284,16 +284,16 @@ def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str) -> BookFileLoo
     ).fetchone())
 
 
-def delete_book_file(db: sqlite3.Connection, file_id: int):
+def delete_book_file(db: sqlite3.Connection, file_id: int) -> None:
     db.execute("DELETE FROM book_files WHERE id = ?", (file_id,))
 
 
-def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str):
+def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str) -> None:
     db.execute("UPDATE books SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                (cover_path, book_id))
 
 
-def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, value: str):
+def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, value: str) -> None:
     db.execute("INSERT INTO book_identifiers (book_id, type, value) VALUES (?, ?, ?)",
                (book_id, id_type, value))
 

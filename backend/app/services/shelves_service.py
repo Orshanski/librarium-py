@@ -3,17 +3,13 @@ import sqlite3
 from typing import TypedDict
 
 from ..dal import shelves as dal
+from ..dtos.shelves import BookShelfEntry, ShelfDetailRow, ShelfRow
 from ..exceptions import NotFoundError
 
 
-class _BookShelfEntry(TypedDict):
-    id: int
-    has_book: bool
-
-
 class ShelvesList(TypedDict, total=False):
-    shelves: list[dict]
-    bookShelves: list[_BookShelfEntry]
+    shelves: list[ShelfRow]
+    bookShelves: list[BookShelfEntry]
 
 
 def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> ShelvesList:
@@ -22,7 +18,7 @@ def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> S
     if book_id is not None:
         on_shelf_ids = dal.get_book_shelf_ids(db, book_id, user_id)
         result["bookShelves"] = [
-            {"id": s["id"], "has_book": s["id"] in on_shelf_ids} for s in shelves
+            BookShelfEntry(id=s["id"], has_book=s["id"] in on_shelf_ids) for s in shelves
         ]
     return result
 
@@ -31,7 +27,7 @@ def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
     return dal.create_shelf(db, user_id, name)
 
 
-def get_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int) -> dict:
+def get_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int) -> ShelfDetailRow:
     result = dal.get_shelf_by_id(db, shelf_id, user_id)
     if not result:
         raise NotFoundError("Not found")

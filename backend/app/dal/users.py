@@ -1,27 +1,29 @@
 import sqlite3
+from typing import cast
 
 from ..auth import hash_password
 from ..database import dict_from_row, dicts_from_rows
 from ..dtos.admin import UserUpdateData
+from ..dtos.auth import UserInternalRow, UserRow
 
 
-def get_user_by_id(db: sqlite3.Connection, user_id: int):
-    return dict_from_row(db.execute(
+def get_user_by_id(db: sqlite3.Connection, user_id: int) -> UserRow | None:
+    return cast(UserRow | None, dict_from_row(db.execute(
         "SELECT id, username, display_name, email, role, created_at FROM users WHERE id = :id",
         {"id": user_id},
-    ).fetchone())
+    ).fetchone()))
 
 
-def get_user_by_username(db: sqlite3.Connection, username: str):
-    return dict_from_row(db.execute(
+def get_user_by_username(db: sqlite3.Connection, username: str) -> UserInternalRow | None:
+    return cast(UserInternalRow | None, dict_from_row(db.execute(
         "SELECT * FROM users WHERE username = :u", {"u": username}
-    ).fetchone())
+    ).fetchone()))
 
 
-def get_all_users(db: sqlite3.Connection):
-    return dicts_from_rows(db.execute(
+def get_all_users(db: sqlite3.Connection) -> list[UserRow]:
+    return cast(list[UserRow], dicts_from_rows(db.execute(
         "SELECT id, username, display_name, email, role, created_at FROM users ORDER BY id"
-    ).fetchall())
+    ).fetchall()))
 
 
 def create_user(db: sqlite3.Connection, username: str, password: str, role="reader", display_name=None, email=None) -> int:
@@ -53,7 +55,7 @@ def update_user(db: sqlite3.Connection, user_id: int, data: UserUpdateData) -> N
         db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = :id", params)
 
 
-def delete_user(db: sqlite3.Connection, user_id: int):
+def delete_user(db: sqlite3.Connection, user_id: int) -> None:
     db.execute("DELETE FROM users WHERE id = :id", {"id": user_id})
 
 

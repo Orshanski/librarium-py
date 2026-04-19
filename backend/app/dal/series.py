@@ -70,11 +70,11 @@ def get_or_create_series(db: sqlite3.Connection, name: str) -> int:
     return row["id"]
 
 
-def rename_series(db: sqlite3.Connection, series_id: int, name: str):
+def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:
     db.execute("UPDATE series SET name = :name, sort_name = :name WHERE id = :id", {"name": name, "id": series_id})
 
 
-def merge_series(db: sqlite3.Connection, target_id: int, source_id: int):
+def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     """Переносит книги source -> target, удаляет source."""
     db.execute("UPDATE books SET series_id = :target WHERE series_id = :source",
                {"target": target_id, "source": source_id})

@@ -78,12 +78,12 @@ def get_or_create_author(db: sqlite3.Connection, name: str) -> int:
     return row["id"]
 
 
-def rename_author(db: sqlite3.Connection, author_id: int, name: str):
+def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> None:
     sort_name = _generate_sort_name(name)
     db.execute("UPDATE authors SET name = :name, sort_name = :sort WHERE id = :id", {"name": name, "sort": sort_name, "id": author_id})
 
 
-def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int):
+def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     """Переносит книги source -> target, удаляет source."""
     db.execute("""
         INSERT OR IGNORE INTO book_authors (book_id, author_id)

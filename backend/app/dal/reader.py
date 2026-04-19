@@ -1,12 +1,15 @@
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from ..database import dict_from_row
+from ..dtos.reader import ProgressSaveResult, ReadingProgressRow
 
 
-def get_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str) -> dict:
+def get_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str) -> dict[str, Any]:
+    """Return opaque reader settings JSON blob. Stays dict[str, Any] per spec whitelist
+    (client-controlled shape — not a typed record)."""
     row = db.execute(
         "SELECT settings FROM reader_settings WHERE user_id = :uid AND device_type = :dt",
         {"uid": user_id, "dt": device_type},
@@ -24,22 +27,22 @@ def save_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str,
     """, {"uid": user_id, "dt": device_type, "s": json.dumps(settings)})
 
 
-def get_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> dict:
+def get_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> ReadingProgressRow:
     row = db.execute(
         "SELECT position, last_device, last_format, fraction, last_read_at, version "
         "FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
         {"uid": user_id, "bid": book_id},
     ).fetchone()
     if not row:
-        return {
-            "position": None,
-            "last_device": None,
-            "last_format": None,
-            "fraction": None,
-            "last_read_at": None,
-            "version": 0,
-        }
-    return dict_from_row(row)
+        return ReadingProgressRow(
+            position=None,
+            last_device=None,
+            last_format=None,
+            fraction=None,
+            last_read_at=None,
+            version=0,
+        )
+    return cast(ReadingProgressRow, dict_from_row(row))
 
 
 def save_reading_progress(
@@ -51,7 +54,7 @@ def save_reading_progress(
     last_format: str = "",
     fraction: float = 0,
     expected_version: int = 0,
-) -> dict:
+) -> ProgressSaveResult:
     """
     Version-based CAS save with intent-aware conflict resolution.
 
