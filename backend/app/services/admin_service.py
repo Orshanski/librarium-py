@@ -6,7 +6,7 @@ from typing import cast
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..dtos.admin import (
-    AdminSettingsResponse, AdminUsersListResponse, AdminUserItem,
+    AdminSettingsResponse, AdminUsersListResponse,
     UpdateUserBody, UpdateSettingsBody, UserUpdateData,
 )
 from ..exceptions import BadInputError
@@ -21,9 +21,7 @@ _SMTP_PASS_MASK = "••••••"
 
 def list_users(db: sqlite3.Connection) -> AdminUsersListResponse:
     rows = users_dal.get_all_users(db)
-    return AdminUsersListResponse(
-        users=[AdminUserItem.model_validate(r) for r in rows]
-    )
+    return AdminUsersListResponse(users=rows)
 
 
 def create_user(db: sqlite3.Connection, username: str, password: str, role: str,
@@ -56,7 +54,7 @@ def get_settings(db: sqlite3.Connection) -> AdminSettingsResponse:
     result = settings_dal.get_all_settings(db)
     if result.get("smtp_pass"):
         result["smtp_pass"] = _SMTP_PASS_MASK
-    return AdminSettingsResponse.from_dict(result)
+    return AdminSettingsResponse(**result)
 
 
 def update_settings(db: sqlite3.Connection, body: UpdateSettingsBody, actor_id: int) -> None:

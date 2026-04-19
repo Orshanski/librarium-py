@@ -2,13 +2,13 @@ import logging
 import os
 import shutil
 import sqlite3
-from typing import TypedDict, cast
+from typing import cast
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
 from ..dtos.books import (
-    BookDetailResponse, BookFileItem, BookIdentifierItem,
-    BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    BookDetailResponse, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    UploadFileResponse,
 )
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
@@ -19,12 +19,7 @@ from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 log = logging.getLogger("librarium.books")
 
 
-class UploadResult(TypedDict):
-    format: str
-    size: int
-
-
-def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:
+def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadFileResponse:
     """Write a book file to disk and register in DB.
 
     Rollback: removes file on DB failure via write_with_rollback.
@@ -33,7 +28,7 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     dst = prepare_book_format_path(db, book_id, fmt, ext)
     with write_with_rollback(dst, content):
         size = register_and_linearize(db, book_id, dst, ext)
-    return {"format": fmt, "size": size}
+    return UploadFileResponse(format=fmt, size=size)
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
@@ -85,11 +80,7 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
         raise NotFoundError("Book not found")
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
-    return BookDetailResponse(
-        book=book,
-        files=[BookFileItem.model_validate(f) for f in files],
-        identifiers=[BookIdentifierItem.model_validate(i) for i in identifiers],
-    )
+    return BookDetailResponse(book=book, files=files, identifiers=identifiers)
 
 
 def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:

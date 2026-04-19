@@ -1,5 +1,5 @@
 """TypedDicts and Response DTOs for /api/search query results."""
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from pydantic import BaseModel
 
@@ -43,6 +43,6 @@ class SearchResponse(BaseModel):
     Items are raw SearchBookHit / SearchAuthorHit / SearchSeriesHit dicts
     (snake_case) — preserving pre-L4 wire format.
     """
-    books: list[Any]
-    authors: list[Any]
-    series: list[Any]
+    books: list[SearchBookHit]
+    authors: list[SearchAuthorHit]
+    series: list[SearchSeriesHit]

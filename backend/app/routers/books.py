@@ -77,8 +77,8 @@ async def upload_file(
 
     result = book_service.upload_file(db, book_id, content, ext)
 
-    log.info("Uploaded file format=%s book=%d by user_id=%s", result["format"], book_id, user.user_id)
-    return UploadFileResponse(format=result["format"], size=result["size"])
+    log.info("Uploaded file format=%s book=%d by user_id=%s", result.format, book_id, user.user_id)
+    return result
 
 
 @router.delete("/{book_id}/files", response_model=OkResponse)

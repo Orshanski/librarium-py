@@ -1,7 +1,9 @@
 """Entity (authors, series, tags) request DTOs and Response DTOs."""
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .catalog import LanguageOptionRow
 
 
 class RenameBody(BaseModel):
@@ -159,13 +161,13 @@ class AuthorDetailResponse(BaseModel):
     The nested dicts are raw TypedDicts (AuthorSummary, EntityBookRow) with
     snake_case keys — preserving pre-L4 passthrough.
     """
-    author: Any
-    books: list[Any]
+    author: AuthorSummary
+    books: list[EntityBookRow]
 
 
 class AuthorsListResponse(BaseModel):
     """Response for GET /api/authors."""
-    authors: list[Any]
+    authors: list[AuthorRow]
 
 
 class SeriesDetailResponse(BaseModel):
@@ -173,13 +175,13 @@ class SeriesDetailResponse(BaseModel):
 
     Wire format: {"series": {...}, "books": [...]}
     """
-    series: Any
-    books: list[Any]
+    series: SeriesDetailSummary
+    books: list[EntityBookRow]
 
 
 class SeriesListResponse(BaseModel):
     """Response for GET /api/series."""
-    series: list[Any]
+    series: list[SeriesRow]
 
 
 class TagDetailResponse(BaseModel):
@@ -187,13 +189,13 @@ class TagDetailResponse(BaseModel):
 
     Wire format: {"tag": {...}, "books": [...]}
     """
-    tag: Any
-    books: list[Any]
+    tag: TagSummary
+    books: list[EntityBookRow]
 
 
 class TagCloudResponse(BaseModel):
     """Response for GET /api/tags/cloud."""
-    tags: list[Any]
+    tags: list[TagCloudEntry]
 
 
 class TagMapResponse(BaseModel):
@@ -207,19 +209,19 @@ class TagMapResponse(BaseModel):
 
 class AuthorOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/authors."""
-    authors: list[Any]
+    authors: list[FilterOptionRow]
 
 
 class TagOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/tags."""
-    tags: list[Any]
+    tags: list[FilterOptionRow]
 
 
 class SeriesOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/series."""
-    series: list[Any]
+    series: list[FilterOptionRow]
 
 
 class LanguageOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/languages."""
-    languages: list[Any]
+    languages: list[LanguageOptionRow]

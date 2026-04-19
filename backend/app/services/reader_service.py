@@ -4,7 +4,10 @@ import uuid
 from typing import Any
 
 from ..dal import reader as dal
-from ..dtos.reader import ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody
+from ..dtos.reader import (
+    ProgressAcceptedResponse, ProgressRejectedResponse,
+    ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody,
+)
 
 
 def get_or_create_device_id(cookie_value: str | None) -> str:
@@ -51,10 +54,14 @@ def save_progress(
     result = dal.save_reading_progress(
         db, user_id, book_id, position, last_device, last_format, fraction, expected_version,
     )
-    return ProgressSaveResponse(
-        accepted=result["accepted"],
-        version=result.get("version"),
-        rebased=result.get("rebased"),
-        retry_exhausted=result.get("retry_exhausted"),
+    if result["accepted"]:
+        return ProgressAcceptedResponse(
+            accepted=True,
+            version=result["version"],
+            rebased=result.get("rebased", False),
+        )
+    return ProgressRejectedResponse(
+        accepted=False,
         current=result.get("current"),
+        retry_exhausted=result.get("retry_exhausted", False),
     )

@@ -1,5 +1,5 @@
 """Book request DTOs, write-input TypedDicts, and Response DTOs."""
-from typing import Any, NotRequired, TypedDict
+from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
@@ -133,35 +133,16 @@ class BookListPage(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class BookFileItem(BaseModel):
-    """File entry in BookDetailResponse.files — preserves snake_case wire keys
-    matching the pre-L4 BookFileRow dict passthrough."""
-    id: int
-    format: str
-    file_path: str
-    file_size: int | None = None
-
-
-class BookIdentifierItem(BaseModel):
-    """Identifier entry in BookDetailResponse.identifiers."""
-    type: str
-    value: str
-
-
 class BookDetailResponse(BaseModel):
     """Response for GET /api/books/{book_id}.
 
     Wire format: {"book": {...}, "files": [...], "identifiers": [...]}
-    The `book` field is the raw BookListRow dict (snake_case, preserving the
-    pre-L4 passthrough). We accept Any here to avoid re-declaring all ~18
-    BookListRow fields in a nested Pydantic model — the row arrives as a
-    TypedDict/dict and is serialized as-is by FastAPI's JSON encoder.
+    All nested items are TypedDicts; Pydantic v2 validates TypedDict items
+    natively. snake_case keys are preserved end-to-end (matching pre-L4 wire).
     """
-    model_config = {"arbitrary_types_allowed": True}
-
-    book: Any
-    files: list[BookFileItem]
-    identifiers: list[BookIdentifierItem]
+    book: BookListRow
+    files: list[BookFileRow]
+    identifiers: list[BookIdentifierRow]
 
 
 class BookListResponse(BaseModel):
@@ -170,7 +151,7 @@ class BookListResponse(BaseModel):
     Wire format: {"books": [...], "hasMore": bool}
     Same as BookListPage TypedDict but as Pydantic for response_model.
     """
-    books: list[Any]
+    books: list[BookListRow]
     hasMore: bool
 
 

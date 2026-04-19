@@ -1,5 +1,5 @@
 """Shelves request DTOs and Response DTOs."""
-from typing import Any, NotRequired, TypedDict
+from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
@@ -114,8 +114,8 @@ class ShelvesListResponse(BaseModel):
     We preserve this by setting bookShelves=None and using
     response_model_exclude_none=True on the endpoint.
     """
-    shelves: list[Any]
-    bookShelves: list[Any] | None = None
+    shelves: list[ShelfRow]
+    bookShelves: list[BookShelfEntry] | None = None
 
 
 class ShelfDetailResponse(BaseModel):
@@ -123,5 +123,5 @@ class ShelfDetailResponse(BaseModel):
 
     Wire format: {"shelf": {...}, "books": [...]}
     """
-    shelf: Any
-    books: list[Any]
+    shelf: ShelfBaseRow
+    books: list[ShelfBookRow]

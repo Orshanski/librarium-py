@@ -1,13 +1,12 @@
 import logging
-from typing import Any
 from urllib.parse import urlparse
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user
+from ..dtos.metadata import MetadataSearchResponse
 from ..exceptions import BadInputError, ForbiddenError, UpstreamError
 from ..providers import search_metadata
 from ..ssrf import is_safe_url
@@ -15,11 +14,6 @@ from ..ssrf import is_safe_url
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/metadata", tags=["metadata"])
-
-
-class MetadataSearchResponse(BaseModel):
-    """Response for GET /api/metadata/search."""
-    results: list[Any]
 
 
 ALLOWED_COVER_DOMAINS = {"litres.ru", "www.litres.ru", "cv5.litres.ru", "cdn.litres.ru", "books.google.com", "encrypted-tbn0.gstatic.com", "books.googleusercontent.com"}

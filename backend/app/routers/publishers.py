@@ -1,19 +1,13 @@
 import sqlite3
-from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
+from ..dtos.publishers import PublishersResponse
 from ..services import publishers_service
 
 router = APIRouter(tags=["publishers"])
-
-
-class PublishersResponse(BaseModel):
-    """Response for GET /api/publishers."""
-    publishers: list[Any]
 
 
 @router.get("/api/publishers", response_model=PublishersResponse)

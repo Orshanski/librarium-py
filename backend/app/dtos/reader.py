@@ -1,5 +1,5 @@
 """Reader request DTOs and Response DTOs."""
-from typing import Any, NotRequired, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict, Union
 
 from pydantic import BaseModel, Field
 
@@ -72,17 +72,31 @@ class ReadingProgressResponse(BaseModel):
     version: int = 0
 
 
-class ProgressSaveResponse(BaseModel):
-    """Response for PUT /api/reader/progress/{book_id}.
+class ProgressAcceptedResponse(BaseModel):
+    """Accepted branch of PUT /api/reader/progress/{book_id}.
 
-    Three branch shapes (accepted/rejected/retry_exhausted) unified into one
-    model with optional fields. FastAPI serializes None fields as null — this
-    matches the pre-L4 inline dict passthrough where absent keys were simply
-    not present. We use response_model_exclude_none=True on the endpoint to
-    omit None fields and match pre-L4 wire format exactly.
+    Wire format: {"accepted": true, "version": N, "rebased": false}
     """
-    accepted: bool
-    version: int | None = None
-    rebased: bool | None = None
-    retry_exhausted: bool | None = None
-    current: Any | None = None
+    accepted: Literal[True]
+    version: int
+    rebased: bool = False
+
+
+class ProgressRejectedResponse(BaseModel):
+    """Rejected branch of PUT /api/reader/progress/{book_id}.
+
+    Covers both the conflict case (current is a ReadingProgressRow dict) and
+    the retry-exhausted case (current is None).
+
+    Wire format (conflict):        {"accepted": false, "current": {...}, "retry_exhausted": false}
+    Wire format (retry-exhausted): {"accepted": false, "current": null, "retry_exhausted": true}
+    """
+    accepted: Literal[False]
+    current: ReadingProgressRow | None  # always present — None for retry_exhausted
+    retry_exhausted: bool = False
+
+
+ProgressSaveResponse = Annotated[
+    Union[ProgressAcceptedResponse, ProgressRejectedResponse],
+    Field(discriminator="accepted"),
+]
