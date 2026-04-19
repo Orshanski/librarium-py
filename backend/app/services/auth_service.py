@@ -14,7 +14,7 @@ from ..dal import users as dal
 from ..dtos.auth import AuthUserResponse
 from ..exceptions import AuthError, RateLimitError
 
-log = logging.getLogger("librarium.auth")
+log = logging.getLogger("librarium.services.auth")
 
 _MAX_ATTEMPTS = 5
 _WINDOW_SEC = 300

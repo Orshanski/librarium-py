@@ -13,7 +13,7 @@ from contextlib import suppress
 
 from ..config import UPLOADS_DIR
 
-log = logging.getLogger("librarium.temp_cleanup")
+log = logging.getLogger("librarium.services.temp_cleanup")
 
 # Grace period для lazy orphan-GC: файлы старше этого возраста считаются
 # осиротевшими и удаляются при следующем upload'е. Час — защита от гонок,

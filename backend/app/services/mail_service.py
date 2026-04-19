@@ -17,7 +17,7 @@ from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..exceptions import BadInputError, UpstreamError
 
-log = logging.getLogger("librarium.mail")
+log = logging.getLogger("librarium.services.mail")
 
 # services/ → app/ → backend/ → librarium-py/ → frontend/public/logo.png
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"

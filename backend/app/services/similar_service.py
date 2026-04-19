@@ -8,7 +8,7 @@ from ..dtos.similar import SimilarResponse
 from ..exceptions import BadInputError, ForbiddenError, NotFoundError, UpstreamError
 from ..providers.litres import fetch_similar, find_litres_id
 
-log = logging.getLogger("librarium.similar")
+log = logging.getLogger("librarium.services.similar")
 
 _SOURCE = "litres"
 
