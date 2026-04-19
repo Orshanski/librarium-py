@@ -1,13 +1,12 @@
 """Reader device settings + reading progress."""
 import sqlite3
 import uuid
-from typing import Any
 
 from ..dal import reader as dal
 from ..dtos.reader import (
     ProgressAcceptedResponse, ProgressRejectedResponse,
     ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody,
-    ReadingProgressBody,
+    ReadingProgressBody, ReaderSettingsGetResponse,
 )
 
 
@@ -19,8 +18,8 @@ def get_or_create_device_id(cookie_value: str | None) -> str:
     return cookie_value or str(uuid.uuid4())
 
 
-def get_settings(db: sqlite3.Connection, user_id: int, device_id: str) -> dict[str, Any]:
-    return dal.get_reader_settings(db, user_id, device_id)
+def get_settings(db: sqlite3.Connection, user_id: int, device_id: str) -> ReaderSettingsGetResponse:
+    return ReaderSettingsGetResponse(settings=dal.get_reader_settings(db, user_id, device_id))
 
 
 def save_settings(db: sqlite3.Connection, user_id: int, device_id: str, body: ReaderSettingsBody) -> None:

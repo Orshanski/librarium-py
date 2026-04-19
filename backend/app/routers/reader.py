@@ -6,7 +6,7 @@ from ..dtos import OkResponse
 from ..dtos.reader import (
     ProgressSaveResponse, ReadingProgressResponse,
     ReaderSettingsBody, ReadingProgressBody,
-    ReaderSettingsGetResponse,
+    ReaderSettingsGetResponse,  # response_model annotation
 )
 from ..services import reader_service
 
@@ -31,9 +31,9 @@ def _set_device_cookie(response, device_id: str):
 @router.get("/api/reader/settings", response_model=ReaderSettingsGetResponse)
 def api_get_settings(request: Request, response: Response, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> ReaderSettingsGetResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
-    settings = reader_service.get_settings(db, user.user_id, device_id)
+    result = reader_service.get_settings(db, user.user_id, device_id)
     _set_device_cookie(response, device_id)
-    return ReaderSettingsGetResponse(settings=settings)
+    return result
 
 
 @router.put("/api/reader/settings", response_model=OkResponse)

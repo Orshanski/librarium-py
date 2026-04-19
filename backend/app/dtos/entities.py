@@ -202,9 +202,12 @@ class TagMapResponse(BaseModel):
     """Response for PUT /api/tags/{id}/map.
 
     Wire format: {"ok": True, "targetId": int}
+    `renamed` is present on the object for router-side logging but excluded
+    from JSON serialisation via Field(exclude=True).
     """
     ok: bool = True
     targetId: int
+    renamed: bool = Field(exclude=True)
 
 
 class AuthorOptionsResponse(BaseModel):

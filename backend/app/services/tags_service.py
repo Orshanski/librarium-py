@@ -2,7 +2,7 @@
 import sqlite3
 
 from ..dal import tags as dal
-from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResult
+from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..exceptions import NotFoundError
 
 
@@ -23,11 +23,12 @@ def get_tag(
     return TagDetailResponse(tag=result["tag"], books=result["books"])
 
 
-def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResult:
+def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:
     """Renames tag to `name`, или merges в existing tag с таким именем.
     Raises NotFoundError если tag_id не существует.
-    Returns TagMapResult TypedDict with renamed flag and resolved target_id.
-    The router builds the wire response (TagMapResponse) and uses renamed for logging."""
+    Returns TagMapResponse; `renamed` is excluded from wire output but available
+    as an attribute for router-side logging."""
     if not dal.tag_exists(db, tag_id):
         raise NotFoundError("Not found")
-    return dal.map_tag(db, tag_id, name)
+    result = dal.map_tag(db, tag_id, name)
+    return TagMapResponse(ok=True, targetId=result["target_id"], renamed=result["renamed"])

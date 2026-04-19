@@ -9,8 +9,11 @@ from ..dal import authors as _authors_dal
 from ..dal import filters as _filters_dal
 from ..dal import series as _series_dal
 from ..dal import tags as _tags_dal
-from ..dtos.catalog import CatalogFilters, LanguageOptionRow
-from ..dtos.entities import FilterOptionRow
+from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import (
+    AuthorOptionsResponse, TagOptionsResponse,
+    SeriesOptionsResponse, LanguageOptionsResponse,
+)
 
 
 def build_catalog_filters(
@@ -38,17 +41,17 @@ def build_catalog_filters(
     return filters
 
 
-def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
-    return _authors_dal.list_author_options(db, filters)
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> AuthorOptionsResponse:
+    return AuthorOptionsResponse(authors=_authors_dal.list_author_options(db, filters))
 
 
-def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
-    return _tags_dal.list_tag_options(db, filters)
+def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> TagOptionsResponse:
+    return TagOptionsResponse(tags=_tags_dal.list_tag_options(db, filters))
 
 
-def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
-    return _series_dal.list_series_options(db, filters)
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> SeriesOptionsResponse:
+    return SeriesOptionsResponse(series=_series_dal.list_series_options(db, filters))
 
 
-def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[LanguageOptionRow]:
-    return _filters_dal.list_language_options(db, filters)
+def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> LanguageOptionsResponse:
+    return LanguageOptionsResponse(languages=_filters_dal.list_language_options(db, filters))

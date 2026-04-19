@@ -27,7 +27,7 @@ def author_options(
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return AuthorOptionsResponse(authors=filters_service.list_author_options(db, filters))
+    return filters_service.list_author_options(db, filters)
 
 
 @router.get("/tags", response_model=TagOptionsResponse)
@@ -44,7 +44,7 @@ def tag_options(
         series_ids=parse_ids(seriesIds),
         language=language or None,
     )
-    return TagOptionsResponse(tags=filters_service.list_tag_options(db, filters))
+    return filters_service.list_tag_options(db, filters)
 
 
 @router.get("/series", response_model=SeriesOptionsResponse)
@@ -61,7 +61,7 @@ def series_options(
         tag_ids=parse_ids(tagIds),
         language=language or None,
     )
-    return SeriesOptionsResponse(series=filters_service.list_series_options(db, filters))
+    return filters_service.list_series_options(db, filters)
 
 
 @router.get("/languages", response_model=LanguageOptionsResponse)
@@ -78,4 +78,4 @@ def language_options(
         tag_ids=parse_ids(tagIds),
         series_ids=parse_ids(seriesIds),
     )
-    return LanguageOptionsResponse(languages=filters_service.list_language_options(db, filters))
+    return filters_service.list_language_options(db, filters)

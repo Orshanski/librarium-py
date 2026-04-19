@@ -51,9 +51,16 @@ class AdminUsersListResponse(BaseModel):
 class AdminSettingsResponse(BaseModel):
     """Response for GET /api/admin/settings.
 
-    The settings table is a key/value bag (spec whitelist: stays dict[str, str]).
-    We wrap it in a Pydantic model so the router has a response_model annotation,
-    but the actual fields are opaque (model_extra='allow') — the shape is
-    dynamic per-installation (keys added by admin UI).
+    The five whitelisted setting keys (from admin_service._ALLOWED_SETTINGS)
+    are declared as optional nullable string fields matching the DAL type
+    dict[str, str | None]. `extra="allow"` is kept for forward-compat — if
+    the admin UI adds new settings keys in the future, they'll still pass
+    through without a DTO change.
     """
     model_config = {"extra": "allow"}
+
+    app_name: str | None = None
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_pass: str | None = None

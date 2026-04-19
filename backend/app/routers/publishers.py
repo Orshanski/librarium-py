@@ -12,4 +12,4 @@ router = APIRouter(tags=["publishers"])
 
 @router.get("/api/publishers", response_model=PublishersResponse)
 def list_publishers(user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return PublishersResponse(publishers=publishers_service.list_publishers(db))
+    return publishers_service.list_publishers(db)
