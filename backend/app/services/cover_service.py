@@ -18,7 +18,7 @@ from ..fs_utils import move_with_rollback
 from . import thumb
 from .temp_cleanup import cleanup_old_uploads
 
-log = logging.getLogger("librarium.covers")
+log = logging.getLogger("librarium.services.covers")
 
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}

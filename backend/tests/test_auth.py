@@ -73,7 +73,7 @@ def test_tampered_token(anon_client):
     token = pyjwt.encode(
         {"userId": 1, "role": "admin",
          "exp": datetime(2030, 1, 1, tzinfo=timezone.utc)},
-        "wrong-secret-key", algorithm=JWT_ALGORITHM,
+        "wrong-secret-key-that-is-32-chars-long!!", algorithm=JWT_ALGORITHM,
     )
     anon_client.cookies.set(COOKIE_NAME, token)
     assert_error(anon_client.get("/api/auth/me"), 401)

@@ -11,7 +11,7 @@ from ..dtos.admin import (
 )
 from ..exceptions import BadInputError
 
-log = logging.getLogger("librarium.admin")
+log = logging.getLogger("librarium.services.admin")
 
 _ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
 _SMTP_PASS_MASK = "••••••"

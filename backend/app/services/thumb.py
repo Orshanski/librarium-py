@@ -3,7 +3,7 @@ import os
 
 from ..config import DATA_DIR
 
-log = logging.getLogger("librarium.thumb")
+log = logging.getLogger("librarium.services.thumb")
 
 THUMBS_DIR = DATA_DIR / "thumbs"
 THUMBS_DIR.mkdir(exist_ok=True)

@@ -16,7 +16,7 @@ from . import filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 
-log = logging.getLogger("librarium.books")
+log = logging.getLogger("librarium.services.books")
 
 
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadFileResponse:

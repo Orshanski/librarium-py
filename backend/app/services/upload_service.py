@@ -25,7 +25,7 @@ from .temp_cleanup import (
     cleanup_old_uploads, cleanup_temp_session, find_temp_covers, find_temp_file,
 )
 
-log = logging.getLogger("librarium.upload")
+log = logging.getLogger("librarium.services.upload")
 
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
 
