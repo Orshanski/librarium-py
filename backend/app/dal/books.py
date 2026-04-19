@@ -4,8 +4,17 @@ import sqlite3
 from rapidfuzz import process
 
 from ..database import dicts_from_rows, dict_from_row
-from ..dtos.books import BookCreateData, BookUpdateData
+from ..dtos.books import (
+    BookCreateData,
+    BookFileRow,
+    BookIdentifierRow,
+    BookListPage,
+    BookListRow,
+    BookUpdateData,
+    DuplicateHit,
+)
 from ..dtos.catalog import CatalogFilters
+from ..dtos.search import SearchResults
 from ..search import (
     AUTHORS_SERIES_LIMIT,
     SEARCH_SCORE_CUTOFF,
@@ -40,7 +49,7 @@ ORDER = {
 }
 
 
-def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc", cursor=0, page_size=50):
+def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc", cursor=0, page_size=50) -> BookListPage:
     where, params = build_book_where(filters)
     uid = filters.get("userId")
     ub_join = f"AND ub.user_id = :uid" if uid else "AND 0"
@@ -65,7 +74,7 @@ def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc"
     return {"books": books, "hasMore": has_more}
 
 
-def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None):
+def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None) -> BookListRow | None:
     ub_join = "AND ub.user_id = :uid" if user_id else "AND 0"
     row = db.execute(f"""
         {_BOOK_SELECT} {ub_join}
@@ -74,13 +83,13 @@ def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = N
     return dict_from_row(row)
 
 
-def get_book_files(db: sqlite3.Connection, book_id: int):
+def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:
     return dicts_from_rows(db.execute(
         "SELECT id, format, file_path, file_size FROM book_files WHERE book_id = :id", {"id": book_id}
     ).fetchall())
 
 
-def get_book_identifiers(db: sqlite3.Connection, book_id: int):
+def get_book_identifiers(db: sqlite3.Connection, book_id: int) -> list[BookIdentifierRow]:
     return dicts_from_rows(db.execute(
         "SELECT type, value FROM book_identifiers WHERE book_id = :id", {"id": book_id}
     ).fetchall())
@@ -162,7 +171,7 @@ def delete_book(db: sqlite3.Connection, book_id: int):
     db.execute("DELETE FROM books WHERE id = ?", (book_id,))
 
 
-def search_books(db: sqlite3.Connection, query: str, limit=50):
+def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     """Fuzzy UI search across books, authors, and series.
 
     Uses a custom rapidfuzz-compatible scorer (`token_min_ratio` in
@@ -288,7 +297,7 @@ def add_book_identifier(db: sqlite3.Connection, book_id: int, id_type: str, valu
                (book_id, id_type, value))
 
 
-def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[dict]:
+def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[DuplicateHit]:
     # Still on LIKE intentionally — upload dedup lives with provider
     # matching (Google Books / Литрес author & series reconciliation),
     # миграция на rapidfuzz со стриктным score_cutoff (~85) и reuse

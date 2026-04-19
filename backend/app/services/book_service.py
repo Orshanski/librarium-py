@@ -6,7 +6,7 @@ from typing import TypedDict, cast
 
 from ..config import LIBRARY_DIR
 from ..dal import books as dal
-from ..dtos.books import UpdateBookBody, BookUpdateData
+from ..dtos.books import BookListPage, UpdateBookBody, BookUpdateData
 from ..exceptions import NotFoundError
 from ..fs_utils import write_with_rollback
 from . import filters_service, thumb
@@ -19,11 +19,6 @@ log = logging.getLogger("librarium.books")
 class UploadResult(TypedDict):
     format: str
     size: int
-
-
-class BookListPage(TypedDict):
-    books: list[dict]
-    hasMore: bool
 
 
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadResult:

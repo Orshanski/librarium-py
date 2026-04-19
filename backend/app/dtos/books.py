@@ -49,3 +49,62 @@ class BookUpdateData(TypedDict, total=False):
     isbn: str | None
     sortTitle: str
     coverPath: str
+
+
+# ---------------------------------------------------------------------------
+# Read-path row TypedDicts (L3a)
+# ---------------------------------------------------------------------------
+
+class BookListRow(TypedDict):
+    """Single row from the `_BOOK_SELECT` JOIN block. Returned by
+    `dal.books.get_books` (list) and `get_book_by_id` (single row).
+
+    Columns 1:1 with the SELECT; GROUP_CONCAT aggregates arrive as
+    comma-separated strings (authors, tags) or comma-separated ids
+    (author_ids, tag_ids). Deterministic ordering per E5.
+    """
+    id: int
+    title: str
+    sort_title: str | None
+    description: str | None
+    language: str | None
+    publisher: str | None
+    pub_date: str | None
+    series_id: int | None
+    series_number: float | None
+    cover_path: str | None
+    added_at: str
+    updated_at: str
+    series_name: str | None
+    authors: str | None
+    author_ids: str | None
+    tags: str | None
+    tag_ids: str | None
+    rating: int | None
+    is_read: int | None
+
+
+class BookFileRow(TypedDict):
+    id: int
+    format: str
+    file_path: str
+    file_size: int
+
+
+class BookIdentifierRow(TypedDict):
+    type: str
+    value: str
+
+
+class DuplicateHit(TypedDict):
+    """Row shape from `find_duplicates_by_title` — subset of book columns
+    used for upload dedup."""
+    id: int
+    title: str
+    authors: str | None
+
+
+class BookListPage(TypedDict):
+    """Paginated response shape from `dal.books.get_books`."""
+    books: list[BookListRow]
+    hasMore: bool
