@@ -93,6 +93,8 @@ class ProgressRejectedResponse(BaseModel):
     """
     accepted: Literal[False]
     current: ReadingProgressRow | None  # always present — None for retry_exhausted
+    # Default False is a safety net only — DAL always emits explicit value on
+    # both rejected branches; if this default ever fires, DAL skipped the flag.
     retry_exhausted: bool = False
 
 

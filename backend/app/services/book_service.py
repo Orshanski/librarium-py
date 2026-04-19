@@ -28,7 +28,7 @@ def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     dst = prepare_book_format_path(db, book_id, fmt, ext)
     with write_with_rollback(dst, content):
         size = register_and_linearize(db, book_id, dst, ext)
-    return UploadFileResponse(format=fmt, size=size)
+    return UploadFileResponse(ok=True, format=fmt, size=size)
 
 
 def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
