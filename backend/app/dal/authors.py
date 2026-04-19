@@ -2,12 +2,13 @@ import sqlite3
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import AuthorDetailRow, AuthorsList, FilterOptionRow
 from ..exceptions import BadInputError, NotFoundError
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 from .filters import build_book_where
 
 
-def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: str | None = None):
+def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: str | None = None) -> AuthorsList:
     filters: CatalogFilters = {"userId": user_id}
     if tag_ids:
         filters["tagIds"] = tag_ids
@@ -30,7 +31,7 @@ def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | No
     return {"authors": authors}
 
 
-def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Author options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="authorIds")
     return dicts_from_rows(db.execute(f"""
@@ -41,7 +42,7 @@ def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list
     """, params).fetchall())
 
 
-def get_author_by_id(db: sqlite3.Connection, author_id: int):
+def get_author_by_id(db: sqlite3.Connection, author_id: int) -> AuthorDetailRow | None:
     author = dict_from_row(db.execute(
         "SELECT * FROM authors WHERE id = :id", {"id": author_id}
     ).fetchone())

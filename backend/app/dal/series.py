@@ -2,12 +2,13 @@ import sqlite3
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import FilterOptionRow, SeriesDetailRow, SeriesList
 from ..exceptions import BadInputError, NotFoundError
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 from .filters import build_book_where
 
 
-def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Series options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="seriesIds")
     return dicts_from_rows(db.execute(f"""
@@ -17,7 +18,7 @@ def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list
     """, params).fetchall())
 
 
-def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None):
+def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None) -> SeriesList:
     filters: CatalogFilters = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids
@@ -41,7 +42,7 @@ def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | 
     return {"series": series}
 
 
-def get_series_by_id(db: sqlite3.Connection, series_id: int):
+def get_series_by_id(db: sqlite3.Connection, series_id: int) -> SeriesDetailRow | None:
     s = dict_from_row(db.execute("""
         SELECT s.*, COUNT(b.id) as book_count
         FROM series s

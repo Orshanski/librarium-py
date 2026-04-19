@@ -2,11 +2,12 @@ import sqlite3
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
+from ..dtos.entities import FilterOptionRow, TagCloudEntry, TagDetailRow, TagMapResult
 from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
 from .filters import build_book_where
 
 
-def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
+def get_tag_cloud(db: sqlite3.Connection, top: int | None = None) -> list[TagCloudEntry]:
     """Tag cloud: name + book_count, sorted by count DESC."""
     limit = "LIMIT :top" if top else ""
     params = {"top": top} if top else {}
@@ -18,7 +19,7 @@ def get_tag_cloud(db: sqlite3.Connection, top: int | None = None):
 
 
 
-def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[dict]:
+def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Tag options for filter bar, scoped by other filters."""
     where, params = build_book_where(filters, exclude="tagIds")
     return dicts_from_rows(db.execute(f"""
@@ -29,7 +30,7 @@ def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[di
     """, params).fetchall())
 
 
-def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_ids=None, language=None):
+def get_tag_by_id(db: sqlite3.Connection, tag_id: int, author_ids=None, series_ids=None, language=None) -> TagDetailRow | None:
     tag = dict_from_row(db.execute("SELECT * FROM tags WHERE id = :id", {"id": tag_id}).fetchone())
     if not tag:
         return None
@@ -113,7 +114,7 @@ def resolve_tag_names(db: sqlite3.Connection, raw_tags: list[str]) -> list[str]:
     return result
 
 
-def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> dict:
+def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> TagMapResult:
     """Map tag to target (rename or merge).
     Returns {"renamed": bool, "target_id": int}."""
     target_name = target_name.strip()
