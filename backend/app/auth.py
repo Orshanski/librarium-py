@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -7,6 +8,30 @@ from fastapi import Request
 
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
 from .exceptions import AuthError, ForbiddenError
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    """Typed auth context: the user making the current request.
+
+    Constructed from a decoded JWT payload via `from_payload`. Frozen so
+    handlers cannot mutate it mid-request. JWT keys (``userId``, ``role``)
+    are isolated inside ``from_payload``; consumers read ``user_id`` / ``role``.
+    """
+    user_id: int
+    role: str
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "CurrentUser":
+        user_id = payload.get("userId")
+        role = payload.get("role")
+        # bool-guard: Python treats `bool` as `int` subclass —
+        # without this, `True` / `False` would pass the int check.
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            raise AuthError("Invalid token: userId missing or not int")
+        if not isinstance(role, str) or not role:
+            raise AuthError("Invalid token: role missing")
+        return cls(user_id=user_id, role=role)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
