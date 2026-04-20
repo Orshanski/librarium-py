@@ -1,101 +1,64 @@
 import sqlite3
+from pathlib import Path
 from typing import cast
+
+import aiosql
 
 from ..database import dict_from_row, dicts_from_rows
 from ..dtos.shelves import ShelfBaseRow, ShelfDetailRow, ShelfRow
-from .book_list_query import BOOK_LIST_JOINS, BOOK_LIST_AGGREGATE_COLUMNS
+
+queries = aiosql.from_path(Path(__file__).parent / "queries" / "shelves", "sqlite3")
 
 
 def get_shelves(db: sqlite3.Connection, user_id: int) -> list[ShelfRow]:
-    shelves = dicts_from_rows(db.execute("""
-        SELECT sh.*, COUNT(sb.book_id) as book_count
-        FROM shelves sh LEFT JOIN shelf_books sb ON sh.id = sb.shelf_id
-        WHERE sh.user_id = :uid GROUP BY sh.id ORDER BY sh.is_system DESC, sh.name
-    """, {"uid": user_id}).fetchall())
+    shelves = dicts_from_rows(queries.list_user_shelves(db, uid=user_id))
     # Fix count for system shelves (dynamic, not in shelf_books)
     for sh in shelves:
         if sh["system_code"] == "best":
-            sh["book_count"] = db.execute(
-                "SELECT COUNT(*) FROM user_books WHERE user_id = :uid AND rating >= 4",
-                {"uid": user_id},
-            ).fetchone()[0]
+            sh["book_count"] = queries.count_best_books(db, uid=user_id)["cnt"]
         elif sh["system_code"] == "reading_now":
-            sh["book_count"] = db.execute("""
-                SELECT COUNT(*) FROM reading_progress rp
-                LEFT JOIN user_books ub ON rp.book_id = ub.book_id AND ub.user_id = :uid
-                WHERE rp.user_id = :uid AND rp.position IS NOT NULL
-                    AND (ub.is_read IS NULL OR ub.is_read != 1)
-            """, {"uid": user_id}).fetchone()[0]
+            sh["book_count"] = queries.count_reading_now_books(db, uid=user_id)["cnt"]
     return cast(list[ShelfRow], shelves)
 
 
 def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int) -> ShelfDetailRow | None:
-    shelf = dict_from_row(db.execute(
-        "SELECT * FROM shelves WHERE id = :id AND user_id = :uid",
-        {"id": shelf_id, "uid": user_id},
-    ).fetchone())
+    shelf = dict_from_row(queries.get_shelf_header(db, id=shelf_id, uid=user_id))
     if not shelf:
         return None
 
     if shelf["system_code"] == "best":
-        books = dicts_from_rows(db.execute(f"""
-            SELECT {BOOK_LIST_AGGREGATE_COLUMNS}, ub.rating
-            FROM books b
-            JOIN user_books ub ON b.id = ub.book_id AND ub.user_id = :uid AND ub.rating >= 4
-            {BOOK_LIST_JOINS}
-            GROUP BY b.id ORDER BY ub.rating DESC, b.title
-        """, {"uid": user_id}).fetchall())
+        books = dicts_from_rows(queries.get_shelf_books_best(db, uid=user_id))
     elif shelf["system_code"] == "reading_now":
-        books = dicts_from_rows(db.execute(f"""
-            SELECT {BOOK_LIST_AGGREGATE_COLUMNS},
-                rp.fraction, rp.last_format, rp.last_read_at
-            FROM books b
-            JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = :uid AND rp.position IS NOT NULL
-            LEFT JOIN user_books ub ON b.id = ub.book_id AND ub.user_id = :uid
-            {BOOK_LIST_JOINS}
-            WHERE (ub.is_read IS NULL OR ub.is_read != 1)
-            GROUP BY b.id ORDER BY rp.last_read_at DESC
-        """, {"uid": user_id}).fetchall())
+        books = dicts_from_rows(queries.get_shelf_books_reading_now(db, uid=user_id))
     else:
-        books = dicts_from_rows(db.execute(f"""
-            SELECT {BOOK_LIST_AGGREGATE_COLUMNS}
-            FROM books b
-            JOIN shelf_books sb ON b.id = sb.book_id AND sb.shelf_id = :id
-            {BOOK_LIST_JOINS}
-            GROUP BY b.id ORDER BY sb.added_at DESC
-        """, {"id": shelf_id}).fetchall())
+        books = dicts_from_rows(queries.get_shelf_books_regular(db, id=shelf_id))
 
     return cast(ShelfDetailRow, {"shelf": cast(ShelfBaseRow, shelf), "books": books})
 
 
 def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
-    row = db.execute(
-        "SELECT 1 FROM shelves WHERE id = :id AND user_id = :uid",
-        {"id": shelf_id, "uid": user_id},
-    ).fetchone()
+    row = queries.shelf_exists(db, id=shelf_id, uid=user_id)
     return row is not None
 
 
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
-    cur = db.execute("INSERT INTO shelves (name, user_id) VALUES (:n, :uid)", {"n": name, "uid": user_id})
-    return cur.lastrowid
+    return queries.create_shelf(db, n=name, uid=user_id)
 
 
 def update_shelf(db: sqlite3.Connection, shelf_id: int, name: str) -> None:
-    db.execute("UPDATE shelves SET name = :n WHERE id = :id AND is_system = 0", {"n": name, "id": shelf_id})
+    queries.update_shelf(db, n=name, id=shelf_id)
 
 
 def delete_shelf(db: sqlite3.Connection, shelf_id: int) -> None:
-    db.execute("DELETE FROM shelves WHERE id = :id AND is_system = 0", {"id": shelf_id})
+    queries.delete_shelf(db, id=shelf_id)
 
 
 def add_book_to_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int) -> None:
-    db.execute("INSERT OR IGNORE INTO shelf_books (shelf_id, book_id) VALUES (:sid, :bid)", {"sid": shelf_id, "bid": book_id})
+    queries.add_book_to_shelf(db, sid=shelf_id, bid=book_id)
 
 
 def remove_book_from_shelf(db: sqlite3.Connection, shelf_id: int, book_id: int) -> None:
-    db.execute("DELETE FROM shelf_books WHERE shelf_id = :sid AND book_id = :bid", {"sid": shelf_id, "bid": book_id})
-
+    queries.remove_book_from_shelf(db, sid=shelf_id, bid=book_id)
 
 
 _SYSTEM_SHELVES = [
@@ -107,21 +70,13 @@ _SYSTEM_SHELVES = [
 def ensure_system_shelves(db: sqlite3.Connection, user_id: int) -> None:
     """Ensure all system shelves exist for the user."""
     existing = {r["system_code"] for r in dicts_from_rows(
-        db.execute("SELECT system_code FROM shelves WHERE user_id = :uid AND is_system = 1",
-                   {"uid": user_id}).fetchall()
+        queries.get_existing_system_shelves(db, uid=user_id)
     ) if r.get("system_code")}
     for sh in _SYSTEM_SHELVES:
         if sh["system_code"] not in existing:
-            db.execute(
-                "INSERT INTO shelves (name, user_id, is_system, system_code) VALUES (:name, :uid, 1, :code)",
-                {"name": sh["name"], "uid": user_id, "code": sh["system_code"]},
-            )
+            queries.insert_system_shelf(db, name=sh["name"], uid=user_id, code=sh["system_code"])
 
 
 def get_book_shelf_ids(db: sqlite3.Connection, book_id: int, user_id: int) -> set[int]:
-    rows = db.execute("""
-        SELECT sb.shelf_id FROM shelf_books sb
-        JOIN shelves s ON sb.shelf_id = s.id
-        WHERE sb.book_id = ? AND s.user_id = ?
-    """, (book_id, user_id)).fetchall()
+    rows = queries.get_book_shelf_ids(db, book_id=book_id, user_id=user_id)
     return {r["shelf_id"] for r in rows}
