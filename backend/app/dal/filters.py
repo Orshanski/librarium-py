@@ -1,8 +1,13 @@
 """Shared WHERE clause builder and filter options for book queries."""
 import sqlite3
+from pathlib import Path
+
+import aiosql
 
 from ..database import dicts_from_rows
 from ..dtos.catalog import CatalogFilters, LanguageOptionRow
+
+queries = aiosql.from_path(Path(__file__).parent / "queries" / "filters", "sqlite3")
 
 
 def build_book_where(
@@ -66,9 +71,12 @@ def build_book_where(
 
 def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[LanguageOptionRow]:
     """Language options for filter bar, scoped by other filters."""
-    where, params = build_book_where(filters, exclude="language")
-    lang_where = f"{where} AND b.language IS NOT NULL" if where else "WHERE b.language IS NOT NULL"
-    return dicts_from_rows(db.execute(f"""
-        SELECT DISTINCT b.language as name FROM books b
-        {lang_where} ORDER BY b.language COLLATE NOCASE
-    """, params).fetchall())
+    where, params = build_book_where(
+        filters,
+        exclude="language",
+        extra_clauses=[("b.language IS NOT NULL", {})],
+    )
+    # SQL-safe: {where_clause} substituted from whitelist-source
+    # (build_book_where output). Runtime data via bind params.
+    final_sql = queries.list_language_options.sql.replace("{where_clause}", where)
+    return dicts_from_rows(db.execute(final_sql, params).fetchall())
