@@ -1,37 +1,31 @@
 import sqlite3
+from pathlib import Path
 from typing import cast
+
+import aiosql
 
 from ..auth import hash_password
 from ..database import dict_from_row, dicts_from_rows
 from ..dtos.admin import UserUpdateData
 from ..dtos.auth import UserInternalRow, UserRow
 
+queries = aiosql.from_path(Path(__file__).parent / "queries" / "users", "sqlite3")
+
 
 def get_user_by_id(db: sqlite3.Connection, user_id: int) -> UserRow | None:
-    return cast(UserRow | None, dict_from_row(db.execute(
-        "SELECT id, username, display_name, email, role, created_at FROM users WHERE id = :id",
-        {"id": user_id},
-    ).fetchone()))
+    return cast(UserRow | None, dict_from_row(queries.get_user_by_id(db, id=user_id)))
 
 
 def get_user_by_username(db: sqlite3.Connection, username: str) -> UserInternalRow | None:
-    return cast(UserInternalRow | None, dict_from_row(db.execute(
-        "SELECT * FROM users WHERE username = :u", {"u": username}
-    ).fetchone()))
+    return cast(UserInternalRow | None, dict_from_row(queries.get_user_by_username(db, u=username)))
 
 
 def get_all_users(db: sqlite3.Connection) -> list[UserRow]:
-    return cast(list[UserRow], dicts_from_rows(db.execute(
-        "SELECT id, username, display_name, email, role, created_at FROM users ORDER BY id"
-    ).fetchall()))
+    return cast(list[UserRow], dicts_from_rows(queries.get_all_users(db)))
 
 
 def create_user(db: sqlite3.Connection, username: str, password: str, role="reader", display_name=None, email=None) -> int:
-    cur = db.execute(
-        "INSERT INTO users (username, password_hash, role, display_name, email) VALUES (:u, :h, :r, :d, :e)",
-        {"u": username, "h": hash_password(password), "r": role, "d": display_name, "e": email},
-    )
-    user_id = cur.lastrowid
+    user_id = queries.insert_user(db, u=username, h=hash_password(password), r=role, d=display_name, e=email)
     from .shelves import ensure_system_shelves
     ensure_system_shelves(db, user_id)
     return user_id
@@ -56,13 +50,13 @@ def update_user(db: sqlite3.Connection, user_id: int, data: UserUpdateData) -> N
 
 
 def delete_user(db: sqlite3.Connection, user_id: int) -> None:
-    db.execute("DELETE FROM users WHERE id = :id", {"id": user_id})
+    queries.delete_user(db, id=user_id)
 
 
 def is_last_admin(db: sqlite3.Connection, user_id: int) -> bool:
     """Check if user_id is an admin and is the last one."""
-    target = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    target = queries.get_admin_role(db, id=user_id)
     if not target or target["role"] != "admin":
         return False
-    count = db.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").fetchone()["cnt"]
+    count = queries.count_admins(db)["cnt"]
     return count <= 1
