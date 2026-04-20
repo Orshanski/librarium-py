@@ -1,38 +1,32 @@
 import json
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, cast
+
+import aiosql
 
 from ..database import dict_from_row
 from ..dtos.reader import ProgressSaveResult, ReadingProgressRow
+
+queries = aiosql.from_path(Path(__file__).parent / "queries" / "reader", "sqlite3")
 
 
 def get_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str) -> dict[str, Any]:
     """Return opaque reader settings JSON blob. Stays dict[str, Any] per spec whitelist
     (client-controlled shape — not a typed record)."""
-    row = db.execute(
-        "SELECT settings FROM reader_settings WHERE user_id = :uid AND device_type = :dt",
-        {"uid": user_id, "dt": device_type},
-    ).fetchone()
+    row = queries.get_reader_settings(db, uid=user_id, dt=device_type)
     if not row:
         return {}
     return json.loads(row["settings"])
 
 
 def save_reader_settings(db: sqlite3.Connection, user_id: int, device_type: str, settings: dict[str, Any]) -> None:
-    db.execute("""
-        INSERT INTO reader_settings (user_id, device_type, settings)
-        VALUES (:uid, :dt, :s)
-        ON CONFLICT(user_id, device_type) DO UPDATE SET settings = :s
-    """, {"uid": user_id, "dt": device_type, "s": json.dumps(settings)})
+    queries.save_reader_settings(db, uid=user_id, dt=device_type, s=json.dumps(settings))
 
 
 def get_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> ReadingProgressRow:
-    row = db.execute(
-        "SELECT position, last_device, last_format, fraction, last_read_at, version "
-        "FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
-        {"uid": user_id, "bid": book_id},
-    ).fetchone()
+    row = queries.get_reading_progress(db, uid=user_id, bid=book_id)
     if not row:
         return ReadingProgressRow(
             position=None,
@@ -79,25 +73,15 @@ def save_reading_progress(
     }
 
     for _ in range(3):
-        current = db.execute(
-            "SELECT position, last_device, last_format, fraction, last_read_at, version "
-            "FROM reading_progress WHERE user_id = :uid AND book_id = :bid",
-            {"uid": user_id, "bid": book_id},
-        ).fetchone()
+        current = queries.get_reading_progress(db, uid=user_id, bid=book_id)
 
         if current is None:
             # First write for (user, book). ON CONFLICT DO NOTHING so a
             # simultaneous first-write from another device does not raise
             # UNIQUE constraint failed — it just yields rowcount=0 and we
             # retry into the UPDATE branch.
-            cursor = db.execute(
-                "INSERT INTO reading_progress "
-                "(user_id, book_id, position, last_device, last_format, fraction, last_read_at, version) "
-                "VALUES (:uid, :bid, :pos, :dev, :fmt, :frac, :now, 1) "
-                "ON CONFLICT(user_id, book_id) DO NOTHING",
-                params_base,
-            )
-            if cursor.rowcount > 0:
+            rowcount = queries.insert_reading_progress(db, **params_base)
+            if rowcount > 0:
                 return {"accepted": True, "version": 1, "rebased": False}
             continue  # raced: a concurrent writer inserted the row — retry
 
@@ -106,28 +90,16 @@ def save_reading_progress(
 
         if current_version == expected_version:
             # Clean CAS match
-            cursor = db.execute(
-                "UPDATE reading_progress "
-                "SET position = :pos, last_device = :dev, last_format = :fmt, "
-                "    fraction = :frac, last_read_at = :now, version = version + 1 "
-                "WHERE user_id = :uid AND book_id = :bid AND version = :ver",
-                {**params_base, "ver": expected_version},
-            )
-            if cursor.rowcount > 0:
+            rowcount = queries.update_reading_progress(db, **params_base, ver=expected_version)
+            if rowcount > 0:
                 return {"accepted": True, "version": expected_version + 1, "rebased": False}
             continue  # raced: version moved between SELECT and UPDATE — retry
 
         # Conflict: intent check
         if fraction >= current_fraction:
             # Forward (or equal) → auto-rebase (accept on top of current)
-            cursor = db.execute(
-                "UPDATE reading_progress "
-                "SET position = :pos, last_device = :dev, last_format = :fmt, "
-                "    fraction = :frac, last_read_at = :now, version = version + 1 "
-                "WHERE user_id = :uid AND book_id = :bid AND version = :ver",
-                {**params_base, "ver": current_version},
-            )
-            if cursor.rowcount > 0:
+            rowcount = queries.update_reading_progress(db, **params_base, ver=current_version)
+            if rowcount > 0:
                 return {"accepted": True, "version": current_version + 1, "rebased": True}
             continue  # raced: version moved — retry
 
