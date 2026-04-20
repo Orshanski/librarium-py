@@ -262,3 +262,9 @@ class TestBooksSnapshot:
         multi = next(b for b in resp["books"] if b["id"] == 100)
         assert multi["tags"] == "Классический детектив,Фэнтези"
         assert multi["tag_ids"] == "2,1"
+
+
+def test_get_books_rating_desc_requires_user_id(db):
+    """rating_desc без userId поднимает ValueError (spec: удаление fallback)."""
+    with pytest.raises(ValueError, match="rating_desc requires userId"):
+        books_dal.get_books(db, filters={}, sort="rating_desc")
