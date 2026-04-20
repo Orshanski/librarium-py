@@ -1,6 +1,11 @@
 import sqlite3
+from pathlib import Path
+
+import aiosql
 
 from ..dtos.similar import SimilarCandidate
+
+queries = aiosql.from_path(Path(__file__).parent / "queries" / "similar", "sqlite3")
 
 
 def exclude_owned(db: sqlite3.Connection, candidates: list[SimilarCandidate]) -> list[SimilarCandidate]:
@@ -12,14 +17,10 @@ def exclude_owned(db: sqlite3.Connection, candidates: list[SimilarCandidate]) ->
     placeholders = ",".join(f":t{i}" for i in range(len(candidates)))
     params = {f"t{i}": c["title"].lower() for i, c in enumerate(candidates)}
 
-    rows = db.execute(f"""
-        SELECT lower_utf8(b.title) as title, lower_utf8(MIN(a.name)) as author
-        FROM books b
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE lower_utf8(b.title) IN ({placeholders})
-        GROUP BY b.id
-    """, params).fetchall()
+    # SQL-safe: {placeholders} из whitelist-формата ":tN" для bind-имён;
+    # значения (title lower) идут через bind. См. spec §Динамические фрагменты.
+    final_sql = queries.exclude_owned.sql.replace("{placeholders}", placeholders)
+    rows = db.execute(final_sql, params).fetchall()
 
     owned = {(r["title"], r["author"]) for r in rows}
 
