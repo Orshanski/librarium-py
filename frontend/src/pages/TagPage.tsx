@@ -126,6 +126,7 @@ export default function TagPage() {
         }
       })
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, [paramsKey]);
 
   // Save cache on data/filter change and on unmount
