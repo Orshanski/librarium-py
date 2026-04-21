@@ -93,7 +93,8 @@ export default function SeriesListPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [paramsKey, authorIds, tagIds, language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey]);
 
   // Scroll listener: save cache
   useEffect(() => {

@@ -92,7 +92,8 @@ export default function AuthorsPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [paramsKey, tagIds, language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey]);
 
   // Scroll listener: save cache
   useEffect(() => {
