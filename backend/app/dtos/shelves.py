@@ -3,6 +3,16 @@ from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
+from .books import BookItem
+
+
+class ShelfSummary(BaseModel):
+    """Заголовок полки на wire в camelCase — поле shelf в ответе /api/shelves/{id}."""
+    id: int
+    name: str
+    isSystem: bool
+    systemCode: str | None = None
+
 
 class ShelfBody(BaseModel):
     name: str
@@ -121,7 +131,7 @@ class ShelvesListResponse(BaseModel):
 class ShelfDetailResponse(BaseModel):
     """Response for GET /api/shelves/{shelf_id}.
 
-    Wire format: {"shelf": {...}, "books": [...]}
+    Wire format (camelCase): {"shelf": {...}, "books": [...]}
     """
-    shelf: ShelfBaseRow
-    books: list[ShelfBookRow]
+    shelf: ShelfSummary
+    books: list[BookItem]

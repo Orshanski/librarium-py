@@ -1,5 +1,5 @@
 import { client } from "../client";
-import type { RawBook } from "@/types";
+import type { Book } from "@/types";
 
 export interface Shelf {
   id: number;
@@ -8,6 +8,13 @@ export interface Shelf {
   has_book?: boolean;
   book_count?: number;
   system_code?: string;
+}
+
+export interface ShelfSummary {
+  id: number;
+  name: string;
+  isSystem: boolean;
+  systemCode?: string | null;
 }
 
 export interface BookShelfMembership {
@@ -20,9 +27,9 @@ export interface ShelvesListResponse {
   bookShelves?: BookShelfMembership[];
 }
 
-export interface ShelfDetailResponse {
-  shelf: Shelf;
-  books: RawBook[];
+export interface ShelfDetail {
+  shelf: ShelfSummary;
+  books: Book[];
 }
 
 export interface CreateShelfResponse {
@@ -48,9 +55,12 @@ export function createShelf(name: string): Promise<CreateShelfResponse> {
 
 export function getShelf(
   id: number,
+  opts: { sort?: string } = {},
   signal?: AbortSignal,
-): Promise<ShelfDetailResponse> {
-  return client<ShelfDetailResponse>("GET", `/api/shelves/${id}`, { signal });
+): Promise<ShelfDetail> {
+  const query: Record<string, unknown> = {};
+  if (opts.sort) query.sort = opts.sort;
+  return client<ShelfDetail>("GET", `/api/shelves/${id}`, { query, signal });
 }
 
 export function deleteShelf(id: number): Promise<ShelfOkResponse> {

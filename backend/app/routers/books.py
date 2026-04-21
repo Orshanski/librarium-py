@@ -8,6 +8,7 @@ from ..config import MAX_BOOK_SIZE
 from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.books import BookDetailResponse, BookListResponse, UpdateBookBody, UploadFileResponse
+from ..dtos.catalog import UserSort
 from ..exceptions import BadInputError
 from ..services import book_service
 from ..services.upload_service import BOOK_EXTENSIONS
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 def list_books(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
-    sort: str = "added_desc",
+    sort: UserSort = "addedDesc",
     cursor: int = 0,
     pageSize: int = 50,
     authorIds: list[int] | None = Query(None),

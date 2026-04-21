@@ -34,7 +34,7 @@ export default function BookPage() {
         // Load series books if book has a series
         if (data.book.series_id) {
           listBooks(
-            { seriesIds: [String(data.book.series_id)], pageSize: 50, sort: "added_desc" },
+            { seriesIds: [String(data.book.series_id)], pageSize: 50, sort: "addedDesc" },
             controller.signal,
           )
             .then((seriesData) => {

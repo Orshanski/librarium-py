@@ -2,8 +2,10 @@
 import sqlite3
 
 from ..dal import tags as dal
-from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse
+from ..dtos.catalog import UserSort
+from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse, TagSummary
 from ..exceptions import NotFoundError
+from .book_item_builder import row_to_book_item
 
 
 def tag_cloud(db: sqlite3.Connection, top: int | None) -> TagCloudResponse:
@@ -13,14 +15,27 @@ def tag_cloud(db: sqlite3.Connection, top: int | None) -> TagCloudResponse:
 def get_tag(
     db: sqlite3.Connection,
     tag_id: int,
+    user_id: int,
     author_ids: list[int] | None,
     series_ids: list[int] | None,
     language: list[str] | None,
+    sort: UserSort,
 ) -> TagDetailResponse:
-    result = dal.get_tag_by_id(db, tag_id, author_ids, series_ids, language)
+    result = dal.get_tag_by_id(
+        db, tag_id, user_id,
+        author_ids=author_ids, series_ids=series_ids, language=language, sort=sort,
+    )
     if not result:
         raise NotFoundError("Not found")
-    return TagDetailResponse(tag=result["tag"], books=result["books"])
+    tag_row = result["tag"]
+    return TagDetailResponse(
+        tag=TagSummary(
+            id=tag_row["id"],
+            name=tag_row["name"],
+            code=tag_row.get("code"),
+        ),
+        books=[row_to_book_item(r) for r in result["books"]],
+    )
 
 
 def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:

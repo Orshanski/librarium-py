@@ -53,8 +53,8 @@ def db_with_multi_author(db):
 # NOTE: `isbn` is NOT in b.* — it lives in `book_identifiers` (separate table)
 # and is attached at the router/DTO layer, not the DAL.
 
-# Entity-detail pages (get_author_by_id / get_series_by_id / get_tag_by_id /
-# get_shelf_by_id default branch). Uses BOOK_LIST_AGGREGATE_COLUMNS only.
+# Entity-detail pages (get_author_by_id / get_series_by_id / get_tag_by_id).
+# Uses BOOK_LIST_AGGREGATE_COLUMNS only (no user-specific extras).
 EXPECTED_ENTITY_DETAIL_COLUMNS = {
     "id", "title", "sort_title", "description", "language", "publisher",
     "pub_date", "series_id", "series_number", "cover_path", "added_at",
@@ -62,13 +62,22 @@ EXPECTED_ENTITY_DETAIL_COLUMNS = {
     "series_name", "authors", "tags",
 }
 
-# "best" shelf branch: entity-detail + per-book user rating.
-EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {"rating"}
+# Shelf queries now include author_ids, tag_ids, rating, is_read in all branches
+# (the SQL SELECTs them via GROUP_CONCAT and LEFT JOIN user_books).
+EXPECTED_SHELF_BASE_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+    "author_ids", "tag_ids", "rating", "is_read",
+}
 
-# "reading_now" shelf branch: entity-detail + reading_progress fields.
-EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+# "best" shelf branch: base + rating (already in base, alias kept for clarity).
+EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
+
+# "reading_now" shelf branch: base + reading_progress fields.
+EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS | {
     "fraction", "last_format", "last_read_at",
 }
+
+# "default" (regular) shelf: same as base.
+EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
 
 # books.get_books / books.get_book_by_id: entity-detail + id arrays + user data.
 EXPECTED_BOOKS_FULL_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
@@ -126,18 +135,19 @@ class TestSeriesDetailSnapshot:
 
 class TestTagDetailSnapshot:
     def test_tag_1_fantasy(self, db):
-        result = tags_dal.get_tag_by_id(db, 1)
+        result = tags_dal.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         # Tag 1 (Фэнтези) is on books 1, 3, 5. Order: b.added_at DESC -> 5, 3, 1
         assert [b["id"] for b in books] == [5, 3, 1]
-        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
+        # Tag query now includes author_ids, tag_ids, rating, is_read
+        assert set(books[0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
 
     def test_book_5_multi_tag_membership_via_tag_1(self, db):
         # Book 5 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
         # After Task 5 migration: shared BOOK_LIST_AGGREGATE_COLUMNS orders by
         # tag name; "К" (U+041A) < "Ф" (U+0424), so "Классический детектив" first.
-        result = tags_dal.get_tag_by_id(db, 1)
+        result = tags_dal.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book5 = next(b for b in result["books"] if b["id"] == 5)
         assert book5["tags"] == "Классический детектив,Фэнтези"
@@ -148,11 +158,11 @@ class TestShelfDetailSnapshot:
         # User 2 (reader) rated book 1 with rating=5 → book 1 on "best" shelf
         shelves = shelves_dal.get_shelves(db, 2)
         best_shelf = next(s for s in shelves if s["system_code"] == "best")
-        result = shelves_dal.get_shelf_by_id(db, best_shelf["id"], 2)
+        result = shelves_dal.get_shelf_by_id(db, best_shelf["id"], 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert [b["id"] for b in books] == [1]
-        # Exact column set — entity-detail + branch-specific `rating`
+        # Exact column set — shelf base (includes author_ids, tag_ids, rating, is_read)
         assert set(books[0].keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert books[0]["rating"] == 5
 
@@ -160,14 +170,14 @@ class TestShelfDetailSnapshot:
         # No reading_progress for user 2 → empty list
         shelves = shelves_dal.get_shelves(db, 2)
         rn = next(s for s in shelves if s["system_code"] == "reading_now")
-        result = shelves_dal.get_shelf_by_id(db, rn["id"], 2)
+        result = shelves_dal.get_shelf_by_id(db, rn["id"], 2, sort="addedDesc")
         assert result["books"] == []
 
     def test_shelf_default_empty(self, db):
         # User-created shelf (not system). Need to create one.
         shelf_id = shelves_dal.create_shelf(db, 2, "My Shelf")
         db.commit()
-        result = shelves_dal.get_shelf_by_id(db, shelf_id, 2)
+        result = shelves_dal.get_shelf_by_id(db, shelf_id, 2, sort="addedDesc")
         assert result is not None
         assert result["books"] == []
 
@@ -179,10 +189,10 @@ class TestShelfDetailSnapshot:
         db_with_multi_author.commit()
         shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
         best = next(s for s in shelves if s["system_code"] == "best")
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2)
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
-        # Exact column set for the "best" branch.
+        # Exact column set for the "best" branch (includes author_ids, tag_ids, rating, is_read).
         assert set(multi_book.keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert multi_book["rating"] == 5
 
@@ -196,10 +206,10 @@ class TestShelfDetailSnapshot:
         db_with_multi_author.commit()
         shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
         rn = next(s for s in shelves if s["system_code"] == "reading_now")
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2)
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
-        # Exact column set for the "reading_now" branch.
+        # Exact column set for the "reading_now" branch (base + fraction/last_format/last_read_at).
         assert set(multi_book.keys()) == EXPECTED_SHELF_READING_NOW_COLUMNS
         assert multi_book["fraction"] == 0.5
 
@@ -207,17 +217,17 @@ class TestShelfDetailSnapshot:
         shelf_id = shelves_dal.create_shelf(db_with_multi_author, 2, "Test Shelf")
         shelves_dal.add_book_to_shelf(db_with_multi_author, shelf_id, 100)
         db_with_multi_author.commit()
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2)
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
-        # Default shelf branch has no user-specific extras.
-        assert set(multi_book.keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
+        # Default shelf: base columns (author_ids, tag_ids, rating, is_read included).
+        assert set(multi_book.keys()) == EXPECTED_SHELF_DEFAULT_COLUMNS
 
 
 class TestBooksSnapshot:
     def test_get_books_default_order(self, db):
         resp = books_dal.get_books(db, filters={})
-        # Default sort = added_desc
+        # Default sort = addedDesc
         book_ids = [b["id"] for b in resp["books"]]
         assert book_ids == [5, 4, 3, 2, 1]
         assert set(resp["books"][0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
@@ -264,7 +274,7 @@ class TestBooksSnapshot:
         assert multi["tag_ids"] == "2,1"
 
 
-def test_get_books_rating_desc_requires_user_id(db):
-    """rating_desc без userId поднимает ValueError (spec: удаление fallback)."""
-    with pytest.raises(ValueError, match="rating_desc requires userId"):
-        books_dal.get_books(db, filters={}, sort="rating_desc")
+def test_get_books_ratingDesc_requires_user_id(db):
+    """ratingDesc без userId поднимает ValueError (spec: удаление fallback)."""
+    with pytest.raises(ValueError, match="ratingDesc requires userId"):
+        books_dal.get_books(db, filters={}, sort="ratingDesc")

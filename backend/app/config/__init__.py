@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Project root — two levels up from this file (backend/app/config.py → librarium-py/)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Project root — four levels up from this file (backend/app/config/__init__.py → librarium-py/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 # Load backend/.env if it exists (for local development)
 load_dotenv(PROJECT_ROOT / "backend" / ".env")
@@ -13,7 +13,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", str(PROJECT_ROOT / "data")))
 LIBRARY_DIR = DATA_DIR / "library"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.sqlite"
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
+SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "schema.sql"
 
 # Posix-style prefix записываемых в DB путей (см. db_path_for). Single source
 # of truth — download_service и прочие потребители должны использовать эту
@@ -56,4 +56,3 @@ MAX_COVER_SIZE = 10 * 1024 * 1024   # 10 MB
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 ANTHROPIC_TIMEOUT_SEC = float(os.environ.get("ANTHROPIC_TIMEOUT_SEC", "60"))
-

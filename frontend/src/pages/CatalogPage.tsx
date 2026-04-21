@@ -10,18 +10,11 @@ import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
+import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
 const CACHE_KEY = "librarium_catalog_v2";
-
-const sortOptions = [
-  { key: "added_desc", label: "По дате добавления" },
-  { key: "title_asc", label: "По названию А→Я" },
-  { key: "title_desc", label: "По названию Я→А" },
-  { key: "author_asc", label: "По автору А→Я" },
-  { key: "rating_desc", label: "По рейтингу" },
-];
 
 function saveCache(books: RawBook[], hasMore: boolean, paramsKey: string) {
   try {
@@ -58,7 +51,7 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const sort = searchParams.get("sort") || "added_desc";
+  const sort = searchParams.get("sort") || SORT_CONFIG.catalog.default;
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
@@ -216,7 +209,7 @@ export default function CatalogPage() {
         selected={selected}
         onSelectionChange={onSelectionChange}
         onClearAll={clearAllFilters}
-        sortOptions={sortOptions}
+        sortOptions={sortOptionsFor("catalog")}
         sortValue={sort}
         onSortChange={(s) => updateParams({ sort: [s] })}
         showUpload

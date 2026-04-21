@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..dtos import IdResponse, OkResponse
+from ..dtos.catalog import UserSort
 from ..dtos.shelves import ShelfBody, ShelfBookBody, ShelfDetailResponse, ShelvesListResponse
 from ..services import shelves_service
 
@@ -29,9 +30,14 @@ def create_shelf(body: ShelfBody, user: CurrentUser = Depends(get_current_user),
     return IdResponse(id=shelf_id)
 
 
-@router.get("/{shelf_id}", response_model=ShelfDetailResponse)
-def get_shelf(shelf_id: int, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
-    return shelves_service.get_shelf(db, shelf_id, user.user_id)
+@router.get("/{shelf_id}", response_model=ShelfDetailResponse, response_model_exclude_none=True)
+def get_shelf(
+    shelf_id: int,
+    user: CurrentUser = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(db_session),
+    sort: UserSort = "addedDesc",
+):
+    return shelves_service.get_shelf(db, shelf_id, user.user_id, sort)
 
 
 @router.put("/{shelf_id}", response_model=OkResponse)

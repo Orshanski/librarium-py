@@ -141,6 +141,45 @@ def db_test():
     conn.close()
 
 
+@pytest.fixture
+def regular_shelf_id(db, reader_client):
+    """User-created shelf with 2+ books for sort-ordering checks.
+
+    Creates the shelf via DAL for user 2 (reader) and adds books 1 and 2
+    from the baseline fixture. The reader_client dependency ensures the
+    test-data dir is initialised before the DAL fixture runs.
+    """
+    from app.dal import shelves as shelves_dal
+    shelf_id = shelves_dal.create_shelf(db, user_id=2, name="test-shelf-jmdc")
+    shelves_dal.add_book_to_shelf(db, shelf_id, 1)
+    shelves_dal.add_book_to_shelf(db, shelf_id, 2)
+    db.commit()
+    return shelf_id
+
+
+@pytest.fixture
+def reading_now_shelf_id(db, reader_client):
+    """ID of the system reading_now shelf for user 2 (reader).
+
+    System shelves are auto-created at seed time via create_user; this
+    fixture just looks them up. The reader_client dependency ensures
+    baseline data is in place.
+    """
+    from app.dal import shelves as shelves_dal
+    shelves = shelves_dal.get_shelves(db, user_id=2)
+    for s in shelves:
+        if s["system_code"] == "reading_now":
+            return s["id"]
+    raise RuntimeError("reading_now shelf not found for user 2")
+
+
+@pytest.fixture
+def tag_id(db):
+    """First tag id that has at least one book (from baseline fixture)."""
+    row = db.execute("SELECT bt.tag_id FROM book_tags bt GROUP BY bt.tag_id LIMIT 1").fetchone()
+    return row["tag_id"]
+
+
 @pytest.fixture(autouse=True)
 def _clear_auth_rate_limit_state():
     """Clear auth rate-limit dict between tests to prevent 429 carry-over.

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
+from ..dtos.catalog import UserSort
 from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..services import tags_service
 
@@ -21,7 +22,7 @@ def tag_cloud(
     return tags_service.tag_cloud(db, top)
 
 
-@router.get("/{tag_id}", response_model=TagDetailResponse)
+@router.get("/{tag_id}", response_model=TagDetailResponse, response_model_exclude_none=True)
 def get_tag(
     tag_id: int,
     user: CurrentUser = Depends(get_current_user),
@@ -29,8 +30,9 @@ def get_tag(
     authorIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
+    sort: UserSort = "addedDesc",
 ):
-    return tags_service.get_tag(db, tag_id, authorIds, seriesIds, language)
+    return tags_service.get_tag(db, tag_id, user.user_id, authorIds, seriesIds, language, sort)
 
 
 @router.put("/{tag_id}/map", response_model=TagMapResponse)

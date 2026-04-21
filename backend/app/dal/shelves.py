@@ -4,8 +4,10 @@ from typing import cast
 
 import aiosql
 
+from ..config.sort import SORT_CONFIG
 from ..database import dict_from_row, dicts_from_rows
 from ..dtos.shelves import ShelfBaseRow, ShelfDetailRow, ShelfRow
+from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "shelves", "sqlite3")
 
@@ -21,18 +23,34 @@ def get_shelves(db: sqlite3.Connection, user_id: int) -> list[ShelfRow]:
     return cast(list[ShelfRow], shelves)
 
 
-def get_shelf_by_id(db: sqlite3.Connection, shelf_id: int, user_id: int) -> ShelfDetailRow | None:
+def get_shelf_by_id(
+    db: sqlite3.Connection,
+    shelf_id: int,
+    user_id: int,
+    sort: str,
+) -> ShelfDetailRow | None:
     shelf = dict_from_row(queries.get_shelf_header(db, id=shelf_id, uid=user_id))
     if not shelf:
         return None
 
-    if shelf["system_code"] == "best":
-        books = dicts_from_rows(queries.get_shelf_books_best(db, uid=user_id))
-    elif shelf["system_code"] == "reading_now":
-        books = dicts_from_rows(queries.get_shelf_books_reading_now(db, uid=user_id))
+    # reading_now берёт default из shared-конфига (lastReadDesc) — user-переданный sort игнорируется
+    if shelf["system_code"] == "reading_now":
+        effective_sort = SORT_CONFIG["shelf_reading_now"]["default"]
     else:
-        books = dicts_from_rows(queries.get_shelf_books_regular(db, id=shelf_id))
+        effective_sort = sort
+    order_clause = resolve_order_clause(effective_sort)
 
+    if shelf["system_code"] == "best":
+        sql = queries.get_shelf_books_best.sql.replace("{order_clause}", order_clause)
+        rows = db.execute(sql, {"uid": user_id}).fetchall()
+    elif shelf["system_code"] == "reading_now":
+        sql = queries.get_shelf_books_reading_now.sql.replace("{order_clause}", order_clause)
+        rows = db.execute(sql, {"uid": user_id}).fetchall()
+    else:
+        sql = queries.get_shelf_books_regular.sql.replace("{order_clause}", order_clause)
+        rows = db.execute(sql, {"id": shelf_id, "uid": user_id}).fetchall()
+
+    books = dicts_from_rows(rows)
     return cast(ShelfDetailRow, {"shelf": cast(ShelfBaseRow, shelf), "books": books})
 
 

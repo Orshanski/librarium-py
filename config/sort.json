@@ -1,0 +1,33 @@
+{
+  "catalog": {
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
+  },
+  "tag": {
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
+  },
+  "shelf_best": {
+    "default": "ratingDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
+  },
+  "shelf_reading_now": {
+    "default": "lastReadDesc",
+    "options": []
+  },
+  "shelf_regular": {
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
+  },
+  "labels": {
+    "addedDesc": "По дате добавления (сначала новые)",
+    "addedAsc": "По дате добавления (сначала старые)",
+    "titleAsc": "По названию А→Я",
+    "titleDesc": "По названию Я→А",
+    "authorAsc": "По автору А→Я",
+    "authorDesc": "По автору Я→А",
+    "ratingDesc": "По рейтингу (высокие первыми)",
+    "ratingAsc": "По рейтингу (низкие первыми)",
+    "lastReadDesc": "По дате чтения"
+  }
+}

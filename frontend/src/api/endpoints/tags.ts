@@ -1,5 +1,5 @@
 import { client } from "../client";
-import type { RawBook } from "@/types";
+import type { Book } from "@/types";
 
 export interface CloudTag {
   id: number;
@@ -20,14 +20,15 @@ export interface TagOptionsResponse {
   tags: DirectoryTag[];
 }
 
+export interface TagSummary {
+  id: number;
+  name: string;
+  code?: string | null;
+}
+
 export interface TagBooksResponse {
-  tag: {
-    id: number;
-    name: string;
-    code: string | null;
-    book_count: number;
-  };
-  books: RawBook[];
+  tag: TagSummary;
+  books: Book[];
 }
 
 export interface MapTagResponse {
@@ -39,6 +40,7 @@ export interface TagQuery {
   authorIds?: number[] | string[];
   seriesIds?: number[] | string[];
   language?: string[];
+  sort?: string;
 }
 
 export interface TagCloudOptions {

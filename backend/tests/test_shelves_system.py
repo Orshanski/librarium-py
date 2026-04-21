@@ -64,7 +64,7 @@ def test_reading_now_shows_book_with_progress(reader_client):
     assert 2 in book_ids(books)
     b = next(b for b in books if b["id"] == 2)
     assert b["fraction"] == 0.25
-    assert b["last_format"] == "fb2"
+    assert b["lastFormat"] == "fb2"
 
 
 def test_reading_now_excludes_read_book(reader_client):

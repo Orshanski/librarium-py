@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
 import PageHeader from "../components/page-header";
@@ -8,20 +8,19 @@ import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
-import { Book, RawBook, toBook } from "../types";
+import type { Book } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-import { getTag } from "../api/endpoints/tags";
+import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
-
-type TagData = Awaited<ReturnType<typeof getTag>>["tag"];
+import { SORT_CONFIG, sortOptionsFor } from "../config/sort";
 
 function cacheKey(tagId: number) {
-  return `librarium_tag_${tagId}_v2`;
+  return `librarium_tag_${tagId}_v3`;
 }
 
-function saveCache(tagId: number, tag: TagData, books: Book[], selected: SelectedFilters, sort: string) {
+function saveCache(tagId: number, tag: TagSummary, books: Book[], selected: SelectedFilters, sort: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
@@ -48,29 +47,29 @@ export default function TagPage() {
   const { id } = useParams();
   const tagId = Number(id);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
-  const [tag, setTag] = useState<TagData | null>(null);
+  const [tag, setTag] = useState<TagSummary | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selected, setSelected] = useState<SelectedFilters>({});
-  const [sort, setSort] = useState("added_desc");
   const [showAdmin, setShowAdmin] = useState(false);
 
   const frozenRef = useRef(false);
   const restoredRef = useRef(false);
 
+  const sort = searchParams.get("sort") || SORT_CONFIG.tag.default;
   const authorIds = selected.authorIds || [];
   const seriesIds = selected.seriesIds || [];
   const languages = selected.language || [];
-  const paramsKey = `${tagId}|${authorIds.join(",")}|${seriesIds.join(",")}|${languages.join(",")}`;
+  const paramsKey = `${tagId}|${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${languages.join(",")}`;
 
   useEffect(() => {
     if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
   }, [tag, tagId]);
 
-  // Restore from cache on mount
   useEffect(() => {
     if (isNaN(tagId)) {
       setNotFound(true);
@@ -83,7 +82,6 @@ export default function TagPage() {
       setTag(cached.tag);
       setBooks(cached.books);
       if (cached.selected) setSelected(cached.selected);
-      if (cached.sort) setSort(cached.sort);
       setLoading(false);
       restoredRef.current = true;
       frozenRef.current = true;
@@ -97,7 +95,6 @@ export default function TagPage() {
     }
   }, [tagId]);
 
-  // Fetch on mount or filter change
   useEffect(() => {
     if (restoredRef.current) {
       restoredRef.current = false;
@@ -108,15 +105,12 @@ export default function TagPage() {
     setLoading(true);
 
     const controller = new AbortController();
-    const apiParams = selectedToApiParams(selected);
+    const apiParams = { ...selectedToApiParams(selected), sort };
     getTag(tagId, apiParams, controller.signal)
       .then((data) => {
-        // Invalidate cached snapshot only AFTER a successful fetch. If the
-        // network call fails (transient error), the stale cache is still
-        // better than a blank page; cache is rewritten via the save-effect below.
         sessionStorage.removeItem(cacheKey(tagId));
         setTag(data.tag);
-        setBooks(data.books.map((b) => toBook(b)));
+        setBooks(data.books);
       })
       .catch((err) => {
         if (err instanceof NotFoundError) {
@@ -129,7 +123,6 @@ export default function TagPage() {
     return () => controller.abort();
   }, [paramsKey]);
 
-  // Save cache on data/filter change and on unmount
   const stateRef = useRef({ tag, books, selected, sort });
   stateRef.current = { tag, books, selected, sort };
 
@@ -137,7 +130,6 @@ export default function TagPage() {
     if (tag && books.length > 0) saveCache(tagId, tag, books, selected, sort);
   }, [tag, books, selected, sort, tagId]);
 
-  // Scroll listener
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
@@ -155,31 +147,19 @@ export default function TagPage() {
     };
   }, [tagId]);
 
-  // Client-side sort (books already filtered by backend)
-  const sorted = useMemo(() => {
-    switch (sort) {
-      case "title_asc": return [...books].sort((a, b) => a.title.localeCompare(b.title, "ru"));
-      case "title_desc": return [...books].sort((a, b) => b.title.localeCompare(a.title, "ru"));
-      case "author_asc": return [...books].sort((a, b) => (a.authors[0] || "").split(" ").pop()!.localeCompare((b.authors[0] || "").split(" ").pop()!, "ru"));
-      case "rating_desc": return [...books].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      default: return books;
-    }
-  }, [books, sort]);
-
-  const sortOptions = [
-    { key: "added_desc", label: "По дате добавления" },
-    { key: "title_asc", label: "По названию А→Я" },
-    { key: "title_desc", label: "По названию Я→А" },
-    { key: "author_asc", label: "По автору А→Я" },
-    { key: "rating_desc", label: "По рейтингу" },
-  ];
-
   function onSelectionChange(key: FilterKey, values: string[]) {
     sessionStorage.removeItem(cacheKey(tagId));
     setSelected((prev) => ({ ...prev, [key]: values }));
   }
 
-  const bookIds = useMemo(() => sorted.map((b) => b.id), [sorted]);
+  function handleSortChange(newSort: string) {
+    sessionStorage.removeItem(cacheKey(tagId));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("sort", newSort);
+    navigate(`/tags/${tagId}?${params.toString()}`);
+  }
+
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
   if (loading) {
@@ -228,12 +208,9 @@ export default function TagPage() {
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
         onSelectionChange={onSelectionChange}
-        sortOptions={sortOptions}
+        sortOptions={sortOptionsFor("tag")}
         sortValue={sort}
-        onSortChange={(s) => {
-          sessionStorage.removeItem(cacheKey(tagId));
-          setSort(s);
-        }}
+        onSortChange={handleSortChange}
       />
 
       {showAdmin && tag && (
@@ -252,10 +229,10 @@ export default function TagPage() {
       )}
 
       <BookGrid>
-        {sorted.map((book) => (
+        {books.map((book) => (
           <BookCard key={book.id} book={book} isCached={cachedBookIds.has(book.id)} />
         ))}
-        {sorted.length === 0 && (
+        {books.length === 0 && (
           <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
             Книги не найдены
           </div>
