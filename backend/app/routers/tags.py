@@ -7,6 +7,7 @@ from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..services import tags_service
+
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
