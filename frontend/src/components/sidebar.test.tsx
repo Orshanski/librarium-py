@@ -12,7 +12,7 @@ describe("SidebarContent — shelves list", () => {
       http.get("/api/shelves", () =>
         HttpResponse.json({
           shelves: [
-            { id: 1, name: "Read", is_system: true },
+            { id: 1, name: "Read", is_system: true, system_code: "reading_now" },
             { id: 2, name: "TBR", is_system: false },
           ],
         })
@@ -29,9 +29,11 @@ describe("SidebarContent — shelves list", () => {
 
     // Both shelves are rendered as links
     const readLink = screen.getByRole("link", { name: "Read" });
+    // reading_now has no sort options → href without query string
     expect(readLink).toHaveAttribute("href", "/shelves/1");
 
     const tbrLink = screen.getByRole("link", { name: "TBR" });
-    expect(tbrLink).toHaveAttribute("href", "/shelves/2");
+    // regular shelf gets default sort appended
+    expect(tbrLink.getAttribute("href")).toContain("/shelves/2");
   });
 });
