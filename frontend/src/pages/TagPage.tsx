@@ -7,6 +7,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { selectedToApiParams } from "../api/filter-params";
 import { Book, RawBook, toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
@@ -17,10 +18,10 @@ import { NotFoundError } from "@/api/errors";
 type TagData = Awaited<ReturnType<typeof getTag>>["tag"];
 
 function cacheKey(tagId: number) {
-  return `librarium_tag_${tagId}`;
+  return `librarium_tag_${tagId}_v2`;
 }
 
-function saveCache(tagId: number, tag: TagData, books: Book[], selected: Record<string, string[]>, sort: string) {
+function saveCache(tagId: number, tag: TagData, books: Book[], selected: SelectedFilters, sort: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
@@ -53,17 +54,17 @@ export default function TagPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [selected, setSelected] = useState<SelectedFilters>({});
   const [sort, setSort] = useState("added_desc");
   const [showAdmin, setShowAdmin] = useState(false);
 
   const frozenRef = useRef(false);
   const restoredRef = useRef(false);
 
-  const authorFilter = selected.author || [];
-  const seriesFilter = selected.series || [];
-  const langFilter = selected.language || [];
-  const paramsKey = `${tagId}|${authorFilter.join(",")}|${seriesFilter.join(",")}|${langFilter.join(",")}`;
+  const authorIds = selected.authorIds || [];
+  const seriesIds = selected.seriesIds || [];
+  const languages = selected.language || [];
+  const paramsKey = `${tagId}|${authorIds.join(",")}|${seriesIds.join(",")}|${languages.join(",")}`;
 
   useEffect(() => {
     if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
@@ -106,11 +107,9 @@ export default function TagPage() {
 
     setLoading(true);
 
-    getTag(tagId, {
-      authorIds: authorFilter.length > 0 ? authorFilter.join(",") : undefined,
-      seriesIds: seriesFilter.length > 0 ? seriesFilter.join(",") : undefined,
-      language: langFilter.length > 0 ? langFilter[0] : undefined,
-    })
+    const controller = new AbortController();
+    const apiParams = selectedToApiParams(selected);
+    getTag(tagId, apiParams, controller.signal)
       .then((data) => {
         // Invalidate cached snapshot only AFTER a successful fetch. If the
         // network call fails (transient error), the stale cache is still
@@ -224,7 +223,7 @@ export default function TagPage() {
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
-        filterKeys={["author", "series", "language"]}
+        filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
         onSelectionChange={onSelectionChange}
