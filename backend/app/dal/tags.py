@@ -7,6 +7,7 @@ from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
 from ..dtos.entities import FilterOptionRow, TagCloudEntry, TagDetailRow, TagMapResult
 from .filters import build_book_where
+from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "tags", "sqlite3")
 
@@ -31,19 +32,16 @@ def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[Fi
 def get_tag_by_id(
     db: sqlite3.Connection,
     tag_id: int,
+    user_id: int,
     author_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
     language: list[str] | None = None,
+    sort: str = "added_desc",
 ) -> TagDetailRow | None:
     tag = dict_from_row(queries.get_tag_header(db, id=tag_id))
     if not tag:
         return None
 
-    # filters stays untyped pending `librarium-py-t3ze`: detail pages
-    # (author/series/tag) do not propagate user_id -> hidden-books filter
-    # is not applied. Once that bug is fixed, `user_id` will flow in and
-    # this local becomes `CatalogFilters` automatically (same as
-    # get_authors / get_series after hl8.3.1 follow-up).
     filters: dict = {}
     if author_ids:
         filters["authorIds"] = author_ids
@@ -54,8 +52,14 @@ def get_tag_by_id(
 
     where_sql, params = build_book_where(filters)
     params["id"] = tag_id
-    # SQL-safe: {where_clause} from whitelist-source (build_book_where).
-    final_sql = queries.get_tag_books.sql.replace("{where_clause}", where_sql)
+    params["uid"] = user_id
+    order_clause = resolve_order_clause(sort)
+
+    final_sql = (
+        queries.get_tag_books.sql
+        .replace("{where_clause}", where_sql)
+        .replace("{order_clause}", order_clause)
+    )
     books = dicts_from_rows(db.execute(final_sql, params).fetchall())
     return {"tag": tag, "books": books}
 
