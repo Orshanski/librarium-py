@@ -48,3 +48,61 @@ class TestResolveOrderClause:
     def test_author_asc_uses_min_aggregate(self):
         clause = resolve_order_clause("author_asc")
         assert "MIN(a.sort_name)" in clause
+
+
+class TestSortIntegration:
+    def test_books_sort_added_desc(self, reader_client):
+        r = reader_client.get("/api/books?sort=added_desc")
+        assert r.status_code == 200
+
+    def test_books_sort_unknown_422(self, reader_client):
+        r = reader_client.get("/api/books?sort=unknown")
+        assert r.status_code == 422
+
+    def test_books_last_read_desc_rejected_422(self, reader_client):
+        # last_read_desc не в UserSort → FastAPI возвращает 422
+        r = reader_client.get("/api/books?sort=last_read_desc")
+        assert r.status_code == 422
+
+    def test_books_all_eight_sorts_ok(self, reader_client):
+        for s in ["added_desc", "added_asc", "title_asc", "title_desc",
+                  "author_asc", "author_desc", "rating_desc", "rating_asc"]:
+            r = reader_client.get(f"/api/books?sort={s}")
+            assert r.status_code == 200, f"{s} returned {r.status_code}"
+
+    def test_shelf_sort_applies(self, reader_client, regular_shelf_id):
+        r = reader_client.get(f"/api/shelves/{regular_shelf_id}?sort=title_asc")
+        assert r.status_code == 200
+        titles = [b["title"] for b in r.json()["books"]]
+        assert titles == sorted(titles, key=lambda t: t.lower())
+
+    def test_shelf_last_read_desc_rejected_422(self, reader_client, regular_shelf_id):
+        # `last_read_desc` на обычной shelf — 422 (не в UserSort)
+        r = reader_client.get(f"/api/shelves/{regular_shelf_id}?sort=last_read_desc")
+        assert r.status_code == 422
+
+    def test_shelf_reading_now_ignores_user_sort(self, reader_client, reading_now_shelf_id):
+        # Reading_now shelf: даже если user передал sort=title_asc, DAL
+        # внутренне override'ит на last_read_desc.
+        r1 = reader_client.get(f"/api/shelves/{reading_now_shelf_id}?sort=title_asc")
+        r2 = reader_client.get(f"/api/shelves/{reading_now_shelf_id}")  # без sort
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert [b["id"] for b in r1.json()["books"]] == [b["id"] for b in r2.json()["books"]]
+
+    def test_tag_sort_applies(self, reader_client, tag_id):
+        r = reader_client.get(f"/api/tags/{tag_id}?sort=rating_desc")
+        assert r.status_code == 200
+
+    def test_tag_last_read_desc_rejected_422(self, reader_client, tag_id):
+        r = reader_client.get(f"/api/tags/{tag_id}?sort=last_read_desc")
+        assert r.status_code == 422
+
+    def test_shelf_sort_author_asc_orders_by_first_author(self, reader_client, regular_shelf_id):
+        # Проверка нетривиального MIN(a.sort_name) — по первому автору
+        # алфавитно по sort_name. Фикстура: книга 1 → sort_name="Author, Test",
+        # книга 2 → sort_name="Writer, Cover". ASC даёт порядок: книга 1, книга 2.
+        r = reader_client.get(f"/api/shelves/{regular_shelf_id}?sort=author_asc")
+        assert r.status_code == 200
+        book_ids = [b["id"] for b in r.json()["books"]]
+        # "Author, Test" < "Writer, Cover" → book 1 первой, book 2 второй
+        assert book_ids == [1, 2]

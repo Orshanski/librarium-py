@@ -68,7 +68,7 @@ class TestSeriesService:
 class TestShelvesService:
     def test_get_missing_shelf_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
-            shelves_service.get_shelf(db, 999999, user_id=1)
+            shelves_service.get_shelf(db, 999999, user_id=1, sort="added_desc")
 
     def test_update_missing_shelf_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
@@ -93,7 +93,7 @@ class TestShelvesService:
 class TestTagsService:
     def test_get_missing_tag_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
-            tags_service.get_tag(db, 999999, author_ids=[], series_ids=[], language=None)
+            tags_service.get_tag(db, 999999, user_id=1, author_ids=[], series_ids=[], language=None, sort="added_desc")
 
     def test_map_missing_tag_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
