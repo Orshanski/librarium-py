@@ -39,17 +39,22 @@ function loadCache() {
 export default function AuthorsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selected, setSelected] = useState<SelectedFilters>({});
-  const [authors, setAuthors] = useState<Author[]>([]);
-  const [loading, setLoading] = useState(true);
-  const frozenRef = useRef(false);
+
+  // Read cache once synchronously — used for initial state AND for scroll restore RAF.
+  // Must stay out of useMemo: no deps, executed on mount only.
+  const initialCacheRef = useRef(loadCache());
+
+  const [selected, setSelected] = useState<SelectedFilters>(initialCacheRef.current?.selected || {});
+  const [authors, setAuthors] = useState<Author[]>(initialCacheRef.current?.authors || []);
+  const [loading, setLoading] = useState(!initialCacheRef.current);
+  const frozenRef = useRef(!!initialCacheRef.current);
+  const restoredRef = useRef(!!initialCacheRef.current);
 
   const tagIds = selected.tagIds || [];
   const languages = selected.language || [];
   const paramsKey = `${tagIds.join(",")}|${languages.join(",")}`;
 
-  // Restore from cache on mount
-  const restoredRef = useRef(false);
+  // Restore scroll + breadcrumb on mount
   useEffect(() => {
     saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
@@ -58,13 +63,8 @@ export default function AuthorsPage() {
       navigate("/authors", { replace: true });
       return;
     }
-    const cached = loadCache();
+    const cached = initialCacheRef.current;
     if (cached) {
-      setAuthors(cached.authors);
-      if (cached.selected) setSelected(cached.selected);
-      setLoading(false);
-      restoredRef.current = true;
-      frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const main = document.querySelector("main");

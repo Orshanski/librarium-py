@@ -38,18 +38,22 @@ function loadCache() {
 export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selected, setSelected] = useState<SelectedFilters>({});
-  const [allSeries, setAllSeries] = useState<Series[]>([]);
-  const [loading, setLoading] = useState(true);
-  const frozenRef = useRef(false);
+
+  // Read cache once synchronously — initial state + scroll-restore RAF.
+  const initialCacheRef = useRef(loadCache());
+
+  const [selected, setSelected] = useState<SelectedFilters>(initialCacheRef.current?.selected || {});
+  const [allSeries, setAllSeries] = useState<Series[]>(initialCacheRef.current?.allSeries || []);
+  const [loading, setLoading] = useState(!initialCacheRef.current);
+  const frozenRef = useRef(!!initialCacheRef.current);
+  const restoredRef = useRef(!!initialCacheRef.current);
 
   const authorIds = selected.authorIds || [];
   const tagIds = selected.tagIds || [];
   const languages = selected.language || [];
   const paramsKey = `${authorIds.join(",")}|${tagIds.join(",")}|${languages.join(",")}`;
 
-  // Restore from cache on mount
-  const restoredRef = useRef(false);
+  // Scroll + breadcrumb restore on mount
   useEffect(() => {
     saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
@@ -58,13 +62,8 @@ export default function SeriesListPage() {
       navigate("/series", { replace: true });
       return;
     }
-    const cached = loadCache();
+    const cached = initialCacheRef.current;
     if (cached) {
-      setAllSeries(cached.allSeries);
-      if (cached.selected) setSelected(cached.selected);
-      setLoading(false);
-      restoredRef.current = true;
-      frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const main = document.querySelector("main");
