@@ -2,16 +2,17 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey } from "../components/smart-filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 
-const CACHE_KEY = "librarium_series";
+const CACHE_KEY = "librarium_series_v2";
 
-function saveCache(allSeries: Series[], selected: Record<string, string[]>) {
+function saveCache(allSeries: Series[], selected: SelectedFilters) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -37,15 +38,15 @@ function loadCache() {
 export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [selected, setSelected] = useState<SelectedFilters>({});
   const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
-  const authorFilter = selected.author || [];
-  const tagFilter = selected.genre || [];
-  const langFilter = selected.language || [];
-  const paramsKey = `${authorFilter.join(",")}|${tagFilter.join(",")}|${langFilter.join(",")}`;
+  const authorIds = selected.authorIds || [];
+  const tagIds = selected.tagIds || [];
+  const languages = selected.language || [];
+  const paramsKey = `${authorIds.join(",")}|${tagIds.join(",")}|${languages.join(",")}`;
 
   // Restore from cache on mount
   const restoredRef = useRef(false);
@@ -84,14 +85,10 @@ export default function SeriesListPage() {
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
 
-    const params: { authorIds?: string; tagIds?: string; language?: string } = {};
-    if (authorFilter.length > 0) params.authorIds = authorFilter.join(",");
-    if (tagFilter.length > 0) params.tagIds = tagFilter.join(",");
-    if (langFilter.length > 0) params.language = langFilter[0];
-
     const controller = new AbortController();
 
-    listSeries(params, controller.signal)
+    const apiParams = selectedToApiParams(selected);
+    listSeries(apiParams, controller.signal)
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);
@@ -140,7 +137,7 @@ export default function SeriesListPage() {
     <>
       <PageHeader
         title="Серии"
-        filterKeys={["author", "genre", "language"]}
+        filterKeys={["authorIds", "tagIds", "language"]}
         selected={selected}
         onSelectionChange={(key: FilterKey, values: string[]) => {
           sessionStorage.removeItem(CACHE_KEY);
