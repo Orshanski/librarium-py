@@ -9,11 +9,11 @@ import { colors } from "../theme";
 import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-import { listBooks } from "@/api/endpoints/books";
+import { listBooks, type BookListParams } from "@/api/endpoints/books";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
-const CACHE_KEY = "librarium_catalog";
+const CACHE_KEY = "librarium_catalog_v2";
 
 const sortOptions = [
   { key: "added_desc", label: "По дате добавления" },
@@ -59,21 +59,24 @@ export default function CatalogPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const sort = searchParams.get("sort") || "added_desc";
-  const authorIds = searchParams.get("authorIds") || "";
-  const seriesIds = searchParams.get("seriesIds") || "";
-  const tagIds = searchParams.get("tagIds") || "";
-  const language = searchParams.get("language") || "";
-  const paramsKey = `${sort}|${authorIds}|${seriesIds}|${tagIds}|${language}`;
+  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
+  const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
+  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
+  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
+  const paramsKey = `${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
   const buildApiParams = useCallback((cursor: number, size?: number) => {
+    const params: BookListParams = {
+      sort,
+      ...(authorIds.length ? { authorIds } : {}),
+      ...(seriesIds.length ? { seriesIds } : {}),
+      ...(tagIds.length ? { tagIds } : {}),
+      ...(language.length ? { language } : {}),
+    };
     return {
       pageSize: size || (cursor === 0 ? INITIAL_SIZE : PAGE_SIZE),
-      sort,
       cursor,
-      ...(authorIds ? { authorIds } : {}),
-      ...(seriesIds ? { seriesIds } : {}),
-      ...(tagIds ? { tagIds } : {}),
-      ...(language ? { language } : {}),
+      ...params,
     };
   }, [sort, authorIds, seriesIds, tagIds, language]);
 
@@ -174,27 +177,27 @@ export default function CatalogPage() {
   }, [loadMore, books, hasMore, paramsKey]);
 
   // URL param helpers
-  function updateParams(updates: Record<string, string | undefined>) {
+  function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value) params.set(key, value);
-      else params.delete(key);
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
     }
     sessionStorage.removeItem(CACHE_KEY);
-    navigate(`/?${params.toString().split("%2C").join(",")}`);
+    navigate(`/?${params.toString()}`);
   }
 
   // Build selected filters from URL params
   const selected: SelectedFilters = {};
-  if (authorIds) selected.author = authorIds.split(",");
-  if (seriesIds) selected.series = seriesIds.split(",");
-  if (tagIds) selected.genre = tagIds.split(",");
-  if (language) selected.language = [language];
+  if (authorIds.length) selected.authorIds = authorIds;
+  if (seriesIds.length) selected.seriesIds = seriesIds;
+  if (tagIds.length) selected.tagIds = tagIds;
+  if (language.length) selected.language = language;
 
   function onSelectionChange(key: FilterKey, values: string[]) {
-    const paramMap: Record<string, string> = { author: "authorIds", series: "seriesIds", genre: "tagIds", language: "language" };
-    const paramKey = paramMap[key];
-    updateParams({ [paramKey]: paramKey === "language" ? (values[0] || undefined) : (values.length > 0 ? values.join(",") : undefined) });
+    updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   function clearAllFilters() {
@@ -209,13 +212,13 @@ export default function CatalogPage() {
     <>
       <PageHeader
         title="Книги"
-        filterKeys={["author", "series", "genre", "language"]}
+        filterKeys={["authorIds", "seriesIds", "tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
         onClearAll={clearAllFilters}
         sortOptions={sortOptions}
         sortValue={sort}
-        onSortChange={(s) => updateParams({ sort: s })}
+        onSortChange={(s) => updateParams({ sort: [s] })}
         showUpload
       />
 

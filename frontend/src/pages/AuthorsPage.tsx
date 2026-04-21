@@ -1,33 +1,36 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey } from "../components/smart-filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
+import { selectedToApiParams } from "../api/filter-params";
 
-const CACHE_KEY = "librarium_authors";
+const CACHE_KEY = "librarium_authors_v2";
 
-function saveCache(authors: Author[], selected: Record<string, string[]>) {
+function saveCache(authors: Author[], paramsKey: string) {
+  if (authors.length === 0) return;
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       authors,
-      selected,
+      paramsKey,
       scrollTop: main?.scrollTop || 0,
     }));
   } catch {}
 }
 
-function loadCache() {
+function loadCache(paramsKey: string) {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
+    if (data.paramsKey !== paramsKey) return null;
     if (!data.authors?.length) return null;
     return data;
   } catch {
@@ -38,17 +41,16 @@ function loadCache() {
 export default function AuthorsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
-  const [authors, setAuthors] = useState<Author[]>([]);
-  const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
-  const genreFilter = selected.genre || [];
-  const langFilter = selected.language || [];
-  const paramsKey = `${genreFilter.join(",")}|${langFilter.join(",")}`;
+  const [authors, setAuthors] = useState<Author[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Restore from cache on mount
-  const restoredRef = useRef(false);
+  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
+  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
+  const paramsKey = `${tagIds.join(",")}|${language.join(",")}`;
+
+  // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
@@ -57,12 +59,10 @@ export default function AuthorsPage() {
       navigate("/authors", { replace: true });
       return;
     }
-    const cached = loadCache();
+    const cached = loadCache(paramsKey);
     if (cached) {
       setAuthors(cached.authors);
-      if (cached.selected) setSelected(cached.selected);
       setLoading(false);
-      restoredRef.current = true;
       frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -71,73 +71,70 @@ export default function AuthorsPage() {
           setTimeout(() => { frozenRef.current = false; }, 200);
         });
       });
-    }
-  }, []); // mount only
-
-  // Fetch on filter change
-  useEffect(() => {
-    if (restoredRef.current) {
-      restoredRef.current = false;
-      return () => {}; // skip first run after restore — no cleanup needed
+      return;
     }
 
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
-
-    const params: { tagIds?: string; language?: string } = {};
-    if (genreFilter.length > 0) params.tagIds = genreFilter.join(",");
-    if (langFilter.length > 0) params.language = langFilter[0];
-
     const controller = new AbortController();
-
-    listAuthors(params, controller.signal)
+    const selected: SelectedFilters = {};
+    if (tagIds.length) selected.tagIds = tagIds;
+    if (language.length) selected.language = language;
+    listAuthors(selectedToApiParams(selected), controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
         setLoading(false);
+        frozenRef.current = false;
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
         console.warn("Failed to fetch authors list:", err);
         setAuthors([]);
         setLoading(false);
       });
-
     return () => controller.abort();
-  }, [paramsKey]);
+  }, [paramsKey, tagIds, language]);
 
-  // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ authors, selected });
-  stateRef.current = { authors, selected };
-
-  useEffect(() => {
-    if (authors.length > 0) saveCache(authors, selected);
-  }, [authors, selected, paramsKey]);
-
+  // Scroll listener: save cache
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
+
     function onScroll() {
-      const s = stateRef.current;
-      saveCache(s.authors, s.selected);
+      saveCache(authors, paramsKey);
     }
+
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
-      const s = stateRef.current;
-      if (s.authors.length > 0) saveCache(s.authors, s.selected);
     };
-  }, []);
+  }, [authors, paramsKey]);
+
+  function updateParams(updates: Record<string, string[] | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
+    }
+    sessionStorage.removeItem(CACHE_KEY);
+    navigate(`/authors?${params.toString()}`);
+  }
+
+  const selected: SelectedFilters = {};
+  if (tagIds.length) selected.tagIds = tagIds;
+  if (language.length) selected.language = language;
 
   function onSelectionChange(key: FilterKey, values: string[]) {
-    sessionStorage.removeItem(CACHE_KEY);
-    setSelected((prev) => ({ ...prev, [key]: values }));
+    updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   return (
     <>
       <PageHeader
         title="Авторы"
-        filterKeys={["genre", "language"]}
+        filterKeys={["tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
         showUpload

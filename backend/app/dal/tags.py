@@ -33,7 +33,7 @@ def get_tag_by_id(
     tag_id: int,
     author_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
-    language: str | None = None,
+    language: list[str] | None = None,
 ) -> TagDetailRow | None:
     tag = dict_from_row(queries.get_tag_header(db, id=tag_id))
     if not tag:

@@ -39,7 +39,14 @@ function buildUrl(path: string, query?: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null) continue;
-    params.append(key, String(value));
+    if (Array.isArray(value)) {
+      for (const v of value) {
+        if (v === undefined || v === null) continue;
+        params.append(key, String(v));
+      }
+    } else {
+      params.append(key, String(value));
+    }
   }
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;

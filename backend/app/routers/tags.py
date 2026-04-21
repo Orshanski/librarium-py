@@ -1,13 +1,12 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..services import tags_service
-from .params import parse_ids
 
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -27,13 +26,11 @@ def get_tag(
     tag_id: int,
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
-    authorIds: str = "",
-    seriesIds: str = "",
-    language: str = "",
+    authorIds: list[int] | None = Query(None),
+    seriesIds: list[int] | None = Query(None),
+    language: list[str] | None = Query(None),
 ):
-    return tags_service.get_tag(
-        db, tag_id, parse_ids(authorIds), parse_ids(seriesIds), language or None
-    )
+    return tags_service.get_tag(db, tag_id, authorIds, seriesIds, language)
 
 
 @router.put("/{tag_id}/map", response_model=TagMapResponse)

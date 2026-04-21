@@ -12,7 +12,6 @@ from ..exceptions import BadInputError
 from ..services import book_service
 from ..services.upload_service import BOOK_EXTENSIONS
 from ._validators import NonBlankStr
-from .params import parse_ids
 
 log = logging.getLogger("librarium.books")
 
@@ -26,10 +25,10 @@ def list_books(
     sort: str = "added_desc",
     cursor: int = 0,
     pageSize: int = 50,
-    authorIds: str = "",
-    tagIds: str = "",
-    seriesIds: str = "",
-    language: str = "",
+    authorIds: list[int] | None = Query(None),
+    tagIds: list[int] | None = Query(None),
+    seriesIds: list[int] | None = Query(None),
+    language: list[str] | None = Query(None),
 ):
     return book_service.list_books(
         db,
@@ -37,10 +36,10 @@ def list_books(
         sort=sort,
         cursor=cursor,
         page_size=min(pageSize, 100),
-        author_ids=parse_ids(authorIds),
-        tag_ids=parse_ids(tagIds),
-        series_ids=parse_ids(seriesIds),
-        language=language or None,
+        author_ids=authorIds,
+        tag_ids=tagIds,
+        series_ids=seriesIds,
+        language=language,
     )
 
 

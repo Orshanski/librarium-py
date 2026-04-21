@@ -13,9 +13,9 @@ def tag_cloud(db: sqlite3.Connection, top: int | None) -> TagCloudResponse:
 def get_tag(
     db: sqlite3.Connection,
     tag_id: int,
-    author_ids: list[int],
-    series_ids: list[int],
-    language: str | None,
+    author_ids: list[int] | None,
+    series_ids: list[int] | None,
+    language: list[str] | None,
 ) -> TagDetailResponse:
     result = dal.get_tag_by_id(db, tag_id, author_ids, series_ids, language)
     if not result:

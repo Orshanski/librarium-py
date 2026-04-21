@@ -19,7 +19,7 @@ export interface FilterLanguage {
   name: string;
 }
 
-export type FilterKey = "authors" | "series" | "tags" | "languages";
+export type FilterOptionsKey = "authors" | "series" | "tags" | "languages";
 
 // Per-key response shapes. The backend returns the list under a field matching
 // the key (`{authors: [...]}`, `{series: [...]}`, etc.) — not a tagged union,
@@ -33,14 +33,10 @@ export type FilterOptionsResponse =
   | { languages: FilterLanguage[] };
 
 export interface FilterOptionsParams {
-  /** CSV of author ids. */
-  authorIds?: string;
-  /** CSV of series ids. */
-  seriesIds?: string;
-  /** CSV of tag ids. */
-  tagIds?: string;
-  /** Language filter. */
-  language?: string;
+  authorIds?: number[] | string[];
+  seriesIds?: number[] | string[];
+  tagIds?: number[] | string[];
+  language?: string[];
 }
 
 export function listFilterOptions(
@@ -63,16 +59,16 @@ export function listFilterOptions(
   params?: FilterOptionsParams,
   signal?: AbortSignal,
 ): Promise<{ languages: FilterLanguage[] }>;
-// Fallback overload for callers passing a dynamic `FilterKey` (e.g. in a
+// Fallback overload for callers passing a dynamic `FilterOptionsKey` (e.g. in a
 // loop over filterKeys). Without this, TS only sees the four literal-key
 // overloads and cannot match a union parameter.
 export function listFilterOptions(
-  key: FilterKey,
+  key: FilterOptionsKey,
   params?: FilterOptionsParams,
   signal?: AbortSignal,
 ): Promise<FilterOptionsResponse>;
 export function listFilterOptions(
-  key: FilterKey,
+  key: FilterOptionsKey,
   params: FilterOptionsParams = {},
   signal?: AbortSignal,
 ): Promise<FilterOptionsResponse> {

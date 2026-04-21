@@ -36,9 +36,9 @@ export interface MapTagResponse {
 }
 
 export interface TagQuery {
-  authorIds?: string;
-  seriesIds?: string;
-  language?: string;
+  authorIds?: number[] | string[];
+  seriesIds?: number[] | string[];
+  language?: string[];
 }
 
 export interface TagCloudOptions {

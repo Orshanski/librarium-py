@@ -48,7 +48,7 @@ describe("SmartFilterBar", () => {
     const user = userEvent.setup();
     render(
       <SmartFilterBar
-        filterKeys={["author", "series", "genre", "language"]}
+        filterKeys={["authorIds", "seriesIds", "tagIds", "language"]}
         selected={{}}
         onSelectionChange={() => {}}
       />,
@@ -80,7 +80,7 @@ describe("SmartFilterBar", () => {
 
     const { rerender } = render(
       <SmartFilterBar
-        filterKeys={["author"]}
+        filterKeys={["authorIds"]}
         selected={{}}
         onSelectionChange={() => {}}
       />,
@@ -96,13 +96,13 @@ describe("SmartFilterBar", () => {
 
     rerender(
       <SmartFilterBar
-        filterKeys={["author"]}
-        selected={{ author: ["2"] }}
+        filterKeys={["authorIds"]}
+        selected={{ authorIds: ["2"] }}
         onSelectionChange={() => {}}
       />,
     );
 
-    // With `selected.author = ["2"]`, the filter bar renders the selected
+    // With `selected.authorIds = ["2"]`, the filter bar renders the selected
     // name as a chip after options load. Wait for the fast fetch to finish.
     await waitFor(() => {
       expect(screen.getByText("Second Author")).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe("SmartFilterBar", () => {
 
     render(
       <SmartFilterBar
-        filterKeys={["author", "series"]}
+        filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
       />,

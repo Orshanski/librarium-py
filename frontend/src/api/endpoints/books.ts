@@ -21,10 +21,10 @@ export interface BookListParams {
   sort?: string;
   cursor?: number;
   pageSize?: number;
-  authorIds?: string; // CSV
-  seriesIds?: string; // CSV
-  tagIds?: string; // CSV
-  language?: string;
+  authorIds?: number[] | string[];
+  seriesIds?: number[] | string[];
+  tagIds?: number[] | string[];
+  language?: string[];
 }
 
 export interface BookListResponse {

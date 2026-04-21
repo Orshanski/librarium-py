@@ -24,7 +24,7 @@ def build_book_where(
         filters: `CatalogFilters` — user scope plus optional dimension filters
         exclude: optional key to skip (for cross-dimension filter options)
         extra_clauses: additional (sql_fragment, params_dict) tuples.
-            Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.
+            Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, l0..lN.
 
     Returns:
         (where_sql, params) -- where_sql includes "WHERE " prefix or is empty string
@@ -60,9 +60,11 @@ def build_book_where(
         for i, v in enumerate(series_ids):
             params[f"s{i}"] = v
 
-    if lang := effective.get("language"):
-        clauses.append("b.language = :lang")
-        params["lang"] = lang
+    if langs := effective.get("language"):
+        ph = ",".join(f":l{i}" for i in range(len(langs)))
+        clauses.append(f"b.language IN ({ph})")
+        for i, v in enumerate(langs):
+            params[f"l{i}"] = v
 
     if not clauses:
         return "", params

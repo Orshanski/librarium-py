@@ -1,7 +1,7 @@
 """Catalog query filter assembly.
 
 Single source of truth for `CatalogFilters` used by book listings and options endpoints.
-All callers pass already-normalized lists; query parsing stays in routers (parse_ids).
+All callers pass already-typed lists; FastAPI parses query directly into `list[T]`.
 """
 import sqlite3
 
@@ -22,12 +22,12 @@ def build_catalog_filters(
     author_ids: list[int] | None = None,
     tag_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
-    language: str | None = None,
+    language: list[str] | None = None,
 ) -> CatalogFilters:
     """Assemble `CatalogFilters` scoped to the user.
 
-    Router is responsible for parsing raw query strings to typed lists
-    (see routers/params.py::parse_ids).
+    Router receives typed lists directly from FastAPI (`list[T] | None = Query(None)`)
+    and passes them through without transformation.
     """
     filters: CatalogFilters = {"userId": user_id}
     if author_ids:

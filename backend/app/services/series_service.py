@@ -11,7 +11,7 @@ def list_series(
     user_id: int,
     author_ids: list[int] | None,
     tag_ids: list[int] | None,
-    language: str | None,
+    language: list[str] | None,
 ) -> SeriesListResponse:
     result = dal.get_series(db, user_id=user_id, author_ids=author_ids, tag_ids=tag_ids, language=language)
     return SeriesListResponse(series=result["series"])

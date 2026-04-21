@@ -10,9 +10,9 @@ export interface Series {
 }
 
 export interface SeriesListParams {
-  authorIds?: string; // CSV
-  tagIds?: string;    // CSV
-  language?: string;
+  authorIds?: number[] | string[];
+  tagIds?: number[] | string[];
+  language?: string[];
 }
 
 export interface SeriesListResponse {
