@@ -60,9 +60,11 @@ def build_book_where(
         for i, v in enumerate(series_ids):
             params[f"s{i}"] = v
 
-    if lang := effective.get("language"):
-        clauses.append("b.language = :lang")
-        params["lang"] = lang
+    if langs := effective.get("language"):
+        ph = ",".join(f":l{i}" for i in range(len(langs)))
+        clauses.append(f"b.language IN ({ph})")
+        for i, v in enumerate(langs):
+            params[f"l{i}"] = v
 
     if not clauses:
         return "", params
