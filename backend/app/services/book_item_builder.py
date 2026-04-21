@@ -25,7 +25,7 @@ def row_to_book_item(row: dict) -> BookItem:
     tag_ids, added_at. Опциональные берутся через row.get().
     """
     book_id = row["id"]
-    updated_at = row.get("updated_at") or ""
+    updated_at = row["updated_at"]
     return BookItem(
         id=book_id,
         title=row["title"],
@@ -35,7 +35,7 @@ def row_to_book_item(row: dict) -> BookItem:
         tags=_split_csv(row.get("tags")),
         tagIds=_split_csv_int(row.get("tag_ids")),
         addedAt=row["added_at"],
-        updatedAt=row["updated_at"],
+        updatedAt=updated_at,
         sortTitle=row.get("sort_title"),
         description=row.get("description"),
         language=row.get("language"),

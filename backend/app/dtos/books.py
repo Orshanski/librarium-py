@@ -162,6 +162,14 @@ class UploadFileResponse(BaseModel):
     size: int
 
 
+class BookFormatItem(BaseModel):
+    """Формат книги (файл) — элемент `BookItem.formats`. Заготовка
+    на будущее (BookDetail endpoint): в jmdc для shelves/tags не
+    заполняется."""
+    format: str
+    size: int
+
+
 class BookItem(BaseModel):
     """Pydantic response DTO для книги (camelCase wire). Используется в
     ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
@@ -200,3 +208,7 @@ class BookItem(BaseModel):
     fraction: float | None = None
     lastFormat: str | None = None
     lastReadAt: str | None = None
+
+    # BookDetail-only (в jmdc не заполняется, на будущее)
+    formats: list[BookFormatItem] | None = None
+    isbn: str | None = None
