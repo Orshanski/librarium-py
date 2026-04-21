@@ -30,8 +30,8 @@ from .sort import resolve_order_clause
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "books", "sqlite3")
 
 
-def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort: str = "added_desc", cursor=0, page_size=50) -> BookListPage:
-    if sort in ("rating_desc", "rating_asc") and not filters.get("userId"):
+def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort: str = "addedDesc", cursor=0, page_size=50) -> BookListPage:
+    if sort in ("ratingDesc", "ratingAsc") and not filters.get("userId"):
         raise ValueError(f"{sort} requires userId in filters")
 
     where, params = build_book_where(filters)

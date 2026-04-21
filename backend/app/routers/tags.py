@@ -30,7 +30,7 @@ def get_tag(
     authorIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
-    sort: UserSort = "added_desc",
+    sort: UserSort = "addedDesc",
 ):
     return tags_service.get_tag(db, tag_id, user.user_id, authorIds, seriesIds, language, sort)
 

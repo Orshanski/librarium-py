@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 def list_books(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
-    sort: UserSort = "added_desc",
+    sort: UserSort = "addedDesc",
     cursor: int = 0,
     pageSize: int = 50,
     authorIds: list[int] | None = Query(None),

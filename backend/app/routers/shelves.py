@@ -35,7 +35,7 @@ def get_shelf(
     shelf_id: int,
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
-    sort: UserSort = "added_desc",
+    sort: UserSort = "addedDesc",
 ):
     return shelves_service.get_shelf(db, shelf_id, user.user_id, sort)
 

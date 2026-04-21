@@ -2,10 +2,10 @@
 from typing import Literal, NotRequired, TypedDict
 
 UserSort = Literal[
-    "added_desc", "added_asc",
-    "title_asc", "title_desc",
-    "author_asc", "author_desc",
-    "rating_desc", "rating_asc",
+    "addedDesc", "addedAsc",
+    "titleAsc", "titleDesc",
+    "authorAsc", "authorDesc",
+    "ratingDesc", "ratingAsc",
 ]
 
 

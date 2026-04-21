@@ -1,33 +1,33 @@
 {
   "catalog": {
-    "default": "added_desc",
-    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
   },
   "tag": {
-    "default": "added_desc",
-    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
   },
   "shelf_best": {
-    "default": "rating_desc",
-    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+    "default": "ratingDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
   },
   "shelf_reading_now": {
-    "default": "last_read_desc",
+    "default": "lastReadDesc",
     "options": []
   },
   "shelf_regular": {
-    "default": "added_desc",
-    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+    "default": "addedDesc",
+    "options": ["addedDesc", "addedAsc", "titleAsc", "titleDesc", "authorAsc", "authorDesc", "ratingDesc", "ratingAsc"]
   },
   "labels": {
-    "added_desc": "По дате добавления (сначала новые)",
-    "added_asc": "По дате добавления (сначала старые)",
-    "title_asc": "По названию А→Я",
-    "title_desc": "По названию Я→А",
-    "author_asc": "По автору А→Я",
-    "author_desc": "По автору Я→А",
-    "rating_desc": "По рейтингу (высокие первыми)",
-    "rating_asc": "По рейтингу (низкие первыми)",
-    "last_read_desc": "По дате чтения"
+    "addedDesc": "По дате добавления (сначала новые)",
+    "addedAsc": "По дате добавления (сначала старые)",
+    "titleAsc": "По названию А→Я",
+    "titleDesc": "По названию Я→А",
+    "authorAsc": "По автору А→Я",
+    "authorDesc": "По автору Я→А",
+    "ratingDesc": "По рейтингу (высокие первыми)",
+    "ratingAsc": "По рейтингу (низкие первыми)",
+    "lastReadDesc": "По дате чтения"
   }
 }

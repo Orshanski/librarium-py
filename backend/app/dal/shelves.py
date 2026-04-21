@@ -33,7 +33,7 @@ def get_shelf_by_id(
     if not shelf:
         return None
 
-    # reading_now берёт default из shared-конфига (last_read_desc) — user-переданный sort игнорируется
+    # reading_now берёт default из shared-конфига (lastReadDesc) — user-переданный sort игнорируется
     if shelf["system_code"] == "reading_now":
         effective_sort = SORT_CONFIG["shelf_reading_now"]["default"]
     else:

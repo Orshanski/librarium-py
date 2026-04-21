@@ -158,7 +158,7 @@ class TestShelfDetailSnapshot:
         # User 2 (reader) rated book 1 with rating=5 → book 1 on "best" shelf
         shelves = shelves_dal.get_shelves(db, 2)
         best_shelf = next(s for s in shelves if s["system_code"] == "best")
-        result = shelves_dal.get_shelf_by_id(db, best_shelf["id"], 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db, best_shelf["id"], 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert [b["id"] for b in books] == [1]
@@ -170,14 +170,14 @@ class TestShelfDetailSnapshot:
         # No reading_progress for user 2 → empty list
         shelves = shelves_dal.get_shelves(db, 2)
         rn = next(s for s in shelves if s["system_code"] == "reading_now")
-        result = shelves_dal.get_shelf_by_id(db, rn["id"], 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db, rn["id"], 2, sort="addedDesc")
         assert result["books"] == []
 
     def test_shelf_default_empty(self, db):
         # User-created shelf (not system). Need to create one.
         shelf_id = shelves_dal.create_shelf(db, 2, "My Shelf")
         db.commit()
-        result = shelves_dal.get_shelf_by_id(db, shelf_id, 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db, shelf_id, 2, sort="addedDesc")
         assert result is not None
         assert result["books"] == []
 
@@ -189,7 +189,7 @@ class TestShelfDetailSnapshot:
         db_with_multi_author.commit()
         shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
         best = next(s for s in shelves if s["system_code"] == "best")
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
         # Exact column set for the "best" branch (includes author_ids, tag_ids, rating, is_read).
@@ -206,7 +206,7 @@ class TestShelfDetailSnapshot:
         db_with_multi_author.commit()
         shelves = shelves_dal.get_shelves(db_with_multi_author, 2)
         rn = next(s for s in shelves if s["system_code"] == "reading_now")
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
         # Exact column set for the "reading_now" branch (base + fraction/last_format/last_read_at).
@@ -217,7 +217,7 @@ class TestShelfDetailSnapshot:
         shelf_id = shelves_dal.create_shelf(db_with_multi_author, 2, "Test Shelf")
         shelves_dal.add_book_to_shelf(db_with_multi_author, shelf_id, 100)
         db_with_multi_author.commit()
-        result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2, sort="added_desc")
+        result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert multi_book["authors"] == "Brown,Smith"
         # Default shelf: base columns (author_ids, tag_ids, rating, is_read included).
@@ -227,7 +227,7 @@ class TestShelfDetailSnapshot:
 class TestBooksSnapshot:
     def test_get_books_default_order(self, db):
         resp = books_dal.get_books(db, filters={})
-        # Default sort = added_desc
+        # Default sort = addedDesc
         book_ids = [b["id"] for b in resp["books"]]
         assert book_ids == [5, 4, 3, 2, 1]
         assert set(resp["books"][0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
@@ -274,7 +274,7 @@ class TestBooksSnapshot:
         assert multi["tag_ids"] == "2,1"
 
 
-def test_get_books_rating_desc_requires_user_id(db):
-    """rating_desc без userId поднимает ValueError (spec: удаление fallback)."""
-    with pytest.raises(ValueError, match="rating_desc requires userId"):
-        books_dal.get_books(db, filters={}, sort="rating_desc")
+def test_get_books_ratingDesc_requires_user_id(db):
+    """ratingDesc без userId поднимает ValueError (spec: удаление fallback)."""
+    with pytest.raises(ValueError, match="ratingDesc requires userId"):
+        books_dal.get_books(db, filters={}, sort="ratingDesc")
