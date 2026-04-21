@@ -10,7 +10,7 @@ def list_authors(
     db: sqlite3.Connection,
     user_id: int,
     tag_ids: list[int] | None,
-    language: str | None,
+    language: list[str] | None,
 ) -> AuthorsListResponse:
     result = dal.get_authors(db, user_id=user_id, tag_ids=tag_ids, language=language)
     return AuthorsListResponse(authors=result["authors"])

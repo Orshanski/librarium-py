@@ -110,7 +110,7 @@ def list_books(
     author_ids: list[int] | None,
     tag_ids: list[int] | None,
     series_ids: list[int] | None,
-    language: str | None,
+    language: list[str] | None,
 ) -> BookListResponse:
     """Paginated catalog listing with user-scoped filters."""
     filters = filters_service.build_catalog_filters(

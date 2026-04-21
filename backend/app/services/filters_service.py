@@ -22,7 +22,7 @@ def build_catalog_filters(
     author_ids: list[int] | None = None,
     tag_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
-    language: str | None = None,
+    language: list[str] | None = None,
 ) -> CatalogFilters:
     """Assemble `CatalogFilters` scoped to the user.
 

@@ -23,8 +23,8 @@ def test_build_catalog_filters_only_series_ids():
 
 
 def test_build_catalog_filters_only_language():
-    result = build_catalog_filters(1, language="ru")
-    assert result == {"userId": 1, "language": "ru"}
+    result = build_catalog_filters(1, language=["ru"])
+    assert result == {"userId": 1, "language": ["ru"]}
 
 
 def test_build_catalog_filters_all_combined():
@@ -33,14 +33,14 @@ def test_build_catalog_filters_all_combined():
         author_ids=[1],
         tag_ids=[2],
         series_ids=[3],
-        language="en",
+        language=["en"],
     )
     assert result == {
         "userId": 99,
         "authorIds": [1],
         "tagIds": [2],
         "seriesIds": [3],
-        "language": "en",
+        "language": ["en"],
     }
 
 
@@ -55,6 +55,6 @@ def test_build_catalog_filters_none_language_absent():
 
 
 def test_build_catalog_filters_empty_language_absent():
-    # Empty string is falsy, should not produce a "language" key
-    result = build_catalog_filters(1, language="")
+    # Empty list is falsy, should not produce a "language" key
+    result = build_catalog_filters(1, language=[])
     assert result == {"userId": 1}
