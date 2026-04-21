@@ -3,6 +3,7 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .books import BookItem
 from .catalog import LanguageOptionRow
 
 
@@ -97,12 +98,11 @@ class SeriesDetailRow(TypedDict):
 
 # --- tag ---
 
-class TagSummary(TypedDict):
-    """Raw tags table row — SELECT * FROM tags — returned inside get_tag_by_id.
-    Includes the code column present in the tags table schema."""
+class TagSummary(BaseModel):
+    """Response-level tag header в camelCase для /api/tags/{id}."""
     id: int
     name: str
-    code: str | None
+    code: str | None = None
 
 
 class TagDetailRow(TypedDict):
@@ -187,10 +187,10 @@ class SeriesListResponse(BaseModel):
 class TagDetailResponse(BaseModel):
     """Response for GET /api/tags/{id}.
 
-    Wire format: {"tag": {...}, "books": [...]}
+    Wire format (camelCase): {"tag": {...}, "books": [...]}
     """
     tag: TagSummary
-    books: list[EntityBookRow]
+    books: list[BookItem]
 
 
 class TagCloudResponse(BaseModel):
