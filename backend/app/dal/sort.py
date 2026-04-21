@@ -33,4 +33,7 @@ def resolve_order_clause(sort: str) -> str:
     """Return ORDER BY SQL fragment. Accepts any key from the mapping
     (UserSort values + internal "last_read_desc"). Caller responsibility
     to ensure requested key has required JOIN aliases in the query."""
-    return _ORDER_CLAUSES[sort]
+    try:
+        return _ORDER_CLAUSES[sort]
+    except KeyError as exc:
+        raise ValueError(f"Unknown sort key: {sort!r}. Expected one of {sorted(_ORDER_CLAUSES)}") from exc

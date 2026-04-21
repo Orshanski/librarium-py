@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config" / "sort.json"
+_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / "config" / "sort.json"
 
 with _CONFIG_PATH.open("r", encoding="utf-8") as _f:
     SORT_CONFIG: dict = json.load(_f)
