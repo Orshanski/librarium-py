@@ -160,3 +160,43 @@ class UploadFileResponse(BaseModel):
     ok: bool = True
     format: str
     size: int
+
+
+class BookItem(BaseModel):
+    """Pydantic response DTO для книги (camelCase wire). Используется в
+    ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
+    services.book_item_builder.row_to_book_item().
+
+    Поля, отсутствующие в конкретном endpoint (rating/isRead только в best;
+    fraction/lastFormat/lastReadAt только в reading_now), остаются None и
+    вырезаются через response_model_exclude_none=True на router-уровне.
+    """
+    # Core — всегда присутствуют
+    id: int
+    title: str
+    coverPath: str                      # composed: /api/covers/{id}?t={updated_at}
+    authors: list[str]
+    authorIds: list[int]
+    tags: list[str]
+    tagIds: list[int]
+    addedAt: str
+    updatedAt: str
+
+    # Optional — могут отсутствовать в конкретных полях SQL
+    sortTitle: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pubDate: str | None = None
+    series: str | None = None
+    seriesId: int | None = None
+    seriesNumber: float | None = None
+
+    # User-specific (JOIN user_books)
+    rating: int | None = None
+    isRead: bool | None = None
+
+    # Reading progress (только reading_now)
+    fraction: float | None = None
+    lastFormat: str | None = None
+    lastReadAt: str | None = None
