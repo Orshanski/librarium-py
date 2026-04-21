@@ -16,7 +16,7 @@ class CatalogFilters(TypedDict):
     authorIds: NotRequired[list[int]]
     tagIds: NotRequired[list[int]]
     seriesIds: NotRequired[list[int]]
-    language: NotRequired[str]
+    language: NotRequired[list[str]]
 
 
 class LanguageOptionRow(TypedDict):
