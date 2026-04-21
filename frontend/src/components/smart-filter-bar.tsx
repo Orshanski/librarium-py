@@ -2,18 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { useIsMobile } from "../responsive";
 import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
-import { listFilterOptions, type FilterKey as ApiFilterKey, type FilterOptionsParams } from "../api/endpoints/filters";
+import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
+import type { ApiFilterParams } from "../api/filter-params";
 
-export type FilterKey = "author" | "series" | "genre" | "language";
-
-export interface ApiFilterParams {
-  authorIds?: string[];
-  seriesIds?: string[];
-  tagIds?: string[];
-  language?: string;
-}
+export type FilterKey = "authorIds" | "seriesIds" | "tagIds" | "language";
 
 export type SelectedFilters = Partial<Record<FilterKey, string[]>>;
+
+export type { ApiFilterParams };
 
 interface SmartFilterBarProps {
   filterKeys: FilterKey[];
@@ -23,24 +19,23 @@ interface SmartFilterBarProps {
   baseFilters?: ApiFilterParams;
 }
 
-const FILTER_META: Record<FilterKey, { apiKey: ApiFilterKey; apiParam: string; label: string; responseKey: string }> = {
-  author: { apiKey: "authors", apiParam: "authorIds", label: "Автор", responseKey: "authors" },
-  series: { apiKey: "series", apiParam: "seriesIds", label: "Серия", responseKey: "series" },
-  genre: { apiKey: "tags", apiParam: "tagIds", label: "Жанр", responseKey: "tags" },
-  language: { apiKey: "languages", apiParam: "language", label: "Язык", responseKey: "languages" },
+const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; responseKey: string }> = {
+  authorIds: { apiKey: "authors", label: "Автор", responseKey: "authors" },
+  seriesIds: { apiKey: "series", label: "Серия", responseKey: "series" },
+  tagIds: { apiKey: "tags", label: "Жанр", responseKey: "tags" },
+  language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
 const CACHE_PREFIX = "librarium_filter_options_";
+const KEY_ORDER: FilterKey[] = ["authorIds", "seriesIds", "tagIds", "language"];
+
+function serializeBase(baseFilters?: ApiFilterParams): string {
+  if (!baseFilters) return "";
+  return KEY_ORDER.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
+}
 
 function cacheKey(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): string {
-  const parts = [
-    filterKeys.join(","),
-    baseFilters?.authorIds?.join(",") || "",
-    baseFilters?.tagIds?.join(",") || "",
-    baseFilters?.seriesIds?.join(",") || "",
-    baseFilters?.language || "",
-  ];
-  return CACHE_PREFIX + parts.join("|");
+  return `${CACHE_PREFIX}${filterKeys.join(",")}|${serializeBase(baseFilters)}`;
 }
 
 function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): Record<string, FilterOption[]> {
@@ -59,49 +54,19 @@ function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, Filt
 }
 
 export function buildQueryParams(
-  key: FilterKey,
+  ownKey: FilterKey,
   selected: SelectedFilters,
   baseFilters?: ApiFilterParams,
-): URLSearchParams {
-  const params = new URLSearchParams();
-  const ownApiParam = FILTER_META[key].apiParam;
-
-  // baseFilters — always included, never excluded by own dimension
-  if (baseFilters) {
-    if (baseFilters.authorIds?.length) {
-      params.set("authorIds", baseFilters.authorIds.join(","));
-    }
-    if (baseFilters.tagIds?.length) {
-      params.set("tagIds", baseFilters.tagIds.join(","));
-    }
-    if (baseFilters.seriesIds?.length) {
-      params.set("seriesIds", baseFilters.seriesIds.join(","));
-    }
-    if (baseFilters.language) {
-      params.set("language", baseFilters.language);
-    }
-  }
-
-  // selected — exclude own dimension
-  for (const [uiKey, values] of Object.entries(selected)) {
+): ApiFilterParams {
+  const out: ApiFilterParams = { ...baseFilters };
+  for (const key of KEY_ORDER) {
+    if (key === ownKey) continue;
+    const values = selected[key];
     if (!values?.length) continue;
-    const apiParam = FILTER_META[uiKey as FilterKey]?.apiParam;
-    if (!apiParam || apiParam === ownApiParam) continue;
-
-    if (apiParam === "language") {
-      if (!params.has("language")) params.set("language", values[0]);
-    } else {
-      const existing = params.get(apiParam);
-      if (existing) {
-        const merged = new Set([...existing.split(","), ...values]);
-        params.set(apiParam, [...merged].join(","));
-      } else {
-        params.set(apiParam, values.join(","));
-      }
-    }
+    const base = out[key] as string[] | number[] | undefined;
+    out[key] = base ? ([...new Set([...base.map(String), ...values])] as string[]) : values;
   }
-
-  return params;
+  return out;
 }
 
 export default function SmartFilterBar({
@@ -119,9 +84,7 @@ export default function SmartFilterBar({
   const selectedKey = filterKeys
     .map((k) => `${k}:${(selected[k] || []).join(",")}`)
     .join("|");
-  const baseKey = baseFilters
-    ? `${baseFilters.authorIds?.join(",") || ""}|${baseFilters.tagIds?.join(",") || ""}|${baseFilters.seriesIds?.join(",") || ""}|${baseFilters.language || ""}`
-    : "";
+  const baseKey = serializeBase(baseFilters);
   const filterKeysKey = filterKeys.join(",");
 
   useEffect(() => {
@@ -131,13 +94,7 @@ export default function SmartFilterBar({
 
     const fetches = filterKeys.map(async (key) => {
       const meta = FILTER_META[key];
-      const queryParams = buildQueryParams(key, selected, baseFilters);
-
-      // Convert URLSearchParams to FilterOptionsParams object
-      const filterParams: FilterOptionsParams = {};
-      queryParams.forEach((value, paramKey) => {
-        filterParams[paramKey as keyof FilterOptionsParams] = value;
-      });
+      const filterParams = buildQueryParams(key, selected, baseFilters);
 
       try {
         const response = await listFilterOptions(meta.apiKey, filterParams, controller.signal);
