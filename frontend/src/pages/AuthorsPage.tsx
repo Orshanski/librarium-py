@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey } from "../components/smart-filter-bar";
+import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
@@ -13,7 +13,7 @@ import { selectedToApiParams } from "../api/filter-params";
 
 const CACHE_KEY = "librarium_authors_v2";
 
-function saveCache(authors: Author[], selected: Record<string, string[]>) {
+function saveCache(authors: Author[], selected: SelectedFilters) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -39,7 +39,7 @@ function loadCache() {
 export default function AuthorsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [selected, setSelected] = useState<SelectedFilters>({});
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
