@@ -59,10 +59,10 @@ export default function CatalogPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const sort = searchParams.get("sort") || "added_desc";
-  const authorIds = searchParams.getAll("authorIds");
-  const seriesIds = searchParams.getAll("seriesIds");
-  const tagIds = searchParams.getAll("tagIds");
-  const language = searchParams.getAll("language");
+  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
+  const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
+  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
+  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
   const paramsKey = `${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
   const buildApiParams = useCallback((cursor: number, size?: number) => {
