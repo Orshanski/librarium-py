@@ -7,8 +7,6 @@ def test_list_books_unauthenticated_is_401(anon_client):
 
 
 def test_filter_by_garbage_author_id(reader_client):
-    """Non-int authorIds — current parse_ids behavior: silently ignored,
-    returns all books. Fix this behavior as-is."""
+    """Non-int authorIds → FastAPI validation error (422)."""
     resp = reader_client.get("/api/books", params={"authorIds": "abc"})
-    assert resp.status_code == 200
-    assert len(resp.json()["books"]) == 5
+    assert resp.status_code == 422
