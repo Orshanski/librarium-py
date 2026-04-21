@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,25 +10,27 @@ import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
+import { useState } from "react";
 
 const CACHE_KEY = "librarium_authors_v2";
 
-function saveCache(authors: Author[], selected: SelectedFilters) {
+function saveCache(authors: Author[], paramsKey: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       authors,
-      selected,
+      paramsKey,
       scrollTop: main?.scrollTop || 0,
     }));
   } catch {}
 }
 
-function loadCache() {
+function loadCache(paramsKey: string) {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
+    if (data.paramsKey !== paramsKey) return null;
     if (!data.authors?.length) return null;
     return data;
   } catch {
@@ -39,22 +41,16 @@ function loadCache() {
 export default function AuthorsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const frozenRef = useRef(false);
 
-  // Read cache once synchronously — used for initial state AND for scroll restore RAF.
-  // Must stay out of useMemo: no deps, executed on mount only.
-  const initialCacheRef = useRef(loadCache());
+  const [authors, setAuthors] = useState<Author[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [selected, setSelected] = useState<SelectedFilters>(initialCacheRef.current?.selected || {});
-  const [authors, setAuthors] = useState<Author[]>(initialCacheRef.current?.authors || []);
-  const [loading, setLoading] = useState(!initialCacheRef.current);
-  const frozenRef = useRef(!!initialCacheRef.current);
-  const restoredRef = useRef(!!initialCacheRef.current);
+  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
+  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
+  const paramsKey = `${tagIds.join(",")}|${language.join(",")}`;
 
-  const tagIds = selected.tagIds || [];
-  const languages = selected.language || [];
-  const paramsKey = `${tagIds.join(",")}|${languages.join(",")}`;
-
-  // Restore scroll + breadcrumb on mount
+  // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
@@ -63,8 +59,11 @@ export default function AuthorsPage() {
       navigate("/authors", { replace: true });
       return;
     }
-    const cached = initialCacheRef.current;
+    const cached = loadCache(paramsKey);
     if (cached) {
+      setAuthors(cached.authors);
+      setLoading(false);
+      frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const main = document.querySelector("main");
@@ -72,63 +71,64 @@ export default function AuthorsPage() {
           setTimeout(() => { frozenRef.current = false; }, 200);
         });
       });
-    }
-  }, []); // mount only
-
-  // Fetch on filter change
-  useEffect(() => {
-    if (restoredRef.current) {
-      restoredRef.current = false;
-      return () => {}; // skip first run after restore — no cleanup needed
+      return;
     }
 
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
-
     const controller = new AbortController();
-    const apiParams = selectedToApiParams(selected);
-
-    listAuthors(apiParams, controller.signal)
+    const selected: SelectedFilters = {};
+    if (tagIds.length) selected.tagIds = tagIds;
+    if (language.length) selected.language = language;
+    listAuthors(selectedToApiParams(selected), controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
         setLoading(false);
+        frozenRef.current = false;
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
         console.warn("Failed to fetch authors list:", err);
         setAuthors([]);
         setLoading(false);
       });
-
     return () => controller.abort();
-  }, [paramsKey]);
+  }, [paramsKey, tagIds, language]);
 
-  // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ authors, selected });
-  stateRef.current = { authors, selected };
-
-  useEffect(() => {
-    if (authors.length > 0) saveCache(authors, selected);
-  }, [authors, selected, paramsKey]);
-
+  // Scroll listener: save cache
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
+
     function onScroll() {
-      const s = stateRef.current;
-      saveCache(s.authors, s.selected);
+      saveCache(authors, paramsKey);
     }
+
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
-      const s = stateRef.current;
-      if (s.authors.length > 0) saveCache(s.authors, s.selected);
+      if (authors.length > 0) saveCache(authors, paramsKey);
     };
-  }, []);
+  }, [authors, paramsKey]);
+
+  function updateParams(updates: Record<string, string[] | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
+    }
+    sessionStorage.removeItem(CACHE_KEY);
+    navigate(`/authors?${params.toString()}`);
+  }
+
+  const selected: SelectedFilters = {};
+  if (tagIds.length) selected.tagIds = tagIds;
+  if (language.length) selected.language = language;
 
   function onSelectionChange(key: FilterKey, values: string[]) {
-    sessionStorage.removeItem(CACHE_KEY);
-    setSelected((prev) => ({ ...prev, [key]: values }));
+    updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   return (

@@ -12,22 +12,23 @@ import type { Series } from "../api/endpoints/series";
 
 const CACHE_KEY = "librarium_series_v2";
 
-function saveCache(allSeries: Series[], selected: SelectedFilters) {
+function saveCache(allSeries: Series[], paramsKey: string) {
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
       allSeries,
-      selected,
+      paramsKey,
       scrollTop: main?.scrollTop || 0,
     }));
   } catch {}
 }
 
-function loadCache() {
+function loadCache(paramsKey: string) {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
+    if (data.paramsKey !== paramsKey) return null;
     if (!data.allSeries?.length) return null;
     return data;
   } catch {
@@ -38,22 +39,17 @@ function loadCache() {
 export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const frozenRef = useRef(false);
 
-  // Read cache once synchronously — initial state + scroll-restore RAF.
-  const initialCacheRef = useRef(loadCache());
+  const [allSeries, setAllSeries] = useState<Series[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [selected, setSelected] = useState<SelectedFilters>(initialCacheRef.current?.selected || {});
-  const [allSeries, setAllSeries] = useState<Series[]>(initialCacheRef.current?.allSeries || []);
-  const [loading, setLoading] = useState(!initialCacheRef.current);
-  const frozenRef = useRef(!!initialCacheRef.current);
-  const restoredRef = useRef(!!initialCacheRef.current);
+  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
+  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
+  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
+  const paramsKey = `${authorIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
-  const authorIds = selected.authorIds || [];
-  const tagIds = selected.tagIds || [];
-  const languages = selected.language || [];
-  const paramsKey = `${authorIds.join(",")}|${tagIds.join(",")}|${languages.join(",")}`;
-
-  // Scroll + breadcrumb restore on mount
+  // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
     const fresh = searchParams.get("fresh");
@@ -62,8 +58,11 @@ export default function SeriesListPage() {
       navigate("/series", { replace: true });
       return;
     }
-    const cached = initialCacheRef.current;
+    const cached = loadCache(paramsKey);
     if (cached) {
+      setAllSeries(cached.allSeries);
+      setLoading(false);
+      frozenRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const main = document.querySelector("main");
@@ -71,62 +70,67 @@ export default function SeriesListPage() {
           setTimeout(() => { frozenRef.current = false; }, 200);
         });
       });
-    }
-  }, []); // mount only
-
-  // Fetch on filter change
-  useEffect(() => {
-    if (restoredRef.current) {
-      restoredRef.current = false;
-      return () => {}; // skip first run after restore — no cleanup needed
+      return;
     }
 
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
-
     const controller = new AbortController();
-
-    const apiParams = selectedToApiParams(selected);
-    listSeries(apiParams, controller.signal)
+    const selected: SelectedFilters = {};
+    if (authorIds.length) selected.authorIds = authorIds;
+    if (tagIds.length) selected.tagIds = tagIds;
+    if (language.length) selected.language = language;
+    listSeries(selectedToApiParams(selected), controller.signal)
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);
+        frozenRef.current = false;
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
         console.warn("Failed to fetch series list:", err);
         setAllSeries([]);
         setLoading(false);
       });
-
     return () => controller.abort();
-  }, [paramsKey]);
+  }, [paramsKey, authorIds, tagIds, language]);
 
-  // Save cache on data/filter change and on unmount
-  const stateRef = useRef({ allSeries, selected });
-  stateRef.current = { allSeries, selected };
-
-  useEffect(() => {
-    if (allSeries.length > 0) saveCache(allSeries, selected);
-  }, [allSeries, selected, paramsKey]);
-
-  // Scroll listener: save cache on scroll
+  // Scroll listener: save cache
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
 
     function onScroll() {
-      const s = stateRef.current;
-      saveCache(s.allSeries, s.selected);
+      saveCache(allSeries, paramsKey);
     }
 
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
-      const s = stateRef.current;
-      if (s.allSeries.length > 0) saveCache(s.allSeries, s.selected);
+      if (allSeries.length > 0) saveCache(allSeries, paramsKey);
     };
-  }, []);
+  }, [allSeries, paramsKey]);
+
+  function updateParams(updates: Record<string, string[] | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
+    }
+    sessionStorage.removeItem(CACHE_KEY);
+    navigate(`/series?${params.toString()}`);
+  }
+
+  const selected: SelectedFilters = {};
+  if (authorIds.length) selected.authorIds = authorIds;
+  if (tagIds.length) selected.tagIds = tagIds;
+  if (language.length) selected.language = language;
+
+  function onSelectionChange(key: FilterKey, values: string[]) {
+    updateParams({ [key]: values.length > 0 ? values : undefined });
+  }
 
   const sorted = useMemo(() => {
     return [...allSeries].sort((a, b) => a.name.localeCompare(b.name, "ru"));
@@ -138,10 +142,7 @@ export default function SeriesListPage() {
         title="Серии"
         filterKeys={["authorIds", "tagIds", "language"]}
         selected={selected}
-        onSelectionChange={(key: FilterKey, values: string[]) => {
-          sessionStorage.removeItem(CACHE_KEY);
-          setSelected((prev) => ({ ...prev, [key]: values }));
-        }}
+        onSelectionChange={onSelectionChange}
         showUpload
       />
 
