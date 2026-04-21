@@ -13,6 +13,7 @@ import type { Series } from "../api/endpoints/series";
 const CACHE_KEY = "librarium_series_v2";
 
 function saveCache(allSeries: Series[], paramsKey: string) {
+  if (allSeries.length === 0) return;
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({

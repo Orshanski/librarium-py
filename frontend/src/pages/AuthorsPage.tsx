@@ -14,6 +14,7 @@ import { selectedToApiParams } from "../api/filter-params";
 const CACHE_KEY = "librarium_authors_v2";
 
 function saveCache(authors: Author[], paramsKey: string) {
+  if (authors.length === 0) return;
   try {
     const main = document.querySelector("main");
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({
