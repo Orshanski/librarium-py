@@ -1,67 +1,56 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
 import PageHeader from "../components/page-header";
-import { FilterConfig } from "../components/filter-bar";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
-import { toBook, splitCsv, RawBook } from "../types";
+import type { Book } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
-import { getShelf, deleteShelf, removeBookFromShelf, type Shelf } from "@/api/endpoints/shelves";
+import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
-
-const sortOptions = [
-  { key: "added_desc", label: "По дате добавления" },
-  { key: "title_asc", label: "По названию А→Я" },
-  { key: "author_asc", label: "По автору А→Я" },
-  { key: "rating_desc", label: "По рейтингу" },
-];
+import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
 
 export default function ShelfPage() {
   const { id } = useParams();
   const shelfId = Number(id);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [shelf, setShelf] = useState<Shelf | null>(null);
-  const [books, setBooks] = useState<RawBook[]>([]);
+  const [shelf, setShelf] = useState<ShelfSummary | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sort, setSort] = useState("added_desc");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Fallback default до первого fetch — реальный default-per-page определяется ниже после load'а
+  const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
 
   useEffect(() => {
-    getShelf(shelfId)
+    setLoading(true);
+    const controller = new AbortController();
+    getShelf(shelfId, { sort }, controller.signal)
       .then((data) => {
         setShelf(data.shelf);
         setBooks(data.books || []);
       })
       .catch((err) => {
-        if (err instanceof NotFoundError) {
-          // shelf not found — leave shelf=null, UI returns null
-        } else {
-          console.warn("Failed to load shelf:", err);
-        }
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (err instanceof NotFoundError) return;
+        console.warn("Failed to load shelf:", err);
       })
       .finally(() => setLoading(false));
-  }, [id]);
+    return () => controller.abort();
+  }, [shelfId, sort]);
 
-  const sorted = useMemo(() => {
-    const list = [...books];
-    switch (sort) {
-      case "title_asc": return list.sort((a, b) => a.title.localeCompare(b.title, "ru"));
-      case "author_asc": return list.sort((a, b) => {
-        const aName = splitCsv(a.authors)[0]?.split(" ").pop() || "";
-        const bName = splitCsv(b.authors)[0]?.split(" ").pop() || "";
-        return aName.localeCompare(bName, "ru");
-      });
-      case "rating_desc": return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      default: return list;
-    }
-  }, [books, sort]);
+  const bookIds = books.map((b) => b.id);
+  const cachedBookIds = useCachedBookIds(bookIds);
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  useEffect(() => {
+    if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
+  }, [shelf]);
 
   async function handleDelete() {
     try {
@@ -72,13 +61,6 @@ export default function ShelfPage() {
       console.warn("Failed to delete shelf:", err);
     }
   }
-
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
-
-  useEffect(() => {
-    if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
-  }, [shelf]);
 
   if (loading) {
     return (
@@ -91,15 +73,20 @@ export default function ShelfPage() {
 
   if (!shelf) return null;
 
+  const pageKey = shelfSortConfigKey(shelf.systemCode);
+  const cfg = SORT_CONFIG[pageKey];
+  const options = cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
+  const isReadingNow = shelf.systemCode === "reading_now";
+
   return (
     <>
       <PageHeader
         title={shelf.name}
-        sortOptions={sortOptions}
-        sortValue={sort}
-        onSortChange={setSort}
+        sortOptions={options}
+        sortValue={options ? sort : undefined}
+        onSortChange={options ? (s) => navigate(`/shelves/${shelfId}?sort=${s}`) : undefined}
         actionSlot={
-          !shelf.is_system ? (
+          !shelf.isSystem ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               style={{
@@ -121,23 +108,20 @@ export default function ShelfPage() {
       />
 
       <BookGrid>
-        {sorted.map((b) => {
-          const isReadingNow = shelf.system_code === "reading_now";
-          const fmt = b.last_format;
-          const frac = b.fraction;
-          const readerHref = isReadingNow && fmt ? `/book/${b.id}/read/${fmt.toLowerCase()}` : undefined;
+        {books.map((b) => {
+          const readerHref = isReadingNow && b.lastFormat ? `/book/${b.id}/read/${b.lastFormat.toLowerCase()}` : undefined;
           return (
             <BookCard
               key={b.id}
-              book={toBook(b)}
+              book={b}
               href={readerHref}
               onClick={readerHref ? setReadingFlag : undefined}
-              progressPercent={isReadingNow && frac ? Math.round(frac * 100) : undefined}
+              progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
               isCached={cachedBookIds.has(b.id)}
-              onRemove={!shelf.is_system ? async () => {
+              onRemove={!shelf.isSystem ? async () => {
                 try {
                   await removeBookFromShelf(shelfId, b.id);
-                  setBooks(books.filter((x) => x.id !== b.id));
+                  setBooks((prev) => prev.filter((x) => x.id !== b.id));
                 } catch (err) {
                   console.warn("Failed to remove book from shelf:", err);
                 }
@@ -147,13 +131,17 @@ export default function ShelfPage() {
         })}
       </BookGrid>
 
-      {!loading && sorted.length === 0 && (
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Полка пуста
-        </div>
+      {!loading && books.length === 0 && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>На полке нет книг</div>
       )}
+
       {showDeleteConfirm && (
-        <ConfirmDialog message={`Удалить полку «${shelf.name}»?`} onCancel={() => setShowDeleteConfirm(false)} onConfirm={handleDelete} />
+        <ConfirmDialog
+          message={`Удалить полку «${shelf.name}»? Все связи с книгами будут удалены. Книги останутся в библиотеке.`}
+          confirmLabel="Удалить"
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </>
   );
