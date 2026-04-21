@@ -24,7 +24,7 @@ def build_book_where(
         filters: `CatalogFilters` — user scope plus optional dimension filters
         exclude: optional key to skip (for cross-dimension filter options)
         extra_clauses: additional (sql_fragment, params_dict) tuples.
-            Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, lang.
+            Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, l0..lN.
 
     Returns:
         (where_sql, params) -- where_sql includes "WHERE " prefix or is empty string

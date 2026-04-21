@@ -40,6 +40,22 @@ class TestBuildBookWhere:
         assert params["l0"] == "ru"
         assert params["l1"] == "en"
 
+    def test_exclude_language(self):
+        from app.dal.filters import build_book_where
+        where, params = build_book_where(
+            {"authorIds": [1], "language": ["ru"]}, exclude="language"
+        )
+        assert "language" not in where
+        assert "l0" not in params
+        assert "book_authors" in where
+
+    def test_language_filter_multi_unicode(self):
+        from app.dal.filters import build_book_where
+        where, params = build_book_where({"language": ["Русский", "English"]})
+        assert "b.language IN (:l0,:l1)" in where
+        assert params["l0"] == "Русский"
+        assert params["l1"] == "English"
+
     def test_user_hidden_filter(self):
         from app.dal.filters import build_book_where
         where, params = build_book_where({"userId": 5})
