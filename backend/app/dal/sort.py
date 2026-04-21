@@ -5,14 +5,7 @@ UserSort — Literal из 8 sort-значений, допустимых в query
 last_read_desc не входит в UserSort — его не может передать пользователь,
 оно применяется backend'ом для reading_now shelf через SORT_CONFIG.
 """
-from typing import Literal
-
-UserSort = Literal[
-    "added_desc", "added_asc",
-    "title_asc", "title_desc",
-    "author_asc", "author_desc",
-    "rating_desc", "rating_asc",
-]
+from ..dtos.catalog import UserSort as UserSort  # canonical definition lives in dtos
 
 # SQL fragments with leading "ORDER BY " and deterministic tie-breakers.
 # Includes last_read_desc — internal key for reading_now shelf.

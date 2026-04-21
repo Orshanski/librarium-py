@@ -25,21 +25,14 @@ from ..search import (
     token_min_ratio,
 )
 from .filters import build_book_where
+from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "books", "sqlite3")
 
-ORDER = {
-    "title_asc": "ORDER BY COALESCE(b.sort_title, b.title) COLLATE NOCASE ASC, b.id",
-    "title_desc": "ORDER BY COALESCE(b.sort_title, b.title) COLLATE NOCASE DESC, b.id",
-    "author_asc": "ORDER BY (SELECT a.sort_name FROM authors a JOIN book_authors ba ON a.id = ba.author_id WHERE ba.book_id = b.id LIMIT 1) COLLATE NOCASE ASC, b.id",
-    "rating_desc": "ORDER BY (SELECT rating FROM user_books WHERE user_id = :uid AND book_id = b.id) DESC NULLS LAST, b.id",
-    "added_desc": "ORDER BY b.added_at DESC, b.id",
-}
 
-
-def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc", cursor=0, page_size=50) -> BookListPage:
-    if sort == "rating_desc" and not filters.get("userId"):
-        raise ValueError("rating_desc requires userId in filters")
+def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort: str = "added_desc", cursor=0, page_size=50) -> BookListPage:
+    if sort in ("rating_desc", "rating_asc") and not filters.get("userId"):
+        raise ValueError(f"{sort} requires userId in filters")
 
     where, params = build_book_where(filters)
     uid = filters.get("userId")
@@ -47,7 +40,7 @@ def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort="added_desc"
     params.update(lim=page_size + 1, off=cursor, uid=uid)
 
     # SQL-safe: {where_clause} and {order_clause} from whitelist-sources.
-    order_clause = ORDER.get(sort, ORDER["added_desc"])
+    order_clause = resolve_order_clause(sort)
     final_sql = (
         queries.get_books.sql
         .replace("{where_clause}", where)

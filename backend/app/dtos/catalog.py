@@ -1,5 +1,12 @@
 """Catalog filter spec — shared by filter_options endpoints and book listing."""
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
+
+UserSort = Literal[
+    "added_desc", "added_asc",
+    "title_asc", "title_desc",
+    "author_asc", "author_desc",
+    "rating_desc", "rating_asc",
+]
 
 
 class CatalogFilters(TypedDict):

@@ -11,6 +11,7 @@ from ..dtos.books import BookDetailResponse, BookListResponse, UpdateBookBody, U
 from ..exceptions import BadInputError
 from ..services import book_service
 from ..services.upload_service import BOOK_EXTENSIONS
+from ..dtos.catalog import UserSort
 from ._validators import NonBlankStr
 
 log = logging.getLogger("librarium.books")
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 def list_books(
     user: CurrentUser = Depends(get_current_user),
     db: sqlite3.Connection = Depends(db_session),
-    sort: str = "added_desc",
+    sort: UserSort = "added_desc",
     cursor: int = 0,
     pageSize: int = 50,
     authorIds: list[int] | None = Query(None),
