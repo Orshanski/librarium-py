@@ -20,8 +20,8 @@
     "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
   },
   "labels": {
-    "added_desc": "По дате добавления",
-    "added_asc": "Сначала старые",
+    "added_desc": "По дате добавления (сначала новые)",
+    "added_asc": "По дате добавления (сначала старые)",
     "title_asc": "По названию А→Я",
     "title_desc": "По названию Я→А",
     "author_asc": "По автору А→Я",
