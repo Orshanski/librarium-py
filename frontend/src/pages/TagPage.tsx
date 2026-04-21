@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
@@ -159,7 +159,7 @@ export default function TagPage() {
     navigate(`/tags/${tagId}?${params.toString()}`);
   }
 
-  const bookIds = books.map((b) => b.id);
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
   if (loading) {
