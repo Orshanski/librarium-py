@@ -10,8 +10,8 @@ export interface Author {
 }
 
 export interface AuthorListParams {
-  tagIds?: string;   // CSV
-  language?: string;
+  tagIds?: number[] | string[];
+  language?: string[];
 }
 
 export interface AuthorListResponse {
