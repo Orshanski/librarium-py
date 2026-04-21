@@ -9,8 +9,9 @@ import { colors } from "../theme";
 import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
+import { selectedToApiParams } from "../api/filter-params";
 
-const CACHE_KEY = "librarium_authors";
+const CACHE_KEY = "librarium_authors_v2";
 
 function saveCache(authors: Author[], selected: Record<string, string[]>) {
   try {
@@ -43,9 +44,9 @@ export default function AuthorsPage() {
   const [loading, setLoading] = useState(true);
   const frozenRef = useRef(false);
 
-  const genreFilter = selected.genre || [];
-  const langFilter = selected.language || [];
-  const paramsKey = `${genreFilter.join(",")}|${langFilter.join(",")}`;
+  const tagIds = selected.tagIds || [];
+  const languages = selected.language || [];
+  const paramsKey = `${tagIds.join(",")}|${languages.join(",")}`;
 
   // Restore from cache on mount
   const restoredRef = useRef(false);
@@ -84,13 +85,10 @@ export default function AuthorsPage() {
     setLoading(true);
     sessionStorage.removeItem(CACHE_KEY);
 
-    const params: { tagIds?: string; language?: string } = {};
-    if (genreFilter.length > 0) params.tagIds = genreFilter.join(",");
-    if (langFilter.length > 0) params.language = langFilter[0];
-
     const controller = new AbortController();
+    const apiParams = selectedToApiParams(selected);
 
-    listAuthors(params, controller.signal)
+    listAuthors(apiParams, controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
         setLoading(false);
@@ -137,7 +135,7 @@ export default function AuthorsPage() {
     <>
       <PageHeader
         title="Авторы"
-        filterKeys={["genre", "language"]}
+        filterKeys={["tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
         showUpload
