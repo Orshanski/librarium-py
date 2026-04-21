@@ -8,8 +8,11 @@ export interface Book {
   title: string;
   authors: string[];
   series: string | null;
+  seriesId?: number | null;
   seriesNumber: number | null;
   tags: string[];
+  tagIds?: number[];
+  authorIds?: number[];
   rating: number | null; // 1-5
   isRead: boolean;
   language: string;
@@ -19,6 +22,12 @@ export interface Book {
   pubDate: string | null;
   formats: BookFormat[];
   isbn: string | null;
+  sortTitle?: string | null;
+  addedAt?: string;
+  updatedAt?: string;
+  fraction?: number | null;
+  lastFormat?: string | null;
+  lastReadAt?: string | null;
 }
 
 /** Raw book data from API (GROUP_CONCAT strings for authors/tags). */
