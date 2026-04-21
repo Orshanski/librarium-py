@@ -98,8 +98,15 @@ class SeriesDetailRow(TypedDict):
 
 # --- tag ---
 
+class TagSummaryRow(TypedDict):
+    """DAL-level форма тега, raw row из SELECT * FROM tags. Snake keys."""
+    id: int
+    name: str
+    code: str | None
+
+
 class TagSummary(BaseModel):
-    """Response-level tag header в camelCase для /api/tags/{id}."""
+    """Заголовок тега на wire в camelCase — поле tag в ответе /api/tags/{id}."""
     id: int
     name: str
     code: str | None = None
@@ -107,7 +114,7 @@ class TagSummary(BaseModel):
 
 class TagDetailRow(TypedDict):
     """Return shape of dal.tags.get_tag_by_id."""
-    tag: TagSummary
+    tag: TagSummaryRow
     books: list["EntityBookRow"]
 
 

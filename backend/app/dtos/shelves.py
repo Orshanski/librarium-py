@@ -7,7 +7,7 @@ from .books import BookItem
 
 
 class ShelfSummary(BaseModel):
-    """Response-level shelf header в camelCase для /api/shelves/{id}."""
+    """Заголовок полки на wire в camelCase — поле shelf в ответе /api/shelves/{id}."""
     id: int
     name: str
     isSystem: bool
