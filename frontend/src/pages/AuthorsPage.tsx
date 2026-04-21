@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,7 +10,6 @@ import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
-import { useState } from "react";
 
 const CACHE_KEY = "librarium_authors_v2";
 
@@ -107,7 +106,6 @@ export default function AuthorsPage() {
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
-      if (authors.length > 0) saveCache(authors, paramsKey);
     };
   }, [authors, paramsKey]);
 

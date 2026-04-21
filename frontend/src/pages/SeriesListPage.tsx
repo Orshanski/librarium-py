@@ -107,7 +107,6 @@ export default function SeriesListPage() {
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       main.removeEventListener("scroll", onScroll);
-      if (allSeries.length > 0) saveCache(allSeries, paramsKey);
     };
   }, [allSeries, paramsKey]);
 
