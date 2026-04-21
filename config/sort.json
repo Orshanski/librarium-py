@@ -1,0 +1,33 @@
+{
+  "catalog": {
+    "default": "added_desc",
+    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+  },
+  "tag": {
+    "default": "added_desc",
+    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+  },
+  "shelf_best": {
+    "default": "rating_desc",
+    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+  },
+  "shelf_reading_now": {
+    "default": "last_read_desc",
+    "options": []
+  },
+  "shelf_regular": {
+    "default": "added_desc",
+    "options": ["added_desc", "added_asc", "title_asc", "title_desc", "author_asc", "author_desc", "rating_desc", "rating_asc"]
+  },
+  "labels": {
+    "added_desc": "По дате добавления",
+    "added_asc": "Сначала старые",
+    "title_asc": "По названию А→Я",
+    "title_desc": "По названию Я→А",
+    "author_asc": "По автору А→Я",
+    "author_desc": "По автору Я→А",
+    "rating_desc": "По рейтингу (высокие первыми)",
+    "rating_asc": "По рейтингу (низкие первыми)",
+    "last_read_desc": "По дате чтения"
+  }
+}
