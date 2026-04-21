@@ -20,7 +20,7 @@ def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list
     return dicts_from_rows(db.execute(final_sql, params).fetchall())
 
 
-def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: str | None = None) -> SeriesList:
+def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: list[str] | None = None) -> SeriesList:
     filters: CatalogFilters = {"userId": user_id}
     if author_ids:
         filters["authorIds"] = author_ids

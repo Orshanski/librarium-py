@@ -12,7 +12,7 @@ from .filters import build_book_where
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "authors", "sqlite3")
 
 
-def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: str | None = None) -> AuthorsList:
+def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: list[str] | None = None) -> AuthorsList:
     filters: CatalogFilters = {"userId": user_id}
     if tag_ids:
         filters["tagIds"] = tag_ids
