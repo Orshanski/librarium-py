@@ -110,7 +110,7 @@ describe("useScrollRestore", () => {
 
   it("click по элементу с data-breadcrumb='true': запись не обновляется", () => {
     const link = document.createElement("a");
-    link.setAttribute("data-breadcrumb", "true");
+    link.dataset.breadcrumb = "true";
     main.appendChild(link);
     render(
       <MemoryRouter initialEntries={["/catalog"]}>
@@ -125,7 +125,7 @@ describe("useScrollRestore", () => {
 
   it("click по потомку data-breadcrumb='true': тоже не обновляется (closest)", () => {
     const link = document.createElement("a");
-    link.setAttribute("data-breadcrumb", "true");
+    link.dataset.breadcrumb = "true";
     const child = document.createElement("span");
     link.appendChild(child);
     main.appendChild(link);

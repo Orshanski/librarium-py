@@ -12,6 +12,8 @@ from .exceptions import AuthError, ForbiddenError
 
 log = logging.getLogger("librarium.auth")
 
+_INVALID_TOKEN = "Invalid token"
+
 UserRole = Literal["admin", "reader"]
 
 
@@ -47,23 +49,23 @@ class CurrentUser:
     def from_payload(cls, payload: dict[str, Any]) -> "CurrentUser":
         if "userId" not in payload:
             log.warning("JWT malformed: userId missing")
-            raise AuthError("Invalid token")
+            raise AuthError(_INVALID_TOKEN)
         user_id = payload["userId"]
         # bool-guard: Python treats `bool` as `int` subclass — without this,
         # True / False would pass the int check.
         if isinstance(user_id, bool) or not isinstance(user_id, int):
             log.warning("JWT malformed: userId not int (got %s)", type(user_id).__name__)
-            raise AuthError("Invalid token")
+            raise AuthError(_INVALID_TOKEN)
         if "role" not in payload:
             log.warning("JWT malformed: role missing")
-            raise AuthError("Invalid token")
+            raise AuthError(_INVALID_TOKEN)
         role = payload["role"]
         if not isinstance(role, str):
             log.warning("JWT malformed: role not string (got %s)", type(role).__name__)
-            raise AuthError("Invalid token")
+            raise AuthError(_INVALID_TOKEN)
         if not role:
             log.warning("JWT malformed: role empty")
-            raise AuthError("Invalid token")
+            raise AuthError(_INVALID_TOKEN)
         # Runtime intentionally accepts any non-empty string so unexpected JWT
         # roles produce ForbiddenError downstream (in require_admin / route
         # guards), not AuthError here. Literal is type-level only; the ignore
@@ -108,7 +110,7 @@ def get_current_user(request: Request) -> CurrentUser:
         # invalid-token path is observable in `librarium.auth`, matching
         # the from_payload log coverage.
         log.warning("JWT decode failed: %s", type(exc).__name__)
-        raise AuthError("Invalid token")
+        raise AuthError(_INVALID_TOKEN)
 
     # Validate shape BEFORE touching payload[...] in refresh branch — turns
     # malformed tokens into AuthError (401), not KeyError (500).

@@ -7,6 +7,8 @@ from ..dtos.shelves import BookShelfEntry, ShelfDetailResponse, ShelfSummary, Sh
 from ..exceptions import NotFoundError
 from .book_item_builder import row_to_book_item
 
+_NOT_FOUND = "Not found"
+
 
 def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> ShelvesListResponse:
     shelves = dal.get_shelves(db, user_id)
@@ -31,7 +33,7 @@ def get_shelf(
 ) -> ShelfDetailResponse:
     result = dal.get_shelf_by_id(db, shelf_id, user_id, sort)
     if not result:
-        raise NotFoundError("Not found")
+        raise NotFoundError(_NOT_FOUND)
     shelf_row = result["shelf"]
     return ShelfDetailResponse(
         shelf=ShelfSummary(
@@ -46,23 +48,23 @@ def get_shelf(
 
 def update_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int, name: str) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
-        raise NotFoundError("Not found")
+        raise NotFoundError(_NOT_FOUND)
     dal.update_shelf(db, shelf_id, name)
 
 
 def delete_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
-        raise NotFoundError("Not found")
+        raise NotFoundError(_NOT_FOUND)
     dal.delete_shelf(db, shelf_id)
 
 
 def add_book(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
-        raise NotFoundError("Not found")
+        raise NotFoundError(_NOT_FOUND)
     dal.add_book_to_shelf(db, shelf_id, book_id)
 
 
 def remove_book(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
-        raise NotFoundError("Not found")
+        raise NotFoundError(_NOT_FOUND)
     dal.remove_book_from_shelf(db, shelf_id, book_id)
