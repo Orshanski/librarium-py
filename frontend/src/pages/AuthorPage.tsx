@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { Book, toBook, splitCsv } from "../types";
@@ -24,6 +25,7 @@ interface AuthorData {
 export default function AuthorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [author, setAuthor] = useState<AuthorData | null>(null);
@@ -31,6 +33,8 @@ export default function AuthorPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+
+  useScrollRestore(!loading);
 
   useEffect(() => {
     const numericId = Number(id);
@@ -134,7 +138,17 @@ export default function AuthorPage() {
           onDeleted={() => navigate("/authors")}
         />
       )}
-      <AuthorDetail author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }} books={books} />
+      <AuthorDetail
+        author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }}
+        books={books}
+        bookLinkState={{
+          origin: {
+            type: "author",
+            url: location.pathname + location.search,
+            label: author.name,
+          },
+        }}
+      />
     </>
   );
 }
