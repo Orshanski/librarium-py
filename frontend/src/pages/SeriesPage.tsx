@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
@@ -17,6 +18,7 @@ import { NotFoundError } from "@/api/errors";
 export default function SeriesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [series, setSeries] = useState<Series | null>(null);
@@ -24,6 +26,8 @@ export default function SeriesPage() {
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+
+  useScrollRestore(!loading);
 
   useEffect(() => {
     const numericId = Number(id);
@@ -131,6 +135,13 @@ export default function SeriesPage() {
             key={b.id}
             book={toBook(b)}
             isCached={cachedBookIds.has(b.id)}
+            linkState={{
+              origin: {
+                type: "series",
+                url: location.pathname + location.search,
+                label: series.name,
+              },
+            }}
           />
         ))}
       </BookGrid>
