@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 import { server } from "@/test/msw/server";
+import { ResponsiveProvider } from "@/responsive";
 import SmartFilterBar from "./smart-filter-bar";
 
 const mockAuthors = [
@@ -52,6 +53,7 @@ describe("SmartFilterBar", () => {
         selected={{}}
         onSelectionChange={() => {}}
       />,
+      { wrapper: ResponsiveProvider },
     );
 
     await waitFor(() => {
@@ -84,6 +86,7 @@ describe("SmartFilterBar", () => {
         selected={{}}
         onSelectionChange={() => {}}
       />,
+      { wrapper: ResponsiveProvider },
     );
 
     // Swap handler to a fast one and rerender immediately — while the first
@@ -135,6 +138,7 @@ describe("SmartFilterBar", () => {
         selected={{}}
         onSelectionChange={() => {}}
       />,
+      { wrapper: ResponsiveProvider },
     );
 
     // Both filter buttons should still render (the failed dimension gets an

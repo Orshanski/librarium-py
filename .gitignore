@@ -22,3 +22,6 @@ backend/scripts/linearize_existing_pdfs.py
 .dolt/
 *.db
 .beads-credential-key
+
+# SonarCloud scanner working directory
+.scannerwork/
