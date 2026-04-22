@@ -30,5 +30,8 @@ export function ResponsiveProvider({ children }: { children: ReactNode }) {
 
 export function useIsMobile() {
   const contextValue = useContext(ResponsiveContext);
-  return contextValue ?? useResponsiveValue();
+  if (contextValue === null) {
+    throw new Error("useIsMobile must be used within ResponsiveProvider");
+  }
+  return contextValue;
 }
