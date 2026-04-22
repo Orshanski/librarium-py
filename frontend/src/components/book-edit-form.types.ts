@@ -1,5 +1,6 @@
 import { RefObject } from "react";
 import { Book, BookFormat } from "../types";
+import type { BookContextOrigin } from "./breadcrumb-origin";
 
 export interface NamedOption {
   id: number;
@@ -50,6 +51,7 @@ export interface BookEditFormProps {
   book: Book;
   options?: BookEditOptions;
   onSave?: (data: BookSavePayload) => Promise<void> | void;
+  editOrigin?: BookContextOrigin;
 }
 
 export interface BookEditViewProps {

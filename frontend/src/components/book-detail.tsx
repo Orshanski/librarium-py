@@ -8,6 +8,7 @@ import ConfirmDialog from "./confirm-dialog";
 import DesktopBookDetail from "./desktop/desktop-book-detail";
 import MobileBookDetail from "./mobile/mobile-book-detail";
 import { Shelf } from "./book-detail.types";
+import type { ListOrigin } from "./breadcrumb-origin";
 import { listShelves, addBookToShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
 import { getCover } from "@/api/endpoints/covers";
 import {
@@ -21,9 +22,11 @@ import {
 export default function BookDetail({
   book,
   seriesBooks,
+  bookOrigin,
 }: {
   book: Book;
   seriesBooks: Book[];
+  bookOrigin: ListOrigin;
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -131,6 +134,7 @@ export default function BookDetail({
   const detailProps = {
     book,
     seriesBooks,
+    bookOrigin,
     isAdmin,
     rating,
     isRead,

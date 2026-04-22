@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -34,10 +33,6 @@ export default function TagPage() {
   const authorIds = selected.authorIds || [];
   const seriesIds = selected.seriesIds || [];
   const languages = selected.language || [];
-
-  useEffect(() => {
-    if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
-  }, [tag, tagId]);
 
   useEffect(() => {
     if (isNaN(tagId)) {
@@ -81,7 +76,7 @@ export default function TagPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: "/tags" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -90,7 +85,7 @@ export default function TagPage() {
   if (notFound || !tag) {
     return (
       <>
-        <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Жанр не найден</div>
       </>
     );
@@ -119,7 +114,7 @@ export default function TagPage() {
         title={tag.name}
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
-        breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
+        breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}

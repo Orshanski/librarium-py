@@ -58,7 +58,7 @@ describe("book-detail — shelves", () => {
       })
     );
 
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Open shelf menu
     const shelfButton = screen.getByRole("button", { name: /на полку/i });
@@ -114,7 +114,7 @@ describe("book-detail — shelves", () => {
       })
     );
 
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Open shelf menu
     const shelfButton = screen.getByRole("button", { name: /на полку/i });
@@ -158,7 +158,7 @@ describe("book-detail — cover display", () => {
   });
 
   it("renders cover img with src from book.coverPath", () => {
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     const img = screen.getByRole("img", { name: mockBook.title });
     expect(img).toBeInTheDocument();
@@ -167,7 +167,7 @@ describe("book-detail — cover display", () => {
 
   it("cover img src uses correct /api/covers/:id pattern (no full=1 for display)", () => {
     const bookWithCover: Book = { ...mockBook, id: 99, coverPath: "/api/covers/99" };
-    renderWithProviders(<BookDetail book={bookWithCover} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={bookWithCover} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     const img = screen.getByRole("img", { name: bookWithCover.title });
     expect((img as HTMLImageElement).getAttribute("src")).toBe("/api/covers/99");
@@ -196,7 +196,7 @@ describe("book-detail — books", () => {
     );
 
     const bookWithRating: Book = { ...mockBook, rating: 3 };
-    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Stars are rendered as <span> elements with text "★" (not buttons)
     const starSpans = screen.getAllByText("★");
@@ -225,7 +225,7 @@ describe("book-detail — books", () => {
     );
 
     const bookWithRating: Book = { ...mockBook, rating: 3 };
-    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={bookWithRating} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     const starSpans = screen.getAllByText("★");
     expect(starSpans.length).toBe(5);
@@ -266,7 +266,7 @@ describe("book-detail — books", () => {
     );
 
     // mockBook.isRead = false → button shows "Не прочитано"
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     const readButton = screen.getByText(/не прочитано/i);
     await user.click(readButton);
@@ -290,7 +290,7 @@ describe("book-detail — books", () => {
       })
     );
 
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Initially "Не прочитано"
     expect(screen.getByText(/не прочитано/i)).toBeInTheDocument();
@@ -322,7 +322,7 @@ describe("book-detail — books", () => {
       })
     );
 
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Wait for admin role to load (auth async fetch)
     const deleteButton = await screen.findByRole("button", { name: "Удалить" });
@@ -350,7 +350,7 @@ describe("book-detail — books", () => {
       )
     );
 
-    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} />);
+    renderWithProviders(<BookDetail book={mockBook} seriesBooks={[]} bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }} />);
 
     // Wait for admin role to load
     const deleteButton = await screen.findByRole("button", { name: "Удалить" });

@@ -6,7 +6,6 @@ import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
-import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
@@ -124,9 +123,6 @@ export default function CatalogPage() {
 
   // Загрузка при loading=true (initial mount без кэша, или смена URL без кэша).
   useEffect(() => {
-    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
-
     if (!state.loading || state.urlKey !== urlKey) return;
     const controller = new AbortController();
     listBooks(buildApiParams(0), controller.signal)

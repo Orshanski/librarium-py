@@ -1,12 +1,14 @@
 import { RefObject } from "react";
 import { Book } from "../types";
 import type { Shelf } from "@/api/endpoints/shelves";
+import type { ListOrigin } from "./breadcrumb-origin";
 
 export type { Shelf } from "@/api/endpoints/shelves";
 
 export interface BookDetailViewProps {
   book: Book;
   seriesBooks: Book[];
+  bookOrigin: ListOrigin;
   isAdmin: boolean;
   rating: number | null;
   isRead: boolean;

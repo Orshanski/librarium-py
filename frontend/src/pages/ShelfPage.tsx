@@ -6,7 +6,6 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
-import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
 import type { Book } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
@@ -47,10 +46,6 @@ export default function ShelfPage() {
 
   const bookIds = books.map((b) => b.id);
   const cachedBookIds = useCachedBookIds(bookIds);
-
-  useEffect(() => {
-    if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
-  }, [shelf]);
 
   async function handleDelete() {
     try {

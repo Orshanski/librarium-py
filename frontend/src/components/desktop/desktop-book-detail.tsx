@@ -25,6 +25,7 @@ const actionButtonStyle: React.CSSProperties = {
 export default function DesktopBookDetail({
   book,
   seriesBooks,
+  bookOrigin,
   isAdmin,
   rating,
   isRead,
@@ -42,6 +43,14 @@ export default function DesktopBookDetail({
   onToggleCache,
   showCacheToggle,
 }: BookDetailViewProps) {
+  const bookContext = {
+    origin: {
+      type: "book" as const,
+      url: `/book/${book.id}`,
+      label: book.title,
+      bookOrigin,
+    },
+  };
   return (
     <div>
       <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
@@ -138,6 +147,7 @@ export default function DesktopBookDetail({
 
           <Link
             to={`/book/${book.id}/similar`}
+            state={bookContext}
             style={{
               ...actionButtonStyle,
               marginTop: 6,
@@ -158,29 +168,28 @@ export default function DesktopBookDetail({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
               {book.authors.map((author) => (
-                <Link
+                <span
                   key={author}
-                  to="/authors"
                   style={{
                     color: colors.accent,
-                    textDecoration: "none",
                     fontSize: 16,
                     marginRight: 12,
                   }}
                 >
                   {author}
-                </Link>
+                </span>
               ))}
             </div>
             {isAdmin && (
               <div style={{ display: "flex", gap: 12 }}>
-                <a
-                  href={`/book/${book.id}/edit`}
+                <Link
+                  to={`/book/${book.id}/edit`}
+                  state={bookContext}
                   title="Редактировать"
                   style={{ background: "none", border: `1px solid ${colors.border}`, borderRadius: 6, cursor: "pointer", fontSize: 12, color: colors.textDim, padding: "4px 10px", fontFamily: "inherit", textDecoration: "none" }}
                 >
                   Ред.
-                </a>
+                </Link>
                 <button
                   title="Удалить"
                   onClick={onShowDeleteConfirm}
@@ -194,17 +203,15 @@ export default function DesktopBookDetail({
 
           {book.series && (
             <div style={{ marginBottom: 16 }}>
-              <Link
-                to="/series"
+              <span
                 style={{
                   color: colors.textSecondary,
-                  textDecoration: "none",
                   fontSize: 14,
                 }}
               >
                 {book.series}
                 {book.seriesNumber ? ` — книга ${book.seriesNumber}` : ""}
-              </Link>
+              </span>
             </div>
           )}
 

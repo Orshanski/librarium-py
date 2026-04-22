@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import PageHeader from "../components/page-header";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
-import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
@@ -22,7 +21,6 @@ export default function AuthorsPage() {
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
   useEffect(() => {
-    saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
 
     setLoading(true);
     const controller = new AbortController();

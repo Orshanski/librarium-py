@@ -1,22 +1,31 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { getBookOrigin } from "../utils/breadcrumb-state";
+import { useParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
+import type { BookOrigin, ListOrigin } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
 import { getBook, listBooks, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
 
+const FALLBACK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
+
 export default function BookPage() {
   const { id } = useParams();
+  const location = useLocation();
   const [book, setBook] = useState<RawBook | null>(null);
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const stateOrigin = (location.state as { origin?: BookOrigin } | null)?.origin;
+  const origin: ListOrigin =
+    stateOrigin && stateOrigin.type !== "book" ? stateOrigin : FALLBACK_ORIGIN;
+
+  const crumb = { label: origin.label, href: origin.url };
 
   useEffect(() => {
     if (!id) return;
@@ -31,7 +40,6 @@ export default function BookPage() {
         setFiles(data.files || []);
         setIdentifiers(data.identifiers || []);
 
-        // Load series books if book has a series
         if (data.book.series_id) {
           listBooks(
             { seriesIds: [String(data.book.series_id)], pageSize: 50, sort: "addedDesc" },
@@ -68,7 +76,7 @@ export default function BookPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={getBookOrigin()} />
+        <PageHeader title="..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -77,13 +85,12 @@ export default function BookPage() {
   if (notFound || !book) {
     return (
       <>
-        <PageHeader title="Книга не найдена" breadcrumb={getBookOrigin()} />
+        <PageHeader title="Книга не найдена" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Книга не найдена</div>
       </>
     );
   }
 
-  // Transform to component format
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
   const bookData: Book = {
     ...toBook(book, { fullCover: true, isbn }),
@@ -99,8 +106,8 @@ export default function BookPage() {
 
   return (
     <>
-      <PageHeader title={book.title} breadcrumb={getBookOrigin()} />
-      <BookDetail book={bookData} seriesBooks={seriesBooksData} />
+      <PageHeader title={book.title} breadcrumb={crumb} />
+      <BookDetail book={bookData} seriesBooks={seriesBooksData} bookOrigin={origin} />
     </>
   );
 }

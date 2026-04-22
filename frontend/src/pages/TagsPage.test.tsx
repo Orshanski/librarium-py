@@ -73,29 +73,4 @@ describe("TagsPage", () => {
     expect(screen.getByRole("link", { name: /Mystery/ })).toBeInTheDocument();
   });
 
-  it("saves breadcrumb URL on mount", async () => {
-    server.use(
-      http.get("/api/tags/cloud", () =>
-        HttpResponse.json({ tags: [{ id: 1, name: "Fiction", book_count: 10 }] })
-      ),
-      http.get("/api/filter-options/tags", () =>
-        HttpResponse.json({ tags: [{ id: 1, name: "Fiction" }] })
-      )
-    );
-
-    renderWithProviders(<TagsPage />, { initialEntries: ["/tags"] });
-
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /^Fiction \(10\)$/ })).toBeInTheDocument();
-    });
-
-    // Check that breadcrumb was saved. `.toBeDefined()` would pass on a
-    // null getItem result — use `.not.toBeNull()` + non-empty string.
-    // Exact URL content isn't asserted because TagsPage reads `window.location`
-    // directly (not react-router), which in jsdom is always "/" regardless of
-    // MemoryRouter initialEntries. The meaningful signal here is "saved at all".
-    const saved = sessionStorage.getItem("librarium_breadcrumb_tags");
-    expect(saved).not.toBeNull();
-    expect(saved!.length).toBeGreaterThan(0);
-  });
 });

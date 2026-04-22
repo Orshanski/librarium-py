@@ -5,7 +5,6 @@ import PageHeader from "../components/page-header";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
-import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
@@ -22,8 +21,6 @@ export default function SeriesListPage() {
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
   useEffect(() => {
-    saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
-
     setLoading(true);
     const controller = new AbortController();
     const selected: SelectedFilters = {};

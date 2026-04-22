@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import SimilarBooksGrid from "../components/similar-books-grid";
 import { SimilarBook } from "../components/similar-books.types";
+import type { BookOrigin, BookContextOrigin } from "../components/breadcrumb-origin";
 import { colors, fonts } from "../theme";
 import { useIsMobile } from "../responsive";
 import { getBook } from "../api/endpoints/books";
@@ -13,6 +14,7 @@ import type { RawBook } from "../types";
 
 export default function SimilarBooksPage() {
   const { id } = useParams();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const [book, setBook] = useState<RawBook | null>(null);
   const [similar, setSimilar] = useState<SimilarBook[]>([]);
@@ -47,11 +49,18 @@ export default function SimilarBooksPage() {
     return () => { controller.abort(); };
   }, [id]);
 
+  const raw = location.state as { origin?: BookOrigin } | null;
+  const stateOrigin: BookContextOrigin | undefined =
+    raw?.origin?.type === "book" ? raw.origin : undefined;
+
+  const crumbLabel = stateOrigin?.label ?? book?.title ?? "Книга";
+  const crumbHref = stateOrigin?.url ?? `/book/${id}`;
+
   return (
     <>
       <PageHeader
         title="Похожие книги"
-        breadcrumb={{ label: book?.title || "Книга", href: `/book/${id}` }}
+        breadcrumb={{ label: crumbLabel, href: crumbHref }}
       />
 
       {book && (

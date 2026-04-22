@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
 import PageHeader from "../components/page-header";
 import AuthorDetail from "../components/author-detail";
@@ -70,14 +69,10 @@ export default function AuthorPage() {
     return () => controller.abort();
   }, [id]);
 
-  useEffect(() => {
-    if (author) saveBookOrigin(author.name, `/authors/${author.id}`);
-  }, [author]);
-
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
+        <PageHeader title="..." breadcrumb={{ label: "Авторы", href: "/authors" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -86,7 +81,7 @@ export default function AuthorPage() {
   if (notFound || !author) {
     return (
       <>
-        <PageHeader title="Автор не найден" breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
+        <PageHeader title="Автор не найден" breadcrumb={{ label: "Авторы", href: "/authors" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Автор не найден</div>
       </>
     );
@@ -126,7 +121,7 @@ export default function AuthorPage() {
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
         infoSlot={infoSlot}
-        breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }}
+        breadcrumb={{ label: "Авторы", href: "/authors" }}
       />
       {showAdmin && author && (
         <EntityAdminPanel

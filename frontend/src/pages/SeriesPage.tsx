@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -58,14 +57,10 @@ export default function SeriesPage() {
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
-  useEffect(() => {
-    if (series) saveBookOrigin(series.name, `/series/${series.id}`);
-  }, [series]);
-
   if (notFoundState) {
     return (
       <>
-        <PageHeader title="Серия не найдена" breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
+        <PageHeader title="Серия не найдена" breadcrumb={{ label: "Серии", href: "/series" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Серия не найдена</div>
       </>
     );
@@ -74,7 +69,7 @@ export default function SeriesPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
+        <PageHeader title="..." breadcrumb={{ label: "Серии", href: "/series" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -114,7 +109,7 @@ export default function SeriesPage() {
         title={series.name}
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
-        breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }}
+        breadcrumb={{ label: "Серии", href: "/series" }}
         infoSlot={infoSlot}
       />
 
