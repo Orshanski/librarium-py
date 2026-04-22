@@ -9,6 +9,7 @@ import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 
 export default function AuthorsPage() {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export default function AuthorsPage() {
 
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useScrollRestore(!loading);
 
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
