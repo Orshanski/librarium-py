@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getCacheVersion } from "../utils/cache-invalidation";
+import { getCacheVersion, CATALOG_CACHE_KEY } from "../utils/cache-invalidation";
 
 const STACK_KEY = "librarium_scroll_state";
-const CATALOG_CACHE_KEY = "librarium_catalog_cache";
 
 export type ScrollStackEntry = { url: string; scrollTop: number; version: number };
 
@@ -90,9 +89,11 @@ export function useScrollRestore(ready: boolean): void {
     const idx = stack.findIndex((e) => e.url === url);
     let target: number;
     if (idx >= 0) {
-      const trimmed = stack.slice(0, idx + 1);
-      writeStack(trimmed);
-      target = trimmed[idx].scrollTop;
+      // Trim only если реально отрезаем хвост — иначе избыточный write при каждом ре-рендере.
+      if (idx < stack.length - 1) {
+        writeStack(stack.slice(0, idx + 1));
+      }
+      target = stack[idx].scrollTop;
     } else {
       writeStack([...stack, { url, scrollTop: 0, version: getCacheVersion() }]);
       target = 0;

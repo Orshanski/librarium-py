@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import BookEditPage from "./BookEditPage";
@@ -107,6 +107,89 @@ describe("BookEditPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Book Detail")).toBeInTheDocument();
+    });
+  });
+
+  it("save: navigate state.origin взят из editOrigin.bookOrigin (цепочка crumb к источнику)", async () => {
+    setupAllHandlers();
+    server.use(
+      http.put("/api/books/:id", () => HttpResponse.json({ ok: true })),
+    );
+
+    let capturedState: unknown = null;
+    function LocationSpy() {
+      const location = useLocation();
+      capturedState = location.state;
+      return <div>Book Detail state-spy</div>;
+    }
+
+    const editOrigin = {
+      type: "book" as const,
+      url: "/book/42",
+      label: "Тестовая книга",
+      bookOrigin: {
+        type: "author" as const,
+        url: "/authors/7",
+        label: "Автор Тестов",
+      },
+    };
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id/edit" element={<BookEditPage />} />
+        <Route path="/book/:id" element={<LocationSpy />} />
+      </Routes>,
+      { initialEntries: [{ pathname: "/book/42/edit", state: { origin: editOrigin } }] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Тестовая книга")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /сохранить/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Book Detail state-spy")).toBeInTheDocument();
+    });
+
+    expect(capturedState).toEqual({ origin: editOrigin.bookOrigin });
+  });
+
+  it("save без editOrigin в state: navigate state.origin = fallback Каталог", async () => {
+    setupAllHandlers();
+    server.use(
+      http.put("/api/books/:id", () => HttpResponse.json({ ok: true })),
+    );
+
+    let capturedState: unknown = null;
+    function LocationSpy() {
+      const location = useLocation();
+      capturedState = location.state;
+      return <div>Book Detail state-spy</div>;
+    }
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id/edit" element={<BookEditPage />} />
+        <Route path="/book/:id" element={<LocationSpy />} />
+      </Routes>,
+      { initialEntries: ["/book/42/edit"] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Тестовая книга")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /сохранить/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Book Detail state-spy")).toBeInTheDocument();
+    });
+
+    expect(capturedState).toEqual({
+      origin: { type: "catalog", url: "/", label: "Каталог" },
     });
   });
 

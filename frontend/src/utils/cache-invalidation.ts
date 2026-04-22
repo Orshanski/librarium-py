@@ -1,5 +1,7 @@
 const KEY = "librarium_cache_version";
 
+export const CATALOG_CACHE_KEY = "librarium_catalog_cache";
+
 export function getCacheVersion(): number {
   const raw = sessionStorage.getItem(KEY);
   if (raw === null) return 0;

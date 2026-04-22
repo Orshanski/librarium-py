@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
@@ -9,13 +9,12 @@ import { colors } from "../theme";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
-import { getCacheVersion } from "../utils/cache-invalidation";
+import { getCacheVersion, CATALOG_CACHE_KEY } from "../utils/cache-invalidation";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
-const CATALOG_CACHE_KEY = "librarium_catalog_cache";
 
 type CatalogCacheEntry = {
   books: RawBook[];
@@ -73,6 +72,7 @@ function initialStateFor(url: string): CatalogState {
 
 export default function CatalogPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const sort = searchParams.get("sort") || SORT_CONFIG.catalog.default;
@@ -81,7 +81,7 @@ export default function CatalogPage() {
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
-  const urlKey = window.location.pathname + window.location.search;
+  const urlKey = location.pathname + location.search;
 
   const [state, setState] = useState<CatalogState>(() => initialStateFor(urlKey));
 

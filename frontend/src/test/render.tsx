@@ -1,5 +1,5 @@
 import { render, type RenderOptions } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, type InitialEntry } from "react-router-dom";
 import { type ReactElement, type ReactNode } from "react";
 import type { Queries } from "@testing-library/dom";
 import { queries as defaultQueries } from "@testing-library/dom";
@@ -11,7 +11,7 @@ type TestRenderOptions<
   Container extends Element | DocumentFragment = HTMLElement,
   BaseElement extends Element | DocumentFragment = Container,
 > = Omit<RenderOptions<Q, Container, BaseElement>, "wrapper"> & {
-  initialEntries?: string[];
+  initialEntries?: InitialEntry[];
 };
 
 function AllProviders({
@@ -19,7 +19,7 @@ function AllProviders({
   initialEntries,
 }: {
   children: ReactNode;
-  initialEntries?: string[];
+  initialEntries?: InitialEntry[];
 }) {
   return (
     <MemoryRouter initialEntries={initialEntries ?? ["/"]}>

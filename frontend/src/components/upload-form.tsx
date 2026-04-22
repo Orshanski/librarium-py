@@ -201,7 +201,6 @@ export default function UploadForm() {
       }
     }
 
-    sessionStorage.removeItem("librarium_catalog");
     setSaving(false);
     setSaved(true);
   }
