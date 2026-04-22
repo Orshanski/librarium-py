@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -14,37 +14,10 @@ import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
-const CACHE_KEY = "librarium_catalog_v2";
-
-function saveCache(books: RawBook[], hasMore: boolean, paramsKey: string) {
-  try {
-    const main = document.querySelector("main");
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-      books,
-      hasMore,
-      paramsKey,
-      scrollTop: main?.scrollTop || 0,
-    }));
-  } catch {}
-}
-
-function loadCache(paramsKey: string) {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data.paramsKey !== paramsKey) return null;
-    if (!data.books?.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
 
 export default function CatalogPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const frozenRef = useRef(false); // block lazy load after restore
 
   const [books, setBooks] = useState<RawBook[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -56,7 +29,6 @@ export default function CatalogPage() {
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const paramsKey = `${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
   const buildApiParams = useCallback((cursor: number, size?: number) => {
     const params: BookListParams = {
@@ -73,42 +45,17 @@ export default function CatalogPage() {
     };
   }, [sort, authorIds, seriesIds, tagIds, language]);
 
-  // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
     saveBookOrigin("Каталог", window.location.pathname + window.location.search);
-    const fresh = searchParams.get("fresh");
-    if (fresh) {
-      sessionStorage.removeItem(CACHE_KEY);
-      navigate("/", { replace: true });
-    }
-    const cached = fresh ? null : loadCache(paramsKey);
-    if (cached) {
-      setBooks(cached.books);
-      setHasMore(cached.hasMore);
-      setLoading(false);
-      frozenRef.current = true;
-      // Restore scroll after render
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const main = document.querySelector("main");
-          if (main) main.scrollTop = cached.scrollTop;
-          // Unfreeze lazy load after scroll is restored
-          setTimeout(() => { frozenRef.current = false; }, 200);
-        });
-      });
-      return;
-    }
 
     setLoading(true);
-    sessionStorage.removeItem(CACHE_KEY);
     const controller = new AbortController();
     listBooks(buildApiParams(0), controller.signal)
       .then((data) => {
         setBooks(data.books || []);
         setHasMore(data.hasMore || false);
         setLoading(false);
-        frozenRef.current = false;
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -117,11 +64,10 @@ export default function CatalogPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [paramsKey, buildApiParams]);
+  }, [buildApiParams]);
 
-  // Lazy load
   const loadMore = useCallback(() => {
-    if (loadingMore || !hasMore || frozenRef.current) return;
+    if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     listBooks(buildApiParams(books.length))
       .then((data) => {
@@ -140,23 +86,18 @@ export default function CatalogPage() {
       });
   }, [books.length, hasMore, loadingMore, buildApiParams]);
 
-  // Scroll listener for lazy load + cache save
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
 
     function onScroll() {
-      // Save scroll position to cache
-      saveCache(books, hasMore, paramsKey);
-
-      // Lazy load trigger
-      if (!frozenRef.current && main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
+      if (main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
         loadMore();
       }
     }
 
     function check() {
-      if (!frozenRef.current && main!.scrollHeight <= main!.clientHeight) {
+      if (main!.scrollHeight <= main!.clientHeight) {
         loadMore();
       }
     }
@@ -167,9 +108,8 @@ export default function CatalogPage() {
       main.removeEventListener("scroll", onScroll);
       clearTimeout(timer);
     };
-  }, [loadMore, books, hasMore, paramsKey]);
+  }, [loadMore]);
 
-  // URL param helpers
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, values] of Object.entries(updates)) {
@@ -178,11 +118,9 @@ export default function CatalogPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    sessionStorage.removeItem(CACHE_KEY);
     navigate(`/?${params.toString()}`);
   }
 
-  // Build selected filters from URL params
   const selected: SelectedFilters = {};
   if (authorIds.length) selected.authorIds = authorIds;
   if (seriesIds.length) selected.seriesIds = seriesIds;
@@ -194,7 +132,6 @@ export default function CatalogPage() {
   }
 
   function clearAllFilters() {
-    sessionStorage.removeItem(CACHE_KEY);
     navigate("/");
   }
 
