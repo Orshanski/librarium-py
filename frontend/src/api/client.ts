@@ -11,7 +11,7 @@ import {
   type PydanticDetailItem,
 } from "./errors";
 
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface ClientOptions {
   /** Query-string parameters. Keys with undefined values are skipped. */
