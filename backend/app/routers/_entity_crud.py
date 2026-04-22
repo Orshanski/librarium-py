@@ -24,7 +24,7 @@ Detail-строки (not-found, has-books, self-merge) — inside service functi
 import logging
 import sqlite3
 from types import ModuleType
-from typing import Any
+from typing import Any, Annotated
 from fastapi import APIRouter, Depends
 
 from ..auth import CurrentUser, get_current_user, require_admin
@@ -73,8 +73,8 @@ def register_entity_crud(
     @router.get("/{entity_id}", **get_kwargs)
     def get_entity(
         entity_id: int,
-        user: CurrentUser = Depends(get_current_user),
-        db: sqlite3.Connection = Depends(db_session),
+        user: Annotated[CurrentUser, Depends(get_current_user)],
+        db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         return get_fn(db, entity_id)
 
@@ -82,8 +82,8 @@ def register_entity_crud(
     def rename_entity(
         entity_id: int,
         body: RenameBody,
-        user: CurrentUser = Depends(require_admin),
-        db: sqlite3.Connection = Depends(db_session),
+        user: Annotated[CurrentUser, Depends(require_admin)],
+        db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         name = body.name.strip()
         rename_fn(db, entity_id, name)
@@ -97,8 +97,8 @@ def register_entity_crud(
     def merge_entity(
         entity_id: int,
         body: MergeBody,
-        user: CurrentUser = Depends(require_admin),
-        db: sqlite3.Connection = Depends(db_session),
+        user: Annotated[CurrentUser, Depends(require_admin)],
+        db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         merge_fn(db, entity_id, body.sourceId)
         logger.info(
@@ -110,8 +110,8 @@ def register_entity_crud(
     @router.delete("/{entity_id}", response_model=OkResponse)
     def delete_entity(
         entity_id: int,
-        user: CurrentUser = Depends(require_admin),
-        db: sqlite3.Connection = Depends(db_session),
+        user: Annotated[CurrentUser, Depends(require_admin)],
+        db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         delete_fn(db, entity_id)
         logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user.user_id)

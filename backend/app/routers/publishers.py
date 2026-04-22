@@ -1,3 +1,4 @@
+from typing import Annotated
 import sqlite3
 
 from fastapi import APIRouter, Depends
@@ -11,5 +12,5 @@ router = APIRouter(tags=["publishers"])
 
 
 @router.get("/api/publishers", response_model=PublishersResponse)
-def list_publishers(user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def list_publishers(user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return publishers_service.list_publishers(db)

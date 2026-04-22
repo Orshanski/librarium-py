@@ -1,3 +1,4 @@
+from typing import Annotated
 import sqlite3
 from fastapi import APIRouter, Depends, Query
 
@@ -14,8 +15,8 @@ router = APIRouter(prefix="/api/filter-options", tags=["filter-options"])
 
 @router.get("/authors", response_model=AuthorOptionsResponse)
 def author_options(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     tagIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
@@ -31,8 +32,8 @@ def author_options(
 
 @router.get("/tags", response_model=TagOptionsResponse)
 def tag_options(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     authorIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
@@ -48,8 +49,8 @@ def tag_options(
 
 @router.get("/series", response_model=SeriesOptionsResponse)
 def series_options(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     authorIds: list[int] | None = Query(None),
     tagIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
@@ -65,8 +66,8 @@ def series_options(
 
 @router.get("/languages", response_model=LanguageOptionsResponse)
 def language_options(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     authorIds: list[int] | None = Query(None),
     tagIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),

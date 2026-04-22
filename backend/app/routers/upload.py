@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 import sqlite3
 
@@ -22,8 +23,8 @@ router = APIRouter(tags=["upload"])
 
 @router.post("/api/upload", response_model=UploadParseResponse)
 async def upload_file(
-    user: CurrentUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     file: UploadFile = File(...),
 ):
     filename = file.filename or "unknown"
@@ -49,7 +50,7 @@ async def upload_file(
 @router.delete("/api/uploads/{temp_id}", response_model=OkResponse)
 def cleanup_temp(
     temp_id: TempIdStr,
-    user: CurrentUser = Depends(require_admin),
+    user: Annotated[CurrentUser, Depends(require_admin)],
 ):
     cleanup_temp_session(temp_id)
     return OkResponse()
@@ -58,8 +59,8 @@ def cleanup_temp(
 @router.post("/api/books/create", response_model=CreateBookResponse)
 def create_book_from_upload(
     body: CreateBookBody,
-    user: CurrentUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     book_id = create_book(db, body.tempId, body.metadata)
     log.info("Created book=%d by user_id=%s", book_id, user.user_id)
@@ -70,8 +71,8 @@ def create_book_from_upload(
 def add_format_endpoint(
     book_id: int,
     body: AddFormatBody,
-    user: CurrentUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     fmt = add_format(db, book_id, body.tempId)
     log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)

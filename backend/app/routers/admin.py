@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 import sqlite3
 
@@ -20,12 +21,12 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 # --- Users ---
 
 @router.get("/users", response_model=AdminUsersListResponse)
-def list_users(user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def list_users(user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return admin_service.list_users(db)
 
 
 @router.post("/users", response_model=IdResponse)
-def create_user(body: CreateUserBody, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def create_user(body: CreateUserBody, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     uid = admin_service.create_user(
         db, body.username, body.password, body.role, body.displayName, body.email,
         actor_id=user.user_id,
@@ -34,13 +35,13 @@ def create_user(body: CreateUserBody, user: CurrentUser = Depends(require_admin)
 
 
 @router.put("/users/{user_id}", response_model=OkResponse)
-def update_user(user_id: int, body: UpdateUserBody, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def update_user(user_id: int, body: UpdateUserBody, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     admin_service.update_user(db, user_id, body, actor_id=user.user_id)
     return OkResponse()
 
 
 @router.delete("/users/{user_id}", response_model=OkResponse)
-def delete_user(user_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def delete_user(user_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     admin_service.delete_user(db, user_id, actor_id=user.user_id)
     return OkResponse()
 
@@ -48,12 +49,12 @@ def delete_user(user_id: int, user: CurrentUser = Depends(require_admin), db: sq
 # --- Settings ---
 
 @router.get("/settings", response_model=AdminSettingsResponse)
-def get_settings(user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def get_settings(user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return admin_service.get_settings(db)
 
 
 @router.put("/settings", response_model=OkResponse)
-def update_settings(body: UpdateSettingsBody, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def update_settings(body: UpdateSettingsBody, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     admin_service.update_settings(db, body, actor_id=user.user_id)
     return OkResponse()
 
@@ -61,6 +62,6 @@ def update_settings(body: UpdateSettingsBody, user: CurrentUser = Depends(requir
 # --- SMTP Test ---
 
 @router.post("/smtp-test", response_model=OkResponse)
-def smtp_test(user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)):
+def smtp_test(user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     mail_service.send_test_email(db, user.user_id)
     return OkResponse()
