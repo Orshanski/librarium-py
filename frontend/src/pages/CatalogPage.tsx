@@ -266,6 +266,7 @@ export default function CatalogPage() {
             key={b.id}
             book={toBook(b)}
             isCached={cachedBookIds.has(b.id)}
+            linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
           />
         ))}
       </BookGrid>

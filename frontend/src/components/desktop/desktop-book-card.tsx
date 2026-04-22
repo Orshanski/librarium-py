@@ -3,10 +3,11 @@ import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
 import CloudBadge from "../cloud-badge";
 
-export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, isCached }: BookCardProps) {
+export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, isCached, linkState }: BookCardProps) {
   return (
     <Link
       to={href ?? `/book/${book.id}`}
+      state={linkState}
       onClick={onClick}
       style={{ textDecoration: "none", color: "inherit" }}
     >

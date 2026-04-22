@@ -1,4 +1,5 @@
 import { Book } from "../types";
+import type { BookOrigin } from "./breadcrumb-origin";
 
 export interface BookCardProps {
   book: Book;
@@ -7,4 +8,5 @@ export interface BookCardProps {
   onClick?: () => void;
   progressPercent?: number;
   isCached?: boolean;
+  linkState?: { origin: BookOrigin };
 }
