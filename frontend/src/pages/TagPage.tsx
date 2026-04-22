@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
@@ -11,6 +11,7 @@ import type { Book } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, sortOptionsFor } from "../config/sort";
@@ -19,6 +20,7 @@ export default function TagPage() {
   const { id } = useParams();
   const tagId = Number(id);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
@@ -26,13 +28,19 @@ export default function TagPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [selected, setSelected] = useState<SelectedFilters>({});
   const [showAdmin, setShowAdmin] = useState(false);
 
+  useScrollRestore(!loading);
+
   const sort = searchParams.get("sort") || SORT_CONFIG.tag.default;
-  const authorIds = selected.authorIds || [];
-  const seriesIds = selected.seriesIds || [];
-  const languages = selected.language || [];
+  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
+  const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
+  const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
+
+  const selected: SelectedFilters = {};
+  if (authorIds.length) selected.authorIds = authorIds;
+  if (seriesIds.length) selected.seriesIds = seriesIds;
+  if (languages.length) selected.language = languages;
 
   useEffect(() => {
     if (isNaN(tagId)) {
@@ -59,20 +67,28 @@ export default function TagPage() {
       .finally(() => setLoading(false));
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // deps на строковых join(',') вместо массивов: object-идентичность массивов
-    // нестабильна между рендерами (новый array на каждом setSelected), поэтому
-    // сравниваем их содержимое как stable-string. Массивы не ложатся в deps
-    // напрямую — триггерили бы избыточные re-fetch.
+    // deps на строковых join(',') — object-идентичность массивов из searchParams.getAll
+    // нестабильна между рендерами, сравниваем по содержимому как stable-string.
   }, [tagId, sort, authorIds.join(","), seriesIds.join(","), languages.join(",")]);
 
+  function updateParams(updates: Record<string, string[] | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
+    }
+    const qs = params.toString();
+    navigate(qs ? `/tags/${tagId}?${qs}` : `/tags/${tagId}`);
+  }
+
   function onSelectionChange(key: FilterKey, values: string[]) {
-    setSelected((prev) => ({ ...prev, [key]: values }));
+    updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   function handleSortChange(newSort: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", newSort);
-    navigate(`/tags/${tagId}?${params.toString()}`);
+    updateParams({ sort: [newSort] });
   }
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
@@ -146,7 +162,18 @@ export default function TagPage() {
 
       <BookGrid>
         {books.map((book) => (
-          <BookCard key={book.id} book={book} isCached={cachedBookIds.has(book.id)} />
+          <BookCard
+            key={book.id}
+            book={book}
+            isCached={cachedBookIds.has(book.id)}
+            linkState={{
+              origin: {
+                type: "tag",
+                url: location.pathname + location.search,
+                label: tag.name,
+              },
+            }}
+          />
         ))}
         {books.length === 0 && (
           <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
