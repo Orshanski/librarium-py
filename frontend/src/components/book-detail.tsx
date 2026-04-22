@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
-import { invalidateAllCaches } from "../utils/catalog-cache";
 import { useCacheStatus } from "../hooks/useCacheStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
@@ -9,6 +8,7 @@ import ConfirmDialog from "./confirm-dialog";
 import DesktopBookDetail from "./desktop/desktop-book-detail";
 import MobileBookDetail from "./mobile/mobile-book-detail";
 import { Shelf } from "./book-detail.types";
+import type { ListOrigin } from "./breadcrumb-origin";
 import { listShelves, addBookToShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
 import { getCover } from "@/api/endpoints/covers";
 import {
@@ -22,9 +22,11 @@ import {
 export default function BookDetail({
   book,
   seriesBooks,
+  bookOrigin,
 }: {
   book: Book;
   seriesBooks: Book[];
+  bookOrigin: ListOrigin;
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -132,6 +134,7 @@ export default function BookDetail({
   const detailProps = {
     book,
     seriesBooks,
+    bookOrigin,
     isAdmin,
     rating,
     isRead,
@@ -161,8 +164,11 @@ export default function BookDetail({
           onConfirm={async () => {
             try {
               await deleteBook(book.id);
-              invalidateAllCaches();
-              navigate(-1);
+              // После удаления — возврат на parent-список (source, откуда открыли книгу).
+              // replace: true — чтобы системный жест "назад" не привёл на 404 удалённой книги.
+              // Без state — sidebar-like переход, стек wipe'нется. Счётчик cacheVersion уже
+              // инкрементирован через DELETE, stale записи сами игнорируются.
+              navigate(bookOrigin.url, { replace: true });
             } catch (err: unknown) {
               if (err instanceof Error && err.name === "AbortError") return;
               console.warn("Failed to delete book:", err);

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
+import { useScrollRestore } from "../hooks/useScrollRestore";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { Book, toBook, splitCsv } from "../types";
@@ -25,6 +26,7 @@ interface AuthorData {
 export default function AuthorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [author, setAuthor] = useState<AuthorData | null>(null);
@@ -32,6 +34,16 @@ export default function AuthorPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+
+  useScrollRestore(!loading);
+
+  // Динамический родитель: если пришли с поиска (или другого места с origin) —
+  // crumb ведёт туда; иначе fallback "Авторы" → "/authors".
+  const stateOrigin = readOriginFromState(location.state);
+  const crumb =
+    stateOrigin && stateOrigin.type !== "book"
+      ? { label: stateOrigin.label, href: stateOrigin.url }
+      : { label: "Авторы", href: "/authors" };
 
   useEffect(() => {
     const numericId = Number(id);
@@ -70,14 +82,10 @@ export default function AuthorPage() {
     return () => controller.abort();
   }, [id]);
 
-  useEffect(() => {
-    if (author) saveBookOrigin(author.name, `/authors/${author.id}`);
-  }, [author]);
-
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
+        <PageHeader title="..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -86,7 +94,7 @@ export default function AuthorPage() {
   if (notFound || !author) {
     return (
       <>
-        <PageHeader title="Автор не найден" breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }} />
+        <PageHeader title="Автор не найден" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Автор не найден</div>
       </>
     );
@@ -126,7 +134,7 @@ export default function AuthorPage() {
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
         infoSlot={infoSlot}
-        breadcrumb={{ label: "Авторы", href: getBreadcrumbUrl("authors", "/authors") }}
+        breadcrumb={crumb}
       />
       {showAdmin && author && (
         <EntityAdminPanel
@@ -139,7 +147,20 @@ export default function AuthorPage() {
           onDeleted={() => navigate("/authors")}
         />
       )}
-      <AuthorDetail author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }} books={books} />
+      <AuthorDetail
+        author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }}
+        books={books}
+        bookLinkState={{
+          origin: {
+            type: "author",
+            url: location.pathname + location.search,
+            label: author.name,
+            ...(stateOrigin && stateOrigin.type !== "book"
+              ? { parentOrigin: stateOrigin }
+              : {}),
+          },
+        }}
+      />
     </>
   );
 }

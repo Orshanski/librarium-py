@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
+import { useScrollRestore } from "../hooks/useScrollRestore";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
@@ -18,6 +19,7 @@ import { NotFoundError } from "@/api/errors";
 export default function SeriesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [series, setSeries] = useState<Series | null>(null);
@@ -25,6 +27,14 @@ export default function SeriesPage() {
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+
+  useScrollRestore(!loading);
+
+  const stateOrigin = readOriginFromState(location.state);
+  const crumb =
+    stateOrigin && stateOrigin.type !== "book"
+      ? { label: stateOrigin.label, href: stateOrigin.url }
+      : { label: "Серии", href: "/series" };
 
   useEffect(() => {
     const numericId = Number(id);
@@ -58,14 +68,10 @@ export default function SeriesPage() {
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
-  useEffect(() => {
-    if (series) saveBookOrigin(series.name, `/series/${series.id}`);
-  }, [series]);
-
   if (notFoundState) {
     return (
       <>
-        <PageHeader title="Серия не найдена" breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
+        <PageHeader title="Серия не найдена" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Серия не найдена</div>
       </>
     );
@@ -74,7 +80,7 @@ export default function SeriesPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }} />
+        <PageHeader title="..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -114,7 +120,7 @@ export default function SeriesPage() {
         title={series.name}
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
-        breadcrumb={{ label: "Серии", href: getBreadcrumbUrl("series", "/series") }}
+        breadcrumb={crumb}
         infoSlot={infoSlot}
       />
 
@@ -136,6 +142,16 @@ export default function SeriesPage() {
             key={b.id}
             book={toBook(b)}
             isCached={cachedBookIds.has(b.id)}
+            linkState={{
+              origin: {
+                type: "series",
+                url: location.pathname + location.search,
+                label: series.name,
+                ...(stateOrigin && stateOrigin.type !== "book"
+                  ? { parentOrigin: stateOrigin }
+                  : {}),
+              },
+            }}
           />
         ))}
       </BookGrid>

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
 import PageHeader from "../components/page-header";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
-import { saveBookOrigin } from "../utils/breadcrumb-state";
 import { setReadingFlag } from "../utils/readerFlag";
 import type { Book } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
@@ -18,12 +18,15 @@ export default function ShelfPage() {
   const { id } = useParams();
   const shelfId = Number(id);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [shelf, setShelf] = useState<ShelfSummary | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useScrollRestore(!loading);
 
   // Fallback default до первого fetch — реальный default-per-page определяется ниже после load'а
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
@@ -45,12 +48,8 @@ export default function ShelfPage() {
     return () => controller.abort();
   }, [shelfId, sort]);
 
-  const bookIds = books.map((b) => b.id);
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
-
-  useEffect(() => {
-    if (shelf) saveBookOrigin(shelf.name, `/shelves/${shelf.id}`);
-  }, [shelf]);
 
   async function handleDelete() {
     try {
@@ -77,6 +76,12 @@ export default function ShelfPage() {
   const cfg = SORT_CONFIG[pageKey];
   const options = cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
   const isReadingNow = shelf.systemCode === "reading_now";
+
+  const shelfOrigin = {
+    type: "shelf" as const,
+    url: location.pathname + location.search,
+    label: shelf.name,
+  };
 
   return (
     <>
@@ -110,6 +115,9 @@ export default function ShelfPage() {
       <BookGrid>
         {books.map((b) => {
           const readerHref = isReadingNow && b.lastFormat ? `/book/${b.id}/read/${b.lastFormat.toLowerCase()}` : undefined;
+          // linkState пробрасывается только для книг, ведущих на /book/:id.
+          // Для reader-override (readerHref задан) state для BookPage не нужен.
+          const linkState = readerHref ? undefined : { origin: shelfOrigin };
           return (
             <BookCard
               key={b.id}
@@ -118,6 +126,7 @@ export default function ShelfPage() {
               onClick={readerHref ? setReadingFlag : undefined}
               progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
               isCached={cachedBookIds.has(b.id)}
+              linkState={linkState}
               onRemove={!shelf.isSystem ? async () => {
                 try {
                   await removeBookFromShelf(shelfId, b.id);

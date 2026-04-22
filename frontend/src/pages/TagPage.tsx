@@ -1,52 +1,26 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { getBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, SelectedFilters, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
 import type { Book } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, sortOptionsFor } from "../config/sort";
-
-function cacheKey(tagId: number) {
-  return `librarium_tag_${tagId}_v3`;
-}
-
-function saveCache(tagId: number, tag: TagSummary, books: Book[], selected: SelectedFilters, sort: string) {
-  try {
-    const main = document.querySelector("main");
-    sessionStorage.setItem(cacheKey(tagId), JSON.stringify({
-      tag, books, selected, sort,
-      scrollTop: main?.scrollTop || 0,
-    }));
-    saveBookOrigin(tag.name, `/tags/${tagId}`);
-  } catch {}
-}
-
-function loadCache(tagId: number) {
-  try {
-    const raw = sessionStorage.getItem(cacheKey(tagId));
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data.tag || !data.books?.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
 
 export default function TagPage() {
   const { id } = useParams();
   const tagId = Number(id);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
@@ -54,21 +28,16 @@ export default function TagPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [selected, setSelected] = useState<SelectedFilters>({});
   const [showAdmin, setShowAdmin] = useState(false);
 
-  const frozenRef = useRef(false);
-  const restoredRef = useRef(false);
+  useScrollRestore(!loading);
 
   const sort = searchParams.get("sort") || SORT_CONFIG.tag.default;
-  const authorIds = selected.authorIds || [];
-  const seriesIds = selected.seriesIds || [];
-  const languages = selected.language || [];
-  const paramsKey = `${tagId}|${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${languages.join(",")}`;
+  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
+  const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
+  const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
-  useEffect(() => {
-    if (tag) saveBookOrigin(tag.name, `/tags/${tagId}`);
-  }, [tag, tagId]);
+  const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
 
   useEffect(() => {
     if (isNaN(tagId)) {
@@ -77,38 +46,11 @@ export default function TagPage() {
       return;
     }
 
-    const cached = loadCache(tagId);
-    if (cached) {
-      setTag(cached.tag);
-      setBooks(cached.books);
-      if (cached.selected) setSelected(cached.selected);
-      setLoading(false);
-      restoredRef.current = true;
-      frozenRef.current = true;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const main = document.querySelector("main");
-          if (main) main.scrollTop = cached.scrollTop;
-          setTimeout(() => { frozenRef.current = false; }, 200);
-        });
-      });
-    }
-  }, [tagId]);
-
-  useEffect(() => {
-    if (restoredRef.current) {
-      restoredRef.current = false;
-      return;
-    }
-    if (isNaN(tagId)) return;
-
     setLoading(true);
-
     const controller = new AbortController();
     const apiParams = { ...selectedToApiParams(selected), sort };
     getTag(tagId, apiParams, controller.signal)
       .then((data) => {
-        sessionStorage.removeItem(cacheKey(tagId));
         setTag(data.tag);
         setBooks(data.books);
       })
@@ -121,51 +63,52 @@ export default function TagPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [paramsKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps на строковых join(',') — object-идентичность массивов из searchParams.getAll
+    // нестабильна между рендерами, сравниваем по содержимому как stable-string.
+  }, [tagId, sort, authorIds.join(","), seriesIds.join(","), languages.join(",")]);
 
-  const stateRef = useRef({ tag, books, selected, sort });
-  stateRef.current = { tag, books, selected, sort };
-
-  useEffect(() => {
-    if (tag && books.length > 0) saveCache(tagId, tag, books, selected, sort);
-  }, [tag, books, selected, sort, tagId]);
-
-  useEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-
-    function onScroll() {
-      const s = stateRef.current;
-      if (s.tag) saveCache(tagId, s.tag, s.books, s.selected, s.sort);
+  function updateParams(updates: Record<string, string[] | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, values] of Object.entries(updates)) {
+      params.delete(key);
+      if (values) {
+        for (const v of values) params.append(key, v);
+      }
     }
-
-    main.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      main.removeEventListener("scroll", onScroll);
-      const s = stateRef.current;
-      if (s.tag && s.books.length > 0) saveCache(tagId, s.tag, s.books, s.selected, s.sort);
-    };
-  }, [tagId]);
+    const qs = params.toString();
+    navigate(qs ? `/tags/${tagId}?${qs}` : `/tags/${tagId}`);
+  }
 
   function onSelectionChange(key: FilterKey, values: string[]) {
-    sessionStorage.removeItem(cacheKey(tagId));
-    setSelected((prev) => ({ ...prev, [key]: values }));
+    updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   function handleSortChange(newSort: string) {
-    sessionStorage.removeItem(cacheKey(tagId));
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", newSort);
-    navigate(`/tags/${tagId}?${params.toString()}`);
+    updateParams({ sort: [newSort] });
   }
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
+  const bookLinkState = useMemo(
+    () =>
+      tag
+        ? {
+            origin: {
+              type: "tag" as const,
+              url: location.pathname + location.search,
+              label: tag.name,
+            },
+          }
+        : undefined,
+    [tag, location.pathname, location.search],
+  );
+
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: "/tags" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -174,7 +117,7 @@ export default function TagPage() {
   if (notFound || !tag) {
     return (
       <>
-        <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }} />
+        <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Жанр не найден</div>
       </>
     );
@@ -203,7 +146,7 @@ export default function TagPage() {
         title={tag.name}
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
-        breadcrumb={{ label: "Жанры", href: getBreadcrumbUrl("tags", "/tags") }}
+        breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
@@ -230,7 +173,12 @@ export default function TagPage() {
 
       <BookGrid>
         {books.map((book) => (
-          <BookCard key={book.id} book={book} isCached={cachedBookIds.has(book.id)} />
+          <BookCard
+            key={book.id}
+            book={book}
+            isCached={cachedBookIds.has(book.id)}
+            linkState={bookLinkState}
+          />
         ))}
         {books.length === 0 && (
           <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>

@@ -6,6 +6,7 @@ import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
+import type { ListOrigin } from "./breadcrumb-origin";
 import { splitCsv } from "../types";
 import { fetchCoverProxy } from "../api/endpoints/metadata";
 import { uploadCover, commitCover, discardCover } from "../api/endpoints/covers";
@@ -14,7 +15,7 @@ import {
   deleteFile as apiDeleteFile,
 } from "@/api/endpoints/books";
 
-export default function BookEditForm({ book, options, onSave }: BookEditFormProps) {
+export default function BookEditForm({ book, options, onSave, editOrigin }: BookEditFormProps) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);
@@ -130,10 +131,20 @@ export default function BookEditForm({ book, options, onSave }: BookEditFormProp
   }
 
   async function handleCancel() {
-    if (coverChanged) {
-      await discardCover(book.id);
+    const cancelTarget: ListOrigin =
+      editOrigin?.bookOrigin ?? { type: "catalog", url: "/", label: "Каталог" };
+
+    if (!coverChanged) {
+      navigate(`/book/${book.id}`, { replace: true, state: { origin: cancelTarget } });
+      return;
     }
-    navigate(-1);
+
+    try {
+      await discardCover(book.id);
+      navigate(`/book/${book.id}`, { replace: true, state: { origin: cancelTarget } });
+    } catch {
+      alert("Не удалось отменить изменения");
+    }
   }
 
   const viewProps = {

@@ -2,13 +2,16 @@ import { Book } from "../types";
 import { colors, fonts } from "../theme";
 import BookCard from "./book-card";
 import BookRail from "./book-rail";
+import type { ListOrigin } from "./breadcrumb-origin";
 
 export default function AuthorDetail({
   author,
   books,
+  bookLinkState,
 }: {
   author: { id: number; name: string; bookCount: number; tags: string[] };
   books: Book[];
+  bookLinkState: { origin: ListOrigin };
 }) {
   // Group books by series
   const seriesMap = new Map<string, Book[]>();
@@ -47,7 +50,7 @@ export default function AuthorDetail({
           </h3>
           <BookRail>
             {seriesBooks.map((book) => (
-              <BookCard key={book.id} book={book} />
+              <BookCard key={book.id} book={book} linkState={bookLinkState} />
             ))}
           </BookRail>
         </div>
@@ -69,7 +72,7 @@ export default function AuthorDetail({
           </h3>
           <BookRail>
             {standalone.map((book) => (
-              <BookCard key={book.id} book={book} />
+              <BookCard key={book.id} book={book} linkState={bookLinkState} />
             ))}
           </BookRail>
         </div>

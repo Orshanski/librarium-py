@@ -1,136 +1,182 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
-import { saveBreadcrumbUrl, saveBookOrigin } from "../utils/breadcrumb-state";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useScrollRestore } from "../hooks/useScrollRestore";
+import { getCacheVersion, CATALOG_CACHE_KEY } from "../utils/cache-invalidation";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
-const CACHE_KEY = "librarium_catalog_v2";
 
-function saveCache(books: RawBook[], hasMore: boolean, paramsKey: string) {
-  try {
-    const main = document.querySelector("main");
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-      books,
-      hasMore,
-      paramsKey,
-      scrollTop: main?.scrollTop || 0,
-    }));
-  } catch {}
-}
+type CatalogCacheEntry = {
+  books: RawBook[];
+  hasMore: boolean;
+  cursor: number;
+  version: number;
+};
 
-function loadCache(paramsKey: string) {
+type CatalogState = {
+  urlKey: string;
+  books: RawBook[];
+  hasMore: boolean;
+  cursor: number;
+  loading: boolean;
+};
+
+function readCatalogCache(url: string): CatalogCacheEntry | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data.paramsKey !== paramsKey) return null;
-    if (!data.books?.length) return null;
-    return data;
+    const map: Record<string, CatalogCacheEntry> = JSON.parse(raw);
+    const entry = map[url];
+    if (!entry || entry.version !== getCacheVersion()) return null;
+    return entry;
   } catch {
     return null;
   }
 }
 
+function writeCatalogCache(url: string, entry: CatalogCacheEntry): void {
+  try {
+    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
+    const map: Record<string, CatalogCacheEntry> = raw ? JSON.parse(raw) : {};
+    map[url] = entry;
+    sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(map));
+  } catch {
+    /* best-effort */
+  }
+}
+
+// Идемпотентна в пределах одного render-цикла: sessionStorage читается синхронно.
+function initialStateFor(url: string): CatalogState {
+  const cached = readCatalogCache(url);
+  if (cached) {
+    return {
+      urlKey: url,
+      books: cached.books,
+      hasMore: cached.hasMore,
+      cursor: cached.cursor,
+      loading: false,
+    };
+  }
+  return { urlKey: url, books: [], hasMore: false, cursor: 0, loading: true };
+}
+
 export default function CatalogPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const frozenRef = useRef(false); // block lazy load after restore
-
-  const [books, setBooks] = useState<RawBook[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const sort = searchParams.get("sort") || SORT_CONFIG.catalog.default;
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const paramsKey = `${sort}|${authorIds.join(",")}|${seriesIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
-  const buildApiParams = useCallback((cursor: number, size?: number) => {
-    const params: BookListParams = {
-      sort,
-      ...(authorIds.length ? { authorIds } : {}),
-      ...(seriesIds.length ? { seriesIds } : {}),
-      ...(tagIds.length ? { tagIds } : {}),
-      ...(language.length ? { language } : {}),
-    };
-    return {
-      pageSize: size || (cursor === 0 ? INITIAL_SIZE : PAGE_SIZE),
-      cursor,
-      ...params,
-    };
-  }, [sort, authorIds, seriesIds, tagIds, language]);
+  const urlKey = location.pathname + location.search;
 
-  // Load: restore from cache or fetch fresh
+  const [state, setState] = useState<CatalogState>(() => initialStateFor(urlKey));
+
+  // Синхронная реакция на смену URL: пересчитываем state из кэша либо переходим в loading.
+  // React бракует рендер после setState-in-render и сразу рендерит новый state — без промежуточного кадра.
+  if (state.urlKey !== urlKey) {
+    setState(initialStateFor(urlKey));
+  }
+
+  const { books, hasMore, cursor, loading } = state;
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Актуальный state через ref: cleanup-эффект ниже должен видеть state предыдущего commit,
+  // не stale-замыкание. ref обновляется на каждом commit (useEffect без deps).
+  const stateRef = useRef(state);
   useEffect(() => {
-    saveBreadcrumbUrl("catalog", window.location.pathname + window.location.search);
-    saveBookOrigin("Каталог", window.location.pathname + window.location.search);
-    const fresh = searchParams.get("fresh");
-    if (fresh) {
-      sessionStorage.removeItem(CACHE_KEY);
-      navigate("/", { replace: true });
-    }
-    const cached = fresh ? null : loadCache(paramsKey);
-    if (cached) {
-      setBooks(cached.books);
-      setHasMore(cached.hasMore);
-      setLoading(false);
-      frozenRef.current = true;
-      // Restore scroll after render
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const main = document.querySelector("main");
-          if (main) main.scrollTop = cached.scrollTop;
-          // Unfreeze lazy load after scroll is restored
-          setTimeout(() => { frozenRef.current = false; }, 200);
-        });
-      });
-      return;
-    }
+    stateRef.current = state;
+  });
 
-    setLoading(true);
-    sessionStorage.removeItem(CACHE_KEY);
+  useScrollRestore(!loading);
+
+  const buildApiParams = useCallback(
+    (c: number, size?: number): BookListParams & { pageSize: number; cursor: number } => {
+      const params: BookListParams = {
+        sort,
+        ...(authorIds.length ? { authorIds } : {}),
+        ...(seriesIds.length ? { seriesIds } : {}),
+        ...(tagIds.length ? { tagIds } : {}),
+        ...(language.length ? { language } : {}),
+      };
+      return {
+        pageSize: size || (c === 0 ? INITIAL_SIZE : PAGE_SIZE),
+        cursor: c,
+        ...params,
+      };
+    },
+    [sort, authorIds, seriesIds, tagIds, language],
+  );
+
+  // Загрузка при loading=true (initial mount без кэша, или смена URL без кэша).
+  useEffect(() => {
+    if (!state.loading || state.urlKey !== urlKey) return;
     const controller = new AbortController();
     listBooks(buildApiParams(0), controller.signal)
       .then((data) => {
-        setBooks(data.books || []);
-        setHasMore(data.hasMore || false);
-        setLoading(false);
-        frozenRef.current = false;
+        setState({
+          urlKey,
+          books: data.books || [],
+          hasMore: data.hasMore || false,
+          cursor: (data.books || []).length,
+          loading: false,
+        });
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
         console.warn("Failed to load catalog:", err);
-        setBooks([]);
-        setLoading(false);
+        setState({ urlKey, books: [], hasMore: false, cursor: 0, loading: false });
       });
     return () => controller.abort();
-  }, [paramsKey, buildApiParams]);
+  }, [urlKey, state.loading, buildApiParams]);
 
-  // Lazy load
+  // Cleanup — сохранить запись при unmount/смене url.
+  // Защита current.urlKey === urlKey: пишем только если state и ключ эффекта относятся к одному URL.
+  useEffect(() => {
+    return () => {
+      const current = stateRef.current;
+      if (!current.loading && current.urlKey === urlKey) {
+        writeCatalogCache(urlKey, {
+          books: current.books,
+          hasMore: current.hasMore,
+          cursor: current.cursor,
+          version: getCacheVersion(),
+        });
+      }
+    };
+  }, [urlKey]);
+
   const loadMore = useCallback(() => {
-    if (loadingMore || !hasMore || frozenRef.current) return;
+    if (loadingMore || !hasMore || loading) return;
     setLoadingMore(true);
-    listBooks(buildApiParams(books.length))
+    listBooks(buildApiParams(cursor))
       .then((data) => {
         const newBooks = data.books || [];
-        setBooks((prev) => {
-          const ids = new Set(prev.map((b: RawBook) => b.id));
-          return [...prev, ...newBooks.filter((b: RawBook) => !ids.has(b.id))];
+        setState((prev) => {
+          if (prev.urlKey !== urlKey) return prev;
+          const ids = new Set(prev.books.map((b) => b.id));
+          const merged = [...prev.books, ...newBooks.filter((b) => !ids.has(b.id))];
+          return {
+            urlKey: prev.urlKey,
+            books: merged,
+            hasMore: data.hasMore || false,
+            cursor: merged.length,
+            loading: false,
+          };
         });
-        setHasMore(data.hasMore || false);
         setLoadingMore(false);
       })
       .catch((err: unknown) => {
@@ -138,25 +184,20 @@ export default function CatalogPage() {
         console.warn("Failed to load more books:", err);
         setLoadingMore(false);
       });
-  }, [books.length, hasMore, loadingMore, buildApiParams]);
+  }, [hasMore, loading, loadingMore, buildApiParams, cursor, urlKey]);
 
-  // Scroll listener for lazy load + cache save
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
 
     function onScroll() {
-      // Save scroll position to cache
-      saveCache(books, hasMore, paramsKey);
-
-      // Lazy load trigger
-      if (!frozenRef.current && main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
+      if (main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
         loadMore();
       }
     }
 
     function check() {
-      if (!frozenRef.current && main!.scrollHeight <= main!.clientHeight) {
+      if (main!.scrollHeight <= main!.clientHeight) {
         loadMore();
       }
     }
@@ -167,9 +208,8 @@ export default function CatalogPage() {
       main.removeEventListener("scroll", onScroll);
       clearTimeout(timer);
     };
-  }, [loadMore, books, hasMore, paramsKey]);
+  }, [loadMore]);
 
-  // URL param helpers
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, values] of Object.entries(updates)) {
@@ -178,23 +218,16 @@ export default function CatalogPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    sessionStorage.removeItem(CACHE_KEY);
     navigate(`/?${params.toString()}`);
   }
 
-  // Build selected filters from URL params
-  const selected: SelectedFilters = {};
-  if (authorIds.length) selected.authorIds = authorIds;
-  if (seriesIds.length) selected.seriesIds = seriesIds;
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
+  const selected = readSelectedFromSearchParams(searchParams);
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });
   }
 
   function clearAllFilters() {
-    sessionStorage.removeItem(CACHE_KEY);
     navigate("/");
   }
 
@@ -225,6 +258,7 @@ export default function CatalogPage() {
             key={b.id}
             book={toBook(b)}
             isCached={cachedBookIds.has(b.id)}
+            linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
           />
         ))}
       </BookGrid>

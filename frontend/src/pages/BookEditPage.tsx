@@ -1,22 +1,31 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookEditForm from "../components/book-edit-form";
 import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.types";
+import type { BookContextOrigin, ListOrigin } from "../components/breadcrumb-origin";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
 import { getBook, updateBook, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 
+const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
+
 export default function BookEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [book, setBook] = useState<RawBook | null>(null);
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [options, setOptions] = useState<BookEditOptions>();
   const [loading, setLoading] = useState(true);
+
+  const stateOrigin = readOriginFromState(location.state);
+  const editOrigin: BookContextOrigin | undefined =
+    stateOrigin?.type === "book" ? stateOrigin : undefined;
 
   useEffect(() => {
     if (!id) return;
@@ -52,10 +61,16 @@ export default function BookEditPage() {
     return () => controller.abort();
   }, [id]);
 
+  const crumb = editOrigin
+    ? { label: editOrigin.label, href: editOrigin.url }
+    : book
+      ? { label: book.title, href: `/book/${id}` }
+      : undefined;
+
   if (loading) {
     return (
       <>
-        <PageHeader title="Загрузка..." />
+        <PageHeader title="Загрузка..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -64,7 +79,7 @@ export default function BookEditPage() {
   if (!book) {
     return (
       <>
-        <PageHeader title="Книга не найдена" />
+        <PageHeader title="Книга не найдена" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Книга не найдена</div>
       </>
     );
@@ -82,11 +97,10 @@ export default function BookEditPage() {
   };
 
   async function handleSave(data: BookSavePayload) {
-    // Resolve names to IDs
     const authorIds = splitCsv(data.authors)
       .map((name: string) => {
         const found = options?.authors?.find((a) => a.name === name);
-        return found ? found.id : name; // send name if not found — backend will get_or_create
+        return found ? found.id : name;
       });
     const tagIds = (data.tags || []).map((name: string) => {
       const found = options?.tags?.find((t) => t.name === name);
@@ -110,11 +124,10 @@ export default function BookEditPage() {
 
     try {
       await updateBook(Number(id), body);
-      // Invalidate catalog/pages caches so covers and data refresh
-      sessionStorage.removeItem("librarium_catalog");
-      sessionStorage.removeItem("librarium_authors");
-      sessionStorage.removeItem("librarium_series");
-      navigate(`/book/${id}`);
+      navigate(`/book/${id}`, {
+        replace: true,
+        state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },
+      });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.warn("Failed to save book:", err);
@@ -124,11 +137,8 @@ export default function BookEditPage() {
 
   return (
     <>
-      <PageHeader
-        title={`Редактирование: ${book.title}`}
-        breadcrumb={{ label: book.title, href: `/book/${id}` }}
-      />
-      <BookEditForm book={bookData} options={options} onSave={handleSave} />
+      <PageHeader title={`Редактирование: ${book.title}`} breadcrumb={crumb} />
+      <BookEditForm book={bookData} options={options} onSave={handleSave} editOrigin={editOrigin} />
     </>
   );
 }

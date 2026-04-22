@@ -26,6 +26,7 @@ const primaryButtonStyle: React.CSSProperties = {
 export default function MobileBookDetail({
   book,
   seriesBooks,
+  bookOrigin,
   isAdmin,
   rating,
   isRead,
@@ -44,6 +45,14 @@ export default function MobileBookDetail({
   showCacheToggle,
 }: BookDetailViewProps) {
   const otherSeriesBooks = seriesBooks.filter((item) => item.id !== book.id);
+  const bookContext = {
+    origin: {
+      type: "book" as const,
+      url: `/book/${book.id}`,
+      label: book.title,
+      bookOrigin,
+    },
+  };
 
   return (
     <div>
@@ -182,6 +191,7 @@ export default function MobileBookDetail({
 
         <Link
           to={`/book/${book.id}/similar`}
+          state={bookContext}
           style={{
             ...primaryButtonStyle,
             backgroundColor: "rgba(255, 255, 255, 0.04)",
@@ -202,8 +212,9 @@ export default function MobileBookDetail({
 
       {isAdmin && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <a
-            href={`/book/${book.id}/edit`}
+          <Link
+            to={`/book/${book.id}/edit`}
+            state={bookContext}
             style={{
               ...primaryButtonStyle,
               minHeight: 40,
@@ -214,7 +225,7 @@ export default function MobileBookDetail({
             }}
           >
             Ред.
-          </a>
+          </Link>
           <button
             onClick={onShowDeleteConfirm}
             style={{
@@ -294,9 +305,7 @@ export default function MobileBookDetail({
           <>
             <div style={{ fontSize: 10, color: colors.textDim, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Серия</div>
             <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
-              <Link to="/series" style={{ color: colors.accent, textDecoration: "none" }}>
-                {book.series}
-              </Link>
+              <span style={{ color: colors.accent }}>{book.series}</span>
               {book.seriesNumber ? ` (книга ${book.seriesNumber})` : ""}
             </div>
           </>
@@ -338,7 +347,11 @@ export default function MobileBookDetail({
           </h3>
           <BookRail>
             {otherSeriesBooks.map((seriesBook) => (
-              <BookCard key={seriesBook.id} book={seriesBook} />
+              <BookCard
+                key={seriesBook.id}
+                book={seriesBook}
+                linkState={{ origin: bookOrigin }}
+              />
             ))}
           </BookRail>
         </div>

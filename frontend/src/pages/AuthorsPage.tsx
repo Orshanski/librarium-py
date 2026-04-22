@@ -1,90 +1,49 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
-import { saveBreadcrumbUrl } from "../utils/breadcrumb-state";
 import { colors } from "../theme";
 import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
-
-const CACHE_KEY = "librarium_authors_v2";
-
-function saveCache(authors: Author[], paramsKey: string) {
-  if (authors.length === 0) return;
-  try {
-    const main = document.querySelector("main");
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-      authors,
-      paramsKey,
-      scrollTop: main?.scrollTop || 0,
-    }));
-  } catch {}
-}
-
-function loadCache(paramsKey: string) {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data.paramsKey !== paramsKey) return null;
-    if (!data.authors?.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
+import { useScrollRestore } from "../hooks/useScrollRestore";
 
 export default function AuthorsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const frozenRef = useRef(false);
 
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useScrollRestore(!loading);
+
+  const authorLinkState = useMemo(
+    () => ({
+      origin: {
+        type: "authors_list" as const,
+        url: location.pathname + location.search,
+        label: "Авторы",
+      },
+    }),
+    [location.pathname, location.search],
+  );
+
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const paramsKey = `${tagIds.join(",")}|${language.join(",")}`;
 
-  // Load: restore from cache or fetch fresh
+  const selected = readSelectedFromSearchParams(searchParams);
+
   useEffect(() => {
-    saveBreadcrumbUrl("authors", window.location.pathname + window.location.search);
-    const fresh = searchParams.get("fresh");
-    if (fresh) {
-      sessionStorage.removeItem(CACHE_KEY);
-      navigate("/authors", { replace: true });
-      return;
-    }
-    const cached = loadCache(paramsKey);
-    if (cached) {
-      setAuthors(cached.authors);
-      setLoading(false);
-      frozenRef.current = true;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const main = document.querySelector("main");
-          if (main) main.scrollTop = cached.scrollTop;
-          setTimeout(() => { frozenRef.current = false; }, 200);
-        });
-      });
-      return;
-    }
-
     setLoading(true);
-    sessionStorage.removeItem(CACHE_KEY);
     const controller = new AbortController();
-    const selected: SelectedFilters = {};
-    if (tagIds.length) selected.tagIds = tagIds;
-    if (language.length) selected.language = language;
     listAuthors(selectedToApiParams(selected), controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
         setLoading(false);
-        frozenRef.current = false;
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -93,22 +52,7 @@ export default function AuthorsPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [paramsKey, tagIds, language]);
-
-  // Scroll listener: save cache
-  useEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-
-    function onScroll() {
-      saveCache(authors, paramsKey);
-    }
-
-    main.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      main.removeEventListener("scroll", onScroll);
-    };
-  }, [authors, paramsKey]);
+  }, [tagIds, language]);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -118,13 +62,8 @@ export default function AuthorsPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    sessionStorage.removeItem(CACHE_KEY);
     navigate(`/authors?${params.toString()}`);
   }
-
-  const selected: SelectedFilters = {};
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });
@@ -151,6 +90,7 @@ export default function AuthorsPage() {
             <Link
               key={author.id}
               to={`/authors/${author.id}`}
+              state={authorLinkState}
               style={{ textDecoration: "none" }}
             >
               <div

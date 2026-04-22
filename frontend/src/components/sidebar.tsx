@@ -16,10 +16,10 @@ function shelfHref(shelf: Shelf): string {
 }
 
 export const navItems = [
-  { href: "/?fresh=1", label: "Все книги", shortLabel: "Книги" },
-  { href: "/authors?fresh=1", label: "Авторы", shortLabel: "Авторы" },
-  { href: "/series?fresh=1", label: "Серии", shortLabel: "Серии" },
-  { href: "/tags?fresh=1", label: "Жанры", shortLabel: "Жанры" },
+  { href: "/", label: "Все книги", shortLabel: "Книги" },
+  { href: "/authors", label: "Авторы", shortLabel: "Авторы" },
+  { href: "/series", label: "Серии", shortLabel: "Серии" },
+  { href: "/tags", label: "Жанры", shortLabel: "Жанры" },
 ];
 
 function getLinkBaseStyle(): React.CSSProperties {
