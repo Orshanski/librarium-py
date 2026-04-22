@@ -21,6 +21,17 @@ function SearchResults() {
 
   useScrollRestore(!loading);
 
+  const searchLinkState = useMemo(
+    () => ({
+      origin: {
+        type: "search" as const,
+        url: location.pathname + location.search,
+        label: "Поиск",
+      },
+    }),
+    [location.pathname, location.search],
+  );
+
   useEffect(() => {
     if (!q.trim()) {
       // Reset all state — including `loading`, in case a prior in-flight
@@ -86,13 +97,7 @@ function SearchResults() {
               <Link
                 key={a.id}
                 to={`/authors/${a.id}`}
-                state={{
-                  origin: {
-                    type: "search",
-                    url: location.pathname + location.search,
-                    label: "Поиск",
-                  },
-                }}
+                state={searchLinkState}
                 style={{ textDecoration: "none" }}
               >
                 <div
@@ -117,13 +122,7 @@ function SearchResults() {
               <Link
                 key={s.id}
                 to={`/series/${s.id}`}
-                state={{
-                  origin: {
-                    type: "search",
-                    url: location.pathname + location.search,
-                    label: "Поиск",
-                  },
-                }}
+                state={searchLinkState}
                 style={{ textDecoration: "none" }}
               >
                 <div
@@ -169,13 +168,7 @@ function SearchResults() {
                 key={b.id}
                 book={toBook(b)}
                 isCached={cachedBookIds.has(b.id)}
-                linkState={{
-                  origin: {
-                    type: "search",
-                    url: location.pathname + location.search,
-                    label: "Поиск",
-                  },
-                }}
+                linkState={searchLinkState}
               />
             ))}
           </BookGrid>

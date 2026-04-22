@@ -26,7 +26,11 @@ export default function BookPage() {
   const origin: ListOrigin =
     stateOrigin && stateOrigin.type !== "book" ? stateOrigin : FALLBACK_ORIGIN;
 
-  const crumb = { label: origin.label, href: origin.url };
+  const crumb = {
+    label: origin.label,
+    href: origin.url,
+    state: origin.parentOrigin ? { origin: origin.parentOrigin } : undefined,
+  };
 
   useEffect(() => {
     if (!id) return;

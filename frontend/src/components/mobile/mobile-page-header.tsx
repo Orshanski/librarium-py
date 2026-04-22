@@ -134,7 +134,7 @@ export default function MobilePageHeader({
                   >
                     <a
                       data-breadcrumb="true"
-                      onClick={(e) => { e.preventDefault(); navigate(breadcrumb.href); }}
+                      onClick={(e) => { e.preventDefault(); navigate(breadcrumb.href, { state: breadcrumb.state }); }}
                       href={breadcrumb.href}
                       style={{
                         color: colors.textDim,

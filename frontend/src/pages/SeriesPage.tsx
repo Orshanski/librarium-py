@@ -147,6 +147,9 @@ export default function SeriesPage() {
                 type: "series",
                 url: location.pathname + location.search,
                 label: series.name,
+                ...(stateOrigin && stateOrigin.type !== "book"
+                  ? { parentOrigin: stateOrigin }
+                  : {}),
               },
             }}
           />

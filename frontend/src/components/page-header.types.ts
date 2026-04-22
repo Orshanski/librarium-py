@@ -14,7 +14,7 @@ export interface PageHeaderProps {
   onSortChange?: (key: string) => void;
   showUpload?: boolean;
   infoSlot?: React.ReactNode;
-  breadcrumb?: { label: string; href: string };
+  breadcrumb?: { label: string; href: string; state?: unknown };
   actionSlot?: React.ReactNode;
   mobileActionSlot?: React.ReactNode;
 }

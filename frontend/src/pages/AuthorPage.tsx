@@ -155,6 +155,9 @@ export default function AuthorPage() {
             type: "author",
             url: location.pathname + location.search,
             label: author.name,
+            ...(stateOrigin && stateOrigin.type !== "book"
+              ? { parentOrigin: stateOrigin }
+              : {}),
           },
         }}
       />

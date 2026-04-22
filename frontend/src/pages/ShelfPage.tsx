@@ -77,6 +77,12 @@ export default function ShelfPage() {
   const options = cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
   const isReadingNow = shelf.systemCode === "reading_now";
 
+  const shelfOrigin = {
+    type: "shelf" as const,
+    url: location.pathname + location.search,
+    label: shelf.name,
+  };
+
   return (
     <>
       <PageHeader
@@ -111,9 +117,7 @@ export default function ShelfPage() {
           const readerHref = isReadingNow && b.lastFormat ? `/book/${b.id}/read/${b.lastFormat.toLowerCase()}` : undefined;
           // linkState пробрасывается только для книг, ведущих на /book/:id.
           // Для reader-override (readerHref задан) state для BookPage не нужен.
-          const linkState = readerHref
-            ? undefined
-            : { origin: { type: "shelf" as const, url: location.pathname + location.search, label: shelf.name } };
+          const linkState = readerHref ? undefined : { origin: shelfOrigin };
           return (
             <BookCard
               key={b.id}
