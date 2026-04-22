@@ -8,6 +8,7 @@ import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 
 export default function SeriesListPage() {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ export default function SeriesListPage() {
 
   const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useScrollRestore(!loading);
 
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
