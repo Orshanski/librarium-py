@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 import zipfile
 from contextlib import ExitStack
+from pathlib import Path
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
 from ..dtos.books import BookCreateData, DuplicateHit
@@ -75,14 +76,13 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
     cleanup_old_uploads()
 
     try:
-        # ZIP extraction
+        # ZIP extraction (sync helper uses open()+zipfile — run off event loop)
         if ext == "zip":
-            content, ext, filename_hint = _extract_from_zip(content, temp_id)
+            content, ext, filename_hint = await asyncio.to_thread(_extract_from_zip, content, temp_id)
 
         # Save temp book file
         book_path = str(UPLOADS_DIR / f"{temp_id}.{ext}")
-        with open(book_path, "wb") as f:
-            f.write(content)
+        await asyncio.to_thread(Path(book_path).write_bytes, content)
         temp_artifacts.append(book_path)
 
         # Parse + enrich (in thread pool to avoid blocking event loop)
@@ -94,8 +94,7 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
         cover_url = None
         if meta.cover_data and meta.cover_ext:
             cover_path = str(UPLOADS_DIR / f"{temp_id}-cover.{meta.cover_ext}")
-            with open(cover_path, "wb") as f:
-                f.write(meta.cover_data)
+            await asyncio.to_thread(Path(cover_path).write_bytes, meta.cover_data)
             temp_artifacts.append(cover_path)
             cover_url = f"/api/uploads/cover/{temp_id}"
 
