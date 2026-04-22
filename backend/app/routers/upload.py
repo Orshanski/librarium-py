@@ -10,6 +10,7 @@ from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.upload import AddFormatResponse, CreateBookBody, CreateBookResponse, AddFormatBody, UploadParseResponse
 from ..exceptions import BadInputError
+from ..logging_utils import safe as safe_log
 from ..services.temp_cleanup import cleanup_temp_session
 from ..services.upload_service import (
     upload_and_parse, create_book, add_format, BOOK_EXTENSIONS,
@@ -43,7 +44,7 @@ async def upload_file(
     content = await file.read()
     result = await upload_and_parse(db, content, filename)
 
-    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.tempId, filename, user.user_id)
+    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.tempId, safe_log(filename), user.user_id)
     return result
 
 
