@@ -3,7 +3,8 @@ import { useParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookDetail from "../components/book-detail";
-import type { BookOrigin, ListOrigin } from "../components/breadcrumb-origin";
+import type { ListOrigin } from "../components/breadcrumb-origin";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
 import { getBook, listBooks, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
@@ -21,7 +22,7 @@ export default function BookPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const stateOrigin = (location.state as { origin?: BookOrigin } | null)?.origin;
+  const stateOrigin = readOriginFromState(location.state);
   const origin: ListOrigin =
     stateOrigin && stateOrigin.type !== "book" ? stateOrigin : FALLBACK_ORIGIN;
 

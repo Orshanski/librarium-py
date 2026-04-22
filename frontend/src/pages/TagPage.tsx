@@ -58,7 +58,12 @@ export default function TagPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [tagId, sort, authorIds.join(","), seriesIds.join(","), languages.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps на строковых join(',') вместо массивов: object-идентичность массивов
+    // нестабильна между рендерами (новый array на каждом setSelected), поэтому
+    // сравниваем их содержимое как stable-string. Массивы не ложатся в deps
+    // напрямую — триггерили бы избыточные re-fetch.
+  }, [tagId, sort, authorIds.join(","), seriesIds.join(","), languages.join(",")]);
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     setSelected((prev) => ({ ...prev, [key]: values }));

@@ -4,7 +4,8 @@ import { useParams, useLocation, Link } from "react-router-dom";
 import PageHeader from "../components/page-header";
 import SimilarBooksGrid from "../components/similar-books-grid";
 import { SimilarBook } from "../components/similar-books.types";
-import type { BookOrigin, BookContextOrigin } from "../components/breadcrumb-origin";
+import type { BookContextOrigin } from "../components/breadcrumb-origin";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors, fonts } from "../theme";
 import { useIsMobile } from "../responsive";
 import { getBook } from "../api/endpoints/books";
@@ -49,9 +50,9 @@ export default function SimilarBooksPage() {
     return () => { controller.abort(); };
   }, [id]);
 
-  const raw = location.state as { origin?: BookOrigin } | null;
+  const origin = readOriginFromState(location.state);
   const stateOrigin: BookContextOrigin | undefined =
-    raw?.origin?.type === "book" ? raw.origin : undefined;
+    origin?.type === "book" ? origin : undefined;
 
   const crumbLabel = stateOrigin?.label ?? book?.title ?? "Книга";
   const crumbHref = stateOrigin?.url ?? `/book/${id}`;

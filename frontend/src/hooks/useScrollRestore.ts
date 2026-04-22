@@ -75,7 +75,11 @@ export function useScrollRestore(ready: boolean): void {
     hasRestored.current = true;
     lastUrlRef.current = url;
     navigate(url, { replace: true, state: null });
-  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps = [location.key] сознательно: fresh-эффект должен триггериться
+    // только при смене записи истории. url/location.state читаются внутри —
+    // при их изменении без смены key эффект НЕ должен перезапускаться.
+  }, [location.key]);
 
   // 2. Unified layout-эффект: синхронный сброс hasRestored при смене url, затем обновление стека
   // и применение scrollTop в одной фазе.

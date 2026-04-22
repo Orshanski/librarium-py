@@ -4,7 +4,8 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import PageHeader from "../components/page-header";
 import BookEditForm from "../components/book-edit-form";
 import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.types";
-import type { BookOrigin, BookContextOrigin, ListOrigin } from "../components/breadcrumb-origin";
+import type { BookContextOrigin, ListOrigin } from "../components/breadcrumb-origin";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
 import { getBook, updateBook, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
@@ -22,9 +23,9 @@ export default function BookEditPage() {
   const [options, setOptions] = useState<BookEditOptions>();
   const [loading, setLoading] = useState(true);
 
-  const raw = location.state as { origin?: BookOrigin } | null;
+  const stateOrigin = readOriginFromState(location.state);
   const editOrigin: BookContextOrigin | undefined =
-    raw?.origin?.type === "book" ? raw.origin : undefined;
+    stateOrigin?.type === "book" ? stateOrigin : undefined;
 
   useEffect(() => {
     if (!id) return;
