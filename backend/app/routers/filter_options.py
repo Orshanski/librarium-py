@@ -17,9 +17,9 @@ router = APIRouter(prefix="/api/filter-options", tags=["filter-options"])
 def author_options(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    tagIds: list[int] | None = Query(None),
-    seriesIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    tagIds: Annotated[list[int] | None, Query()] = None,
+    seriesIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
         user.user_id,
@@ -34,9 +34,9 @@ def author_options(
 def tag_options(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: list[int] | None = Query(None),
-    seriesIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    seriesIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
         user.user_id,
@@ -51,9 +51,9 @@ def tag_options(
 def series_options(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: list[int] | None = Query(None),
-    tagIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    tagIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
         user.user_id,
@@ -68,9 +68,9 @@ def series_options(
 def language_options(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: list[int] | None = Query(None),
-    tagIds: list[int] | None = Query(None),
-    seriesIds: list[int] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    tagIds: Annotated[list[int] | None, Query()] = None,
+    seriesIds: Annotated[list[int] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
         user.user_id,

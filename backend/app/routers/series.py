@@ -18,9 +18,9 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 def list_series(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: list[int] | None = Query(None),
-    tagIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    tagIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
 ):
     return series_service.list_series(
         db,

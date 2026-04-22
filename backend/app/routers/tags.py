@@ -28,9 +28,9 @@ def get_tag(
     tag_id: int,
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: list[int] | None = Query(None),
-    seriesIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    seriesIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
     sort: UserSort = "addedDesc",
 ):
     return tags_service.get_tag(db, tag_id, user.user_id, authorIds, seriesIds, language, sort)

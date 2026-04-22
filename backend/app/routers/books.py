@@ -27,10 +27,10 @@ def list_books(
     sort: UserSort = "addedDesc",
     cursor: int = 0,
     pageSize: int = 50,
-    authorIds: list[int] | None = Query(None),
-    tagIds: list[int] | None = Query(None),
-    seriesIds: list[int] | None = Query(None),
-    language: list[str] | None = Query(None),
+    authorIds: Annotated[list[int] | None, Query()] = None,
+    tagIds: Annotated[list[int] | None, Query()] = None,
+    seriesIds: Annotated[list[int] | None, Query()] = None,
+    language: Annotated[list[str] | None, Query()] = None,
 ):
     return book_service.list_books(
         db,
@@ -67,7 +67,7 @@ async def upload_file(
     book_id: int,
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File()],
 ):
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in BOOK_EXTENSIONS:
@@ -87,7 +87,7 @@ def delete_file(
     book_id: int,
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    format: NonBlankStr = Query(...),
+    format: Annotated[NonBlankStr, Query()],
 ):
     fmt = format.upper()
     book_service.delete_file(db, book_id, fmt)

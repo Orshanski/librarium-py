@@ -40,7 +40,7 @@ async def upload_cover(
     book_id: int,
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File()],
 ) -> CoverUploadResponse:
     parts = (file.filename or "cover.jpg").rsplit(".", 1)
     ext = parts[-1].lower() if len(parts) > 1 else "jpg"

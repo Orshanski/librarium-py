@@ -26,7 +26,7 @@ router = APIRouter(tags=["upload"])
 async def upload_file(
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File()],
 ):
     filename = file.filename or "unknown"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
