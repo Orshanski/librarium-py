@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,37 +10,9 @@ import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 
-const CACHE_KEY = "librarium_series_v2";
-
-function saveCache(allSeries: Series[], paramsKey: string) {
-  if (allSeries.length === 0) return;
-  try {
-    const main = document.querySelector("main");
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-      allSeries,
-      paramsKey,
-      scrollTop: main?.scrollTop || 0,
-    }));
-  } catch {}
-}
-
-function loadCache(paramsKey: string) {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data.paramsKey !== paramsKey) return null;
-    if (!data.allSeries?.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
 export default function SeriesListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const frozenRef = useRef(false);
 
   const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,34 +20,11 @@ export default function SeriesListPage() {
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const paramsKey = `${authorIds.join(",")}|${tagIds.join(",")}|${language.join(",")}`;
 
-  // Load: restore from cache or fetch fresh
   useEffect(() => {
     saveBreadcrumbUrl("series", window.location.pathname + window.location.search);
-    const fresh = searchParams.get("fresh");
-    if (fresh) {
-      sessionStorage.removeItem(CACHE_KEY);
-      navigate("/series", { replace: true });
-      return;
-    }
-    const cached = loadCache(paramsKey);
-    if (cached) {
-      setAllSeries(cached.allSeries);
-      setLoading(false);
-      frozenRef.current = true;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const main = document.querySelector("main");
-          if (main) main.scrollTop = cached.scrollTop;
-          setTimeout(() => { frozenRef.current = false; }, 200);
-        });
-      });
-      return;
-    }
 
     setLoading(true);
-    sessionStorage.removeItem(CACHE_KEY);
     const controller = new AbortController();
     const selected: SelectedFilters = {};
     if (authorIds.length) selected.authorIds = authorIds;
@@ -85,7 +34,6 @@ export default function SeriesListPage() {
       .then((data) => {
         setAllSeries(data.series || []);
         setLoading(false);
-        frozenRef.current = false;
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -94,22 +42,7 @@ export default function SeriesListPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [paramsKey, authorIds, tagIds, language]);
-
-  // Scroll listener: save cache
-  useEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-
-    function onScroll() {
-      saveCache(allSeries, paramsKey);
-    }
-
-    main.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      main.removeEventListener("scroll", onScroll);
-    };
-  }, [allSeries, paramsKey]);
+  }, [authorIds, tagIds, language]);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -119,7 +52,6 @@ export default function SeriesListPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    sessionStorage.removeItem(CACHE_KEY);
     navigate(`/series?${params.toString()}`);
   }
 
