@@ -333,6 +333,7 @@ export default function DesktopBookDetail({
               <Link
                 key={sb.id}
                 to={`/book/${sb.id}`}
+                state={{ origin: bookOrigin }}
                 style={{ textDecoration: "none", flexShrink: 0 }}
               >
                 <div

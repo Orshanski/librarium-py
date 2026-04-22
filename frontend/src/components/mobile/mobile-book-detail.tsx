@@ -347,7 +347,11 @@ export default function MobileBookDetail({
           </h3>
           <BookRail>
             {otherSeriesBooks.map((seriesBook) => (
-              <BookCard key={seriesBook.id} book={seriesBook} />
+              <BookCard
+                key={seriesBook.id}
+                book={seriesBook}
+                linkState={{ origin: bookOrigin }}
+              />
             ))}
           </BookRail>
         </div>
