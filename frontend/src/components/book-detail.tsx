@@ -164,7 +164,11 @@ export default function BookDetail({
           onConfirm={async () => {
             try {
               await deleteBook(book.id);
-              navigate(-1);
+              // После удаления — возврат на parent-список (source, откуда открыли книгу).
+              // replace: true — чтобы системный жест "назад" не привёл на 404 удалённой книги.
+              // Без state — sidebar-like переход, стек wipe'нется. Счётчик cacheVersion уже
+              // инкрементирован через DELETE, stale записи сами игнорируются.
+              navigate(bookOrigin.url, { replace: true });
             } catch (err: unknown) {
               if (err instanceof Error && err.name === "AbortError") return;
               console.warn("Failed to delete book:", err);
