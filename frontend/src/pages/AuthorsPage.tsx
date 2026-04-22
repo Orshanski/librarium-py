@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
@@ -13,12 +13,24 @@ import { useScrollRestore } from "../hooks/useScrollRestore";
 
 export default function AuthorsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
 
   useScrollRestore(!loading);
+
+  const authorLinkState = useMemo(
+    () => ({
+      origin: {
+        type: "authors_list" as const,
+        url: location.pathname + location.search,
+        label: "Авторы",
+      },
+    }),
+    [location.pathname, location.search],
+  );
 
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
@@ -84,6 +96,7 @@ export default function AuthorsPage() {
             <Link
               key={author.id}
               to={`/authors/${author.id}`}
+              state={authorLinkState}
               style={{ textDecoration: "none" }}
             >
               <div

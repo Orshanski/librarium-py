@@ -4,7 +4,9 @@ type ListOriginBase =
   | { type: "series"; url: string; label: string }
   | { type: "tag"; url: string; label: string }
   | { type: "shelf"; url: string; label: string }
-  | { type: "search"; url: string; label: string };
+  | { type: "search"; url: string; label: string }
+  | { type: "authors_list"; url: string; label: string }
+  | { type: "series_list"; url: string; label: string };
 
 // parentOrigin — optional предок в цепочке переходов. Нужен чтобы при возврате
 // через крошку с детальной страницы сохранился контекст дальше вверх.
@@ -22,7 +24,7 @@ export type BookContextOrigin = {
 
 export type BookOrigin = ListOrigin | BookContextOrigin;
 
-const LIST_TYPES = ["catalog", "author", "series", "tag", "shelf", "search"] as const;
+const LIST_TYPES = ["catalog", "author", "series", "tag", "shelf", "search", "authors_list", "series_list"] as const;
 
 function isListOrigin(v: unknown): v is ListOrigin {
   if (

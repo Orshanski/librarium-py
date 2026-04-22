@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
@@ -12,12 +12,24 @@ import { useScrollRestore } from "../hooks/useScrollRestore";
 
 export default function SeriesListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
 
   useScrollRestore(!loading);
+
+  const seriesLinkState = useMemo(
+    () => ({
+      origin: {
+        type: "series_list" as const,
+        url: location.pathname + location.search,
+        label: "Серии",
+      },
+    }),
+    [location.pathname, location.search],
+  );
 
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
@@ -87,6 +99,7 @@ export default function SeriesListPage() {
           <Link
             key={s.id}
             to={`/series/${s.id}`}
+            state={seriesLinkState}
             style={{ textDecoration: "none" }}
           >
             <div
