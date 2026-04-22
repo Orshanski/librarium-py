@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
-import { invalidateAllCaches } from "../utils/catalog-cache";
 import { useCacheStatus } from "../hooks/useCacheStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
@@ -161,7 +160,6 @@ export default function BookDetail({
           onConfirm={async () => {
             try {
               await deleteBook(book.id);
-              invalidateAllCaches();
               navigate(-1);
             } catch (err: unknown) {
               if (err instanceof Error && err.name === "AbortError") return;
