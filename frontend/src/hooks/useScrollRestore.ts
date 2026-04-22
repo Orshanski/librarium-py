@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getCacheVersion, CATALOG_CACHE_KEY } from "../utils/cache-invalidation";
+import { getCacheVersion } from "../utils/cache-invalidation";
 
 const STACK_KEY = "librarium_scroll_state";
 
@@ -34,23 +34,6 @@ function writeStack(stack: ScrollStackEntry[]): void {
   sessionStorage.setItem(STACK_KEY, JSON.stringify(stack));
 }
 
-// Удаляет ТОЛЬКО запись для переданного URL из cache-map. Записи для других URL каталога
-// (например, `/?tagIds=1`, `/?seriesIds=2`) НЕ трогаются — fresh-переход scoped к тому URL,
-// на который пользователь вернулся, не wipe всего кэша.
-function removeFromCatalogCache(url: string): void {
-  try {
-    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
-    if (!raw) return;
-    const cache: Record<string, unknown> = JSON.parse(raw);
-    if (url in cache) {
-      delete cache[url];
-      sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(cache));
-    }
-  } catch {
-    /* best-effort — сброс кэша идёт штатно через cache-invalidation */
-  }
-}
-
 function findMain(): HTMLElement | null {
   return document.querySelector("main");
 }
@@ -71,7 +54,9 @@ export function useScrollRestore(ready: boolean): void {
     writeStack([freshEntry]);
     const main = findMain();
     if (main) main.scrollTop = 0;
-    removeFromCatalogCache(url);
+    // catalog-cache (librarium_catalog_cache) НЕ трогаем — fresh-переход сбрасывает
+    // только scroll/стек. Данные каталога остаются валидными (перезагружать
+    // весь список из 100+ книг при каждом sidebar-клике — дорого).
     hasRestored.current = true;
     lastUrlRef.current = url;
     navigate(url, { replace: true, state: null });
@@ -89,18 +74,27 @@ export function useScrollRestore(ready: boolean): void {
       lastUrlRef.current = url;
     }
 
+    // Семантика: location.state === null означает "переход без контекста" —
+    // sidebar-клик, прямой URL, reload. В этом случае стек ОБНУЛЯЕТСЯ:
+    // это смена домена, старая цепочка больше не нужна. Навигации с state
+    // (crumb, BookCard linkState, state-origin переходы) остаются в цепочке.
     const stack = readStack();
-    const idx = stack.findIndex((e) => e.url === url);
     let target: number;
-    if (idx >= 0) {
-      // Trim only если реально отрезаем хвост — иначе избыточный write при каждом ре-рендере.
-      if (idx < stack.length - 1) {
-        writeStack(stack.slice(0, idx + 1));
-      }
-      target = stack[idx].scrollTop;
-    } else {
-      writeStack([...stack, { url, scrollTop: 0, version: getCacheVersion() }]);
+    if (location.state === null) {
+      writeStack([{ url, scrollTop: 0, version: getCacheVersion() }]);
       target = 0;
+    } else {
+      const idx = stack.findIndex((e) => e.url === url);
+      if (idx >= 0) {
+        // Trim only если реально отрезаем хвост.
+        if (idx < stack.length - 1) {
+          writeStack(stack.slice(0, idx + 1));
+        }
+        target = stack[idx].scrollTop;
+      } else {
+        writeStack([...stack, { url, scrollTop: 0, version: getCacheVersion() }]);
+        target = 0;
+      }
     }
 
     if (hasRestored.current) return;

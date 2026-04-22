@@ -42,22 +42,7 @@ describe("useScrollRestore", () => {
     expect(stack[0]).toMatchObject({ url: "/catalog", scrollTop: 0, version: 0 });
   });
 
-  it("первый mount, стек содержит текущий URL: применяется сохранённый scrollTop", () => {
-    sessionStorage.setItem(
-      STACK_KEY,
-      JSON.stringify([{ url: "/catalog", scrollTop: 300, version: 0 }]),
-    );
-    render(
-      <MemoryRouter initialEntries={["/catalog"]}>
-        <Harness />
-      </MemoryRouter>,
-    );
-    expect(main.scrollTop).toBe(300);
-    const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
-    expect(stack).toHaveLength(1);
-  });
-
-  it("возврат на URL из стека на позиции i: trim до [0, i+1), scrollTop применяется", () => {
+  it("state=null на mount: стек ЗАМЕЩАЕТСЯ одной записью (wipe предыдущих)", () => {
     sessionStorage.setItem(
       STACK_KEY,
       JSON.stringify([
@@ -67,7 +52,25 @@ describe("useScrollRestore", () => {
       ]),
     );
     render(
-      <MemoryRouter initialEntries={["/authors"]}>
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+    const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
+    expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, version: 0 }]);
+  });
+
+  it("state!=null, URL есть в стеке: trim до [0, i+1), scrollTop применяется", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([
+        { url: "/authors", scrollTop: 300, version: 0 },
+        { url: "/authors/1", scrollTop: 150, version: 0 },
+        { url: "/book/42", scrollTop: 0, version: 0 },
+      ]),
+    );
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/authors", state: { crumb: true } }]}>
         <Harness />
       </MemoryRouter>,
     );
@@ -76,19 +79,19 @@ describe("useScrollRestore", () => {
     expect(main.scrollTop).toBe(300);
   });
 
-  it("cross-section (URL отсутствует в стеке): push, стек растёт", () => {
+  it("state!=null, URL отсутствует в стеке: push, цепочка растёт", () => {
     sessionStorage.setItem(
       STACK_KEY,
       JSON.stringify([{ url: "/authors", scrollTop: 100, version: 0 }]),
     );
     render(
-      <MemoryRouter initialEntries={["/series"]}>
+      <MemoryRouter initialEntries={[{ pathname: "/authors/1", state: { origin: { type: "author", url: "/authors", label: "Авторы" } } }]}>
         <Harness />
       </MemoryRouter>,
     );
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
     expect(stack).toHaveLength(2);
-    expect(stack[1]).toMatchObject({ url: "/series", scrollTop: 0 });
+    expect(stack[1]).toMatchObject({ url: "/authors/1", scrollTop: 0 });
   });
 
   it("click в <main>: обновляется scrollTop и version верхней записи стека", () => {
@@ -181,7 +184,7 @@ describe("useScrollRestore", () => {
     expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, version: 0 }]);
   });
 
-  it("fresh-переход: стек заменяется, main.scrollTop=0, cache-запись удаляется", () => {
+  it("sidebar-подобный переход (navigate без state): стек wipe, catalog-cache НЕ трогается", () => {
     sessionStorage.setItem(
       STACK_KEY,
       JSON.stringify([
@@ -193,9 +196,8 @@ describe("useScrollRestore", () => {
       "librarium_catalog_cache",
       JSON.stringify({ "/": { books: [], hasMore: false, cursor: 0, version: 0 } }),
     );
-    main.scrollTop = 100;
 
-    function FreshTrigger() {
+    function SidebarTrigger() {
       const navigate = useNavigate();
       const [clicked, setClicked] = useState(false);
       return (
@@ -203,7 +205,7 @@ describe("useScrollRestore", () => {
           <Harness />
           <button
             onClick={() => {
-              navigate("/", { state: { fresh: true } });
+              navigate("/");
               setClicked(true);
             }}
           >
@@ -215,17 +217,18 @@ describe("useScrollRestore", () => {
     }
 
     const { getByText } = render(
-      <MemoryRouter initialEntries={["/authors"]}>
-        <FreshTrigger />
+      <MemoryRouter initialEntries={[{ pathname: "/authors", state: { crumb: true } }]}>
+        <SidebarTrigger />
       </MemoryRouter>,
     );
     fireEvent.click(getByText("go"));
 
+    // sidebar-переход wipe стек:
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
     expect(stack).toEqual([{ url: "/", scrollTop: 0, version: 0 }]);
-    expect(main.scrollTop).toBe(0);
+    // catalog-cache НЕ трогается (дорого):
     const cache = JSON.parse(sessionStorage.getItem("librarium_catalog_cache") || "{}");
-    expect(cache["/"]).toBeUndefined();
+    expect(cache["/"]).toBeDefined();
   });
 
   it("unmount: removeEventListener вызывается с capture=true", () => {

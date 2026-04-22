@@ -49,7 +49,16 @@ function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParam
 
 function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, FilterOption[]>, baseFilters?: ApiFilterParams) {
   try {
-    sessionStorage.setItem(cacheKey(filterKeys, baseFilters), JSON.stringify(options));
+    // Очищаем все прошлые filter_options-ключи — храним только одну актуальную запись.
+    // Каждая детальная страница имеет свой baseFilters, без очистки ключи накапливаются.
+    const current = cacheKey(filterKeys, baseFilters);
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(CACHE_PREFIX) && k !== current) {
+        sessionStorage.removeItem(k);
+      }
+    }
+    sessionStorage.setItem(current, JSON.stringify(options));
   } catch {}
 }
 

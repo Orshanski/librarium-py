@@ -96,7 +96,7 @@ export default function DesktopPageHeader({
             >
               <a
                 data-breadcrumb="true"
-                onClick={(e) => { e.preventDefault(); navigate(breadcrumb.href, { state: breadcrumb.state }); }}
+                onClick={(e) => { e.preventDefault(); navigate(breadcrumb.href, { state: breadcrumb.state ?? { crumb: true } }); }}
                 href={breadcrumb.href}
                 style={{
                   color: colors.textDim,
