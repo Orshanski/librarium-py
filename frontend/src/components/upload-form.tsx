@@ -453,7 +453,7 @@ export default function UploadForm() {
           {saved && (
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
               <span style={{ fontSize: 14, color: colors.success }}>Сохранено!</span>
-              <button onClick={() => navigate("/?fresh=1")} style={{
+              <button onClick={() => navigate("/")} style={{
                 padding: "8px 20px", fontSize: 13, fontFamily: "inherit", borderRadius: 6,
                 border: `1px solid ${colors.border}`, backgroundColor: "transparent",
                 color: colors.textSecondary, cursor: "pointer",
