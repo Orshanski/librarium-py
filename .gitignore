@@ -25,3 +25,8 @@ backend/scripts/linearize_existing_pdfs.py
 
 # SonarCloud scanner working directory
 .scannerwork/
+
+# Coverage artifacts
+frontend/coverage/
+backend/coverage.xml
+backend/.coverage
