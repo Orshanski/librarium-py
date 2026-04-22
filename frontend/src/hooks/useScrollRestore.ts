@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { getCacheVersion } from "../utils/cache-invalidation";
 
 const STACK_KEY = "librarium_scroll_state";
@@ -40,34 +40,18 @@ function findMain(): HTMLElement | null {
 
 export function useScrollRestore(ready: boolean): void {
   const location = useLocation();
-  const navigate = useNavigate();
   const url = location.pathname + location.search;
   const hasRestored = useRef(false);
   const lastUrlRef = useRef<string | null>(null);
 
-  // 1. Fresh-эффект. useLayoutEffect, чтобы выполниться синхронно до paint — иначе обычный
-  // useEffect запустится после layout и не повлияет на scroll в этом цикле.
-  useLayoutEffect(() => {
-    const state = location.state as { fresh?: boolean } | null;
-    if (state?.fresh !== true) return;
-    const freshEntry: ScrollStackEntry = { url, scrollTop: 0, version: getCacheVersion() };
-    writeStack([freshEntry]);
-    const main = findMain();
-    if (main) main.scrollTop = 0;
-    // catalog-cache (librarium_catalog_cache) НЕ трогаем — fresh-переход сбрасывает
-    // только scroll/стек. Данные каталога остаются валидными (перезагружать
-    // весь список из 100+ книг при каждом sidebar-клике — дорого).
-    hasRestored.current = true;
-    lastUrlRef.current = url;
-    navigate(url, { replace: true, state: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // deps = [location.key] сознательно: fresh-эффект должен триггериться
-    // только при смене записи истории. url/location.state читаются внутри —
-    // при их изменении без смены key эффект НЕ должен перезапускаться.
-  }, [location.key]);
-
-  // 2. Unified layout-эффект: синхронный сброс hasRestored при смене url, затем обновление стека
+  // Unified layout-эффект: синхронный сброс hasRestored при смене url, затем обновление стека
   // и применение scrollTop в одной фазе.
+  //
+  // Семантика смены домена выражена через location.state:
+  // - state === null → стек замещается одной записью. Это: sidebar-клик, reload, прямой URL,
+  //   filter-change / sort-change (все updateParams на страницах-списках вызывают navigate
+  //   без state — это желаемое поведение: новый фильтр = новый view, scroll сбрасывается).
+  // - state !== null (crumb {crumb:true}, BookCard linkState, edit/save state.origin) → push/trim.
   useLayoutEffect(() => {
     if (lastUrlRef.current !== url) {
       hasRestored.current = false;

@@ -11,6 +11,22 @@ export type SelectedFilters = Partial<Record<FilterKey, string[]>>;
 
 export type { ApiFilterParams };
 
+// Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)
+// из query-params и собирает SelectedFilters. Используется страницами-списками
+// (CatalogPage, AuthorsPage, SeriesListPage, TagPage) чтобы избежать дубля одного паттерна.
+export function readSelectedFromSearchParams(searchParams: URLSearchParams): SelectedFilters {
+  const selected: SelectedFilters = {};
+  const authorIds = searchParams.getAll("authorIds");
+  const seriesIds = searchParams.getAll("seriesIds");
+  const tagIds = searchParams.getAll("tagIds");
+  const language = searchParams.getAll("language");
+  if (authorIds.length) selected.authorIds = authorIds;
+  if (seriesIds.length) selected.seriesIds = seriesIds;
+  if (tagIds.length) selected.tagIds = tagIds;
+  if (language.length) selected.language = language;
+  return selected;
+}
+
 interface SmartFilterBarProps {
   filterKeys: FilterKey[];
   selected: SelectedFilters;
@@ -26,22 +42,31 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
-const CACHE_PREFIX = "librarium_filter_options_";
+// Unified-ключ: одна запись, setItem перезаписывает предыдущую. Никакого accumulation
+// или scan всего sessionStorage — тот же паттерн что librarium_scroll_state.
+const CACHE_KEY = "librarium_filter_options";
 const KEY_ORDER: FilterKey[] = ["authorIds", "seriesIds", "tagIds", "language"];
+
+type CachedEntry = {
+  key: string;
+  options: Record<string, FilterOption[]>;
+};
 
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
   return KEY_ORDER.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
 }
 
-function cacheKey(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): string {
-  return `${CACHE_PREFIX}${filterKeys.join(",")}|${serializeBase(baseFilters)}`;
+function cacheIdentity(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): string {
+  return `${filterKeys.join(",")}|${serializeBase(baseFilters)}`;
 }
 
 function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): Record<string, FilterOption[]> {
   try {
-    const raw = sessionStorage.getItem(cacheKey(filterKeys, baseFilters));
-    return raw ? JSON.parse(raw) : {};
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return {};
+    const parsed: CachedEntry = JSON.parse(raw);
+    return parsed.key === cacheIdentity(filterKeys, baseFilters) ? parsed.options : {};
   } catch {
     return {};
   }
@@ -49,16 +74,8 @@ function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParam
 
 function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, FilterOption[]>, baseFilters?: ApiFilterParams) {
   try {
-    // Очищаем все прошлые filter_options-ключи — храним только одну актуальную запись.
-    // Каждая детальная страница имеет свой baseFilters, без очистки ключи накапливаются.
-    const current = cacheKey(filterKeys, baseFilters);
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const k = sessionStorage.key(i);
-      if (k && k.startsWith(CACHE_PREFIX) && k !== current) {
-        sessionStorage.removeItem(k);
-      }
-    }
-    sessionStorage.setItem(current, JSON.stringify(options));
+    const entry: CachedEntry = { key: cacheIdentity(filterKeys, baseFilters), options };
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(entry));
   } catch {}
 }
 

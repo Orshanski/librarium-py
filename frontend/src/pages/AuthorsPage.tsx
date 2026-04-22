@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { splitCsv } from "../types";
@@ -35,13 +35,11 @@ export default function AuthorsPage() {
   const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
-  useEffect(() => {
+  const selected = readSelectedFromSearchParams(searchParams);
 
+  useEffect(() => {
     setLoading(true);
     const controller = new AbortController();
-    const selected: SelectedFilters = {};
-    if (tagIds.length) selected.tagIds = tagIds;
-    if (language.length) selected.language = language;
     listAuthors(selectedToApiParams(selected), controller.signal)
       .then((data) => {
         setAuthors(data.authors || []);
@@ -66,10 +64,6 @@ export default function AuthorsPage() {
     }
     navigate(`/authors?${params.toString()}`);
   }
-
-  const selected: SelectedFilters = {};
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });

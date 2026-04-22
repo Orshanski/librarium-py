@@ -5,7 +5,7 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, SelectedFilters, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
 import type { Book } from "../types";
 import { useAuth } from "../auth";
@@ -37,10 +37,7 @@ export default function TagPage() {
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
-  const selected: SelectedFilters = {};
-  if (authorIds.length) selected.authorIds = authorIds;
-  if (seriesIds.length) selected.seriesIds = seriesIds;
-  if (languages.length) selected.language = languages;
+  const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
 
   useEffect(() => {
     if (isNaN(tagId)) {
@@ -93,6 +90,20 @@ export default function TagPage() {
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
+
+  const bookLinkState = useMemo(
+    () =>
+      tag
+        ? {
+            origin: {
+              type: "tag" as const,
+              url: location.pathname + location.search,
+              label: tag.name,
+            },
+          }
+        : undefined,
+    [tag, location.pathname, location.search],
+  );
 
   if (loading) {
     return (
@@ -166,13 +177,7 @@ export default function TagPage() {
             key={book.id}
             book={book}
             isCached={cachedBookIds.has(book.id)}
-            linkState={{
-              origin: {
-                type: "tag",
-                url: location.pathname + location.search,
-                label: tag.name,
-              },
-            }}
+            linkState={bookLinkState}
           />
         ))}
         {books.length === 0 && (

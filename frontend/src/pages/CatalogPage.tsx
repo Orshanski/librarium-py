@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, SelectedFilters } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
@@ -221,11 +221,7 @@ export default function CatalogPage() {
     navigate(`/?${params.toString()}`);
   }
 
-  const selected: SelectedFilters = {};
-  if (authorIds.length) selected.authorIds = authorIds;
-  if (seriesIds.length) selected.seriesIds = seriesIds;
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
+  const selected = readSelectedFromSearchParams(searchParams);
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });

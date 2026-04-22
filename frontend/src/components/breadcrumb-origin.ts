@@ -26,12 +26,18 @@ export type BookOrigin = ListOrigin | BookContextOrigin;
 
 const LIST_TYPES = ["catalog", "author", "series", "tag", "shelf", "search", "authors_list", "series_list"] as const;
 
-function isListOrigin(v: unknown): v is ListOrigin {
+// Лимит рекурсии parentOrigin — защита от циклического state (a.parentOrigin=b, b.parentOrigin=a).
+// В нормальной навигации цепочка не длиннее 3-4 (поиск → серия → автор → книга).
+const MAX_ORIGIN_DEPTH = 8;
+
+function isListOrigin(v: unknown, depth: number = 0): v is ListOrigin {
+  if (depth > MAX_ORIGIN_DEPTH) return false;
   if (
     typeof v !== "object" || v === null ||
     !("type" in v) || typeof (v as { type: unknown }).type !== "string" ||
     !(LIST_TYPES as readonly string[]).includes((v as { type: string }).type) ||
     !("url" in v) || typeof (v as { url: unknown }).url !== "string" ||
+    (v as { url: string }).url.length === 0 ||
     !("label" in v) || typeof (v as { label: unknown }).label !== "string"
   ) {
     return false;
@@ -39,7 +45,7 @@ function isListOrigin(v: unknown): v is ListOrigin {
   // parentOrigin опционален — если присутствует, должен быть валидным ListOrigin.
   if ("parentOrigin" in v) {
     const parent = (v as { parentOrigin: unknown }).parentOrigin;
-    if (parent !== undefined && !isListOrigin(parent)) return false;
+    if (parent !== undefined && !isListOrigin(parent, depth + 1)) return false;
   }
   return true;
 }

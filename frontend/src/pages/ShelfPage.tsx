@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
@@ -48,7 +48,7 @@ export default function ShelfPage() {
     return () => controller.abort();
   }, [shelfId, sort]);
 
-  const bookIds = books.map((b) => b.id);
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const cachedBookIds = useCachedBookIds(bookIds);
 
   async function handleDelete() {
