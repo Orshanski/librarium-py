@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import { useScrollRestore } from "../hooks/useScrollRestore";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
@@ -28,6 +29,12 @@ export default function SeriesPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   useScrollRestore(!loading);
+
+  const stateOrigin = readOriginFromState(location.state);
+  const crumb =
+    stateOrigin && stateOrigin.type !== "book"
+      ? { label: stateOrigin.label, href: stateOrigin.url }
+      : { label: "Серии", href: "/series" };
 
   useEffect(() => {
     const numericId = Number(id);
@@ -64,7 +71,7 @@ export default function SeriesPage() {
   if (notFoundState) {
     return (
       <>
-        <PageHeader title="Серия не найдена" breadcrumb={{ label: "Серии", href: "/series" }} />
+        <PageHeader title="Серия не найдена" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Серия не найдена</div>
       </>
     );
@@ -73,7 +80,7 @@ export default function SeriesPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Серии", href: "/series" }} />
+        <PageHeader title="..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -113,7 +120,7 @@ export default function SeriesPage() {
         title={series.name}
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
-        breadcrumb={{ label: "Серии", href: "/series" }}
+        breadcrumb={crumb}
         infoSlot={infoSlot}
       />
 

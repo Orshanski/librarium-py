@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import { useScrollRestore } from "../hooks/useScrollRestore";
+import { readOriginFromState } from "../components/breadcrumb-origin";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { Book, toBook, splitCsv } from "../types";
@@ -35,6 +36,14 @@ export default function AuthorPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   useScrollRestore(!loading);
+
+  // Динамический родитель: если пришли с поиска (или другого места с origin) —
+  // crumb ведёт туда; иначе fallback "Авторы" → "/authors".
+  const stateOrigin = readOriginFromState(location.state);
+  const crumb =
+    stateOrigin && stateOrigin.type !== "book"
+      ? { label: stateOrigin.label, href: stateOrigin.url }
+      : { label: "Авторы", href: "/authors" };
 
   useEffect(() => {
     const numericId = Number(id);
@@ -76,7 +85,7 @@ export default function AuthorPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="..." breadcrumb={{ label: "Авторы", href: "/authors" }} />
+        <PageHeader title="..." breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       </>
     );
@@ -85,7 +94,7 @@ export default function AuthorPage() {
   if (notFound || !author) {
     return (
       <>
-        <PageHeader title="Автор не найден" breadcrumb={{ label: "Авторы", href: "/authors" }} />
+        <PageHeader title="Автор не найден" breadcrumb={crumb} />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Автор не найден</div>
       </>
     );
@@ -125,7 +134,7 @@ export default function AuthorPage() {
         titleSlot={adminButton}
         mobileActionSlot={adminButton}
         infoSlot={infoSlot}
-        breadcrumb={{ label: "Авторы", href: "/authors" }}
+        breadcrumb={crumb}
       />
       {showAdmin && author && (
         <EntityAdminPanel

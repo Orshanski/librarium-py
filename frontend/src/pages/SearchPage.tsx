@@ -1,21 +1,25 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { toBook, RawBook } from "../types";
+import { useScrollRestore } from "../hooks/useScrollRestore";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { searchAll, type SearchResponse } from "../api/endpoints/search";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const q = searchParams.get("q") || "";
 
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useScrollRestore(!loading);
 
   useEffect(() => {
     if (!q.trim()) {
@@ -79,7 +83,18 @@ function SearchResults() {
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Авторы</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {authors.map((a) => (
-              <Link key={a.id} to={`/authors/${a.id}`} style={{ textDecoration: "none" }}>
+              <Link
+                key={a.id}
+                to={`/authors/${a.id}`}
+                state={{
+                  origin: {
+                    type: "search",
+                    url: location.pathname + location.search,
+                    label: "Поиск",
+                  },
+                }}
+                style={{ textDecoration: "none" }}
+              >
                 <div
                   style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
@@ -99,7 +114,18 @@ function SearchResults() {
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Серии</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {series.map((s) => (
-              <Link key={s.id} to={`/series/${s.id}`} style={{ textDecoration: "none" }}>
+              <Link
+                key={s.id}
+                to={`/series/${s.id}`}
+                state={{
+                  origin: {
+                    type: "search",
+                    url: location.pathname + location.search,
+                    label: "Поиск",
+                  },
+                }}
+                style={{ textDecoration: "none" }}
+              >
                 <div
                   style={{ padding: "10px 16px", borderRadius: 6, transition: "background 0.1s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
@@ -143,6 +169,13 @@ function SearchResults() {
                 key={b.id}
                 book={toBook(b)}
                 isCached={cachedBookIds.has(b.id)}
+                linkState={{
+                  origin: {
+                    type: "search",
+                    url: location.pathname + location.search,
+                    label: "Поиск",
+                  },
+                }}
               />
             ))}
           </BookGrid>
