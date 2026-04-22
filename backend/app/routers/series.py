@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 import sqlite3
 
@@ -15,8 +16,8 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 @router.get("", response_model=SeriesListResponse)
 def list_series(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     authorIds: list[int] | None = Query(None),
     tagIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),

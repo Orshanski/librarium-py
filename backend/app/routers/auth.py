@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 import os
 import sqlite3
@@ -20,7 +21,7 @@ def login(
     body: LoginRequest,
     request: Request,
     response: Response,
-    db: sqlite3.Connection = Depends(db_session),
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
 ) -> AuthLoginResponse:
     ip = get_client_ip(request)
     token, user = auth_service.login(db, body.username, body.password, ip)
@@ -37,7 +38,7 @@ def login(
 
 
 @router.get("/me", response_model=AuthUserResponse)
-def me(user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def me(user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return auth_service.get_me(db, user.user_id)
 
 

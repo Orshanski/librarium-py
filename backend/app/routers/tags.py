@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 import sqlite3
 
@@ -15,8 +16,8 @@ router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 @router.get("/cloud", response_model=TagCloudResponse)
 def tag_cloud(
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     top: int | None = None,
 ):
     return tags_service.tag_cloud(db, top)
@@ -25,8 +26,8 @@ def tag_cloud(
 @router.get("/{tag_id}", response_model=TagDetailResponse, response_model_exclude_none=True)
 def get_tag(
     tag_id: int,
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     authorIds: list[int] | None = Query(None),
     seriesIds: list[int] | None = Query(None),
     language: list[str] | None = Query(None),
@@ -39,8 +40,8 @@ def get_tag(
 def map_tag(
     tag_id: int,
     body: MapBody,
-    user: CurrentUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     result = tags_service.map_tag(db, tag_id, body.name)
     action = "renamed" if result.renamed else "merged"

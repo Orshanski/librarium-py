@@ -1,3 +1,4 @@
+from typing import Annotated
 import logging
 from urllib.parse import urlparse
 
@@ -32,7 +33,7 @@ class _UpstreamStatusForward(Exception):
 
 
 @router.get("/search", response_model=MetadataSearchResponse)
-def search(user: CurrentUser = Depends(get_current_user), q: str = "", providers: str = "litres"):
+def search(user: Annotated[CurrentUser, Depends(get_current_user)], q: str = "", providers: str = "litres"):
     if not q.strip():
         return MetadataSearchResponse(results=[])
     provider_list = [p.strip() for p in providers.split(",") if p.strip()]
@@ -85,7 +86,7 @@ def _fetch_cover_content(url: str) -> Response:
 
 
 @router.get("/cover-proxy")
-def cover_proxy(user: CurrentUser = Depends(get_current_user), url: str = ""):
+def cover_proxy(user: Annotated[CurrentUser, Depends(get_current_user)], url: str = ""):
     if not url:
         raise BadInputError("URL required")
 

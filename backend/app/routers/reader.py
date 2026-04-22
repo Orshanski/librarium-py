@@ -1,3 +1,4 @@
+from typing import Annotated
 import sqlite3
 from fastapi import APIRouter, Depends, Request, Response
 from ..auth import CurrentUser, get_current_user
@@ -29,7 +30,7 @@ def _set_device_cookie(response, device_id: str):
 
 
 @router.get("/api/reader/settings", response_model=ReaderSettingsGetResponse)
-def api_get_settings(request: Request, response: Response, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> ReaderSettingsGetResponse:
+def api_get_settings(request: Request, response: Response, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> ReaderSettingsGetResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     result = reader_service.get_settings(db, user.user_id, device_id)
     _set_device_cookie(response, device_id)
@@ -37,7 +38,7 @@ def api_get_settings(request: Request, response: Response, user: CurrentUser = D
 
 
 @router.put("/api/reader/settings", response_model=OkResponse)
-def api_save_settings(body: ReaderSettingsBody, request: Request, response: Response, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
+def api_save_settings(body: ReaderSettingsBody, request: Request, response: Response, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     reader_service.save_settings(db, user.user_id, device_id, body)
     _set_device_cookie(response, device_id)
@@ -45,10 +46,10 @@ def api_save_settings(body: ReaderSettingsBody, request: Request, response: Resp
 
 
 @router.get("/api/reader/progress/{book_id}", response_model=ReadingProgressResponse)
-def api_get_progress(book_id: int, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def api_get_progress(book_id: int, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return reader_service.get_progress(db, user.user_id, book_id)
 
 
 @router.put("/api/reader/progress/{book_id}", response_model=ProgressSaveResponse)
-def api_save_progress(book_id: int, body: ReadingProgressBody, user: CurrentUser = Depends(get_current_user), db: sqlite3.Connection = Depends(db_session)):
+def api_save_progress(book_id: int, body: ReadingProgressBody, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return reader_service.save_progress(db, user.user_id, book_id, body)

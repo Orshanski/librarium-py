@@ -1,3 +1,4 @@
+from typing import Annotated
 import sqlite3
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
@@ -20,8 +21,8 @@ router = APIRouter(tags=["covers"])
 @router.get("/api/covers/{book_id}")
 def get_cover(
     book_id: int,
-    user: CurrentUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     full: int = 0,
 ):
     cover_path = cover_service.get_cover_path(book_id)
@@ -37,8 +38,8 @@ def get_cover(
 @router.post("/api/books/{book_id}/cover", response_model=CoverUploadResponse)
 async def upload_cover(
     book_id: int,
-    user: CurrentUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(db_session),
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
     file: UploadFile = File(...),
 ) -> CoverUploadResponse:
     parts = (file.filename or "cover.jpg").rsplit(".", 1)
@@ -56,13 +57,13 @@ async def upload_cover(
 
 
 @router.get("/api/uploads/cover/{temp_id}")
-def get_temp_cover(temp_id: TempIdStr, user: CurrentUser = Depends(get_current_user)):
+def get_temp_cover(temp_id: TempIdStr, user: Annotated[CurrentUser, Depends(get_current_user)]):
     path = cover_service.get_temp_cover_path(temp_id)
     return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
 @router.put("/api/books/{book_id}/cover", response_model=OkResponse)
-def commit_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
+def commit_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     if not cover_service.commit(db, book_id):
         raise BadInputError("No pending cover to commit")
     log.info("Cover updated book=%d by user_id=%s", book_id, user.user_id)
@@ -70,6 +71,6 @@ def commit_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: s
 
 
 @router.delete("/api/books/{book_id}/cover", response_model=OkResponse)
-def discard_cover(book_id: int, user: CurrentUser = Depends(require_admin), db: sqlite3.Connection = Depends(db_session)) -> OkResponse:
+def discard_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     cover_service.discard_temp(db, book_id)
     return OkResponse()
