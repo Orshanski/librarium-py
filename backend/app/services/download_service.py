@@ -7,6 +7,8 @@ from ..config import DB_PATH_PREFIX, LIBRARY_DIR
 from ..dal import books as dal
 from ..exceptions import NotFoundError
 
+_FILE_NOT_FOUND = "File not found"
+
 
 @dataclass
 class DownloadTarget:
@@ -47,16 +49,16 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     try:
         rel_in_library = Path(target["file_path"]).relative_to(DB_PATH_PREFIX)
     except ValueError:
-        raise NotFoundError("File not found")
+        raise NotFoundError(_FILE_NOT_FOUND)
     candidate = LIBRARY_DIR / rel_in_library
 
     try:
         resolved = candidate.resolve()
         resolved.relative_to(LIBRARY_DIR.resolve())
     except (ValueError, OSError):
-        raise NotFoundError("File not found")
+        raise NotFoundError(_FILE_NOT_FOUND)
     if not resolved.is_file():
-        raise NotFoundError("File not found")
+        raise NotFoundError(_FILE_NOT_FOUND)
 
     return DownloadTarget(
         path=str(resolved),

@@ -22,6 +22,9 @@ NS = {
 FB_NS = "http://www.gribuser.ru/xml/fictionbook/2.0"
 XLINK_NS = "http://www.w3.org/1999/xlink"
 
+_IMAGE_JPEG = "image/jpeg"
+_COVER_JPG = "cover.jpg"
+
 
 def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
     """Embed or replace a cover image in an FB2 file.
@@ -46,12 +49,12 @@ def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
         binary = [b for b in binaries if b.get("id") == cover_id]
         if binary:
             binary[0].text = b64_text
-            binary[0].set("content-type", "image/jpeg")
+            binary[0].set("content-type", _IMAGE_JPEG)
         else:
             # Binary missing — create it
             bin_el = etree.SubElement(root, f"{{{FB_NS}}}binary")
             bin_el.set("id", cover_id)
-            bin_el.set("content-type", "image/jpeg")
+            bin_el.set("content-type", _IMAGE_JPEG)
             bin_el.text = b64_text
     else:
         # No coverpage — create coverpage + binary
@@ -71,7 +74,7 @@ def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
         # Create <binary> at end of root
         bin_el = etree.SubElement(root, f"{{{FB_NS}}}binary")
         bin_el.set("id", cover_id)
-        bin_el.set("content-type", "image/jpeg")
+        bin_el.set("content-type", _IMAGE_JPEG)
         bin_el.text = b64_text
 
     tree.write(str(file_path), xml_declaration=True, encoding="utf-8")
@@ -132,9 +135,9 @@ def embed_cover_epub(file_path: Path, cover_bytes: bytes) -> None:
                 if cover_href is None:
                     # Add the cover image file
                     cover_new_path = (
-                        os.path.join(cover_dir, "cover.jpg").replace("\\", "/")
+                        os.path.join(cover_dir, _COVER_JPG).replace("\\", "/")
                         if cover_dir
-                        else "cover.jpg"
+                        else _COVER_JPG
                     )
                     zf_out.writestr(cover_new_path, cover_bytes)
 
@@ -184,8 +187,8 @@ def _add_cover_to_opf(opf: etree._Element, cover_dir: str) -> bytes:
     manifest = opf.xpath("/pkg:package/pkg:manifest", namespaces=ns)[0]
     item = etree.SubElement(manifest, f"{{{OPF_NS}}}item")
     item.set("id", "cover-image")
-    item.set("href", "cover.jpg")
-    item.set("media-type", "image/jpeg")
+    item.set("href", _COVER_JPG)
+    item.set("media-type", _IMAGE_JPEG)
     item.set("properties", "cover-image")
 
     # Add <meta name="cover" content="cover-image"/> to metadata

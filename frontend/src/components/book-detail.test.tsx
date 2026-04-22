@@ -233,7 +233,7 @@ describe("book-detail — books", () => {
     // Initial rating is 3
     await waitFor(() => {
       const ratingEl = screen.getByTestId("book-rating");
-      expect(ratingEl.getAttribute("data-rating")).toBe("3");
+      expect(ratingEl.dataset.rating).toBe("3");
     });
 
     // Click the 1st star → optimistic update to 1
@@ -242,7 +242,7 @@ describe("book-detail — books", () => {
     // Optimistic: rating should be 1 immediately
     await waitFor(() => {
       const ratingEl = screen.getByTestId("book-rating");
-      expect(ratingEl.getAttribute("data-rating")).toBe("1");
+      expect(ratingEl.dataset.rating).toBe("1");
     });
 
     // Release the handler with 500 → rollback to 3
@@ -250,7 +250,7 @@ describe("book-detail — books", () => {
 
     await waitFor(() => {
       const ratingEl = screen.getByTestId("book-rating");
-      expect(ratingEl.getAttribute("data-rating")).toBe("3");
+      expect(ratingEl.dataset.rating).toBe("3");
     });
   });
 

@@ -11,6 +11,8 @@ from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "shelves", "sqlite3")
 
+_ORDER_CLAUSE_PLACEHOLDER = "{order_clause}"
+
 
 def get_shelves(db: sqlite3.Connection, user_id: int) -> list[ShelfRow]:
     shelves = dicts_from_rows(queries.list_user_shelves(db, uid=user_id))
@@ -41,13 +43,13 @@ def get_shelf_by_id(
     order_clause = resolve_order_clause(effective_sort)
 
     if shelf["system_code"] == "best":
-        sql = queries.get_shelf_books_best.sql.replace("{order_clause}", order_clause)
+        sql = queries.get_shelf_books_best.sql.replace(_ORDER_CLAUSE_PLACEHOLDER, order_clause)
         rows = db.execute(sql, {"uid": user_id}).fetchall()
     elif shelf["system_code"] == "reading_now":
-        sql = queries.get_shelf_books_reading_now.sql.replace("{order_clause}", order_clause)
+        sql = queries.get_shelf_books_reading_now.sql.replace(_ORDER_CLAUSE_PLACEHOLDER, order_clause)
         rows = db.execute(sql, {"uid": user_id}).fetchall()
     else:
-        sql = queries.get_shelf_books_regular.sql.replace("{order_clause}", order_clause)
+        sql = queries.get_shelf_books_regular.sql.replace(_ORDER_CLAUSE_PLACEHOLDER, order_clause)
         rows = db.execute(sql, {"id": shelf_id, "uid": user_id}).fetchall()
 
     books = dicts_from_rows(rows)

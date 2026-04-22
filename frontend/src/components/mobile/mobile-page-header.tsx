@@ -5,6 +5,9 @@ import { useMobileLayout } from "./layout-context";
 import SmartFilterBar from "../smart-filter-bar";
 import { PageHeaderProps } from "../page-header.types";
 
+// Mobile intentionally does not render the global upload CTA in the header.
+// The screen is already crowded, and `showUpload` is desktop-only by product
+// choice — prop is accepted but not destructured here.
 export default function MobilePageHeader({
   title,
   filterKeys,
@@ -15,7 +18,6 @@ export default function MobilePageHeader({
   sortOptions,
   sortValue,
   onSortChange,
-  showUpload,
   infoSlot,
   breadcrumb,
   actionSlot,
@@ -24,9 +26,6 @@ export default function MobilePageHeader({
   const { toggleDrawer } = useMobileLayout();
   const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement | null>(null);
-  // Mobile intentionally does not render the global upload CTA in the header.
-  // The screen is already crowded, and this prop is desktop-only by product choice.
-  void showUpload;
   const hasToolbar =
     (filterKeys && filterKeys.length > 0) || sortOptions || actionSlot;
 

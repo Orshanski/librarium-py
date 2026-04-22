@@ -18,6 +18,8 @@ from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 
 log = logging.getLogger("librarium.services.books")
 
+_BOOK_NOT_FOUND = "Book not found"
+
 
 def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadFileResponse:
     """Write a book file to disk and register in DB.
@@ -58,7 +60,7 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     false transactional guarantees that break at the db_session commit boundary.
     """
     if not dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
 
     book_dir = str(LIBRARY_DIR / str(book_id))
     if os.path.isdir(book_dir):
@@ -77,7 +79,7 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
     """Get book with files and identifiers. Raises NotFoundError if book absent."""
     book = dal.get_book_by_id(db, book_id, user_id)
     if not book:
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
     return BookDetailResponse(book=book, files=files, identifiers=identifiers)
@@ -87,7 +89,7 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
     """Update book fields. Resolves authorIds/tagIds/seriesId raw input to IDs
     (creates entities if missing). Raises NotFoundError if the book is absent."""
     if not dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
 
     data: BookUpdateData = cast(BookUpdateData, body.model_dump(exclude_unset=True))
     if "authorIds" in data:

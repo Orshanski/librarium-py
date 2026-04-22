@@ -89,9 +89,9 @@ if (typeof window !== "undefined") {
   //    PageHeader use it, so without a polyfill they crash on mount.
   if (!window.ResizeObserver) {
     class ResizeObserverPolyfill {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
+      observe() { /* polyfill: no-op */ }
+      unobserve() { /* polyfill: no-op */ }
+      disconnect() { /* polyfill: no-op */ }
     }
     window.ResizeObserver =
       ResizeObserverPolyfill as unknown as typeof ResizeObserver;

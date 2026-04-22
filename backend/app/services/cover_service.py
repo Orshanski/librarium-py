@@ -20,6 +20,7 @@ from .temp_cleanup import cleanup_old_uploads
 
 log = logging.getLogger("librarium.services.covers")
 
+_BOOK_NOT_FOUND = "Book not found"
 _MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP", "BMP", "TIFF"}
 _THUMB_HEIGHT = 300
@@ -57,7 +58,7 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
       BadInputError: if image is unsupported format or corrupted
     """
     if not books_dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
 
     # Self-healing orphan GC: снести brew-старые temp'ы до того как положим
     # свой. Без scheduler/cron — пользовательский upload-поток сам себя
@@ -93,7 +94,7 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     Returns True if a cover was committed, False if no temp cover found.
     """
     if not books_dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
 
@@ -215,6 +216,6 @@ def get_temp_cover_path(temp_id: str) -> str:
 def discard_temp(db: sqlite3.Connection, book_id: int) -> None:
     """Remove any temp cover files for a book. Raises NotFoundError if book doesn't exist."""
     if not books_dal.book_exists(db, book_id):
-        raise NotFoundError("Book not found")
+        raise NotFoundError(_BOOK_NOT_FOUND)
     for f in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
         os.remove(f)
