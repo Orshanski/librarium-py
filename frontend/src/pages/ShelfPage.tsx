@@ -54,7 +54,7 @@ export default function ShelfPage() {
   async function handleDelete() {
     try {
       await deleteShelf(shelfId);
-      window.dispatchEvent(new Event("shelves-changed"));
+      globalThis.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
     } catch (err) {
       console.warn("Failed to delete shelf:", err);

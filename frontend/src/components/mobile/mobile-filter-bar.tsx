@@ -58,8 +58,8 @@ export default function MobileFilterBar({
       const trigger = triggerRefs.current[openKey];
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
-      const width = Math.min(window.innerWidth - 16, 280);
-      const maxLeft = Math.max(8, window.innerWidth - width - 8);
+      const width = Math.min(globalThis.innerWidth - 16, 280);
+      const maxLeft = Math.max(8, globalThis.innerWidth - width - 8);
       setDropdownStyle({
         position: "fixed",
         top: rect.bottom + 6,
@@ -77,11 +77,11 @@ export default function MobileFilterBar({
     }
 
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    globalThis.addEventListener("resize", updatePosition);
+    globalThis.addEventListener("scroll", updatePosition, true);
     return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      globalThis.removeEventListener("resize", updatePosition);
+      globalThis.removeEventListener("scroll", updatePosition, true);
     };
   }, [openKey]);
 

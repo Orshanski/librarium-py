@@ -66,7 +66,7 @@ export function setupFootnoteDocListeners(
 ): void {
   injectFootnoteHitAreaStyle(doc);
   doc.addEventListener("click", (ev: MouseEvent) => {
-    lastClickXRef.current = ev.screenX - window.screenX;
-    lastClickYRef.current = ev.screenY - window.screenY;
+    lastClickXRef.current = ev.screenX - globalThis.screenX;
+    lastClickYRef.current = ev.screenY - globalThis.screenY;
   }, true);
 }

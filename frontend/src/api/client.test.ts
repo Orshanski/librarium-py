@@ -137,16 +137,16 @@ describe("client — AbortError passthrough", () => {
 
 describe("client — OfflineError on network failure", () => {
   it("maps non-Abort fetch throw to OfflineError", async () => {
-    // Replace window.fetch with a function that throws a non-Abort TypeError
+    // Replace globalThis.fetch with a function that throws a non-Abort TypeError
     // (exactly what the browser does on DNS fail / CORS / offline).
-    const orig = window.fetch;
-    window.fetch = () => Promise.reject(new TypeError("Failed to fetch"));
+    const orig = globalThis.fetch;
+    globalThis.fetch = () => Promise.reject(new TypeError("Failed to fetch"));
     try {
       await expect(client("GET", "/api/unreachable")).rejects.toBeInstanceOf(
         OfflineError,
       );
     } finally {
-      window.fetch = orig;
+      globalThis.fetch = orig;
     }
   });
 });

@@ -146,12 +146,12 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
     // Resize handler: recalculate pages on window resize
     const handleResize = () => footer.recalcPages();
-    window.addEventListener("resize", handleResize);
+    globalThis.addEventListener("resize", handleResize);
 
     // Save position on suspend/hide — covers scroll mode where there are no tap events.
     // keepalive: true (set in pushProgressToServer) ensures the server PUT survives pagehide.
     const handlePageHide = () => nav.savePosition();
-    window.addEventListener("pagehide", handlePageHide);
+    globalThis.addEventListener("pagehide", handlePageHide);
 
     const t0 = performance.now();
     view.open(bookBlob)
@@ -189,8 +189,8 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       disposed = true;
       disposedRef.current = true;
       footer.cleanupCharCount();
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("pagehide", handlePageHide);
+      globalThis.removeEventListener("resize", handleResize);
+      globalThis.removeEventListener("pagehide", handlePageHide);
       removeRelocateListener();
       removeLoadListener();
       cleanupInteraction();

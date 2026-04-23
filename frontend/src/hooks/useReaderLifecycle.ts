@@ -33,7 +33,7 @@ export function useReaderLifecycle(
       if (document.visibilityState !== "visible") return;
       if (!bookReady) return;
       if (!readerRef.current?.hasRenderer()) {
-        window.location.reload();
+        globalThis.location.reload();
       }
     };
     document.addEventListener("visibilitychange", handler);

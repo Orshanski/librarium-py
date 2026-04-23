@@ -143,7 +143,7 @@ describe("AdminPage", () => {
 
       // Alert should have been called with error message
       await waitFor(() => {
-        expect(window.alert).toHaveBeenCalledWith("Нельзя удалить самого себя");
+        expect(globalThis.alert).toHaveBeenCalledWith("Нельзя удалить самого себя");
       });
 
       // User should still be in the list

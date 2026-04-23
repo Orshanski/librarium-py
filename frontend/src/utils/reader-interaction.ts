@@ -80,8 +80,8 @@ export function attachReaderInteraction(
   const removeTapListener = addCustomEventListener<ReaderTapDetail>(view, "tap", (e) => {
     void dispatchInput({
       kind: "tap",
-      x: e.detail.screenX - window.screenX,
-      y: e.detail.screenY - window.screenY,
+      x: e.detail.screenX - globalThis.screenX,
+      y: e.detail.screenY - globalThis.screenY,
       target: e.detail.target,
     });
   });

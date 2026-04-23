@@ -3,9 +3,8 @@ import { useLocation } from "react-router-dom";
 import { fetchStatic } from "@/api/client";
 
 declare global {
-  interface Window {
-    __BUILD_VERSION__?: string;
-  }
+  // eslint-disable-next-line no-var
+  var __BUILD_VERSION__: string | undefined;
 }
 
 export function useUpdateAvailable(): [boolean, () => void] {
@@ -13,7 +12,7 @@ export function useUpdateAvailable(): [boolean, () => void] {
   const location = useLocation();
 
   useEffect(() => {
-    const buildVersion = window.__BUILD_VERSION__;
+    const buildVersion = globalThis.__BUILD_VERSION__;
     if (!buildVersion) return;
 
     fetchStatic("/version.txt", { cache: "no-store" })
@@ -26,7 +25,7 @@ export function useUpdateAvailable(): [boolean, () => void] {
   }, [location.pathname]);
 
   const reload = () => {
-    window.location.reload();
+    globalThis.location.reload();
   };
 
   return [available, reload];

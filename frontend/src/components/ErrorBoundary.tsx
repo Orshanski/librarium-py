@@ -39,7 +39,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           <button
             onClick={() => {
               if (this.props.onBack) this.props.onBack();
-              else window.history.back();
+              else globalThis.history.back();
             }}
             style={{
               background: "none",

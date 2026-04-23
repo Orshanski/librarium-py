@@ -8,18 +8,28 @@ interface FootnotePopupProps {
   settings: ReaderSettings;
 }
 
+const WIDE_VIEWPORT_BREAKPOINT = 1000;
+
+function resolveHorizontalPosition(
+  side: "left" | "right",
+  isWideViewport: boolean,
+): { left: string; right: string } {
+  if (!isWideViewport) return { left: "5%", right: "5%" };
+  if (side === "left") return { left: "5%", right: "55%" };
+  return { left: "55%", right: "5%" };
+}
+
 export default function FootnotePopup({ html, side, settings }: FootnotePopupProps) {
   if (!html) return null;
 
   const theme = THEME_STYLES[settings.theme];
+  const horizontal = resolveHorizontalPosition(side, globalThis.innerWidth > WIDE_VIEWPORT_BREAKPOINT);
 
   const popupStyle: CSSProperties = {
     "--footnote-accent": theme.accent,
     position: "fixed",
     bottom: 16,
-    ...(window.innerWidth > 1000
-      ? (side === "left" ? { left: "5%", right: "55%" } : { left: "55%", right: "5%" })
-      : { left: "5%", right: "5%" }),
+    ...horizontal,
     maxHeight: "40vh",
     overflowY: "auto",
     backgroundColor: theme.bg,

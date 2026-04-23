@@ -24,4 +24,15 @@ describe("getDeviceType", () => {
   ])("returns %s for width %i", (expected, width) => {
     expect(getDeviceType(width)).toBe(expected);
   });
+
+  it("defaults to globalThis.innerWidth when no arg passed", () => {
+    const original = globalThis.innerWidth;
+    // jsdom default width is 1024 (tablet) — override to assert fallback path
+    Object.defineProperty(globalThis, "innerWidth", { value: 1500, configurable: true });
+    try {
+      expect(getDeviceType()).toBe("desktop");
+    } finally {
+      Object.defineProperty(globalThis, "innerWidth", { value: original, configurable: true });
+    }
+  });
 });

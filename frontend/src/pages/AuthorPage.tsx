@@ -143,7 +143,7 @@ export default function AuthorPage() {
           currentName={author.name}
           bookCount={author.book_count}
           onRenamed={(newName) => { setAuthor({...author, name: newName}); setShowAdmin(false); }}
-          onMerged={() => window.location.reload()}
+          onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/authors")}
         />
       )}

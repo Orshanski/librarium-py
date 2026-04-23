@@ -68,7 +68,7 @@ export default function TagsPage() {
             setSearch(val);
             const tag = allTags.find((t) => t.name === val);
             if (tag) {
-              window.location.href = `/tags/${tag.id}`;
+              globalThis.location.href = `/tags/${tag.id}`;
             }
           }}
           options={allTags.map((t) => ({ value: t.name }))}

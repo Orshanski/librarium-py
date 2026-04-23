@@ -131,7 +131,7 @@ export default function SeriesPage() {
           currentName={series.name}
           bookCount={series.book_count}
           onRenamed={(newName) => { setSeries({...series, name: newName}); setShowAdmin(false); }}
-          onMerged={() => window.location.reload()}
+          onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/series")}
         />
       )}
