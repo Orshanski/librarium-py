@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, ReactNode } from "react";
 import { colors } from "../theme";
 import type { ReaderSettings } from "../types/reader-settings";
 import { FONT_OPTIONS } from "../constants/reader-defaults";
@@ -23,27 +23,107 @@ const toggleBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+type ActiveVariant = "solid" | "surface" | "subtle";
+
+const SUBTLE_BG = "rgba(249,190,3,0.12)";
+
+function activeColors(variant: ActiveVariant): Pick<React.CSSProperties, "background" | "color" | "borderColor"> {
+  if (variant === "solid") {
+    return { background: colors.accent, color: colors.sidebar, borderColor: colors.accent };
+  }
+  if (variant === "surface") {
+    return { background: colors.accentBg, color: colors.accent, borderColor: colors.accent };
+  }
+  return { background: SUBTLE_BG, color: colors.accent, borderColor: colors.accent };
+}
+
+function ToggleBtn({
+  active,
+  onClick,
+  children,
+  variant,
+  flex,
+  style,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  variant: ActiveVariant;
+  flex?: number;
+  style?: React.CSSProperties;
+}) {
+  const activeStyle = active ? activeColors(variant) : { background: "none", color: colors.textSecondary, borderColor: colors.border };
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...toggleBtnStyle,
+        ...(flex !== undefined ? { flex } : {}),
+        ...activeStyle,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DebouncedRange({
+  label,
+  value,
+  onCommit,
+  min,
+  max,
+  step,
+  debounceRef,
+}: {
+  label: ReactNode;
+  value: number;
+  onCommit: (v: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  debounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | undefined>;
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { setLocal(value); }, [value]);
+
+  return (
+    <>
+      <span style={labelStyle}>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={local}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setLocal(v);
+          clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(() => onCommit(v), 150);
+        }}
+        style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
+      />
+    </>
+  );
+}
+
 interface ReaderGeneralSettingsProps {
   settings: ReaderSettings;
   onChange: (s: ReaderSettings) => void;
 }
 
+const THEME_LABELS: Record<string, string> = { dark: "Тёмная", warm: "Тёплая", light: "Светлая" };
+const FLOW_LABELS: Record<string, string> = { paginated: "Страницы", scrolled: "Скролл" };
+
 export default function ReaderGeneralSettings({ settings, onChange }: ReaderGeneralSettingsProps) {
-  const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
-  const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useEffect(() => { setLocalFontSize(settings.fontSize); }, [settings.fontSize]);
-  useEffect(() => { setLocalLineSpacing(settings.lineSpacing); }, [settings.lineSpacing]);
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   function update(patch: Partial<ReaderSettings>) {
     onChange({ ...settings, ...patch });
-  }
-
-  function debouncedUpdate(patch: Partial<ReaderSettings>) {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => update(patch), 150);
   }
 
   return (
@@ -52,19 +132,15 @@ export default function ReaderGeneralSettings({ settings, onChange }: ReaderGene
       <span style={labelStyle}>Тема</span>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {(["dark", "warm", "light"] as const).map((t) => (
-          <button
+          <ToggleBtn
             key={t}
+            active={settings.theme === t}
             onClick={() => update({ theme: t })}
-            style={{
-              ...toggleBtnStyle,
-              flex: 1,
-              background: settings.theme === t ? colors.accent : "none",
-              color: settings.theme === t ? colors.sidebar : colors.textSecondary,
-              borderColor: settings.theme === t ? colors.accent : colors.border,
-            }}
+            variant="solid"
+            flex={1}
           >
-            {t === "dark" ? "Тёмная" : t === "warm" ? "Тёплая" : "Светлая"}
-          </button>
+            {THEME_LABELS[t]}
+          </ToggleBtn>
         ))}
       </div>
 
@@ -72,85 +148,72 @@ export default function ReaderGeneralSettings({ settings, onChange }: ReaderGene
       <span style={labelStyle}>Шрифт</span>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
         {FONT_OPTIONS.map((f) => (
-          <button
+          <ToggleBtn
             key={f.value}
+            active={settings.fontFamily === f.value}
             onClick={() => update({ fontFamily: f.value })}
-            style={{
-              ...toggleBtnStyle,
-              fontFamily: f.value,
-              textAlign: "left",
-              background: settings.fontFamily === f.value ? colors.accentBg : "none",
-              color: settings.fontFamily === f.value ? colors.accent : colors.textSecondary,
-              borderColor: settings.fontFamily === f.value ? colors.accent : colors.border,
-            }}
+            variant="surface"
+            style={{ fontFamily: f.value, textAlign: "left" }}
           >
             {f.label}
-          </button>
+          </ToggleBtn>
         ))}
       </div>
 
-      {/* Font size */}
-      <span style={labelStyle}>Размер шрифта: {localFontSize}px</span>
-      <input
-        type="range" min={12} max={28} step={1}
-        value={localFontSize}
-        onChange={(e) => { const v = Number(e.target.value); setLocalFontSize(v); debouncedUpdate({ fontSize: v }); }}
-        style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
+      <DebouncedRange
+        label={`Размер шрифта: ${settings.fontSize}px`}
+        value={settings.fontSize}
+        onCommit={(v) => update({ fontSize: v })}
+        min={12}
+        max={28}
+        step={1}
+        debounceRef={debounceRef}
       />
 
-      {/* Line spacing */}
-      <span style={labelStyle}>Межстрочный интервал: {localLineSpacing.toFixed(1)}</span>
-      <input
-        type="range" min={1} max={2.5} step={0.1}
-        value={localLineSpacing}
-        onChange={(e) => { const v = Number(e.target.value); setLocalLineSpacing(v); debouncedUpdate({ lineSpacing: v }); }}
-        style={{ width: "100%", marginBottom: 16, accentColor: colors.accent }}
+      <DebouncedRange
+        label={`Межстрочный интервал: ${settings.lineSpacing.toFixed(1)}`}
+        value={settings.lineSpacing}
+        onCommit={(v) => update({ lineSpacing: v })}
+        min={1}
+        max={2.5}
+        step={0.1}
+        debounceRef={debounceRef}
       />
 
       {/* Flow mode */}
       <span style={labelStyle}>Режим</span>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {(["paginated", "scrolled"] as const).map((mode) => (
-          <button
+          <ToggleBtn
             key={mode}
+            active={settings.flow === mode}
             onClick={() => update({ flow: mode })}
-            style={{
-              ...toggleBtnStyle,
-              flex: 1,
-              background: settings.flow === mode ? colors.accent : "none",
-              color: settings.flow === mode ? colors.sidebar : colors.textSecondary,
-              borderColor: settings.flow === mode ? colors.accent : colors.border,
-            }}
+            variant="solid"
+            flex={1}
           >
-            {mode === "paginated" ? "Страницы" : "Скролл"}
-          </button>
+            {FLOW_LABELS[mode]}
+          </ToggleBtn>
         ))}
       </div>
 
       {/* Toggles */}
       <div style={{ display: "flex", gap: 6 }}>
-        <button
+        <ToggleBtn
+          active={settings.hyphenate}
           onClick={() => update({ hyphenate: !settings.hyphenate })}
-          style={{
-            ...toggleBtnStyle, flex: 1,
-            background: settings.hyphenate ? "rgba(249,190,3,0.12)" : "none",
-            color: settings.hyphenate ? colors.accent : colors.textSecondary,
-            borderColor: settings.hyphenate ? colors.accent : colors.border,
-          }}
+          variant="subtle"
+          flex={1}
         >
           Переносы
-        </button>
-        <button
+        </ToggleBtn>
+        <ToggleBtn
+          active={settings.justify}
           onClick={() => update({ justify: !settings.justify })}
-          style={{
-            ...toggleBtnStyle, flex: 1,
-            background: settings.justify ? "rgba(249,190,3,0.12)" : "none",
-            color: settings.justify ? colors.accent : colors.textSecondary,
-            borderColor: settings.justify ? colors.accent : colors.border,
-          }}
+          variant="subtle"
+          flex={1}
         >
           По ширине
-        </button>
+        </ToggleBtn>
       </div>
     </>
   );
