@@ -19,6 +19,102 @@ CONTENT_TYPE_TO_EXT = {
 }
 
 
+def _follow_redirect(response: httpx.Response, current_url: str) -> str | None:
+    """Extract and resolve the redirect target URL from a response.
+
+    Returns the absolute next URL, or None if Location header is missing.
+    """
+    location = response.headers.get("location", "")
+    if not location:
+        log.warning("Redirect without Location header: %s", current_url)
+        return None
+    return str(httpx.URL(current_url).join(location))
+
+
+def _check_size_header(response: httpx.Response, url: str) -> bool:
+    """Check Content-Length header against the download cap before streaming.
+
+    Returns True if the size is acceptable (or header is absent/malformed).
+    Returns False if Content-Length exceeds MAX_COVER_DOWNLOAD_BYTES.
+    """
+    size_hdr = response.headers.get("content-length")
+    if not size_hdr:
+        return True
+    try:
+        if int(size_hdr) > MAX_COVER_DOWNLOAD_BYTES:
+            log.warning("Cover too large (Content-Length=%s) for %s", size_hdr, url)
+            return False
+    except ValueError:
+        pass  # ignore malformed Content-Length
+    return True
+
+
+def _resolve_ext(response: httpx.Response, url: str) -> str | None:
+    """Map Content-Type header to a file extension via CONTENT_TYPE_TO_EXT.
+
+    Returns the extension string, or None if content-type is absent or unsupported.
+    """
+    content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
+    if not content_type:
+        log.warning("Missing content-type header for %s", url)
+        return None
+    ext = CONTENT_TYPE_TO_EXT.get(content_type)
+    if not ext:
+        log.warning("Unsupported content-type for %s: %s", url, content_type)
+    return ext
+
+
+def _stream_with_cap(response: httpx.Response, url: str) -> bytes | None:
+    """Stream response body, enforcing MAX_COVER_DOWNLOAD_BYTES cap.
+
+    Returns accumulated bytes on success, or None if the cap is exceeded.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    for chunk in response.iter_bytes():
+        total += len(chunk)
+        if total > MAX_COVER_DOWNLOAD_BYTES:
+            log.warning("Cover too large (streamed %d bytes) for %s", total, url)
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _attempt(current_url: str) -> tuple[str | None, tuple[bytes, str] | None]:
+    """One HTTP hop: GET, handle redirect/success/fail.
+
+    Returns:
+        (next_url, None) — redirect to next_url (caller does continue); next_url may be
+            None if Location header is missing, which caller treats as fail.
+        (None, (body, ext)) — success
+        (None, None) — any fail (HTTP error, missing/bad Content-Length, unsupported
+            content-type, stream cap exceeded, or exception)
+    """
+    try:
+        with httpx.stream("GET", current_url, timeout=TIMEOUT_SEC, follow_redirects=False) as response:
+            if response.is_redirect:
+                next_url = _follow_redirect(response, current_url)
+                return (next_url, None)
+
+            response.raise_for_status()
+
+            if not _check_size_header(response, current_url):
+                return (None, None)
+
+            ext = _resolve_ext(response, current_url)
+            if ext is None:
+                return (None, None)
+
+            body = _stream_with_cap(response, current_url)
+            if body is None:
+                return (None, None)
+
+            return (None, (body, ext))
+    except Exception as e:
+        log.warning("Cover fetch failed for %s: %s", current_url, e)
+        return (None, None)
+
+
 def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     """Download image from URL. Returns (bytes, ext) or (None, None) on failure.
 
@@ -28,56 +124,18 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     if not url or not url.startswith(("http://", "https://")):
         return None, None
 
-    # Follow redirects manually — SSRF check on every hop, including final target
     current_url = url
     for _ in range(MAX_REDIRECTS + 1):
+        # SSRF check on every hop (initial URL + each redirect target)
         if not is_safe_url(current_url):
             return None, None
 
-        try:
-            with httpx.stream("GET", current_url, timeout=TIMEOUT_SEC, follow_redirects=False) as response:
-                # Handle redirect: validate new location then loop
-                if response.is_redirect:
-                    location = response.headers.get("location", "")
-                    if not location:
-                        log.warning("Redirect without Location header: %s", current_url)
-                        return None, None
-                    current_url = str(httpx.URL(current_url).join(location))
-                    continue
-
-                response.raise_for_status()
-
-                # Check Content-Length header before consuming body
-                size_hdr = response.headers.get("content-length")
-                if size_hdr:
-                    try:
-                        if int(size_hdr) > MAX_COVER_DOWNLOAD_BYTES:
-                            log.warning("Cover too large (Content-Length=%s) for %s", size_hdr, current_url)
-                            return None, None
-                    except ValueError:
-                        pass  # ignore malformed Content-Length
-
-                content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
-                ext = CONTENT_TYPE_TO_EXT.get(content_type)
-                if not ext:
-                    log.warning("Non-image content-type for %s: %s", current_url, content_type)
-                    return None, None
-
-                # Stream body with running size cap
-                chunks: list[bytes] = []
-                total = 0
-                for chunk in response.iter_bytes():
-                    total += len(chunk)
-                    if total > MAX_COVER_DOWNLOAD_BYTES:
-                        log.warning("Cover too large (streamed %d bytes) for %s", total, current_url)
-                        return None, None
-                    chunks.append(chunk)
-                return b"".join(chunks), ext
-        except Exception as e:
-            log.warning("Cover fetch failed for %s: %s", current_url, e)
+        next_url, result = _attempt(current_url)
+        if result is not None:
+            return result
+        if next_url is None:
             return None, None
+        current_url = next_url
 
     log.warning("Too many redirects starting from %s", url)
     return None, None
-
-
