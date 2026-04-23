@@ -17,7 +17,7 @@ COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 def _load_opf(zf: zipfile.ZipFile) -> tuple[etree._Element, str]:
     """Возвращает (opf_tree, cover_dir). Читает META-INF/container.xml → opf_path → opf_tree.
-    Raises: KeyError / IndexError / etree.XMLSyntaxError — любая malformed EPUB уйдёт в caller."""
+    Исключения: KeyError / IndexError / etree.XMLSyntaxError — любая malformed EPUB уйдёт в caller."""
     container = etree.fromstring(zf.read("META-INF/container.xml"))
     opf_path = container.xpath("n:rootfiles/n:rootfile/@full-path", namespaces=NS)[0]
     opf = etree.fromstring(zf.read(opf_path))
@@ -97,37 +97,15 @@ def _extract_series(opf: etree._Element) -> tuple[str | None, float | None]:
 
 def _extract_isbn(p: etree._Element) -> str | None:
     """dc:identifier с attribute, содержащим 'isbn' (case-insensitive). Возвращает последний match в порядке обхода."""
-    isbn: str | None = None
+    matches: list[str] = []
     for node in p.xpath("dc:identifier", namespaces=NS):
         val = (node.text or "").strip()
         attrs = list(node.attrib.values())
         if attrs and val:
             scheme = attrs[-1].lower()
             if "isbn" in scheme:
-                isbn = val
-    return isbn
-
-
-def parse_epub(file_path: str) -> ParsedMetadata:
-    meta = ParsedMetadata()
-    try:
-        with zipfile.ZipFile(file_path) as zf:
-            opf, cover_dir = _load_opf(zf)
-            p = opf.xpath("/pkg:package/pkg:metadata", namespaces=NS)[0]
-
-            meta.title = _extract_title(p)
-            meta.authors = _extract_authors(p)
-            meta.language = _extract_language(p)
-            meta.description = _extract_description(p)
-            meta.genres = _extract_genres(p)
-            meta.publisher = _extract_publisher(p)
-            meta.pub_date = _extract_pub_date(p)
-            meta.series, meta.series_number = _extract_series(opf)
-            meta.isbn = _extract_isbn(p)
-            meta.cover_data, meta.cover_ext = _extract_cover(opf, zf, cover_dir)
-    except Exception as e:
-        log.warning("Cannot parse EPUB: %s", e)
-    return meta
+                matches.append(val)
+    return matches[-1] if matches else None
 
 
 def _extract_cover(opf, zf: zipfile.ZipFile, cover_dir: str) -> tuple[bytes | None, str | None]:
@@ -172,3 +150,25 @@ def _read_cover(zf: zipfile.ZipFile, cover_dir: str, href: str) -> tuple[bytes |
             return data, ext_clean
         except KeyError:
             return None, None
+
+
+def parse_epub(file_path: str) -> ParsedMetadata:
+    meta = ParsedMetadata()
+    try:
+        with zipfile.ZipFile(file_path) as zf:
+            opf, cover_dir = _load_opf(zf)
+            p = opf.xpath("/pkg:package/pkg:metadata", namespaces=NS)[0]
+
+            meta.title = _extract_title(p)
+            meta.authors = _extract_authors(p)
+            meta.language = _extract_language(p)
+            meta.description = _extract_description(p)
+            meta.genres = _extract_genres(p)
+            meta.publisher = _extract_publisher(p)
+            meta.pub_date = _extract_pub_date(p)
+            meta.series, meta.series_number = _extract_series(opf)
+            meta.isbn = _extract_isbn(p)
+            meta.cover_data, meta.cover_ext = _extract_cover(opf, zf, cover_dir)
+    except Exception as e:
+        log.warning("Cannot parse EPUB: %s", e)
+    return meta
