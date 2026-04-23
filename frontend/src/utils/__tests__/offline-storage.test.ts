@@ -8,6 +8,7 @@ import {
   getCachedBook,
   isCached,
   removeCachedBook,
+  removeBookFromLocalStorage,
   touchBook,
   saveProgress,
   getProgress,
@@ -334,5 +335,42 @@ describe("getStorageUsage", () => {
     const usage = await getStorageUsage();
     expect(usage.bookCount).toBe(0);
     expect(usage.totalBytes).toBe(0);
+  });
+});
+
+describe("removeBookFromLocalStorage", () => {
+  const cover = new Blob(["cover"], { type: "image/jpeg" });
+  const files = [{ format: "EPUB", fileBlob: new Blob(["epub"]), fileSize: 4 }];
+
+  it("removes book from cached_books store", async () => {
+    await cacheBook({ bookId: 1, title: "X", authors: ["A"] }, files, cover);
+    expect(await isCached(1)).toBe(true);
+    await removeBookFromLocalStorage(1);
+    expect(await isCached(1)).toBe(false);
+  });
+
+  it("removes reading_progress for the book", async () => {
+    await saveProgress(1, { position: "cfi", fraction: 0.5, lastFormat: "epub", lastReadAt: Date.now() });
+    expect(await getProgress(1)).not.toBeNull();
+    await removeBookFromLocalStorage(1);
+    expect(await getProgress(1)).toBeNull();
+  });
+
+  it("leaves other books untouched (cache + progress)", async () => {
+    await cacheBook({ bookId: 1, title: "X", authors: [] }, files, cover);
+    await cacheBook({ bookId: 2, title: "Y", authors: [] }, files, cover);
+    await saveProgress(1, { position: "p1", fraction: 0.3, lastFormat: "epub", lastReadAt: Date.now() });
+    await saveProgress(2, { position: "p2", fraction: 0.7, lastFormat: "epub", lastReadAt: Date.now() });
+
+    await removeBookFromLocalStorage(1);
+
+    expect(await isCached(1)).toBe(false);
+    expect(await isCached(2)).toBe(true);
+    expect(await getProgress(1)).toBeNull();
+    expect(await getProgress(2)).not.toBeNull();
+  });
+
+  it("no-op when book is not in either store (does not throw)", async () => {
+    await expect(removeBookFromLocalStorage(999)).resolves.not.toThrow();
   });
 });

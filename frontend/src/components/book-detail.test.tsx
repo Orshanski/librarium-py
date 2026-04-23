@@ -11,6 +11,15 @@ import type { Book } from "../types";
 // console.warn / console.error silencing is provided by the global
 // test/setup.ts beforeEach hook — no per-describe spies needed here.
 
+vi.mock("@/utils/offline-storage", async () => {
+  const actual = await vi.importActual<typeof import("@/utils/offline-storage")>("@/utils/offline-storage");
+  return {
+    ...actual,
+    removeBookFromLocalStorage: vi.fn().mockResolvedValue(undefined),
+  };
+});
+import { removeBookFromLocalStorage as mockedRemoveFromLocal } from "@/utils/offline-storage";
+
 const mockBook: Book = {
   id: 7,
   title: "Test Book",
@@ -295,6 +304,31 @@ describe("book-detail — books", () => {
     await user.click(confirmBtn);
     await waitFor(() => {
       expect(deleteCalled).toBe(true);
+    });
+  });
+
+  it("delete: on success also clears local storage (IDB cache + progress) for the book", async () => {
+    const user = userEvent.setup();
+    vi.mocked(mockedRemoveFromLocal).mockClear();
+
+    server.use(
+      http.delete("/api/books/:id", () => HttpResponse.json({ ok: true })),
+    );
+
+    renderBookDetail();
+
+    const deleteButton = await screen.findByRole("button", { name: "Удалить" });
+    await user.click(deleteButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/удалить.*test book/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByTestId("confirm-dialog-submit");
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockedRemoveFromLocal).toHaveBeenCalledWith(7); // mockBook.id
     });
   });
 
