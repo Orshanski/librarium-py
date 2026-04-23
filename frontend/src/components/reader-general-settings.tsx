@@ -58,7 +58,7 @@ function ToggleBtn({
       onClick={onClick}
       style={{
         ...toggleBtnStyle,
-        ...(flex !== undefined ? { flex } : {}),
+        ...(flex === undefined ? {} : { flex }),
         ...activeStyle,
         ...style,
       }}
@@ -83,7 +83,7 @@ function DebouncedRange({
   min: number;
   max: number;
   step: number;
-  debounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | undefined>;
+  debounceRef: React.RefObject<ReturnType<typeof setTimeout> | undefined>;
 }>) {
   const [local, setLocal] = useState(value);
   useEffect(() => { setLocal(value); }, [value]);

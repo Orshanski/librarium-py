@@ -102,6 +102,30 @@ def _build_rejection(current: ReadingProgressRow) -> ProgressSaveResult:
     }
 
 
+def _run_one_attempt(
+    db: sqlite3.Connection,
+    params_base: _ProgressParams,
+    current: ReadingProgressRow | None,
+    expected_version: int,
+    fraction: float,
+) -> ProgressSaveResult | None:
+    """Одна итерация CAS: выбор стратегии (insert / CAS-update / rebase / reject) + попытка записи.
+    Возвращает ProgressSaveResult при accept/reject, None при гонке (caller делает retry)."""
+    if current is None:
+        return _try_insert(db, params_base)
+
+    current_version = current["version"]
+    if current_version == expected_version:
+        return _try_cas_update(db, params_base, expected_version)
+
+    current_fraction = current["fraction"] if current["fraction"] is not None else 0.0
+    if fraction >= current_fraction:
+        return _try_rebase_update(db, params_base, current_version)
+
+    # Rewind in conflict → reject без retry
+    return _build_rejection(current)
+
+
 def save_reading_progress(
     db: sqlite3.Connection,
     user_id: int,
@@ -140,27 +164,10 @@ def save_reading_progress(
 
     for _ in range(3):
         current = queries.get_reading_progress(db, uid=user_id, bid=book_id)
-
-        if current is None:
-            if result := _try_insert(db, params_base):
-                return result
-            continue  # raced: a concurrent writer inserted the row — retry
-
-        current_version = current["version"]
-        current_fraction = current["fraction"] if current["fraction"] is not None else 0.0
-
-        if current_version == expected_version:
-            if result := _try_cas_update(db, params_base, expected_version):
-                return result
-            continue  # raced: version moved between SELECT and UPDATE — retry
-
-        if fraction >= current_fraction:
-            if result := _try_rebase_update(db, params_base, current_version):
-                return result
-            continue  # raced: version moved — retry
-
-        # Rewind in conflict → reject without retry
-        return _build_rejection(current)
+        result = _run_one_attempt(db, params_base, current, expected_version, fraction)
+        if result is not None:
+            return result
+        # None → гонка, retry
 
     # 3 retries lost the race every time — should be effectively impossible
     # under SQLite WAL single-writer but we return a clean error instead of

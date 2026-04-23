@@ -56,12 +56,6 @@ def _extract_items(data: dict) -> list[dict]:
     return []
 
 
-def _clean_title(raw: str) -> str:
-    """Remove format suffixes like '(pdf)', '(epub)', '(fb2)', '(mobi)' (case-insensitive)."""
-    stripped = (raw or "").strip()
-    return re.sub(r"\s*\([^)]*(?:pdf|epub|fb2|mobi)[^)]*\)", "", stripped, flags=re.IGNORECASE)
-
-
 def _extract_authors(persons: list[dict]) -> list[str]:
     """Only role in ('author', 'автор', '') → full_name/fullName/name. Empty names are dropped.
     Defensive to non-list input (API may drift) — anything кроме list возвращает []."""
@@ -126,7 +120,7 @@ def _build_result(item: dict, detailed: dict | None) -> MetadataResult | None:
     item_id = item.get("id") or item.get("uuid")
     if not item_id:
         return None
-    title = _clean_title(item.get("title") or "")
+    title = (item.get("title") or "").strip()
     if not title:
         return None
     return MetadataResult(

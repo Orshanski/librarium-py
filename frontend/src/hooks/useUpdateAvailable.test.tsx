@@ -12,7 +12,7 @@ declare global {
   var __BUILD_VERSION__: string | undefined;
 }
 
-function Wrapper({ children }: { children: ReactNode }) {
+function Wrapper({ children }: Readonly<{ children: ReactNode }>) {
   return <MemoryRouter>{children}</MemoryRouter>;
 }
 

@@ -7,7 +7,6 @@ import pytest
 
 from app.providers.litres import (
     _build_result,
-    _clean_title,
     _extract_authors,
     _extract_cover_url,
     _extract_description,
@@ -30,43 +29,6 @@ def search_instance() -> dict:
 def arts_detail() -> dict:
     with open(FIXTURES / "arts_detail.json", encoding="utf-8") as f:
         return json.load(f)
-
-
-# ── TestCleanTitle ──
-
-class TestCleanTitle:
-    def test_pdf_suffix_removed(self):
-        assert _clean_title("Book (pdf)") == "Book"
-
-    def test_epub_suffix_removed(self):
-        assert _clean_title("Book (epub, 2020)") == "Book"
-
-    def test_fb2_suffix_removed(self):
-        assert _clean_title("Book (fb2)") == "Book"
-
-    def test_mobi_suffix_removed(self):
-        assert _clean_title("Book (mobi)") == "Book"
-
-    def test_case_insensitive(self):
-        assert _clean_title("Book (PDF)") == "Book"
-
-    def test_no_suffix_unchanged(self):
-        assert _clean_title("Book") == "Book"
-
-    def test_whitespace_stripped(self):
-        assert _clean_title("  Book  (pdf)  ") == "Book"
-
-    def test_only_suffix_becomes_empty(self):
-        assert _clean_title("(pdf)") == ""
-
-    def test_epub_with_extra_words_inside(self):
-        assert _clean_title("Book (pdf version)") == "Book"
-
-    def test_empty_string(self):
-        assert _clean_title("") == ""
-
-    def test_none_treated_as_empty(self):
-        assert _clean_title(None) == ""
 
 
 # ── TestExtractAuthors ──
@@ -298,9 +260,6 @@ class TestBuildResultEdgeCases:
 
     def test_empty_title_returns_none(self):
         assert _build_result({"id": 1, "title": ""}, None) is None
-
-    def test_title_only_pdf_suffix_becomes_empty_returns_none(self):
-        assert _build_result({"id": 1, "title": "(pdf)"}, None) is None
 
     def test_uuid_used_when_no_id(self):
         item = {"uuid": "some-uuid", "title": "Book Title"}
