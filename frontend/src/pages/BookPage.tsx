@@ -12,6 +12,28 @@ import { NotFoundError } from "@/api/errors";
 
 const FALLBACK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
 
+interface StatusScreenProps {
+  title: string;
+  message: string;
+  crumb: { label: string; href: string; state?: { origin: ListOrigin } };
+}
+
+function StatusScreen({ title, message, crumb }: StatusScreenProps) {
+  return (
+    <>
+      <PageHeader title={title} breadcrumb={crumb} />
+      <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>{message}</div>
+    </>
+  );
+}
+
+function ignoreAbortAndWarn(label: string) {
+  return (err: unknown) => {
+    if (err instanceof Error && err.name === "AbortError") return;
+    console.warn(label, err);
+  };
+}
+
 export default function BookPage() {
   const { id } = useParams();
   const location = useLocation();
@@ -57,10 +79,7 @@ export default function BookPage() {
               );
               setSeriesBooks(sorted);
             })
-            .catch((err: unknown) => {
-              if (err instanceof Error && err.name === "AbortError") return;
-              console.warn("Failed to load series books:", err);
-            });
+            .catch(ignoreAbortAndWarn("Failed to load series books:"));
         }
 
         setLoading(false);
@@ -79,21 +98,11 @@ export default function BookPage() {
   }, [id]);
 
   if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
+    return <StatusScreen title="..." message="Загрузка..." crumb={crumb} />;
   }
 
   if (notFound || !book) {
-    return (
-      <>
-        <PageHeader title="Книга не найдена" breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Книга не найдена</div>
-      </>
-    );
+    return <StatusScreen title="Книга не найдена" message="Книга не найдена" crumb={crumb} />;
   }
 
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
