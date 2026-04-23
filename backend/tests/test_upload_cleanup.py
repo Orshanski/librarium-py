@@ -11,6 +11,37 @@ def _uploads_dir():
     return Path(os.environ["DATA_DIR"]) / "uploads"
 
 
+def test_upload_parse_failure_cleans_temp_artifacts(monkeypatch):
+    """При падении parse_book _cleanup_temp_artifacts должен удалить temp book file."""
+    from app.main import app
+    from app.services import auth_service as _auth_service
+    from app.services import upload_service
+    from starlette.testclient import TestClient
+
+    def boom(book_path, ext):
+        raise RuntimeError("simulated parse failure")
+
+    monkeypatch.setattr(upload_service, "parse_book", boom)
+
+    no_raise = TestClient(app, raise_server_exceptions=False)
+    no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
+    _auth_service._login_attempts.clear()
+    login = no_raise.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert login.status_code == 200
+
+    before = len(list(_uploads_dir().iterdir()))
+
+    with open(FIXTURES / "minimal.fb2", "rb") as f:
+        resp = no_raise.post(
+            "/api/upload",
+            files={"file": ("x.fb2", f.read(), "application/xml")},
+        )
+    assert resp.status_code == 500
+
+    after = len(list(_uploads_dir().iterdir()))
+    assert after == before
+
+
 def test_cleanup_removes_temp_files(admin_client):
     with open(FIXTURES / "minimal.fb2", "rb") as f:
         upload = admin_client.post(

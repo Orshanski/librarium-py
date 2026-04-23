@@ -31,6 +31,14 @@ log = logging.getLogger("librarium.services.upload")
 BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
 
 
+def _temp_book_path(temp_id: str, ext: str) -> str:
+    return str(UPLOADS_DIR / f"{temp_id}.{ext}")
+
+
+def _temp_cover_path(temp_id: str, cover_ext: str) -> str:
+    return str(UPLOADS_DIR / f"{temp_id}-cover.{cover_ext}")
+
+
 def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
     """Extract single book file from ZIP. Returns (content, ext, filename_hint).
 
@@ -63,7 +71,7 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
 
 async def _save_temp_book(content: bytes, temp_id: str, ext: str, temp_artifacts: list[str]) -> str:
     """Write book bytes to a temp file and register it in artifacts. Returns book_path."""
-    book_path = str(UPLOADS_DIR / f"{temp_id}.{ext}")
+    book_path = _temp_book_path(temp_id, ext)
     await asyncio.to_thread(Path(book_path).write_bytes, content)
     temp_artifacts.append(book_path)
     return book_path
@@ -75,7 +83,7 @@ async def _save_cover_if_present(
     """Write cover bytes to a temp file if present. Returns cover URL or None."""
     if not (meta.cover_data and meta.cover_ext):
         return None
-    cover_path = str(UPLOADS_DIR / f"{temp_id}-cover.{meta.cover_ext}")
+    cover_path = _temp_cover_path(temp_id, meta.cover_ext)
     await asyncio.to_thread(Path(cover_path).write_bytes, meta.cover_data)
     temp_artifacts.append(cover_path)
     return f"/api/uploads/cover/{temp_id}"
@@ -84,8 +92,11 @@ async def _save_cover_if_present(
 def _cleanup_temp_artifacts(temp_artifacts: list[str]) -> None:
     """Remove temp files created during this upload attempt."""
     for path in temp_artifacts:
-        if os.path.exists(path):
-            os.remove(path)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError as e:
+            log.warning("Failed to remove temp artifact %s: %s", path, e)
 
 
 def _build_upload_response(
@@ -141,12 +152,14 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
 
         book_path = await _save_temp_book(content, temp_id, ext, temp_artifacts)
 
+        # Parse + enrich (in thread pool to avoid blocking event loop)
         meta = await asyncio.to_thread(parse_book, book_path, ext)
         meta = await asyncio.to_thread(enrich_metadata, meta, ext, filename_hint, book_path)
         meta.genres = resolve_genres(db, meta.genres)
 
         cover_url = await _save_cover_if_present(meta, temp_id, temp_artifacts)
         duplicate = _check_duplicate(db, meta.title, meta.authors)
+        response = _build_upload_response(meta, temp_id, ext, cover_url, duplicate)
 
     except BadInputError:
         # Domain validation error from _extract_from_zip — middleware → 400.
@@ -155,7 +168,7 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
         _cleanup_temp_artifacts(temp_artifacts)
         raise
 
-    return _build_upload_response(meta, temp_id, ext, cover_url, duplicate)
+    return response
 
 
 def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetadata) -> int:

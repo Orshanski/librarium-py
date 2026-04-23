@@ -45,3 +45,46 @@ def test_create_book_empty_title_is_400(admin_client):
         json={"tempId": temp_id, "metadata": {"title": "", "authors": "A"}},
     )
     assert_error(resp, 400, message_matches="title required")
+
+
+def test_upload_zip_multiple_books_is_400(admin_client):
+    """ZIP с несколькими книгами должен быть отклонён с 400."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("book1.fb2", b"<?xml version='1.0'?><FictionBook/>")
+        zf.writestr("book2.fb2", b"<?xml version='1.0'?><FictionBook/>")
+    resp = admin_client.post(
+        "/api/upload",
+        files={"file": ("multi.zip", buf.getvalue(), "application/zip")},
+    )
+    assert resp.status_code == 400
+    assert "несколько" in resp.json()["detail"].lower()
+
+
+def test_upload_zip_corrupted_is_400(admin_client):
+    """Повреждённый ZIP должен быть отклонён с 400."""
+    resp = admin_client.post(
+        "/api/upload",
+        files={"file": ("bad.zip", b"not actually a zip", "application/zip")},
+    )
+    assert resp.status_code == 400
+    assert "повреждённый" in resp.json()["detail"].lower()
+
+
+def test_upload_zip_oversized_inner_is_400(admin_client, monkeypatch):
+    """ZIP с книгой больше MAX_BOOK_SIZE внутри должен быть отклонён с 400."""
+    from app import config
+    from app.services import upload_service
+
+    monkeypatch.setattr(config, "MAX_BOOK_SIZE", 100)
+    if hasattr(upload_service, "MAX_BOOK_SIZE"):
+        monkeypatch.setattr(upload_service, "MAX_BOOK_SIZE", 100)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("big.fb2", b"x" * 500)  # 500 bytes > 100
+    resp = admin_client.post(
+        "/api/upload",
+        files={"file": ("big.zip", buf.getvalue(), "application/zip")},
+    )
+    assert resp.status_code == 400
