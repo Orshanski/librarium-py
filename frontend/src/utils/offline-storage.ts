@@ -185,6 +185,21 @@ export async function removeCachedBook(bookId: number): Promise<void> {
   await db.delete("cached_books", bookId);
 }
 
+/**
+ * Remove all local traces of a book — cached blob + reading progress.
+ * Used when the book is deleted on the server to keep client state consistent.
+ * Idempotent: no-op if stores don't contain the book.
+ */
+export async function removeBookFromLocalStorage(bookId: number): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(["cached_books", "reading_progress"], "readwrite");
+  await Promise.all([
+    tx.objectStore("cached_books").delete(bookId),
+    tx.objectStore("reading_progress").delete(bookId),
+    tx.done,
+  ]);
+}
+
 export async function touchBook(bookId: number): Promise<void> {
   const db = await initDB();
   const book = await db.get("cached_books", bookId);

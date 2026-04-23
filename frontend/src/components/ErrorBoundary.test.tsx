@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ErrorBoundary from "./ErrorBoundary";
 
-function Bomb({ throwNow = true }: { throwNow?: boolean }): JSX.Element {
+function Bomb({ throwNow = true }: { throwNow?: boolean }) {
   if (throwNow) throw new Error("boom");
   return <div>ok</div>;
 }

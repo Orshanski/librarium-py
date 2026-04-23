@@ -24,6 +24,7 @@ describe("DesktopReaderToolbar", () => {
     render(
       <DesktopReaderToolbar
         bookTitle="Война и мир"
+        fraction={0}
         tocItems={[]}
         currentTocHref=""
         settings={makeSettings()}
@@ -39,12 +40,13 @@ describe("DesktopReaderToolbar", () => {
 
   it("click on title opens TOC dropdown with items", () => {
     const tocItems = [
-      { label: "Глава 1", href: "ch1", depth: 0 },
-      { label: "Глава 2", href: "ch2", depth: 0 },
+      { label: "Глава 1", href: "ch1" },
+      { label: "Глава 2", href: "ch2" },
     ];
     render(
       <DesktopReaderToolbar
         bookTitle="Book"
+        fraction={0}
         tocItems={tocItems}
         currentTocHref="ch1"
         settings={makeSettings()}
@@ -65,7 +67,8 @@ describe("DesktopReaderToolbar", () => {
     render(
       <DesktopReaderToolbar
         bookTitle="Book"
-        tocItems={[{ label: "Ch1", href: "ch1", depth: 0 }]}
+        fraction={0}
+        tocItems={[{ label: "Ch1", href: "ch1" }]}
         currentTocHref=""
         settings={makeSettings()}
         onSettingsChange={vi.fn()}
@@ -84,6 +87,7 @@ describe("DesktopReaderToolbar", () => {
     render(
       <DesktopReaderToolbar
         bookTitle="Book"
+        fraction={0}
         tocItems={[]}
         currentTocHref=""
         settings={makeSettings()}
