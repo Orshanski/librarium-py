@@ -1,0 +1,609 @@
+{
+  "id": 73550278,
+  "uuid": "02b2d89c-224d-11f1-a964-ac1f6b0b2fde",
+  "cover_url": "/pub/c/cover/73550278.jpg",
+  "url": "/book/brendon-sanderson/arhiv-buresveta-kniga-5-veter-i-pravda-tom-1-73550278/",
+  "title": "Архив Буресвета. Книга 5. Ветер и Правда. Том 1",
+  "cover_ratio": 0.67,
+  "is_draft": false,
+  "art_type": 0,
+  "prices": {
+    "final_price": 649.0,
+    "inapp_price": null,
+    "inapp_base_price": null,
+    "full_price": 649.0,
+    "discount_price": null,
+    "litcoin_count": 0,
+    "inapp_name": null,
+    "inapp_base_name": null,
+    "currency": "RUB",
+    "discount_percent": null,
+    "cost_with_bonus": 649.0,
+    "bonus_money": 0.0,
+    "account_money": 0.0,
+    "can_be_paid_by_account_money": false,
+    "promotions": null,
+    "price_with_bonus": null,
+    "earned_bonuses_amount": null,
+    "can_earned_bonuses_amount_after_sign_up_loyalty": 19.0
+  },
+  "is_auto_speech_gift": false,
+  "subtitle": "",
+  "min_age": 18,
+  "is_adult_content": false,
+  "cover_height": 1650,
+  "cover_width": 1100,
+  "foreign_publisher_id": null,
+  "language_code": "ru",
+  "symbols_count": 1520101,
+  "expected_symbols_count": null,
+  "podcast_serial_number": null,
+  "last_updated_at": "2026-03-30T12:29:50",
+  "last_released_at": "2026-03-20T02:18:02",
+  "read_percent": 0,
+  "is_finished": false,
+  "is_free": false,
+  "is_promo": false,
+  "is_advertising": false,
+  "advertising_marking": null,
+  "event_data": null,
+  "my_art_status": 0,
+  "is_subscription_art": false,
+  "is_available_with_subscription": false,
+  "is_available_with_litres_subscription": false,
+  "availability_with_partner_subscriptions": [],
+  "art_subscription_status_for_user": "no_subscription",
+  "is_abonement_art": true,
+  "is_available_with_abonement": false,
+  "is_subscription_token_art": true,
+  "is_available_with_subscription_token": false,
+  "can_be_preordered": false,
+  "is_preorder_notified_for_user": false,
+  "is_exclusive_abonement": false,
+  "is_drm": false,
+  "in_gifts": 0,
+  "is_fourth_art_gift": false,
+  "podcast_left_to_buy": null,
+  "availability": 1,
+  "available_from": "2026-03-30T12:29:50",
+  "library_information": null,
+  "persons": [
+    {
+      "id": 53828,
+      "uuid": "e8290548-2a83-102a-9ae1-2dfe723fe7c7",
+      "full_name": "Брендон Сандерсон",
+      "full_rodit": "Брендона Сандерсон",
+      "url": "/author/brendon-sanderson/",
+      "role": "author",
+      "metric_counters": []
+    },
+    {
+      "id": 18271884,
+      "uuid": "f6ce6e86-86db-4b9c-a31f-911f18bf88ca",
+      "full_name": "Мария Салямовна Аль-Ради",
+      "full_rodit": "Марии Салямовны Аль-Ради",
+      "url": "/author/mariya-salyamovna-al-radi/",
+      "role": "translator",
+      "metric_counters": []
+    },
+    {
+      "id": 18469203,
+      "uuid": "a03cff4e-5456-11e9-b9d6-0cc47a520474",
+      "full_name": "Грег Колл",
+      "full_rodit": "",
+      "url": "/author/greg-koll/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 31313118,
+      "uuid": "4a96b09a-08f5-11ec-b099-441ea1508474",
+      "full_name": "Дэн Дос Сантос",
+      "full_rodit": "Дэна Доса Сантоса",
+      "url": "/author/den-dos-santos/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 31313120,
+      "uuid": "69dbbf26-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Бен Максуини",
+      "full_rodit": "Бена Максуини",
+      "url": "/author/ben-maksuini/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 31313124,
+      "uuid": "7a043cbf-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Миранда Микс",
+      "full_rodit": "Миранды Микс",
+      "url": "/author/miranda-miks/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 31313128,
+      "uuid": "9fe774c0-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Айзек Стюарт",
+      "full_rodit": "Айзека Стюарт",
+      "url": "/author/ayzek-stuart/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 32829175,
+      "uuid": "ec10f6ba-8bce-11ee-8496-0cc47af30fe4",
+      "full_name": "Говард Лайон",
+      "full_rodit": "Говарда Лайона",
+      "url": "/author/govard-layon/",
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 33851588,
+      "uuid": "47fabe9c-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Одри Хотт",
+      "full_rodit": "Одри Хотт",
+      "url": null,
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 33851598,
+      "uuid": "7e19b58d-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Келли Кинг",
+      "full_rodit": "Келли Кинг",
+      "url": null,
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 33851603,
+      "uuid": "b0e52892-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Анна Эрли",
+      "full_rodit": "Анны Эрли",
+      "url": null,
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 33851608,
+      "uuid": "d598bbc6-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Хейли Лацо",
+      "full_rodit": "Хейли Лацо",
+      "url": null,
+      "role": "painter",
+      "metric_counters": []
+    },
+    {
+      "id": 33851613,
+      "uuid": "f7e340ab-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Донато Джанкол",
+      "full_rodit": "Донато Джанкол",
+      "url": null,
+      "role": "painter",
+      "metric_counters": []
+    }
+  ],
+  "is_liked": false,
+  "rating": {
+    "user_rating": null,
+    "rated_1_count": 0,
+    "rated_2_count": 1,
+    "rated_3_count": 0,
+    "rated_4_count": 4,
+    "rated_5_count": 15,
+    "rated_avg": 4.65,
+    "rated_total_count": 20
+  },
+  "linked_arts": [
+    {
+      "id": 73599008,
+      "uuid": "a431e4b4-2910-11f1-a964-ac1f6b0b2fde",
+      "cover_url": "/pub/c/cover/73599008.jpg",
+      "url": "/audiobook/brendon-sanderson/arhiv-buresveta-kniga-5-veter-i-pravda-tom-1-73599008/",
+      "title": "Архив Буресвета. Книга 5. Ветер и Правда. Том 1",
+      "cover_ratio": 1.0,
+      "is_draft": false,
+      "art_type": 1,
+      "prices": {
+        "final_price": 699.0,
+        "inapp_price": null,
+        "inapp_base_price": null,
+        "full_price": 699.0,
+        "discount_price": null,
+        "litcoin_count": 0,
+        "inapp_name": null,
+        "inapp_base_name": null,
+        "currency": "RUB",
+        "discount_percent": null,
+        "cost_with_bonus": 699.0,
+        "bonus_money": 0.0,
+        "account_money": 0.0,
+        "can_be_paid_by_account_money": false,
+        "promotions": null
+      },
+      "is_auto_speech_gift": false,
+      "availability": 1,
+      "is_free": false,
+      "persons": [
+        {
+          "id": 53828,
+          "uuid": "e8290548-2a83-102a-9ae1-2dfe723fe7c7",
+          "full_name": "Брендон Сандерсон",
+          "full_rodit": "Брендона Сандерсон",
+          "url": "/author/brendon-sanderson/",
+          "role": "author"
+        },
+        {
+          "id": 18271884,
+          "uuid": "f6ce6e86-86db-4b9c-a31f-911f18bf88ca",
+          "full_name": "Мария Салямовна Аль-Ради",
+          "full_rodit": "Марии Салямовны Аль-Ради",
+          "url": "/author/mariya-salyamovna-al-radi/",
+          "role": "translator"
+        },
+        {
+          "id": 18469203,
+          "uuid": "a03cff4e-5456-11e9-b9d6-0cc47a520474",
+          "full_name": "Грег Колл",
+          "full_rodit": "",
+          "url": "/author/greg-koll/",
+          "role": "painter"
+        },
+        {
+          "id": 31313118,
+          "uuid": "4a96b09a-08f5-11ec-b099-441ea1508474",
+          "full_name": "Дэн Дос Сантос",
+          "full_rodit": "Дэна Доса Сантоса",
+          "url": "/author/den-dos-santos/",
+          "role": "painter"
+        },
+        {
+          "id": 31313120,
+          "uuid": "69dbbf26-08f5-11ec-8116-0cc47a5f137d",
+          "full_name": "Бен Максуини",
+          "full_rodit": "Бена Максуини",
+          "url": "/author/ben-maksuini/",
+          "role": "painter"
+        },
+        {
+          "id": 31313124,
+          "uuid": "7a043cbf-08f5-11ec-8116-0cc47a5f137d",
+          "full_name": "Миранда Микс",
+          "full_rodit": "Миранды Микс",
+          "url": "/author/miranda-miks/",
+          "role": "painter"
+        },
+        {
+          "id": 31313128,
+          "uuid": "9fe774c0-08f5-11ec-8116-0cc47a5f137d",
+          "full_name": "Айзек Стюарт",
+          "full_rodit": "Айзека Стюарт",
+          "url": "/author/ayzek-stuart/",
+          "role": "painter"
+        },
+        {
+          "id": 32829175,
+          "uuid": "ec10f6ba-8bce-11ee-8496-0cc47af30fe4",
+          "full_name": "Говард Лайон",
+          "full_rodit": "Говарда Лайона",
+          "url": "/author/govard-layon/",
+          "role": "painter"
+        },
+        {
+          "id": 33851588,
+          "uuid": "47fabe9c-23a5-11f1-a964-ac1f6b0b2fde",
+          "full_name": "Одри Хотт",
+          "full_rodit": "Одри Хотт",
+          "url": null,
+          "role": "painter"
+        },
+        {
+          "id": 33851598,
+          "uuid": "7e19b58d-23a5-11f1-a964-ac1f6b0b2fde",
+          "full_name": "Келли Кинг",
+          "full_rodit": "Келли Кинг",
+          "url": null,
+          "role": "painter"
+        },
+        {
+          "id": 33851603,
+          "uuid": "b0e52892-23a5-11f1-a964-ac1f6b0b2fde",
+          "full_name": "Анна Эрли",
+          "full_rodit": "Анны Эрли",
+          "url": null,
+          "role": "painter"
+        },
+        {
+          "id": 33851608,
+          "uuid": "d598bbc6-23a5-11f1-a964-ac1f6b0b2fde",
+          "full_name": "Хейли Лацо",
+          "full_rodit": "Хейли Лацо",
+          "url": null,
+          "role": "painter"
+        },
+        {
+          "id": 33851613,
+          "uuid": "f7e340ab-23a5-11f1-a964-ac1f6b0b2fde",
+          "full_name": "Донато Джанкол",
+          "full_rodit": "Донато Джанкол",
+          "url": null,
+          "role": "painter"
+        },
+        {
+          "id": 26771252,
+          "uuid": "c575c668-15f9-11eb-b47e-0cc47a5f137d",
+          "full_name": "Станислав Федорчук",
+          "full_rodit": "Станислава Федорчука",
+          "url": "/author/stanislav-fedorchuk/",
+          "role": "reader"
+        }
+      ],
+      "my_art_status": 0,
+      "is_subscription_art": false,
+      "is_available_with_subscription": false,
+      "library_information": null,
+      "release_file_id": 131471928,
+      "preview_file_id": 131468873,
+      "first_time_sale_at": "2026-03-30T12:38:39",
+      "linked_art_group": "audio_arts",
+      "is_auto_speech": false,
+      "can_be_preordered": false,
+      "is_hidden": false,
+      "available_from": "2026-03-30T12:38:39",
+      "alternate_urls": [],
+      "language_code": "ru",
+      "is_draft_full_free": false,
+      "is_adult_content": false,
+      "cover_height": 1000,
+      "cover_width": 1000
+    }
+  ],
+  "series": [
+    {
+      "id": 425357,
+      "uuid": "04d640c5-6f86-11e6-9c02-0cc47a5203ba",
+      "name": "Архив Буресвета",
+      "url": "/series/arhiv-buresveta-425357/",
+      "arts_count": 9,
+      "top_arts": [],
+      "unique_arts_count": 13,
+      "art_order": 5
+    },
+    {
+      "id": 235348,
+      "uuid": "636f0f3c-5b5b-11e4-96e2-0025905a06ea",
+      "name": "Звезды новой фэнтези",
+      "url": "/series/zvezdy-novoy-fentezi-235348/",
+      "arts_count": 136,
+      "top_arts": [],
+      "unique_arts_count": 150,
+      "art_order": null
+    }
+  ],
+  "date_written_at": "2024-01-01",
+  "release_file_id": 131010678,
+  "preview_file_id": null,
+  "labels": {
+    "is_bestseller": false,
+    "is_litres_exclusive": false,
+    "is_new": true,
+    "is_sales_hit": true,
+    "is_audio_series": false
+  },
+  "in_folders": null,
+  "is_archived": false,
+  "interacted_at": null,
+  "read_at": null,
+  "purchased_at": null,
+  "is_hidden": false,
+  "synchronized_arts": [],
+  "synchronizations": [],
+  "alternative_version": {
+    "id": 73599008,
+    "link_type": "LINKED"
+  },
+  "alternative_versions": [
+    {
+      "id": 73599008,
+      "link_type": "LINKED",
+      "art_type": 1
+    }
+  ],
+  "in_user_cart_status": "not_in_cart",
+  "is_draft_full_free": false,
+  "webtoon_chapters_count": null,
+  "webtoon_last_read_chapter_id": null,
+  "webtoon_last_read_chapter_number": null,
+  "is_subscribed_to_podcast": false,
+  "is_subscribed_to_audio_draft": false,
+  "is_trusted_cover": false,
+  "art_refresh_in_days": 0,
+  "images_count": 32,
+  "is_files_pending_for_download": false,
+  "is_epub_pending_for_download": false,
+  "is_available_with_litres_subscription_plans": [],
+  "is_abonement_forbidden": false,
+  "html_annotation": "<p>Долгожданная ошеломляющая развязка первой сюжетной арки цикла-бестселлера «Архив Буресвета» – шедевра эпической фэнтези от признанного мастера жанра.</p>\n<p>Далинар Холин вызвал злого бога Вражду на состязание защитников, ставкой в котором будущее Рошара. По всему миру полыхают войны: Адолин сражается в Азимире, Сигзил и Венли – на Расколотых равнинах, Ясна – в Тайлене. Очистить свою родину, Шиновар, от темного влияния Претворенного должен бывший убийца Сзет. Вместе с ним отправляется Каладин, которому предстоит новая битва: нужно помочь сразиться с собственными демонами Сзету, а заодно и Ишару – безумному Вестнику Всемогущего.</p>\n<p>Впервые на русском!</p>",
+  "html_annotation_litres": "",
+  "first_time_sale_at": "2026-03-30T12:29:50",
+  "is_azimyt_trial": false,
+  "is_pdw_trial": false,
+  "is_discount_forbidden": false,
+  "is_preorder_show_fragment": false,
+  "reviews_count": 2,
+  "livelib_rated_count": 26,
+  "livelib_rated_avg": 4.8,
+  "livelib_ratings": {
+    "rating_1_count": 0,
+    "rating_2_count": 0,
+    "rating_3_count": 0,
+    "rating_4_count": 5,
+    "rating_5_count": 21
+  },
+  "parent_podcast_name": null,
+  "parent_podcast_id": null,
+  "parent_podcast_url": null,
+  "podcast_episodes_count": null,
+  "podcast_last_episode_publication_date": null,
+  "is_podcast_complete": false,
+  "is_podcast_last_episode": false,
+  "is_webtoon_complete": false,
+  "genres": [
+    {
+      "id": 5218,
+      "uuid": "ed1743ea-f034-11e5-a511-0cc47a5454c6",
+      "name": "зарубежное фэнтези",
+      "is_root": false,
+      "url": "/genre/zarubezhnye-5218/",
+      "is_main": false
+    },
+    {
+      "id": 5232,
+      "uuid": "ed17572a-f034-11e5-a511-0cc47a5454c6",
+      "name": "боевое фэнтези",
+      "is_root": false,
+      "url": "/genre/boevoe-5232/",
+      "is_main": true
+    },
+    {
+      "id": 6791,
+      "uuid": "ed1b971c-f034-11e5-a511-0cc47a5454c6",
+      "name": "героическое фэнтези",
+      "is_root": false,
+      "url": "/genre/geroicheskoe_fentezi-6791/",
+      "is_main": false
+    }
+  ],
+  "tags": [
+    {
+      "id": 9695,
+      "uuid": "61107dd6-5b5b-11e4-96e2-0025905a06ea",
+      "name": "спасение мира",
+      "is_root": false,
+      "url": "/tags/spasenie-mira/"
+    },
+    {
+      "id": 68265,
+      "uuid": "61338aae-5b5b-11e4-96e2-0025905a06ea",
+      "name": "эпическое фэнтези",
+      "is_root": false,
+      "url": "/tags/epicheskoe-fentezi/"
+    },
+    {
+      "id": 90485,
+      "uuid": "613e0b55-5b5b-11e4-96e2-0025905a06ea",
+      "name": "древние артефакты",
+      "is_root": false,
+      "url": "/tags/drevnie-artefakty/"
+    },
+    {
+      "id": 100831,
+      "uuid": "61413572-5b5b-11e4-96e2-0025905a06ea",
+      "name": "древние пророчества",
+      "is_root": false,
+      "url": "/tags/drevnie-prorochestva/"
+    },
+    {
+      "id": 113851,
+      "uuid": "614e55d2-5b5b-11e4-96e2-0025905a06ea",
+      "name": "приключенческое фэнтези",
+      "is_root": false,
+      "url": "/tags/prikluchencheskoe-fentezi/"
+    },
+    {
+      "id": 174637,
+      "uuid": "610f5dd6-5b5b-11e4-96e2-0025905a06ea",
+      "name": "иные миры",
+      "is_root": false,
+      "url": "/tags/inye-miry/"
+    }
+  ],
+  "paper_book": null,
+  "paper_books": [],
+  "additional_covers": [],
+  "isbn": "978-5-389-32504-3",
+  "publication_date": "2024-01-01",
+  "quotes_count": 2,
+  "is_auto_speech": false,
+  "youtube_videos": [],
+  "contents_url": "pub/c/cover/73550278.xml",
+  "is_prohibited_for_sale": false,
+  "additional_info": {
+    "registered_at": "2026-03-18T01:02:37",
+    "translated_at": "2026-01-01",
+    "current_pages_or_seconds": 979,
+    "expected_pages_or_seconds": null
+  },
+  "publisher": null,
+  "copyrighter": {
+    "id": 107589,
+    "name": "Азбука",
+    "url": "publisher/azbuka/"
+  },
+  "rightholders": [
+    {
+      "id": 107589,
+      "name": "Азбука",
+      "url": "publisher/azbuka/"
+    }
+  ],
+  "is_referrable": true,
+  "referral": null,
+  "alisa_url": null,
+  "update_events": [],
+  "prequels": [],
+  "alternate_urls": [
+    {
+      "url": "https://www.litres.ru/book/brendon-sanderson/arhiv-buresveta-kniga-5-veter-i-pravda-tom-1-73550278/",
+      "language": "ru"
+    }
+  ],
+  "is_art_online_readable": true,
+  "webtoon_chapter_number": null,
+  "webtoon_parent_id": null,
+  "next_webtoon_chapter_id": null,
+  "expected_chapters_count": null,
+  "current_chapters_count": null,
+  "meta_title": null,
+  "meta_tags": {
+    "root": {
+      "title": "Архив Буресвета. Книга 5. Ветер и Правда. Том 1 Брендон Сандерсон  – купить и скачать книгу в fb2, epub, pdf на Литрес",
+      "description": "📚 Купить скачать книгу \"Архив Буресвета. Книга 5. Ветер и Правда. Том 1 Брендона Сандерсон\"  за 649.00 📙 Эксклюзивы, новинки, бестселлеры на Литрес 📙",
+      "rel_canonical_url": null,
+      "seo_robots": null,
+      "open_graph_title": "Архив Буресвета. Книга 5. Ветер и Правда. Том 1 — Брендон Сандерсон  | Литрес",
+      "open_graph_description": null,
+      "text": null
+    },
+    "readonline": {
+      "title": "«Архив Буресвета. Книга 5. Ветер и Правда. Том 1» Брендон Сандерсон читать онлайн фрагмент бесплатно без регистрации",
+      "description": "Читать онлайн книгу 📙 «Архив Буресвета. Книга 5. Ветер и Правда. Том 1» автора Брендона Сандерсон полностью на сайте или в приложении Литрес: Книги и аудиокниги.",
+      "rel_canonical_url": null,
+      "seo_robots": null,
+      "open_graph_title": null,
+      "open_graph_description": null,
+      "text": null
+    },
+    "reviews": {
+      "title": "Отзывы о книге «Архив Буресвета. Книга 5. Ветер и Правда. Том 1» Брендон Сандерсон - Литрес",
+      "description": "Читайте лучшие рецензии и отзывы читателей на книгу 📙 «Архив Буресвета. Книга 5. Ветер и Правда. Том 1» Брендона Сандерсон. Более 2 отзывов, 4.65 рейтинг книги по версии сервиса электронных книг Литрес.",
+      "rel_canonical_url": null,
+      "seo_robots": null,
+      "open_graph_title": null,
+      "open_graph_description": null,
+      "text": null
+    },
+    "quotes": {
+      "title": "Цитаты из книги «Архив Буресвета. Книга 5. Ветер и Правда. Том 1» Брендон Сандерсон – Литрес",
+      "description": "Читайте лучшие цитаты из книги «Архив Буресвета. Книга 5. Ветер и Правда. Том 1» Брендона Сандерсон. ➤ Более 2 цитат и «крылатых» фраз из книги на сайте 📚 Литрес.",
+      "rel_canonical_url": null,
+      "seo_robots": null,
+      "open_graph_title": null,
+      "open_graph_description": null,
+      "text": null
+    }
+  }
+}

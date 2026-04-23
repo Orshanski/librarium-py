@@ -1,0 +1,220 @@
+{
+  "id": 73550278,
+  "uuid": "02b2d89c-224d-11f1-a964-ac1f6b0b2fde",
+  "cover_url": "/pub/c/cover/73550278.jpg",
+  "url": "/book/brendon-sanderson/arhiv-buresveta-kniga-5-veter-i-pravda-tom-1-73550278/",
+  "title": "Архив Буресвета. Книга 5. Ветер и Правда. Том 1",
+  "cover_ratio": 0.67,
+  "is_draft": false,
+  "art_type": 0,
+  "prices": {
+    "final_price": 649.0,
+    "inapp_price": null,
+    "inapp_base_price": null,
+    "full_price": 649.0,
+    "discount_price": null,
+    "litcoin_count": 0,
+    "inapp_name": null,
+    "inapp_base_name": null,
+    "currency": "RUB",
+    "discount_percent": null,
+    "cost_with_bonus": 649.0,
+    "bonus_money": 0.0,
+    "account_money": 0.0,
+    "can_be_paid_by_account_money": false,
+    "promotions": null
+  },
+  "is_auto_speech_gift": false,
+  "subtitle": "",
+  "min_age": 18,
+  "is_adult_content": false,
+  "cover_height": 1650,
+  "cover_width": 1100,
+  "foreign_publisher_id": null,
+  "language_code": "ru",
+  "symbols_count": 1520101,
+  "expected_symbols_count": null,
+  "podcast_serial_number": null,
+  "last_updated_at": "2026-03-30T12:29:50",
+  "last_released_at": "2026-03-20T02:18:02",
+  "read_percent": 0,
+  "is_finished": false,
+  "is_free": false,
+  "is_promo": false,
+  "is_advertising": false,
+  "advertising_marking": null,
+  "event_data": null,
+  "my_art_status": 0,
+  "is_subscription_art": false,
+  "is_available_with_subscription": false,
+  "is_available_with_litres_subscription": false,
+  "availability_with_partner_subscriptions": [],
+  "art_subscription_status_for_user": "no_subscription",
+  "is_abonement_art": true,
+  "is_available_with_abonement": false,
+  "is_subscription_token_art": true,
+  "is_available_with_subscription_token": false,
+  "can_be_preordered": false,
+  "is_preorder_notified_for_user": false,
+  "is_exclusive_abonement": false,
+  "is_drm": false,
+  "in_gifts": 0,
+  "is_fourth_art_gift": false,
+  "podcast_left_to_buy": null,
+  "availability": 1,
+  "available_from": "2026-03-30T12:29:50",
+  "library_information": null,
+  "persons": [
+    {
+      "id": 53828,
+      "uuid": "e8290548-2a83-102a-9ae1-2dfe723fe7c7",
+      "full_name": "Брендон Сандерсон",
+      "full_rodit": "Брендона Сандерсон",
+      "url": "/author/brendon-sanderson/",
+      "role": "author"
+    },
+    {
+      "id": 18271884,
+      "uuid": "f6ce6e86-86db-4b9c-a31f-911f18bf88ca",
+      "full_name": "Мария Салямовна Аль-Ради",
+      "full_rodit": "Марии Салямовны Аль-Ради",
+      "url": "/author/mariya-salyamovna-al-radi/",
+      "role": "translator"
+    },
+    {
+      "id": 18469203,
+      "uuid": "a03cff4e-5456-11e9-b9d6-0cc47a520474",
+      "full_name": "Грег Колл",
+      "full_rodit": "",
+      "url": "/author/greg-koll/",
+      "role": "painter"
+    },
+    {
+      "id": 31313118,
+      "uuid": "4a96b09a-08f5-11ec-b099-441ea1508474",
+      "full_name": "Дэн Дос Сантос",
+      "full_rodit": "Дэна Доса Сантоса",
+      "url": "/author/den-dos-santos/",
+      "role": "painter"
+    },
+    {
+      "id": 31313120,
+      "uuid": "69dbbf26-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Бен Максуини",
+      "full_rodit": "Бена Максуини",
+      "url": "/author/ben-maksuini/",
+      "role": "painter"
+    },
+    {
+      "id": 31313124,
+      "uuid": "7a043cbf-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Миранда Микс",
+      "full_rodit": "Миранды Микс",
+      "url": "/author/miranda-miks/",
+      "role": "painter"
+    },
+    {
+      "id": 31313128,
+      "uuid": "9fe774c0-08f5-11ec-8116-0cc47a5f137d",
+      "full_name": "Айзек Стюарт",
+      "full_rodit": "Айзека Стюарт",
+      "url": "/author/ayzek-stuart/",
+      "role": "painter"
+    },
+    {
+      "id": 32829175,
+      "uuid": "ec10f6ba-8bce-11ee-8496-0cc47af30fe4",
+      "full_name": "Говард Лайон",
+      "full_rodit": "Говарда Лайона",
+      "url": "/author/govard-layon/",
+      "role": "painter"
+    },
+    {
+      "id": 33851588,
+      "uuid": "47fabe9c-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Одри Хотт",
+      "full_rodit": "Одри Хотт",
+      "url": null,
+      "role": "painter"
+    },
+    {
+      "id": 33851598,
+      "uuid": "7e19b58d-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Келли Кинг",
+      "full_rodit": "Келли Кинг",
+      "url": null,
+      "role": "painter"
+    },
+    {
+      "id": 33851603,
+      "uuid": "b0e52892-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Анна Эрли",
+      "full_rodit": "Анны Эрли",
+      "url": null,
+      "role": "painter"
+    },
+    {
+      "id": 33851608,
+      "uuid": "d598bbc6-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Хейли Лацо",
+      "full_rodit": "Хейли Лацо",
+      "url": null,
+      "role": "painter"
+    },
+    {
+      "id": 33851613,
+      "uuid": "f7e340ab-23a5-11f1-a964-ac1f6b0b2fde",
+      "full_name": "Донато Джанкол",
+      "full_rodit": "Донато Джанкол",
+      "url": null,
+      "role": "painter"
+    }
+  ],
+  "is_liked": false,
+  "rating": {
+    "user_rating": null,
+    "rated_1_count": 0,
+    "rated_2_count": 1,
+    "rated_3_count": 0,
+    "rated_4_count": 4,
+    "rated_5_count": 15,
+    "rated_avg": 4.65,
+    "rated_total_count": 20
+  },
+  "linked_arts": [],
+  "series": [],
+  "date_written_at": "2024-01-01",
+  "release_file_id": 131010678,
+  "preview_file_id": null,
+  "labels": {
+    "is_bestseller": false,
+    "is_litres_exclusive": false,
+    "is_new": true,
+    "is_sales_hit": true,
+    "is_audio_series": false
+  },
+  "in_folders": null,
+  "is_archived": false,
+  "interacted_at": null,
+  "read_at": null,
+  "purchased_at": null,
+  "is_hidden": false,
+  "synchronized_arts": [],
+  "synchronizations": [],
+  "alternative_version": {
+    "id": 73599008,
+    "link_type": "LINKED"
+  },
+  "alternative_versions": [
+    {
+      "id": 73599008,
+      "link_type": "LINKED",
+      "art_type": 1
+    }
+  ],
+  "in_user_cart_status": "not_in_cart",
+  "is_draft_full_free": false,
+  "webtoon_chapters_count": null,
+  "webtoon_last_read_chapter_id": null,
+  "webtoon_last_read_chapter_number": null
+}
