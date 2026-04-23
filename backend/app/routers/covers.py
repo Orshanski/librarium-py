@@ -35,7 +35,7 @@ def get_cover(
     return FileResponse(thumb_path, media_type="image/jpeg", headers=headers)
 
 
-@router.post("/api/books/{book_id}/cover", response_model=CoverUploadResponse)
+@router.post("/api/books/{book_id}/cover")
 async def upload_cover(
     book_id: int,
     user: Annotated[CurrentUser, Depends(require_admin)],
@@ -62,7 +62,7 @@ def get_temp_cover(temp_id: TempIdStr, user: Annotated[CurrentUser, Depends(get_
     return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
-@router.put("/api/books/{book_id}/cover", response_model=OkResponse)
+@router.put("/api/books/{book_id}/cover")
 def commit_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     if not cover_service.commit(db, book_id):
         raise BadInputError("No pending cover to commit")
@@ -70,7 +70,7 @@ def commit_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admi
     return OkResponse()
 
 
-@router.delete("/api/books/{book_id}/cover", response_model=OkResponse)
+@router.delete("/api/books/{book_id}/cover")
 def discard_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     cover_service.discard_temp(db, book_id)
     return OkResponse()

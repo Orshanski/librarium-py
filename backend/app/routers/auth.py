@@ -16,7 +16,7 @@ log = logging.getLogger("librarium.auth")
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=AuthLoginResponse)
+@router.post("/login")
 def login(
     body: LoginRequest,
     request: Request,
@@ -42,7 +42,7 @@ def me(user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sq
     return auth_service.get_me(db, user.user_id)
 
 
-@router.post("/logout", response_model=AuthLogoutResponse)
+@router.post("/logout")
 def logout(request: Request, response: Response) -> AuthLogoutResponse:
     try:
         user = get_current_user(request)
