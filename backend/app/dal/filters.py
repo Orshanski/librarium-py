@@ -9,6 +9,14 @@ from ..dtos.catalog import CatalogFilters, LanguageOptionRow
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "filters", "sqlite3")
 
+# (filter_key, sql_template_with_{ph}_placeholder, param_prefix)
+_LIST_DIMENSIONS: list[tuple[str, str, str]] = [
+    ("authorIds", "b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))", "a"),
+    ("tagIds",    "b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))",      "t"),
+    ("seriesIds", "b.series_id IN ({ph})", "s"),
+    ("language",  "b.language IN ({ph})",  "l"),
+]
+
 
 def build_book_where(
     filters: CatalogFilters,
@@ -42,29 +50,14 @@ def build_book_where(
         clauses.append("b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1)")
         params["uid"] = uid
 
-    if author_ids := effective.get("authorIds"):
-        ph = ",".join(f":a{i}" for i in range(len(author_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))")
-        for i, v in enumerate(author_ids):
-            params[f"a{i}"] = v
-
-    if tag_ids := effective.get("tagIds"):
-        ph = ",".join(f":t{i}" for i in range(len(tag_ids)))
-        clauses.append(f"b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))")
-        for i, v in enumerate(tag_ids):
-            params[f"t{i}"] = v
-
-    if series_ids := effective.get("seriesIds"):
-        ph = ",".join(f":s{i}" for i in range(len(series_ids)))
-        clauses.append(f"b.series_id IN ({ph})")
-        for i, v in enumerate(series_ids):
-            params[f"s{i}"] = v
-
-    if langs := effective.get("language"):
-        ph = ",".join(f":l{i}" for i in range(len(langs)))
-        clauses.append(f"b.language IN ({ph})")
-        for i, v in enumerate(langs):
-            params[f"l{i}"] = v
+    for key, sql_tpl, prefix in _LIST_DIMENSIONS:
+        values = effective.get(key)
+        if not values:
+            continue
+        ph = ",".join(f":{prefix}{i}" for i in range(len(values)))
+        clauses.append(sql_tpl.format(ph=ph))
+        for i, v in enumerate(values):
+            params[f"{prefix}{i}"] = v
 
     if not clauses:
         return "", params
