@@ -29,329 +29,183 @@ function setupDefaultHandlers() {
   );
 }
 
-describe("EntityAdminPanel — author mode", () => {
-  it("calls onRenamed after successful rename", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.put("/api/authors/:id", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
+interface EntityCase {
+  entityType: "author" | "series";
+  apiPath: string;
+  searchPlaceholder: string;
+  rename: { from: string; to: string };
+  merge: { searchTerm: string; foundName: string };
+  emptyName: string;
+}
 
-    const onRenamed = vi.fn();
+const CASES: EntityCase[] = [
+  {
+    entityType: "author",
+    apiPath: "/api/authors",
+    searchPlaceholder: "Найти автора-дубликат...",
+    rename: { from: "Frank Herbert", to: "Frank P. Herbert" },
+    merge: { searchTerm: "Isaac", foundName: "Isaac Asimov" },
+    emptyName: "Empty Author",
+  },
+  {
+    entityType: "series",
+    apiPath: "/api/series",
+    searchPlaceholder: "Найти серию-дубликат...",
+    rename: { from: "Dune", to: "Dune Chronicles" },
+    merge: { searchTerm: "Foundation", foundName: "Foundation" },
+    emptyName: "Empty Series",
+  },
+];
 
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="author"
-        entityId={1}
-        currentName="Frank Herbert"
-        bookCount={6}
-        onRenamed={onRenamed}
-        onMerged={() => {}}
-        onDeleted={() => {}}
-      />
-    );
+describe.each(CASES)(
+  "EntityAdminPanel — $entityType mode",
+  ({ entityType, apiPath, searchPlaceholder, rename, merge, emptyName }) => {
+    it("calls onRenamed after successful rename", async () => {
+      setupDefaultHandlers();
+      server.use(
+        http.put(`${apiPath}/:id`, () => HttpResponse.json({ ok: true }))
+      );
 
-    const input = screen.getByDisplayValue("Frank Herbert");
-    fireEvent.change(input, { target: { value: "Frank P. Herbert" } });
+      const onRenamed = vi.fn();
 
-    const saveBtn = screen.getByText("Сохранить");
-    fireEvent.click(saveBtn);
+      renderWithProviders(
+        <EntityAdminPanel
+          entityType={entityType}
+          entityId={1}
+          currentName={rename.from}
+          bookCount={6}
+          onRenamed={onRenamed}
+          onMerged={() => {}}
+          onDeleted={() => {}}
+        />
+      );
 
-    await waitFor(() => {
-      expect(onRenamed).toHaveBeenCalledWith("Frank P. Herbert");
-    });
-  });
+      const input = screen.getByDisplayValue(rename.from);
+      fireEvent.change(input, { target: { value: rename.to } });
 
-  it("does not call onRenamed when rename request fails", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.put("/api/authors/:id", () =>
-        HttpResponse.json({ detail: "Server error" }, { status: 500 })
-      )
-    );
+      const saveBtn = screen.getByText("Сохранить");
+      fireEvent.click(saveBtn);
 
-    const onRenamed = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="author"
-        entityId={1}
-        currentName="Frank Herbert"
-        bookCount={6}
-        onRenamed={onRenamed}
-        onMerged={() => {}}
-        onDeleted={() => {}}
-      />
-    );
-
-    const input = screen.getByDisplayValue("Frank Herbert");
-    fireEvent.change(input, { target: { value: "Frank P. Herbert" } });
-
-    const saveBtn = screen.getByText("Сохранить");
-    fireEvent.click(saveBtn);
-
-    // Give it time to settle — onRenamed should NOT be called
-    await waitFor(() => {
-      expect(screen.getByText("Сохранить")).toBeInTheDocument();
-    });
-    expect(onRenamed).not.toHaveBeenCalled();
-  });
-
-  it("calls onMerged after successful author merge", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.post("/api/authors/:id/merge", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
-
-    const onMerged = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="author"
-        entityId={1}
-        currentName="Frank Herbert"
-        bookCount={6}
-        onRenamed={() => {}}
-        onMerged={onMerged}
-        onDeleted={() => {}}
-      />
-    );
-
-    // Wait for entity list to load
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText("Найти автора-дубликат...")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(onRenamed).toHaveBeenCalledWith(rename.to);
+      });
     });
 
-    // Search for a duplicate
-    const searchInput = screen.getByPlaceholderText("Найти автора-дубликат...");
-    fireEvent.change(searchInput, { target: { value: "Isaac" } });
+    it("does not call onRenamed when rename request fails", async () => {
+      setupDefaultHandlers();
+      server.use(
+        http.put(`${apiPath}/:id`, () =>
+          HttpResponse.json({ detail: "Server error" }, { status: 500 })
+        )
+      );
 
-    await waitFor(() => {
-      expect(screen.getByText("Isaac Asimov")).toBeInTheDocument();
+      const onRenamed = vi.fn();
+
+      renderWithProviders(
+        <EntityAdminPanel
+          entityType={entityType}
+          entityId={1}
+          currentName={rename.from}
+          bookCount={6}
+          onRenamed={onRenamed}
+          onMerged={() => {}}
+          onDeleted={() => {}}
+        />
+      );
+
+      const input = screen.getByDisplayValue(rename.from);
+      fireEvent.change(input, { target: { value: rename.to } });
+
+      const saveBtn = screen.getByText("Сохранить");
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText("Сохранить")).toBeInTheDocument();
+      });
+      expect(onRenamed).not.toHaveBeenCalled();
     });
 
-    // Click merge button for found author
-    const mergeBtn = screen.getByText("Присоединить");
-    fireEvent.click(mergeBtn);
+    it("calls onMerged after successful merge", async () => {
+      setupDefaultHandlers();
+      server.use(
+        http.post(`${apiPath}/:id/merge`, () => HttpResponse.json({ ok: true }))
+      );
 
-    // Confirm the dialog
-    await waitFor(() => {
-      const confirmBtn = screen.getAllByText("Присоединить");
-      // The confirm dialog button
-      expect(confirmBtn.length).toBeGreaterThan(0);
-    });
+      const onMerged = vi.fn();
 
-    // Click confirm in the dialog — find the confirm button
-    const confirmBtns = screen.getAllByText("Присоединить");
-    const confirmBtn = confirmBtns[confirmBtns.length - 1];
-    fireEvent.click(confirmBtn);
+      renderWithProviders(
+        <EntityAdminPanel
+          entityType={entityType}
+          entityId={1}
+          currentName={rename.from}
+          bookCount={6}
+          onRenamed={() => {}}
+          onMerged={onMerged}
+          onDeleted={() => {}}
+        />
+      );
 
-    await waitFor(() => {
-      expect(onMerged).toHaveBeenCalled();
-    });
-  });
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(searchPlaceholder)).toBeInTheDocument();
+      });
 
-  it("calls onDeleted after successful author delete (no books)", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.delete("/api/authors/:id", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
+      const searchInput = screen.getByPlaceholderText(searchPlaceholder);
+      fireEvent.change(searchInput, { target: { value: merge.searchTerm } });
 
-    const onDeleted = vi.fn();
+      await waitFor(() => {
+        expect(screen.getByText(merge.foundName)).toBeInTheDocument();
+      });
 
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="author"
-        entityId={1}
-        currentName="Empty Author"
-        bookCount={0}
-        onRenamed={() => {}}
-        onMerged={() => {}}
-        onDeleted={onDeleted}
-      />
-    );
+      const mergeBtn = screen.getByText("Присоединить");
+      fireEvent.click(mergeBtn);
 
-    const deleteBtn = screen.getByText("Удалить");
-    fireEvent.click(deleteBtn);
+      await waitFor(() => {
+        expect(screen.getAllByText("Присоединить").length).toBeGreaterThan(0);
+      });
 
-    // Confirm dialog appears
-    await waitFor(() => {
-      expect(screen.getAllByText("Удалить").length).toBeGreaterThan(0);
-    });
-
-    const deleteBtns = screen.getAllByText("Удалить");
-    const confirmDeleteBtn = deleteBtns[deleteBtns.length - 1];
-    fireEvent.click(confirmDeleteBtn);
-
-    await waitFor(() => {
-      expect(onDeleted).toHaveBeenCalled();
-    });
-  });
-});
-
-describe("EntityAdminPanel — series mode", () => {
-  it("calls onRenamed after successful series rename", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.put("/api/series/:id", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
-
-    const onRenamed = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="series"
-        entityId={1}
-        currentName="Dune"
-        bookCount={6}
-        onRenamed={onRenamed}
-        onMerged={() => {}}
-        onDeleted={() => {}}
-      />
-    );
-
-    const input = screen.getByDisplayValue("Dune");
-    fireEvent.change(input, { target: { value: "Dune Chronicles" } });
-
-    const saveBtn = screen.getByText("Сохранить");
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => {
-      expect(onRenamed).toHaveBeenCalledWith("Dune Chronicles");
-    });
-  });
-
-  it("does not call onRenamed when series rename request fails", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.put("/api/series/:id", () =>
-        HttpResponse.json({ detail: "Server error" }, { status: 500 })
-      )
-    );
-
-    const onRenamed = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="series"
-        entityId={1}
-        currentName="Dune"
-        bookCount={6}
-        onRenamed={onRenamed}
-        onMerged={() => {}}
-        onDeleted={() => {}}
-      />
-    );
-
-    const input = screen.getByDisplayValue("Dune");
-    fireEvent.change(input, { target: { value: "Dune Chronicles" } });
-
-    const saveBtn = screen.getByText("Сохранить");
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText("Сохранить")).toBeInTheDocument();
-    });
-    expect(onRenamed).not.toHaveBeenCalled();
-  });
-
-  it("calls onMerged after successful series merge", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.post("/api/series/:id/merge", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
-
-    const onMerged = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="series"
-        entityId={1}
-        currentName="Dune"
-        bookCount={6}
-        onRenamed={() => {}}
-        onMerged={onMerged}
-        onDeleted={() => {}}
-      />
-    );
-
-    // Wait for series list to load
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText("Найти серию-дубликат...")).toBeInTheDocument();
-    });
-
-    // Search for a duplicate
-    const searchInput = screen.getByPlaceholderText("Найти серию-дубликат...");
-    fireEvent.change(searchInput, { target: { value: "Foundation" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("Foundation")).toBeInTheDocument();
-    });
-
-    // Click merge button for found series
-    const mergeBtn = screen.getByText("Присоединить");
-    fireEvent.click(mergeBtn);
-
-    // Confirm the dialog
-    await waitFor(() => {
       const confirmBtns = screen.getAllByText("Присоединить");
-      expect(confirmBtns.length).toBeGreaterThan(0);
+      const confirmBtn = confirmBtns[confirmBtns.length - 1];
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(onMerged).toHaveBeenCalled();
+      });
     });
 
-    const confirmBtns = screen.getAllByText("Присоединить");
-    const confirmBtn = confirmBtns[confirmBtns.length - 1];
-    fireEvent.click(confirmBtn);
+    it("calls onDeleted after successful delete (no books)", async () => {
+      setupDefaultHandlers();
+      server.use(
+        http.delete(`${apiPath}/:id`, () => HttpResponse.json({ ok: true }))
+      );
 
-    await waitFor(() => {
-      expect(onMerged).toHaveBeenCalled();
+      const onDeleted = vi.fn();
+
+      renderWithProviders(
+        <EntityAdminPanel
+          entityType={entityType}
+          entityId={1}
+          currentName={emptyName}
+          bookCount={0}
+          onRenamed={() => {}}
+          onMerged={() => {}}
+          onDeleted={onDeleted}
+        />
+      );
+
+      const deleteBtn = screen.getByText("Удалить");
+      fireEvent.click(deleteBtn);
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Удалить").length).toBeGreaterThan(0);
+      });
+
+      const deleteBtns = screen.getAllByText("Удалить");
+      const confirmDeleteBtn = deleteBtns[deleteBtns.length - 1];
+      fireEvent.click(confirmDeleteBtn);
+
+      await waitFor(() => {
+        expect(onDeleted).toHaveBeenCalled();
+      });
     });
-  });
-
-  it("calls onDeleted after successful series delete (no books)", async () => {
-    setupDefaultHandlers();
-    server.use(
-      http.delete("/api/series/:id", () =>
-        HttpResponse.json({ ok: true })
-      )
-    );
-
-    const onDeleted = vi.fn();
-
-    renderWithProviders(
-      <EntityAdminPanel
-        entityType="series"
-        entityId={1}
-        currentName="Empty Series"
-        bookCount={0}
-        onRenamed={() => {}}
-        onMerged={() => {}}
-        onDeleted={onDeleted}
-      />
-    );
-
-    const deleteBtn = screen.getByText("Удалить");
-    fireEvent.click(deleteBtn);
-
-    // Confirm dialog appears
-    await waitFor(() => {
-      expect(screen.getAllByText("Удалить").length).toBeGreaterThan(0);
-    });
-
-    const deleteBtns = screen.getAllByText("Удалить");
-    const confirmDeleteBtn = deleteBtns[deleteBtns.length - 1];
-    fireEvent.click(confirmDeleteBtn);
-
-    await waitFor(() => {
-      expect(onDeleted).toHaveBeenCalled();
-    });
-  });
-});
+  }
+);
