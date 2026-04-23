@@ -94,6 +94,39 @@ describe("BookPage", () => {
     });
   });
 
+  it("loading: shows 'Загрузка...' status screen while fetch is in-flight", async () => {
+    let release!: () => void;
+    const inFlight = new Promise<void>((r) => { release = r; });
+
+    server.use(
+      http.get("/api/books/:id", async () => {
+        await inFlight;
+        return HttpResponse.json({
+          book: mockRawBook,
+          files: [],
+          identifiers: [],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id" element={<BookPage />} />
+      </Routes>,
+      { initialEntries: ["/book/42"] },
+    );
+
+    // Before the fetch resolves, the StatusScreen renders "Загрузка..."
+    expect(screen.getByText("Загрузка...")).toBeInTheDocument();
+
+    release();
+
+    // After resolve, the loading message is replaced with the book content.
+    await waitFor(() => {
+      expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
+    });
+  });
+
   it("404: shows not-found UI when book does not exist", async () => {
     server.use(
       http.get("/api/books/:id", () =>
