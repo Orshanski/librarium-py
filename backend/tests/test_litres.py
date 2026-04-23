@@ -122,6 +122,12 @@ class TestExtractAuthors:
     def test_none_persons_list(self):
         assert _extract_authors(None) == []
 
+    def test_non_list_persons_returns_empty(self):
+        """API drift защита: если persons вдруг string/dict/int → [] без падения."""
+        assert _extract_authors("not a list") == []  # type: ignore[arg-type]
+        assert _extract_authors({"oops": "dict"}) == []  # type: ignore[arg-type]
+        assert _extract_authors(42) == []  # type: ignore[arg-type]
+
 
 # ── TestExtractISBN ──
 
@@ -144,6 +150,35 @@ class TestExtractISBN:
     def test_isbn_from_arts_detail_fixture(self, arts_detail):
         """arts_detail has isbn '978-5-389-32504-3' → cleaned to '9785389325043'."""
         assert _extract_isbn(arts_detail) == "9785389325043"
+
+    def test_isbn_int_value_coerced_to_str(self):
+        """API может вернуть isbn как int — str()-coerce обрабатывает."""
+        assert _extract_isbn({"isbn": 9785389325043}) == "9785389325043"
+
+
+class TestBuildResultIsbnFallback:
+    """isbn fallback с item на detailed (Литрес отдаёт isbn только в /arts/{id})."""
+
+    def test_isbn_from_detailed_when_item_empty(self):
+        item = {"id": 1, "title": "X"}
+        detailed = {"isbn": "978-5-000-00000-0"}
+        result = _build_result(item, detailed)
+        assert result is not None
+        assert result.isbn == "9785000000000"
+
+    def test_isbn_from_item_takes_precedence(self):
+        item = {"id": 1, "title": "X", "isbn": "111"}
+        detailed = {"isbn": "222"}
+        result = _build_result(item, detailed)
+        assert result is not None
+        assert result.isbn == "111"
+
+    def test_isbn_empty_when_neither_has(self):
+        item = {"id": 1, "title": "X"}
+        detailed = {"other": "data"}
+        result = _build_result(item, detailed)
+        assert result is not None
+        assert result.isbn == ""
 
 
 # ── TestExtractPubDate ──
@@ -292,8 +327,8 @@ class TestBuildResultLiveFixture:
         assert result is not None
         assert result.title == "Архив Буресвета. Книга 5. Ветер и Правда. Том 1"
         assert result.authors == "Брендон Сандерсон"
-        # isbn comes from item (search_instance), which has no isbn — empty is correct
-        assert result.isbn == ""
+        # isbn отсутствует в search_instance, берётся fallback из arts_detail
+        assert result.isbn == "9785389325043"
         assert result.pubDate == "2024"
         assert result.source == "Litres"
         assert result.coverUrl.startswith("https://www.litres.ru")

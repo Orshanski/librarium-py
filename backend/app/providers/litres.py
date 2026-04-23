@@ -63,9 +63,12 @@ def _clean_title(raw: str) -> str:
 
 
 def _extract_authors(persons: list[dict]) -> list[str]:
-    """Only role in ('author', 'автор', '') → full_name/fullName/name. Empty names are dropped."""
+    """Only role in ('author', 'автор', '') → full_name/fullName/name. Empty names are dropped.
+    Defensive to non-list input (API may drift) — anything кроме list возвращает []."""
     authors: list[str] = []
-    for p in persons or []:
+    if not isinstance(persons, list):
+        return authors
+    for p in persons:
         role = (p.get("role") or "").lower()
         name = p.get("full_name") or p.get("fullName") or p.get("name")
         if name and role in ("author", "автор", ""):
@@ -132,7 +135,7 @@ def _build_result(item: dict, detailed: dict | None) -> MetadataResult | None:
         description=_extract_description(item, detailed),
         publisher=item.get("publisher") or "",
         pubDate=_extract_pub_date(item),
-        isbn=_extract_isbn(item),
+        isbn=_extract_isbn(item) or _extract_isbn(detailed or {}),
         tags=", ".join(_extract_tags(detailed)),
         source="Litres",
         coverUrl=_extract_cover_url(item),
