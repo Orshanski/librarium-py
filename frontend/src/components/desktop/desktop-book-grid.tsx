@@ -1,4 +1,4 @@
-export default function DesktopBookGrid({ children }: { children: React.ReactNode }) {
+export default function DesktopBookGrid({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div
       style={{

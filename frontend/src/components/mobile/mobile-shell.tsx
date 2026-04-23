@@ -4,7 +4,7 @@ import { SidebarContent } from "../sidebar";
 import { MobileLayoutProvider } from "./layout-context";
 import MobileTabBar from "./mobile-tab-bar";
 
-export default function MobileShell({ children }: { children: React.ReactNode }) {
+export default function MobileShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const contextValue = useMemo(

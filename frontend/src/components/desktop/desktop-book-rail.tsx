@@ -1,4 +1,4 @@
-export default function DesktopBookRail({ children }: { children: React.ReactNode }) {
+export default function DesktopBookRail({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div
       style={{

@@ -66,7 +66,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenterTap, callbacks }: PdfReaderProps) {
+export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenterTap, callbacks }: Readonly<PdfReaderProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateView | null>(null);
   const callbacksRef = useRef(callbacks);

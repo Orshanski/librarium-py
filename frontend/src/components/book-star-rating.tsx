@@ -7,13 +7,13 @@ export default function BookStarRating({
   size = 22,
   gap = 2,
   targetSize = size + 8,
-}: {
+}: Readonly<{
   rating: number | null;
   onChange: (r: number) => void;
   size?: number;
   gap?: number;
   targetSize?: number;
-}) {
+}>) {
   const [hover, setHover] = useState(0);
 
   return (

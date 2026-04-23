@@ -108,7 +108,7 @@ export default function OfflineShell() {
   );
 }
 
-function OfflineBookCard({ book, isMobile, progressPercent }: { book: CachedBook; isMobile: boolean; progressPercent?: number }) {
+function OfflineBookCard({ book, isMobile, progressPercent }: Readonly<{ book: CachedBook; isMobile: boolean; progressPercent?: number }>) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {

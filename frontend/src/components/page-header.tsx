@@ -3,7 +3,7 @@ import MobilePageHeader from "./mobile/mobile-page-header";
 import { useIsMobile } from "../responsive";
 import { PageHeaderProps } from "./page-header.types";
 
-export default function PageHeader(props: PageHeaderProps) {
+export default function PageHeader(props: Readonly<PageHeaderProps>) {
   const isMobile = useIsMobile();
 
   if (isMobile) {

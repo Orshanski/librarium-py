@@ -21,12 +21,12 @@ export default function FilterBar({
   selected,
   onSelectionChange,
   onClearAll,
-}: {
+}: Readonly<{
   filters: FilterConfig[];
   selected: Record<string, string[]>;
   onSelectionChange: (key: string, values: string[]) => void;
   onClearAll?: () => void;
-}) {
+}>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [highlighted, setHighlighted] = useState(-1);

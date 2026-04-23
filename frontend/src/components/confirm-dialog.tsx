@@ -5,12 +5,12 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmLabel = "Удалить",
-}: {
+}: Readonly<{
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel?: string;
-}) {
+}>) {
   return (
     <>
       <div onClick={onCancel} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 300 }} />

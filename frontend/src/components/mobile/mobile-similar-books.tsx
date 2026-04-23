@@ -1,7 +1,7 @@
 import { colors } from "../../theme";
 import { SimilarBooksViewProps } from "../similar-books.types";
 
-export default function MobileSimilarBooks({ books }: SimilarBooksViewProps) {
+export default function MobileSimilarBooks({ books }: Readonly<SimilarBooksViewProps>) {
   return (
     <div
       style={{

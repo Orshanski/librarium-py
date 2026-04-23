@@ -4,7 +4,7 @@ import { useIsMobile } from "../responsive";
 import { useUpdateAvailable } from "../hooks/useUpdateAvailable";
 import { colors } from "../theme";
 
-export default function Shell({ children }: { children: React.ReactNode }) {
+export default function Shell({ children }: Readonly<{ children: React.ReactNode }>) {
   const isMobile = useIsMobile();
   const [updateAvailable, reload] = useUpdateAvailable();
 
@@ -22,7 +22,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return <DesktopShell>{content}</DesktopShell>;
 }
 
-function UpdateBanner({ onReload }: { onReload: () => void }) {
+function UpdateBanner({ onReload }: Readonly<{ onReload: () => void }>) {
   return (
     <div
       style={{

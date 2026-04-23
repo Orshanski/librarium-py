@@ -20,7 +20,7 @@ const THUMB_SIZE = 24;
 const BAR_PADDING_X = 16;
 const BAR_PADDING_Y = 14;
 
-export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: PdfNavBarProps) {
+export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: Readonly<PdfNavBarProps>) {
   // All hooks must be called before any early returns.
   const [inputValue, setInputValue] = useState(String(currentPage + 1));
   const [isFocused, setIsFocused] = useState(false);

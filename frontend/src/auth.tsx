@@ -24,7 +24,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
+export function ProtectedRoute({ children, adminOnly = false }: Readonly<{ children: ReactNode; adminOnly?: boolean }>) {
   const { user, loading } = useAuth();
 
   if (loading) return <div style={{ textAlign: "center", padding: 48, color: "#666" }}>Загрузка...</div>;

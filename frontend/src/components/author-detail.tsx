@@ -8,11 +8,11 @@ export default function AuthorDetail({
   author,
   books,
   bookLinkState,
-}: {
+}: Readonly<{
   author: { id: number; name: string; bookCount: number; tags: string[] };
   books: Book[];
   bookLinkState: { origin: ListOrigin };
-}) {
+}>) {
   // Group books by series
   const seriesMap = new Map<string, Book[]>();
   const standalone: Book[] = [];

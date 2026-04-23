@@ -1,4 +1,4 @@
-export default function MobileBookRail({ children }: { children: React.ReactNode }) {
+export default function MobileBookRail({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div
       style={{

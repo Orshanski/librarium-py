@@ -7,7 +7,7 @@ const externalIcon = (
   </svg>
 );
 
-export default function DesktopSimilarBooks({ books }: SimilarBooksViewProps) {
+export default function DesktopSimilarBooks({ books }: Readonly<SimilarBooksViewProps>) {
   return (
     <div
       style={{

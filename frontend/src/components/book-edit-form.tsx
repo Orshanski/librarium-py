@@ -15,7 +15,7 @@ import {
   deleteFile as apiDeleteFile,
 } from "@/api/endpoints/books";
 
-export default function BookEditForm({ book, options, onSave, editOrigin }: BookEditFormProps) {
+export default function BookEditForm({ book, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);

@@ -7,7 +7,7 @@ import { invalidateCache } from "../../utils/cache-invalidation";
 
 const STACK_KEY = "librarium_scroll_state";
 
-function Harness({ ready = true }: { ready?: boolean }) {
+function Harness({ ready = true }: Readonly<{ ready?: boolean }>) {
   useScrollRestore(ready);
   return <div data-testid="harness">harness</div>;
 }
