@@ -221,3 +221,248 @@ class TestEpubFieldExtractors:
             '<dc:identifier opf:scheme="DOI" xmlns:opf="http://www.idpf.org/2007/opf">10.1/123</dc:identifier>'
         )
         assert _extract_isbn(p) is None
+
+
+import base64
+import logging
+from app.parsers.fb2 import (
+    NS as FB2_NS,
+    _extract_title as fb2_extract_title,
+    _extract_authors as fb2_extract_authors,
+    _extract_series as fb2_extract_series,
+    _extract_genres as fb2_extract_genres,
+    _extract_language as fb2_extract_language,
+    _extract_annotation as fb2_extract_annotation,
+    _extract_publisher as fb2_extract_publisher,
+    _extract_pub_date as fb2_extract_pub_date,
+    _extract_isbn as fb2_extract_isbn,
+    _extract_cover as fb2_extract_cover,
+)
+
+
+def _build_fb2(title_info: str = "", publish_info: str = "", binaries: str = "") -> etree._Element:
+    """Собрать минимальное FB2-дерево: title-info, publish-info, binaries — по месту."""
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">'
+        '<description>'
+        '<title-info>' + title_info + '</title-info>'
+        '<publish-info>' + publish_info + '</publish-info>'
+        '</description>'
+        + binaries +
+        '</FictionBook>'
+    )
+    return etree.fromstring(xml.encode("utf-8"))
+
+
+class TestFb2FieldExtractors:
+
+    # --- title ---
+
+    def test_fb2_title_present(self):
+        tree = _build_fb2(title_info="<book-title>Book</book-title>")
+        assert fb2_extract_title(tree) == "Book"
+
+    def test_fb2_title_missing(self):
+        tree = _build_fb2()
+        assert fb2_extract_title(tree) == ""
+
+    # --- authors ---
+
+    def test_fb2_author_full_name(self):
+        tree = _build_fb2(title_info=(
+            "<author>"
+            "<first-name>First</first-name>"
+            "<middle-name>Middle</middle-name>"
+            "<last-name>Last</last-name>"
+            "</author>"
+        ))
+        assert fb2_extract_authors(tree) == ["First Middle Last"]
+
+    def test_fb2_author_first_last_only(self):
+        tree = _build_fb2(title_info=(
+            "<author>"
+            "<first-name>First</first-name>"
+            "<last-name>Last</last-name>"
+            "</author>"
+        ))
+        assert fb2_extract_authors(tree) == ["First Last"]
+
+    def test_fb2_author_nickname_only(self):
+        tree = _build_fb2(title_info="<author><nickname>Nick</nickname></author>")
+        assert fb2_extract_authors(tree) == ["Nick"]
+
+    def test_fb2_author_empty_skipped(self):
+        tree = _build_fb2(title_info="<author></author>")
+        assert fb2_extract_authors(tree) == []
+
+    def test_fb2_multiple_authors(self):
+        tree = _build_fb2(title_info=(
+            "<author><first-name>Alice</first-name></author>"
+            "<author><first-name>Bob</first-name></author>"
+        ))
+        result = fb2_extract_authors(tree)
+        assert len(result) == 2
+        assert "Alice" in result
+        assert "Bob" in result
+
+    # --- series ---
+
+    def test_fb2_series_title_info(self):
+        tree = _build_fb2(title_info='<sequence name="Name" number="1.5"/>')
+        assert fb2_extract_series(tree) == ("Name", 1.5)
+
+    def test_fb2_series_publish_info_fallback(self):
+        tree = _build_fb2(publish_info='<sequence name="PubSeries" number="2"/>')
+        assert fb2_extract_series(tree) == ("PubSeries", 2.0)
+
+    def test_fb2_series_empty_name(self):
+        tree = _build_fb2(title_info='<sequence name="" number="1"/>')
+        series, series_number = fb2_extract_series(tree)
+        assert series is None
+        assert series_number == 1.0
+
+    def test_fb2_series_invalid_number(self):
+        tree = _build_fb2(title_info='<sequence name="X" number="abc"/>')
+        assert fb2_extract_series(tree) == ("X", None)
+
+    # --- genres ---
+
+    def test_fb2_genres_present(self):
+        tree = _build_fb2(title_info="<genre>fantasy</genre><genre>  sf  </genre>")
+        assert fb2_extract_genres(tree) == ["fantasy", "sf"]
+
+    def test_fb2_genres_filters_empty(self):
+        tree = _build_fb2(title_info="<genre></genre><genre>valid</genre>")
+        assert fb2_extract_genres(tree) == ["valid"]
+
+    # --- language ---
+
+    def test_fb2_language_present(self):
+        from app.parsers import normalize_language
+        tree = _build_fb2(title_info="<lang>ru</lang>")
+        assert fb2_extract_language(tree) == normalize_language("ru")
+
+    def test_fb2_language_missing(self):
+        tree = _build_fb2()
+        assert fb2_extract_language(tree) is None
+
+    # --- annotation ---
+
+    def test_fb2_annotation_simple(self):
+        tree = _build_fb2(title_info="<annotation><p>Hello world</p></annotation>")
+        result = fb2_extract_annotation(tree)
+        assert result is not None
+        assert "Hello world" in result
+
+    def test_fb2_annotation_nested_inline(self):
+        tree = _build_fb2(title_info="<annotation><p>foo <em>bar</em> baz</p></annotation>")
+        result = fb2_extract_annotation(tree)
+        assert result is not None
+        assert "foo" in result
+        assert "bar" in result
+        assert "baz" in result
+
+    def test_fb2_annotation_missing(self):
+        tree = _build_fb2()
+        assert fb2_extract_annotation(tree) is None
+
+    # --- publisher ---
+
+    def test_fb2_publisher_present(self):
+        tree = _build_fb2(publish_info="<publisher>Foo</publisher>")
+        assert fb2_extract_publisher(tree) == "Foo"
+
+    def test_fb2_publisher_missing(self):
+        tree = _build_fb2()
+        assert fb2_extract_publisher(tree) is None
+
+    # --- pub_date ---
+
+    def test_fb2_pub_date_from_date_value(self):
+        tree = _build_fb2(title_info='<date value="2023-01-15"/>')
+        assert fb2_extract_pub_date(tree) == "2023-01-15"
+
+    def test_fb2_pub_date_year_fallback(self):
+        tree = _build_fb2(publish_info="<year>2020</year>")
+        assert fb2_extract_pub_date(tree) == "2020"
+
+    def test_fb2_pub_date_missing_both(self):
+        tree = _build_fb2()
+        assert fb2_extract_pub_date(tree) is None
+
+    # --- isbn ---
+
+    def test_fb2_isbn_present(self):
+        tree = _build_fb2(publish_info="<isbn>978-x</isbn>")
+        assert fb2_extract_isbn(tree) == "978-x"
+
+    def test_fb2_isbn_whitespace_stripped(self):
+        tree = _build_fb2(publish_info="<isbn>  978-x  </isbn>")
+        assert fb2_extract_isbn(tree) == "978-x"
+
+    def test_fb2_isbn_empty_returns_none(self):
+        tree = _build_fb2(publish_info="<isbn>   </isbn>")
+        assert fb2_extract_isbn(tree) is None
+
+    # --- cover ---
+
+    def test_fb2_cover_ns_binary(self):
+        img_bytes = b"\xff\xd8\xff\xe0JFIF"
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        tree = _build_fb2(
+            title_info='<coverpage><image l:href="#c1"/></coverpage>',
+            binaries='<binary xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" id="c1" content-type="image/jpeg">' + b64 + '</binary>',
+        )
+        data, ext = fb2_extract_cover(tree)
+        assert data == img_bytes
+        assert ext == "jpg"
+
+    def test_fb2_cover_no_ns_binary_fallback(self):
+        img_bytes = b"\xff\xd8\xff\xe0JFIF"
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        # binary без FB2-namespace — попадёт в no-ns fallback ветку
+        tree = _build_fb2(
+            title_info='<coverpage><image l:href="#c2"/></coverpage>',
+            binaries='<binary xmlns="" id="c2" content-type="image/jpeg">' + b64 + '</binary>',
+        )
+        data, ext = fb2_extract_cover(tree)
+        assert data == img_bytes
+        assert ext == "jpg"
+
+    def test_fb2_cover_png(self):
+        img_bytes = b"\x89PNG\r\n"
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        tree = _build_fb2(
+            title_info='<coverpage><image l:href="#cpng"/></coverpage>',
+            binaries='<binary xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" id="cpng" content-type="image/png">' + b64 + '</binary>',
+        )
+        data, ext = fb2_extract_cover(tree)
+        assert data == img_bytes
+        assert ext == "png"
+
+    def test_fb2_cover_unknown_content_type(self):
+        img_bytes = b"TIFF_DATA"
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        tree = _build_fb2(
+            title_info='<coverpage><image l:href="#ctiff"/></coverpage>',
+            binaries='<binary xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" id="ctiff" content-type="image/tiff">' + b64 + '</binary>',
+        )
+        data, ext = fb2_extract_cover(tree)
+        assert data == img_bytes
+        assert ext == "jpg"
+
+    def test_fb2_cover_missing_coverpage(self):
+        tree = _build_fb2()
+        assert fb2_extract_cover(tree) == (None, None)
+
+    def test_fb2_cover_invalid_base64(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="app.parsers.fb2"):
+            tree = _build_fb2(
+                title_info='<coverpage><image l:href="#cbad"/></coverpage>',
+                binaries='<binary xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" id="cbad" content-type="image/jpeg">!!!NOT_VALID_BASE64!!!</binary>',
+            )
+            data, ext = fb2_extract_cover(tree)
+        assert data is None
+        assert ext is None
+        assert any("Cannot extract FB2 cover" in r.message for r in caplog.records)
