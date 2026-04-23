@@ -11,96 +11,131 @@ NS = {
 }
 
 
-def parse_fb2(file_path: str) -> ParsedMetadata:
+def _read_fb2_tree(file_path: str) -> etree._Element:
+    """Прочитать FB2-файл и распарсить XML. lxml сам учитывает encoding declaration.
+    Исключения: OSError (FS-ошибки), etree.XMLSyntaxError (malformed XML) — пробрасываются наверх."""
     with open(file_path, "rb") as f:
         raw = f.read()
+    return etree.fromstring(raw)
 
-    # lxml handles encoding declaration in XML itself
-    tree = etree.fromstring(raw)
-    meta = ParsedMetadata()
 
-    # Title
+def _extract_title(tree: etree._Element) -> str:
     title = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:book-title/text()", namespaces=NS)
-    meta.title = str(title[0]) if title else ""
+    return str(title[0]) if title else ""
 
-    # Authors
+
+def _extract_authors(tree: etree._Element) -> list[str]:
+    authors: list[str] = []
     for el in tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:author", namespaces=NS):
         first = el.xpath("fb:first-name/text()", namespaces=NS)
         middle = el.xpath("fb:middle-name/text()", namespaces=NS)
         last = el.xpath("fb:last-name/text()", namespaces=NS)
         nick = el.xpath("fb:nickname/text()", namespaces=NS)
         parts = [p[0] for p in (first, middle, last) if p]
-        name = " ".join(parts) if parts else (nick[0] if nick else "")
+        if parts:
+            name = " ".join(parts)
+        elif nick:
+            name = nick[0]
+        else:
+            name = ""
         if name:
-            meta.authors.append(name)
+            authors.append(name)
+    return authors
 
-    # Series — check title-info first, then publish-info
+
+def _extract_series(tree: etree._Element) -> tuple[str | None, float | None]:
     seq = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:sequence", namespaces=NS)
     if not seq:
         seq = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:sequence", namespaces=NS)
-    if seq:
-        meta.series = seq[0].get("name", "") or None
-        num = seq[0].get("number", "")
-        if num:
-            try:
-                meta.series_number = float(num)
-            except ValueError:
-                pass
+    if not seq:
+        return None, None
+    series = seq[0].get("name", "") or None
+    series_number: float | None = None
+    num = seq[0].get("number", "")
+    if num:
+        try:
+            series_number = float(num)
+        except ValueError:
+            pass
+    return series, series_number
 
-    # Genres
+
+def _extract_genres(tree: etree._Element) -> list[str]:
     genres = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:genre/text()", namespaces=NS)
-    meta.genres = [g.strip() for g in genres if g.strip()]
+    return [g.strip() for g in genres if g.strip()]
 
-    # Language
+
+def _extract_language(tree: etree._Element) -> str | None:
     lang = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:lang/text()", namespaces=NS)
-    meta.language = normalize_language(str(lang[0])) if lang else None
+    return normalize_language(str(lang[0])) if lang else None
 
-    # Annotation
+
+def _extract_annotation(tree: etree._Element) -> str | None:
     annotation = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:annotation", namespaces=NS)
-    if annotation:
-        parts = []
-        for p in annotation[0].iter():
-            if p.text:
-                parts.append(p.text.strip())
-            if p.tail:
-                parts.append(p.tail.strip())
-        meta.description = "\n".join(filter(None, parts))
+    if not annotation:
+        return None
+    parts: list[str] = []
+    for p in annotation[0].iter():
+        if p.text:
+            parts.append(p.text.strip())
+        if p.tail:
+            parts.append(p.tail.strip())
+    return "\n".join(filter(None, parts))
 
-    # Publisher
+
+def _extract_publisher(tree: etree._Element) -> str | None:
     pub = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:publisher/text()", namespaces=NS)
-    meta.publisher = str(pub[0]) if pub else None
+    return str(pub[0]) if pub else None
 
-    # Date
+
+def _extract_pub_date(tree: etree._Element) -> str | None:
     date = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:date/@value", namespaces=NS)
     if date:
-        meta.pub_date = str(date[0])
-    else:
-        year = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:year/text()", namespaces=NS)
-        if year:
-            meta.pub_date = str(year[0])
+        return str(date[0])
+    year = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:year/text()", namespaces=NS)
+    return str(year[0]) if year else None
 
-    # ISBN
+
+def _extract_isbn(tree: etree._Element) -> str | None:
     isbn = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:isbn/text()", namespaces=NS)
-    if isbn:
-        meta.isbn = str(isbn[0]).strip() or None
+    if not isbn:
+        return None
+    return str(isbn[0]).strip() or None
 
-    # Cover
+
+def _extract_cover(tree: etree._Element) -> tuple[bytes | None, str | None]:
     try:
         coverpage = tree.xpath(
             "/fb:FictionBook/fb:description/fb:title-info/fb:coverpage/fb:image/@l:href", namespaces=NS
         )
-        if coverpage:
-            cover_id = coverpage[0].lstrip("#")
-            # Find binary by iterating (safe from XPath injection)
-            binary = [b for b in tree.xpath("//fb:binary", namespaces=NS) if b.get("id") == cover_id]
-            if not binary:
-                binary = [b for b in tree.xpath("//binary") if b.get("id") == cover_id]
-            if binary and binary[0].text:
-                content_type = binary[0].get("content-type", "image/jpeg")
-                meta.cover_data = base64.b64decode(binary[0].text.strip())
-                ext_map = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif"}
-                meta.cover_ext = ext_map.get(content_type, "jpg")
+        if not coverpage:
+            return None, None
+        cover_id = coverpage[0].lstrip("#")
+        binary = [b for b in tree.xpath("//fb:binary", namespaces=NS) if b.get("id") == cover_id]
+        if not binary:
+            binary = [b for b in tree.xpath("//binary") if b.get("id") == cover_id]
+        if not binary or not binary[0].text:
+            return None, None
+        content_type = binary[0].get("content-type", "image/jpeg")
+        data = base64.b64decode(binary[0].text.strip())
+        ext_map = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif"}
+        return data, ext_map.get(content_type, "jpg")
     except Exception as e:
         log.warning("Cannot extract FB2 cover: %s", e)
+        return None, None
 
+
+def parse_fb2(file_path: str) -> ParsedMetadata:
+    tree = _read_fb2_tree(file_path)
+    meta = ParsedMetadata()
+    meta.title = _extract_title(tree)
+    meta.authors = _extract_authors(tree)
+    meta.series, meta.series_number = _extract_series(tree)
+    meta.genres = _extract_genres(tree)
+    meta.language = _extract_language(tree)
+    meta.description = _extract_annotation(tree)
+    meta.publisher = _extract_publisher(tree)
+    meta.pub_date = _extract_pub_date(tree)
+    meta.isbn = _extract_isbn(tree)
+    meta.cover_data, meta.cover_ext = _extract_cover(tree)
     return meta
