@@ -15,78 +15,97 @@ NS = {
 COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
-def parse_epub(file_path: str) -> ParsedMetadata:
-    meta = ParsedMetadata()
-    try:
-        with zipfile.ZipFile(file_path) as zf:
-            # Find content.opf
-            container = etree.fromstring(zf.read("META-INF/container.xml"))
-            opf_path = container.xpath("n:rootfiles/n:rootfile/@full-path", namespaces=NS)[0]
-            opf = etree.fromstring(zf.read(opf_path))
-            cover_dir = os.path.dirname(opf_path)
+def _load_opf(zf: zipfile.ZipFile) -> tuple[etree._Element, str]:
+    """Возвращает (opf_tree, cover_dir). Читает META-INF/container.xml → opf_path → opf_tree.
+    Исключения: KeyError / IndexError / etree.XMLSyntaxError — любая malformed EPUB уйдёт в caller."""
+    container = etree.fromstring(zf.read("META-INF/container.xml"))
+    opf_path = container.xpath("n:rootfiles/n:rootfile/@full-path", namespaces=NS)[0]
+    opf = etree.fromstring(zf.read(opf_path))
+    cover_dir = os.path.dirname(opf_path)
+    return opf, cover_dir
 
-            p = opf.xpath("/pkg:package/pkg:metadata", namespaces=NS)[0]
 
-            # Title
-            title = p.xpath("dc:title/text()", namespaces=NS)
-            meta.title = title[0].strip() if title else ""
+def _extract_title(p: etree._Element) -> str:
+    """dc:title text. Пустая строка если тег отсутствует."""
+    title = p.xpath("dc:title/text()", namespaces=NS)
+    return title[0].strip() if title else ""
 
-            # Authors
-            creators = p.xpath("dc:creator/text()", namespaces=NS)
-            if creators:
-                for c in creators:
-                    for a in c.split("&"):
-                        a = a.strip()
-                        if a:
-                            meta.authors.append(a)
 
-            # Language
-            lang = p.xpath("dc:language/text()", namespaces=NS)
-            meta.language = normalize_language(lang[0]) if lang else None
+def _extract_authors(p: etree._Element) -> list[str]:
+    """dc:creator — каждый может быть '&'-разделённым (несколько авторов в одном теге)."""
+    authors: list[str] = []
+    for c in p.xpath("dc:creator/text()", namespaces=NS):
+        for a in c.split("&"):
+            a = a.strip()
+            if a:
+                authors.append(a)
+    return authors
 
-            # Description
-            desc = p.xpath("dc:description/text()", namespaces=NS)
-            meta.description = desc[0].strip() if desc else None
 
-            # Subjects (genres)
-            subjects = p.xpath("dc:subject/text()", namespaces=NS)
-            meta.genres = [s.strip() for s in subjects if s.strip()]
+def _extract_language(p: etree._Element) -> str | None:
+    """dc:language, нормализуется через normalize_language."""
+    lang = p.xpath("dc:language/text()", namespaces=NS)
+    return normalize_language(lang[0]) if lang else None
 
-            # Publisher
-            pub = p.xpath("dc:publisher/text()", namespaces=NS)
-            meta.publisher = pub[0].strip() if pub else None
 
-            # Date
-            date = p.xpath("dc:date/text()", namespaces=NS)
-            meta.pub_date = date[0][:10] if date and date[0] != "Unknown" else None
+def _extract_description(p: etree._Element) -> str | None:
+    """dc:description — первый match, stripped."""
+    desc = p.xpath("dc:description/text()", namespaces=NS)
+    return desc[0].strip() if desc else None
 
-            # Series (Calibre metadata)
-            series = opf.xpath("/pkg:package/pkg:metadata/pkg:meta[@name='calibre:series']/@content", namespaces=NS)
-            if series:
-                meta.series = series[0]
-            series_idx = opf.xpath("/pkg:package/pkg:metadata/pkg:meta[@name='calibre:series_index']/@content", namespaces=NS)
-            if series_idx:
-                try:
-                    meta.series_number = float(series_idx[0])
-                except ValueError:
-                    pass
 
-            # Identifiers
-            for node in p.xpath("dc:identifier", namespaces=NS):
-                val = (node.text or "").strip()
-                attrs = list(node.attrib.values())
-                if attrs and val:
-                    scheme = attrs[-1].lower()
-                    if "isbn" in scheme and val:
-                        meta.isbn = val
+def _extract_genres(p: etree._Element) -> list[str]:
+    """dc:subject — список непустых stripped значений."""
+    subjects = p.xpath("dc:subject/text()", namespaces=NS)
+    return [s.strip() for s in subjects if s.strip()]
 
-            # Cover
-            meta.cover_data, meta.cover_ext = _extract_cover(opf, zf, cover_dir)
 
-    except Exception as e:
-        log.warning("Cannot parse EPUB: %s", e)
+def _extract_publisher(p: etree._Element) -> str | None:
+    pub = p.xpath("dc:publisher/text()", namespaces=NS)
+    return pub[0].strip() if pub else None
 
-    return meta
+
+def _extract_pub_date(p: etree._Element) -> str | None:
+    """dc:date — берутся первые 10 символов (YYYY-MM-DD), 'Unknown' → None."""
+    date = p.xpath("dc:date/text()", namespaces=NS)
+    if not date or date[0] == "Unknown":
+        return None
+    return date[0][:10]
+
+
+def _extract_series(opf: etree._Element) -> tuple[str | None, float | None]:
+    """Calibre meta: 'calibre:series' + 'calibre:series_index'. Series_index через float() с try/except ValueError."""
+    series: str | None = None
+    series_number: float | None = None
+    series_nodes = opf.xpath(
+        "/pkg:package/pkg:metadata/pkg:meta[@name='calibre:series']/@content",
+        namespaces=NS,
+    )
+    if series_nodes:
+        series = series_nodes[0]
+    idx_nodes = opf.xpath(
+        "/pkg:package/pkg:metadata/pkg:meta[@name='calibre:series_index']/@content",
+        namespaces=NS,
+    )
+    if idx_nodes:
+        try:
+            series_number = float(idx_nodes[0])
+        except ValueError:
+            pass
+    return series, series_number
+
+
+def _extract_isbn(p: etree._Element) -> str | None:
+    """dc:identifier с attribute, содержащим 'isbn' (case-insensitive). Возвращает последний match в порядке обхода."""
+    matches: list[str] = []
+    for node in p.xpath("dc:identifier", namespaces=NS):
+        val = (node.text or "").strip()
+        attrs = list(node.attrib.values())
+        if attrs and val:
+            scheme = attrs[-1].lower()
+            if "isbn" in scheme:
+                matches.append(val)
+    return matches[-1] if matches else None
 
 
 def _extract_cover(opf, zf: zipfile.ZipFile, cover_dir: str) -> tuple[bytes | None, str | None]:
@@ -131,3 +150,25 @@ def _read_cover(zf: zipfile.ZipFile, cover_dir: str, href: str) -> tuple[bytes |
             return data, ext_clean
         except KeyError:
             return None, None
+
+
+def parse_epub(file_path: str) -> ParsedMetadata:
+    meta = ParsedMetadata()
+    try:
+        with zipfile.ZipFile(file_path) as zf:
+            opf, cover_dir = _load_opf(zf)
+            p = opf.xpath("/pkg:package/pkg:metadata", namespaces=NS)[0]
+
+            meta.title = _extract_title(p)
+            meta.authors = _extract_authors(p)
+            meta.language = _extract_language(p)
+            meta.description = _extract_description(p)
+            meta.genres = _extract_genres(p)
+            meta.publisher = _extract_publisher(p)
+            meta.pub_date = _extract_pub_date(p)
+            meta.series, meta.series_number = _extract_series(opf)
+            meta.isbn = _extract_isbn(p)
+            meta.cover_data, meta.cover_ext = _extract_cover(opf, zf, cover_dir)
+    except Exception as e:
+        log.warning("Cannot parse EPUB: %s", e)
+    return meta
