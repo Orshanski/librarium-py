@@ -99,3 +99,40 @@ class TestBuildBookWhere:
         assert "b.language IN (:l0)" in where
         assert params["id"] == 7
         assert params["l0"] == "Русский"
+
+    def test_author_filter_multi_sql(self):
+        from app.dal.filters import build_book_where
+        where, params = build_book_where({"authorIds": [1, 2]})
+        assert "b.id IN (SELECT book_id FROM book_authors WHERE author_id IN (:a0,:a1))" in where
+        assert params["a0"] == 1
+        assert params["a1"] == 2
+
+    def test_tag_filter_multi_sql(self):
+        from app.dal.filters import build_book_where
+        where, params = build_book_where({"tagIds": [3, 4]})
+        assert "b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN (:t0,:t1))" in where
+        assert params["t0"] == 3
+        assert params["t1"] == 4
+
+    def test_series_filter_multi_sql(self):
+        from app.dal.filters import build_book_where
+        where, params = build_book_where({"seriesIds": [5, 6]})
+        assert "b.series_id IN (:s0,:s1)" in where
+        assert params["s0"] == 5
+        assert params["s1"] == 6
+
+    def test_clause_order_in_where(self):
+        from app.dal.filters import build_book_where
+        where, _ = build_book_where({
+            "userId": 1,
+            "authorIds": [2],
+            "tagIds": [3],
+            "seriesIds": [4],
+            "language": ["ru"],
+        })
+        i_uid = where.index("user_books")
+        i_auth = where.index("book_authors")
+        i_tag = where.index("book_tags")
+        i_ser = where.index("b.series_id")
+        i_lang = where.index("b.language")
+        assert i_uid < i_auth < i_tag < i_ser < i_lang
