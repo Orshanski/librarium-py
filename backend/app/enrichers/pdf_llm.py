@@ -36,46 +36,21 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
 
 
 def _extract_json_object(text: str) -> dict | None:
-    """Extract first valid JSON object from text, tolerating markdown fences and surrounding prose."""
+    """Вырезать первый JSON-object из текста, терпя markdown-обёртки и prose вокруг.
+
+    Использует json.JSONDecoder().raw_decode() — он сам знает escape/string rules
+    и возвращает (obj, end_index), игнорируя хвост после валидного объекта.
+    """
     if not text:
         return None
-    # Try direct parse first
-    try:
-        result = json.loads(text)
-        return result if isinstance(result, dict) else None
-    except json.JSONDecodeError:
-        pass
-    # Find all brace-balanced candidates; try from the first one
-    starts = [m.start() for m in re.finditer(r"\{", text)]
-    for start in starts:
-        depth = 0
-        in_string = False
-        escape = False
-        for i in range(start, len(text)):
-            ch = text[i]
-            if escape:
-                escape = False
-                continue
-            if ch == "\\" and in_string:
-                escape = True
-                continue
-            if ch == '"':
-                in_string = not in_string
-                continue
-            if in_string:
-                continue
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    candidate = text[start:i + 1]
-                    try:
-                        result = json.loads(candidate)
-                        if isinstance(result, dict):
-                            return result
-                    except json.JSONDecodeError:
-                        break  # try next start position
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", text):
+        try:
+            result, _ = decoder.raw_decode(text[m.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(result, dict):
+            return result
     return None
 
 
@@ -91,12 +66,17 @@ class LlmMetadata:
     cover_url: str = ""
 
 
-def extract_metadata_from_filename(filename: str) -> LlmMetadata:
-    """Extract book metadata via Claude + web search. Returns empty metadata on any failure."""
-    if not ANTHROPIC_API_KEY:
-        log.info("ANTHROPIC_API_KEY not set, skipping LLM extraction")
-        return LlmMetadata()
+def _normalize_string_list(value: object) -> list[str]:
+    """str → split по запятой; list → map str+strip+filter пустых; иначе → []."""
+    if isinstance(value, str):
+        return [s.strip() for s in value.split(",") if s.strip()]
+    if isinstance(value, list):
+        return [str(s).strip() for s in value if str(s).strip()]
+    return []
 
+
+def _call_llm(filename: str) -> str:
+    """Anthropic API call с web_search. Возвращает конкатенированный текст или '' при ошибке."""
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=ANTHROPIC_TIMEOUT_SEC)
         response = client.messages.create(
@@ -112,42 +92,38 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
         )
     except Exception as e:
         log.warning("LLM metadata extraction failed: %s", e)
-        return LlmMetadata()
-
-    # Collect all text blocks
+        return ""
     texts = [b.text for b in response.content if b.type == "text"]
-    text = "\n".join(texts).strip()
+    return "\n".join(texts).strip()
 
-    data = _extract_json_object(text)
-    if data is None:
-        log.warning("LLM returned no parseable JSON: %s", text[:200])
-        return LlmMetadata()
 
-    # Extract genres — accept list[str] (preferred) or fallback to comma-separated string
+def _build_metadata(data: dict) -> LlmMetadata:
+    """Собрать LlmMetadata из распарсенного LLM-JSON."""
     raw_genres = data.get("genres") or data.get("genre") or []
-    if isinstance(raw_genres, str):
-        raw_genres = [g.strip() for g in raw_genres.split(",") if g.strip()]
-    elif isinstance(raw_genres, list):
-        raw_genres = [str(g).strip() for g in raw_genres if str(g).strip()]
-    else:
-        raw_genres = []
-
-    # Extract authors — same logic
     raw_authors = data.get("authors") or data.get("author") or []
-    if isinstance(raw_authors, str):
-        raw_authors = [a.strip() for a in raw_authors.split(",") if a.strip()]
-    elif isinstance(raw_authors, list):
-        raw_authors = [str(a).strip() for a in raw_authors if str(a).strip()]
-    else:
-        raw_authors = []
-
     return LlmMetadata(
         title=data.get("title", "") or "",
-        authors=raw_authors,
+        authors=_normalize_string_list(raw_authors),
         publisher=data.get("publisher", "") or "",
         year=data.get("year", "") or "",
         isbn=data.get("isbn", "") or "",
         annotation=data.get("annotation", "") or "",
-        genres=raw_genres,
+        genres=_normalize_string_list(raw_genres),
         cover_url=data.get("cover_url", "") or "",
     )
+
+
+def extract_metadata_from_filename(filename: str) -> LlmMetadata:
+    """Найти метаданные книги по имени PDF-файла через Claude + web search.
+    Возвращает пустой LlmMetadata при любой ошибке (нет ключа / API упал / JSON не распарсился)."""
+    if not ANTHROPIC_API_KEY:
+        log.info("ANTHROPIC_API_KEY not set, skipping LLM extraction")
+        return LlmMetadata()
+    text = _call_llm(filename)
+    if not text:
+        return LlmMetadata()
+    data = _extract_json_object(text)
+    if data is None:
+        log.warning("LLM returned no parseable JSON: %s", text[:200])
+        return LlmMetadata()
+    return _build_metadata(data)
