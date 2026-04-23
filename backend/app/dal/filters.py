@@ -1,6 +1,7 @@
 """Shared WHERE clause builder and filter options for book queries."""
 import sqlite3
 from pathlib import Path
+from typing import NamedTuple
 
 import aiosql
 
@@ -9,13 +10,19 @@ from ..dtos.catalog import CatalogFilters, LanguageOptionRow
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "filters", "sqlite3")
 
-# (filter_key, sql_template_with_{ph}_placeholder, param_prefix)
-_LIST_DIMENSIONS: list[tuple[str, str, str]] = [
-    ("authorIds", "b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))", "a"),
-    ("tagIds",    "b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))",      "t"),
-    ("seriesIds", "b.series_id IN ({ph})", "s"),
-    ("language",  "b.language IN ({ph})",  "l"),
-]
+
+class _ListDimension(NamedTuple):
+    key: str
+    sql_tpl: str
+    prefix: str
+
+
+_LIST_DIMENSIONS: tuple[_ListDimension, ...] = (
+    _ListDimension("authorIds", "b.id IN (SELECT book_id FROM book_authors WHERE author_id IN ({ph}))", "a"),
+    _ListDimension("tagIds", "b.id IN (SELECT book_id FROM book_tags WHERE tag_id IN ({ph}))", "t"),
+    _ListDimension("seriesIds", "b.series_id IN ({ph})", "s"),
+    _ListDimension("language", "b.language IN ({ph})", "l"),
+)
 
 
 def build_book_where(
@@ -50,14 +57,14 @@ def build_book_where(
         clauses.append("b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1)")
         params["uid"] = uid
 
-    for key, sql_tpl, prefix in _LIST_DIMENSIONS:
-        values = effective.get(key)
+    for dim in _LIST_DIMENSIONS:
+        values = effective.get(dim.key)
         if not values:
             continue
-        ph = ",".join(f":{prefix}{i}" for i in range(len(values)))
-        clauses.append(sql_tpl.format(ph=ph))
+        ph = ",".join(f":{dim.prefix}{i}" for i in range(len(values)))
+        clauses.append(dim.sql_tpl.replace("{ph}", ph))
         for i, v in enumerate(values):
-            params[f"{prefix}{i}"] = v
+            params[f"{dim.prefix}{i}"] = v
 
     if not clauses:
         return "", params
