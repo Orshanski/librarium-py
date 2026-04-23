@@ -20,20 +20,22 @@ def _read_fb2_tree(file_path: str) -> etree._Element:
 
 
 def _extract_title(tree: etree._Element) -> str:
+    """dc-book-title/text(). Пустая строка если отсутствует."""
     title = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:book-title/text()", namespaces=NS)
     return str(title[0]) if title else ""
 
 
 def _extract_authors(tree: etree._Element) -> list[str]:
+    """Итерация по author-нодам title-info: склейка first+middle+last либо nickname. Пустые отбрасываются."""
     authors: list[str] = []
-    for el in tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:author", namespaces=NS):
-        first = el.xpath("fb:first-name/text()", namespaces=NS)
-        middle = el.xpath("fb:middle-name/text()", namespaces=NS)
-        last = el.xpath("fb:last-name/text()", namespaces=NS)
-        nick = el.xpath("fb:nickname/text()", namespaces=NS)
-        parts = [p[0] for p in (first, middle, last) if p]
-        if parts:
-            name = " ".join(parts)
+    for author_el in tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:author", namespaces=NS):
+        first = author_el.xpath("fb:first-name/text()", namespaces=NS)
+        middle = author_el.xpath("fb:middle-name/text()", namespaces=NS)
+        last = author_el.xpath("fb:last-name/text()", namespaces=NS)
+        nick = author_el.xpath("fb:nickname/text()", namespaces=NS)
+        name_parts = [p[0] for p in (first, middle, last) if p]
+        if name_parts:
+            name = " ".join(name_parts)
         elif nick:
             name = nick[0]
         else:
@@ -44,6 +46,7 @@ def _extract_authors(tree: etree._Element) -> list[str]:
 
 
 def _extract_series(tree: etree._Element) -> tuple[str | None, float | None]:
+    """Calibre-подобная seq: title-info → publish-info fallback. Возвращает (name, number) или (None, None)."""
     seq = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:sequence", namespaces=NS)
     if not seq:
         seq = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:sequence", namespaces=NS)
@@ -61,34 +64,39 @@ def _extract_series(tree: etree._Element) -> tuple[str | None, float | None]:
 
 
 def _extract_genres(tree: etree._Element) -> list[str]:
+    """dc-genre/text(). Список непустых stripped значений."""
     genres = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:genre/text()", namespaces=NS)
     return [g.strip() for g in genres if g.strip()]
 
 
 def _extract_language(tree: etree._Element) -> str | None:
+    """dc-lang/text() через normalize_language."""
     lang = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:lang/text()", namespaces=NS)
     return normalize_language(str(lang[0])) if lang else None
 
 
 def _extract_annotation(tree: etree._Element) -> str | None:
+    """annotation → итерация .iter() по всем наследникам, сбор text+tail, join через \\n. None если annotation отсутствует."""
     annotation = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:annotation", namespaces=NS)
     if not annotation:
         return None
-    parts: list[str] = []
+    text_parts: list[str] = []
     for p in annotation[0].iter():
         if p.text:
-            parts.append(p.text.strip())
+            text_parts.append(p.text.strip())
         if p.tail:
-            parts.append(p.tail.strip())
-    return "\n".join(filter(None, parts))
+            text_parts.append(p.tail.strip())
+    return "\n".join(filter(None, text_parts))
 
 
 def _extract_publisher(tree: etree._Element) -> str | None:
+    """publish-info/publisher/text()."""
     pub = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:publisher/text()", namespaces=NS)
     return str(pub[0]) if pub else None
 
 
 def _extract_pub_date(tree: etree._Element) -> str | None:
+    """title-info/date@value → publish-info/year fallback. None если оба отсутствуют."""
     date = tree.xpath("/fb:FictionBook/fb:description/fb:title-info/fb:date/@value", namespaces=NS)
     if date:
         return str(date[0])
@@ -97,6 +105,7 @@ def _extract_pub_date(tree: etree._Element) -> str | None:
 
 
 def _extract_isbn(tree: etree._Element) -> str | None:
+    """publish-info/isbn/text().strip() or None."""
     isbn = tree.xpath("/fb:FictionBook/fb:description/fb:publish-info/fb:isbn/text()", namespaces=NS)
     if not isbn:
         return None
@@ -104,6 +113,7 @@ def _extract_isbn(tree: etree._Element) -> str | None:
 
 
 def _extract_cover(tree: etree._Element) -> tuple[bytes | None, str | None]:
+    """coverpage→binary lookup через href, ns+no-ns fallback, base64 decode, ext_map. Best-effort (весь блок в try/except)."""
     try:
         coverpage = tree.xpath(
             "/fb:FictionBook/fb:description/fb:title-info/fb:coverpage/fb:image/@l:href", namespaces=NS
