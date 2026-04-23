@@ -1,4 +1,5 @@
 """Operational transform sync and version tracking."""
+from app.dal import reader
 from tests._helpers import assert_error
 
 
@@ -163,3 +164,123 @@ class TestReadingProgressAPI:
         data = reader_client.get("/api/reader/progress/1").json()
         assert "version" in data
         assert data["version"] == 1
+
+
+class TestReadingProgressRaceRetry:
+    """Race-condition retry logic: INSERT/UPDATE rowcount=0 mock tests."""
+
+    def _get_reader_user_id(self, db):
+        row = db.execute("SELECT id FROM users WHERE username = 'reader'").fetchone()
+        return row["id"]
+
+    def test_insert_race_recovery_on_second_attempt(self, db, monkeypatch):
+        """E5a: INSERT race on first call, recovery on second — accepted, version=1."""
+        uid = self._get_reader_user_id(db)
+        real_insert = reader.queries.insert_reading_progress
+        calls = [0]
+
+        def racy_insert(*args, **kwargs):
+            calls[0] += 1
+            if calls[0] == 1:
+                return 0
+            return real_insert(*args, **kwargs)
+
+        monkeypatch.setattr(reader.queries, "insert_reading_progress", racy_insert)
+
+        result = reader.save_reading_progress(
+            db, uid, book_id=1,
+            position="p1", last_device="d", last_format="EPUB",
+            fraction=0.1, expected_version=0,
+        )
+        assert result["accepted"] is True
+        assert result["version"] == 1
+        assert result["rebased"] is False
+        assert calls[0] == 2
+
+    def test_cas_update_race_recovery_on_second_attempt(self, db, monkeypatch):
+        """E5b: CAS-update race on first call, recovery on second — accepted, version=6."""
+        uid = self._get_reader_user_id(db)
+
+        # Seed: insert row with version=5 directly via SQL
+        db.execute(
+            "INSERT INTO reading_progress "
+            "(user_id, book_id, position, last_device, last_format, fraction, last_read_at, version) "
+            "VALUES (:uid, :bid, 'p5', 'laptop', 'EPUB', 0.5, '2025-01-01T00:00:00+00:00', 5)",
+            {"uid": uid, "bid": 1},
+        )
+        db.commit()
+
+        real_update = reader.queries.update_reading_progress
+        calls = [0]
+
+        def racy_update(*args, **kwargs):
+            calls[0] += 1
+            if calls[0] == 1:
+                return 0
+            return real_update(*args, **kwargs)
+
+        monkeypatch.setattr(reader.queries, "update_reading_progress", racy_update)
+
+        result = reader.save_reading_progress(
+            db, uid, book_id=1,
+            position="p6", last_device="laptop", last_format="EPUB",
+            fraction=0.6, expected_version=5,
+        )
+        assert result["accepted"] is True
+        assert result["version"] == 6
+        assert result["rebased"] is False
+        assert calls[0] == 2
+
+    def test_rebase_update_race_recovery_on_second_attempt(self, db, monkeypatch):
+        """E5c: Rebase-update race on first call, recovery on second — accepted, version=6, rebased=True."""
+        uid = self._get_reader_user_id(db)
+
+        # Seed: row with version=5, fraction=0.3
+        db.execute(
+            "INSERT INTO reading_progress "
+            "(user_id, book_id, position, last_device, last_format, fraction, last_read_at, version) "
+            "VALUES (:uid, :bid, 'p5', 'laptop', 'EPUB', 0.3, '2025-01-01T00:00:00+00:00', 5)",
+            {"uid": uid, "bid": 1},
+        )
+        db.commit()
+
+        real_update = reader.queries.update_reading_progress
+        calls = [0]
+
+        def racy_update(*args, **kwargs):
+            calls[0] += 1
+            if calls[0] == 1:
+                return 0
+            return real_update(*args, **kwargs)
+
+        monkeypatch.setattr(reader.queries, "update_reading_progress", racy_update)
+
+        # expected_version=3 != current_version=5 → rebase branch; fraction=0.7 >= 0.3 → accept
+        result = reader.save_reading_progress(
+            db, uid, book_id=1,
+            position="p_phone", last_device="phone", last_format="EPUB",
+            fraction=0.7, expected_version=3,
+        )
+        assert result["accepted"] is True
+        assert result["version"] == 6
+        assert result["rebased"] is True
+        assert calls[0] == 2
+
+    def test_retry_exhausted_on_three_insert_races(self, db, monkeypatch):
+        """E5d: INSERT always returns 0 (3 consecutive races) → retry_exhausted."""
+        uid = self._get_reader_user_id(db)
+        calls = [0]
+
+        def always_racy(*args, **kwargs):
+            calls[0] += 1
+            return 0
+
+        monkeypatch.setattr(reader.queries, "insert_reading_progress", always_racy)
+
+        result = reader.save_reading_progress(
+            db, uid, book_id=1,
+            position="p1", last_device="d", last_format="EPUB",
+            fraction=0.1, expected_version=0,
+        )
+        assert result == {"accepted": False, "retry_exhausted": True, "current": None}
+        assert calls[0] == 3
