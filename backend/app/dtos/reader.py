@@ -98,8 +98,9 @@ class ProgressRejectedResponse(BaseModel):
     """
     accepted: Literal[False]
     current: ReadingProgressRow | None  # always present — None for retry_exhausted
-    # Default False is a safety net only — DAL always emits explicit value on
-    # both rejected branches; if this default ever fires, DAL skipped the flag.
+    # DAL emits retry_exhausted=True only on the retry-exhausted branch
+    # (all 3 race-retries failed). On conflict-rewind reject the flag
+    # is absent and this default activates to False — that's by design.
     retry_exhausted: bool = False
 
 
