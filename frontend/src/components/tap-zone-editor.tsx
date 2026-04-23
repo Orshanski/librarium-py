@@ -34,7 +34,7 @@ interface DesktopTapZoneEditorProps {
   defaultZones?: DesktopTapZones;
 }
 
-export function DesktopTapZoneEditor({ zones, onChange, availableActions = DEFAULT_AVAILABLE_ACTIONS, defaultZones = DEFAULT_DESKTOP_TAP_ZONES }: DesktopTapZoneEditorProps) {
+export function DesktopTapZoneEditor({ zones, onChange, availableActions = DEFAULT_AVAILABLE_ACTIONS, defaultZones = DEFAULT_DESKTOP_TAP_ZONES }: Readonly<DesktopTapZoneEditorProps>) {
   function cycleAction(current: TapAction): TapAction {
     const idx = availableActions.indexOf(current);
     const next = idx < 0 ? 0 : (idx + 1) % availableActions.length;

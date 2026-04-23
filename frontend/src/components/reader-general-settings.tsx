@@ -44,14 +44,14 @@ function ToggleBtn({
   variant,
   flex,
   style,
-}: {
+}: Readonly<{
   active: boolean;
   onClick: () => void;
   children: ReactNode;
   variant: ActiveVariant;
   flex?: number;
   style?: React.CSSProperties;
-}) {
+}>) {
   const activeStyle = active ? activeColors(variant) : { background: "none", color: colors.textSecondary, borderColor: colors.border };
   return (
     <button
@@ -76,7 +76,7 @@ function DebouncedRange({
   max,
   step,
   debounceRef,
-}: {
+}: Readonly<{
   label: ReactNode;
   value: number;
   onCommit: (v: number) => void;
@@ -84,7 +84,7 @@ function DebouncedRange({
   max: number;
   step: number;
   debounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | undefined>;
-}) {
+}>) {
   const [local, setLocal] = useState(value);
   useEffect(() => { setLocal(value); }, [value]);
 
@@ -117,7 +117,7 @@ interface ReaderGeneralSettingsProps {
 const THEME_LABELS: Record<string, string> = { dark: "Тёмная", warm: "Тёплая", light: "Светлая" };
 const FLOW_LABELS: Record<string, string> = { paginated: "Страницы", scrolled: "Скролл" };
 
-export default function ReaderGeneralSettings({ settings, onChange }: ReaderGeneralSettingsProps) {
+export default function ReaderGeneralSettings({ settings, onChange }: Readonly<ReaderGeneralSettingsProps>) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(debounceRef.current), []);

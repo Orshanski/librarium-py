@@ -7,7 +7,7 @@ interface CloudBadgeProps {
   style?: React.CSSProperties;
 }
 
-export default function CloudBadge({ cached, size = 16, onClick, style }: CloudBadgeProps) {
+export default function CloudBadge({ cached, size = 16, onClick, style }: Readonly<CloudBadgeProps>) {
   if (!cached && !onClick) return null;
 
   return (

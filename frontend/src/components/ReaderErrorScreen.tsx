@@ -5,7 +5,7 @@ interface ReaderErrorScreenProps {
   onBack: () => void;
 }
 
-export default function ReaderErrorScreen({ error, onBack }: ReaderErrorScreenProps) {
+export default function ReaderErrorScreen({ error, onBack }: Readonly<ReaderErrorScreenProps>) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: colors.bg, color: colors.danger, gap: 16 }}>
       <div>{error || "Не удалось загрузить книгу"}</div>

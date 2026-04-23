@@ -11,7 +11,7 @@ interface ReaderLoadingScreenProps {
   loadProgress: LoadProgress;
 }
 
-export default function ReaderLoadingScreen({ loadProgress }: ReaderLoadingScreenProps) {
+export default function ReaderLoadingScreen({ loadProgress }: Readonly<ReaderLoadingScreenProps>) {
   const { percent, bytes } = loadProgress;
   const label =
     percent > 0

@@ -9,11 +9,11 @@ export default function SortSelect({
   options,
   value,
   onChange,
-}: {
+}: Readonly<{
   options: SortOption[];
   value: string;
   onChange: (key: string) => void;
-}) {
+}>) {
   return (
     <select
       value={value}

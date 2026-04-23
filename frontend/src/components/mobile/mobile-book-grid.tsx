@@ -1,4 +1,4 @@
-export default function MobileBookGrid({ children }: { children: React.ReactNode }) {
+export default function MobileBookGrid({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div
       style={{

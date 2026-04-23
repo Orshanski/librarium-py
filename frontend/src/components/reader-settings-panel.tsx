@@ -25,7 +25,7 @@ interface ReaderSettingsPanelProps {
   availableActions?: TapAction[];
 }
 
-export default function ReaderSettingsPanel({ settings, onChange, hideStyles = false, tapZonesKey = "desktopTapZones", availableActions }: ReaderSettingsPanelProps) {
+export default function ReaderSettingsPanel({ settings, onChange, hideStyles = false, tapZonesKey = "desktopTapZones", availableActions }: Readonly<ReaderSettingsPanelProps>) {
   const [userTab, setUserTab] = useState<"general" | "zones">("general");
   const tab = hideStyles ? "zones" : userTab;
   const setTab = setUserTab;

@@ -18,7 +18,7 @@ interface StatusScreenProps {
   crumb: { label: string; href: string; state?: { origin: ListOrigin } };
 }
 
-function StatusScreen({ title, message, crumb }: StatusScreenProps) {
+function StatusScreen({ title, message, crumb }: Readonly<StatusScreenProps>) {
   return (
     <>
       <PageHeader title={title} breadcrumb={crumb} />

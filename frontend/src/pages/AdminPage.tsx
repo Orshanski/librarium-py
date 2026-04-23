@@ -70,7 +70,7 @@ const btnDangerStyle: React.CSSProperties = { ...btnSmStyle, borderColor: "rgba(
 const btnOutlineAccentStyle: React.CSSProperties = { ...btnStyle, borderColor: "rgba(249,190,3,0.3)", color: colors.accent };
 
 // ─── Password match indicator ────────────────────────
-function PasswordMatch({ pass, confirm }: { pass: string; confirm: string }) {
+function PasswordMatch({ pass, confirm }: Readonly<{ pass: string; confirm: string }>) {
   if (!pass && !confirm) return <div style={{ height: 14 }} />;
   if (confirm.length === 0) return <div style={{ height: 14 }} />;
   const match = pass === confirm;
@@ -87,12 +87,12 @@ function UserCard({
   onSaveName,
   onSavePassword,
   onDelete,
-}: {
+}: Readonly<{
   user: AdminUser;
   onSaveName: (id: number, name: string) => Promise<void>;
   onSavePassword: (id: number, pass: string) => Promise<void>;
   onDelete: (id: number) => void;
-}) {
+}>) {
   const [editMode, setEditMode] = useState<"name" | "password" | null>(null);
   const [nameValue, setNameValue] = useState(user.display_name || user.username);
   const [passValue, setPassValue] = useState("");

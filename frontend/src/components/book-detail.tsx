@@ -24,11 +24,11 @@ export default function BookDetail({
   book,
   seriesBooks,
   bookOrigin,
-}: {
+}: Readonly<{
   book: Book;
   seriesBooks: Book[];
   bookOrigin: ListOrigin;
-}) {
+}>) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();

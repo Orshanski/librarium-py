@@ -1,7 +1,7 @@
 import Sidebar from "../sidebar";
 import { layout } from "../../theme";
 
-export default function DesktopShell({ children }: { children: React.ReactNode }) {
+export default function DesktopShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
       <Sidebar />

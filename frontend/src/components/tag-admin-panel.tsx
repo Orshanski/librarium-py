@@ -48,7 +48,7 @@ const hintStyle: React.CSSProperties = {
   marginTop: 6,
 };
 
-export default function TagAdminPanel({ tagId, currentName, onMapped }: TagAdminPanelProps) {
+export default function TagAdminPanel({ tagId, currentName, onMapped }: Readonly<TagAdminPanelProps>) {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

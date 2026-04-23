@@ -3,7 +3,7 @@ import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
 import CloudBadge from "../cloud-badge";
 
-export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, isCached, linkState }: BookCardProps) {
+export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, isCached, linkState }: Readonly<BookCardProps>) {
   return (
     <Link
       to={href ?? `/book/${book.id}`}

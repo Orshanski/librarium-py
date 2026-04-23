@@ -42,10 +42,10 @@ function isActivePath(pathname: string, href: string) {
 export function SidebarContent({
   mobile = false,
   onNavigate,
-}: {
+}: Readonly<{
   mobile?: boolean;
   onNavigate?: () => void;
-}) {
+}>) {
   const pathname = useLocation().pathname;
   const navigate = useNavigate();
   const { user, logout } = useAuth();

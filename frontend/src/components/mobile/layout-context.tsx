@@ -15,10 +15,10 @@ const MobileLayoutContext = createContext<MobileLayoutContextValue>({
 export function MobileLayoutProvider({
   value,
   children,
-}: {
+}: Readonly<{
   value: MobileLayoutContextValue;
   children: React.ReactNode;
-}) {
+}>) {
   return <MobileLayoutContext.Provider value={value}>{children}</MobileLayoutContext.Provider>;
 }
 

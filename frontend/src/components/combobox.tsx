@@ -25,13 +25,13 @@ export default function Combobox({
   onSelect,
   options,
   placeholder,
-}: {
+}: Readonly<{
   value: string;
   onChange: (value: string) => void;
   onSelect?: (value: string) => void;
   options: ComboboxOption[];
   placeholder?: string;
-}) {
+}>) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);

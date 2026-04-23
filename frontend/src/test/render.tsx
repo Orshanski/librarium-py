@@ -17,10 +17,10 @@ type TestRenderOptions<
 function AllProviders({
   children,
   initialEntries,
-}: {
+}: Readonly<{
   children: ReactNode;
   initialEntries?: InitialEntry[];
-}) {
+}>) {
   return (
     <MemoryRouter initialEntries={initialEntries ?? ["/"]}>
       <AuthProvider>

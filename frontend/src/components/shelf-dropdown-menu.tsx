@@ -6,12 +6,12 @@ export default function ShelfDropdownMenu({
   selectedIds,
   onToggleShelf,
   compact = false,
-}: {
+}: Readonly<{
   shelves: Shelf[];
   selectedIds: Set<number>;
   onToggleShelf: (shelfId: number) => void | Promise<void>;
   compact?: boolean;
-}) {
+}>) {
   const visibleShelves = shelves.filter((shelf) => !shelf.is_system);
 
   return (
