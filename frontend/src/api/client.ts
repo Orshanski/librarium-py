@@ -1,5 +1,4 @@
 import {
-  ApiError,
   ConflictError,
   ForbiddenError,
   NotFoundError,

@@ -127,7 +127,7 @@ def embed_cover_epub(file_path: Path, cover_bytes: bytes) -> None:
                         zf_out.writestr(item, cover_bytes)
                     elif item.filename == opf_path and cover_href is None:
                         # No cover found — modify OPF to add cover references
-                        new_opf_bytes = _add_cover_to_opf(opf, cover_dir)
+                        new_opf_bytes = _add_cover_to_opf(opf)
                         zf_out.writestr(item, new_opf_bytes)
                     else:
                         zf_out.writestr(item, zf.read(item.filename))
@@ -179,7 +179,7 @@ def _find_epub_cover_href(opf: etree._Element) -> str | None:
     return None
 
 
-def _add_cover_to_opf(opf: etree._Element, cover_dir: str) -> bytes:
+def _add_cover_to_opf(opf: etree._Element) -> bytes:
     """Add cover image references to OPF and return serialized XML."""
     ns = EPUB_NS
 

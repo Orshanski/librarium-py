@@ -5,7 +5,7 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
-import { toBook, RawBook } from "../types";
+import { toBook } from "../types";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { searchAll, type SearchResponse } from "../api/endpoints/search";

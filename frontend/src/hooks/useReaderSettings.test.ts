@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";

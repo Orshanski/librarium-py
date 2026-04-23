@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { colors, fonts } from "../../theme";
 import type { ReaderToolbarProps } from "../../types/reader-toolbar";
-import type { ReaderSettings } from "../../types/reader-settings";
 import { flattenToc } from "../../utils/reader-toc";
 import ReaderSettingsPanel from "../reader-settings-panel";
 

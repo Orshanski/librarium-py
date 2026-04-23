@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { colors, fonts, layout } from "../../theme";
 import SmartFilterBar from "../smart-filter-bar";
-import SortSelect, { SortOption } from "../sort-select";
+import SortSelect from "../sort-select";
 import { PageHeaderProps } from "../page-header.types";
 
 export default function DesktopPageHeader({
