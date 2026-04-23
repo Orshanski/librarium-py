@@ -88,6 +88,50 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     return f"/api/uploads/cover/{book_id}"
 
 
+def _find_temp_cover(book_id: int) -> str | None:
+    for f in os.listdir(str(UPLOADS_DIR)):
+        if f.startswith(f"{book_id}-cover."):
+            return f
+    return None
+
+
+def _backup_existing(old_path: str | None) -> str | None:
+    # Если у книги уже есть обложка — сначала переименовываем её в .bak. Это
+    # снимает проблему с одноименным overwrite'ом: `shutil.move` в
+    # move_with_rollback без backup'а перетёр бы старый файл, а при
+    # последующем exception (e.g. DB-failure) `os.remove(dst)` удалил бы
+    # перетёртое содержимое целиком, оставив книгу без файла обложки.
+    # `find_cover` игнорирует *.bak, так что промежуточное состояние
+    # снаружи не видно.
+    if old_path is None:
+        return None
+    old_bak = f"{old_path}.bak"
+    os.rename(old_path, old_bak)
+    return old_bak
+
+
+def _restore_from_backup(dst: str, old_bak: str | None, old_path: str | None) -> None:
+    # move/DB провалились → восстанавливаем старую обложку из bak.
+    # move_with_rollback уже удалил dst если успел его создать; но если
+    # shutil.move упал при overwrite — dst может частично существовать.
+    if old_bak and os.path.exists(old_bak):
+        if os.path.exists(dst):
+            os.remove(dst)
+        os.rename(old_bak, old_path)
+
+
+def _try_embed(db: sqlite3.Connection, book_id: int) -> None:
+    # Embed cover into book files (best-effort).
+    # Catch только легитимные failure modes (см. _EMBED_BEST_EFFORT_EXCEPTIONS).
+    # Программные баги (AttributeError, TypeError и т.д.) пропускаем наверх —
+    # основной commit уже прошёл, но внезапная AttributeError должна падать в
+    # логи stack-trace'ом, не тихо warning'ом.
+    try:
+        embed_cover(db, book_id)
+    except _EMBED_BEST_EFFORT_EXCEPTIONS as e:
+        log.warning("Failed to embed cover into book files: %s", e)
+
+
 def commit(db: sqlite3.Connection, book_id: int) -> bool:
     """Move temp cover to library, update DB, invalidate thumb, embed into book files.
 
@@ -98,13 +142,7 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     book_dir = str(LIBRARY_DIR / str(book_id))
     os.makedirs(book_dir, exist_ok=True)
 
-    # Find temp cover
-    temp_file = None
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{book_id}-cover."):
-            temp_file = f
-            break
-
+    temp_file = _find_temp_cover(book_id)
     if not temp_file:
         return False
 
@@ -114,29 +152,12 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
     old = find_cover(book_dir)
     old_path = os.path.join(book_dir, old) if old else None
 
-    # Если у книги уже есть обложка — сначала переименовываем её в .bak. Это
-    # снимает проблему с одноименным overwrite'ом: `shutil.move` в
-    # move_with_rollback без backup'а перетёр бы старый файл, а при
-    # последующем exception (e.g. DB-failure) `os.remove(dst)` удалил бы
-    # перетёртое содержимое целиком, оставив книгу без файла обложки.
-    # `find_cover` игнорирует *.bak, так что промежуточное состояние
-    # снаружи не видно.
-    old_bak = None
-    if old_path:
-        old_bak = f"{old_path}.bak"
-        os.rename(old_path, old_bak)
-
+    old_bak = _backup_existing(old_path)
     try:
         with move_with_rollback(src, dst):
             update_cover_path(db, book_id, db_path_for(book_id, f"cover.{ext}"))
     except Exception:
-        # move/DB провалились → восстанавливаем старую обложку из bak.
-        # move_with_rollback уже удалил dst если успел его создать; но если
-        # shutil.move упал при overwrite — dst может частично существовать.
-        if old_bak and os.path.exists(old_bak):
-            if os.path.exists(dst):
-                os.remove(dst)
-            os.rename(old_bak, old_path)
+        _restore_from_backup(dst, old_bak, old_path)
         raise
 
     # Success: старая обложка (теперь в bak) больше не нужна — удаляем.
@@ -144,16 +165,7 @@ def commit(db: sqlite3.Connection, book_id: int) -> bool:
         os.remove(old_bak)
 
     thumb.invalidate(book_id)
-
-    # Embed cover into book files (best-effort).
-    # Catch только легитимные failure modes (см. _EMBED_BEST_EFFORT_EXCEPTIONS).
-    # Программные баги (AttributeError, TypeError и т.д.) пропускаем наверх —
-    # основной commit уже прошёл, но внезапная AttributeError должна падать в
-    # логи stack-trace'ом, не тихо warning'ом.
-    try:
-        embed_cover(db, book_id)
-    except _EMBED_BEST_EFFORT_EXCEPTIONS as e:
-        log.warning("Failed to embed cover into book files: %s", e)
+    _try_embed(db, book_id)
 
     return True
 
