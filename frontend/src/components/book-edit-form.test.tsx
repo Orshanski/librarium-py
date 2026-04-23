@@ -9,6 +9,8 @@ import BookEditForm from "./book-edit-form";
 import type { Book } from "../types";
 import type { BookEditOptions } from "./book-edit-form.types";
 
+type UserEvent = ReturnType<typeof userEvent.setup>;
+
 const mockBook: Book = {
   id: 42,
   title: "Тестовая книга",
@@ -35,6 +37,67 @@ const mockOptions: BookEditOptions = {
   publishers: [],
 };
 
+interface MetadataResult {
+  title: string;
+  authors: string;
+  description: string;
+  publisher: string;
+  pubDate: string;
+  isbn: string;
+  tags: string;
+  source: string;
+  coverUrl: string;
+}
+
+function buildMetadataResult(overrides: Partial<MetadataResult> = {}): MetadataResult {
+  return {
+    title: "Новая книга",
+    authors: "Новый Автор",
+    description: "Описание",
+    publisher: "Издатель",
+    pubDate: "2023",
+    isbn: "123",
+    tags: "тест",
+    source: "litres",
+    coverUrl: "https://example.com/cover.jpg",
+    ...overrides,
+  };
+}
+
+function mockMetadataSearch(result: MetadataResult) {
+  return http.get("/api/metadata/search", () =>
+    HttpResponse.json({ results: [result] }),
+  );
+}
+
+const PNG_BYTES = new Uint8Array([137, 80, 78, 71]);
+
+function mockCoverProxyOk() {
+  return http.get("/api/metadata/cover-proxy", () =>
+    new HttpResponse(PNG_BYTES.buffer, { headers: { "Content-Type": "image/jpeg" } }),
+  );
+}
+
+async function openMetadataSearchAndApplyResult(user: UserEvent, resultTitle: string) {
+  const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
+  await user.click(metadataBtn);
+  await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
+  await waitFor(() => {
+    expect(screen.getByText(resultTitle)).toBeInTheDocument();
+  });
+  const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
+  await user.click(coverDiv);
+}
+
+async function uploadCoverFile(user: UserEvent) {
+  const coverInput = document.querySelector<HTMLInputElement>(
+    'input[type="file"][accept="image/*"]',
+  );
+  expect(coverInput).not.toBeNull();
+  const fakeFile = new File([PNG_BYTES], "cover.jpg", { type: "image/jpeg" });
+  await user.upload(coverInput!, fakeFile);
+}
+
 describe("book-edit-form — metadata", () => {
   beforeEach(() => {
     // Suppress console.error for act() warnings in complex renders
@@ -47,32 +110,13 @@ describe("book-edit-form — metadata", () => {
     let coverUploadCalled = false;
 
     server.use(
-      // cover-proxy returns a small fake image blob
       http.get("/api/metadata/cover-proxy", () => {
         coverProxyCalled = true;
-        return new HttpResponse(new Uint8Array([137, 80, 78, 71]).buffer, {
+        return new HttpResponse(PNG_BYTES.buffer, {
           headers: { "Content-Type": "image/jpeg" },
         });
       }),
-      // metadata search — needed when user opens the MetadataSearch modal
-      http.get("/api/metadata/search", () =>
-        HttpResponse.json({
-          results: [
-            {
-              title: "Новая книга",
-              authors: "Новый Автор",
-              description: "Описание",
-              publisher: "Издатель",
-              pubDate: "2023",
-              isbn: "123",
-              tags: "тест",
-              source: "litres",
-              coverUrl: "https://example.com/cover.jpg",
-            },
-          ],
-        }),
-      ),
-      // cover upload endpoint
+      mockMetadataSearch(buildMetadataResult()),
       http.post("/api/books/:id/cover", () => {
         coverUploadCalled = true;
         return HttpResponse.json({ ok: true });
@@ -80,30 +124,11 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm
-        book={mockBook}
-        options={mockOptions}
-        onSave={vi.fn()}
-      />,
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // Open metadata search
-    const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
-    await user.click(metadataBtn);
+    await openMetadataSearchAndApplyResult(user, "Новая книга");
 
-    // Search for results
-    await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
-
-    // Wait for results and click on the first result's cover/apply
-    await waitFor(() => {
-      expect(screen.getByText("Новая книга")).toBeInTheDocument();
-    });
-
-    // Click on the cover image (applies metadata)
-    const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
-    await user.click(coverDiv);
-
-    // Both cover-proxy fetch and cover upload should have been called
     await waitFor(() => {
       expect(coverProxyCalled).toBe(true);
     });
@@ -117,26 +142,14 @@ describe("book-edit-form — metadata", () => {
     let coverUploadCalled = false;
 
     server.use(
-      http.get("/api/metadata/cover-proxy", () => {
-        return new HttpResponse(new Uint8Array([137, 80, 78, 71]).buffer, {
-          headers: { "Content-Type": "image/jpeg" },
-        });
-      }),
-      http.get("/api/metadata/search", () =>
-        HttpResponse.json({
-          results: [
-            {
-              title: "Книга с обложкой",
-              authors: "Автор Один",
-              description: "Описание",
-              publisher: "Издатель",
-              pubDate: "2024",
-              isbn: "789",
-              tags: "тест",
-              source: "litres",
-              coverUrl: "https://example.com/new-cover.jpg",
-            },
-          ],
+      mockCoverProxyOk(),
+      mockMetadataSearch(
+        buildMetadataResult({
+          title: "Книга с обложкой",
+          authors: "Автор Один",
+          pubDate: "2024",
+          isbn: "789",
+          coverUrl: "https://example.com/new-cover.jpg",
         }),
       ),
       http.post("/api/books/:id/cover", () => {
@@ -149,16 +162,7 @@ describe("book-edit-form — metadata", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
-    await user.click(metadataBtn);
-    await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Книга с обложкой")).toBeInTheDocument();
-    });
-
-    const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
-    await user.click(coverDiv);
+    await openMetadataSearchAndApplyResult(user, "Книга с обложкой");
 
     await waitFor(() => {
       expect(coverUploadCalled).toBe(true);
@@ -180,21 +184,13 @@ describe("book-edit-form — metadata", () => {
       http.get("/api/metadata/cover-proxy", () =>
         HttpResponse.json({ detail: "proxy error" }, { status: 500 }),
       ),
-      http.get("/api/metadata/search", () =>
-        HttpResponse.json({
-          results: [
-            {
-              title: "Книга с ошибкой обложки",
-              authors: "Автор Ошибка",
-              description: "Описание",
-              publisher: "Издатель",
-              pubDate: "2024",
-              isbn: "000",
-              tags: "тест",
-              source: "litres",
-              coverUrl: "https://example.com/bad-cover.jpg",
-            },
-          ],
+      mockMetadataSearch(
+        buildMetadataResult({
+          title: "Книга с ошибкой обложки",
+          authors: "Автор Ошибка",
+          pubDate: "2024",
+          isbn: "000",
+          coverUrl: "https://example.com/bad-cover.jpg",
         }),
       ),
     );
@@ -203,16 +199,7 @@ describe("book-edit-form — metadata", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
-    await user.click(metadataBtn);
-    await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Книга с ошибкой обложки")).toBeInTheDocument();
-    });
-
-    const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
-    await user.click(coverDiv);
+    await openMetadataSearchAndApplyResult(user, "Книга с ошибкой обложки");
 
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith("Не удалось загрузить обложку из метаданных");
@@ -233,21 +220,15 @@ describe("book-edit-form — metadata", () => {
           headers: { "Content-Type": "image/jpeg" },
         });
       }),
-      http.get("/api/metadata/search", () =>
-        HttpResponse.json({
-          results: [
-            {
-              title: "Книга без обложки",
-              authors: "Автор Без Обложки",
-              description: "Описание без обложки",
-              publisher: "Издатель",
-              pubDate: "2022",
-              isbn: "456",
-              tags: "тест",
-              source: "google",
-              coverUrl: "", // no cover URL
-            },
-          ],
+      mockMetadataSearch(
+        buildMetadataResult({
+          title: "Книга без обложки",
+          authors: "Автор Без Обложки",
+          description: "Описание без обложки",
+          pubDate: "2022",
+          isbn: "456",
+          source: "google",
+          coverUrl: "",
         }),
       ),
       http.post("/api/books/:id/cover", () => {
@@ -257,43 +238,21 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm
-        book={mockBook}
-        options={mockOptions}
-        onSave={vi.fn()}
-      />,
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // Open metadata search
-    const metadataBtn = screen.getByRole("button", { name: /метаданн/i });
-    await user.click(metadataBtn);
+    await openMetadataSearchAndApplyResult(user, "Книга без обложки");
 
-    // Search for results
-    await user.click(screen.getByRole("button", { name: /^Поиск$/i }));
-
-    // Wait for result with no cover
     await waitFor(() => {
-      expect(screen.getByText("Книга без обложки")).toBeInTheDocument();
-    });
-
-    // Click on the cover area (no img, just a div — also applies metadata via parent div)
-    const coverDiv = screen.getAllByTitle(/Нажмите, чтобы применить метаданные/)[0];
-    await user.click(coverDiv);
-
-    // Wait for metadata search to close (modal dismissed after apply)
-    await waitFor(() => {
-      // Title should be updated in the form
-      // The modal closes after apply, so the metadata search modal is no longer visible
+      // The modal closes after apply
       expect(screen.queryByRole("button", { name: /^Поиск$/i })).not.toBeInTheDocument();
     });
 
-    // Form fields must have received the metadata values
     await waitFor(() => {
       expect(screen.getByDisplayValue("Книга без обложки")).toBeInTheDocument();
     });
     expect(screen.getByDisplayValue("Автор Без Обложки")).toBeInTheDocument();
 
-    // Neither cover-proxy nor cover upload should have been called (no coverUrl)
     expect(coverProxyCalled).toBe(false);
     expect(coverUploadCalled).toBe(false);
   });
@@ -323,18 +282,12 @@ describe("book-edit-form — covers", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // Simulate file selection via the hidden cover input
-    const coverInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]');
-    expect(coverInput).not.toBeNull();
-
-    const fakeFile = new File([new Uint8Array([137, 80, 78, 71])], "cover.jpg", { type: "image/jpeg" });
-    await user.upload(coverInput!, fakeFile);
+    await uploadCoverFile(user);
 
     await waitFor(() => {
       expect(uploadCalled).toBe(true);
     });
 
-    // Cover img should update to tempCoverUrl
     await waitFor(() => {
       const img = screen.queryByRole("img", { name: /тестовая книга/i });
       expect(img).not.toBeNull();
@@ -347,20 +300,16 @@ describe("book-edit-form — covers", () => {
     const user = userEvent.setup();
 
     server.use(
-      http.post("/api/books/:id/cover", () => {
-        return HttpResponse.json({ detail: "too big" }, { status: 400 });
-      }),
+      http.post("/api/books/:id/cover", () =>
+        HttpResponse.json({ detail: "too big" }, { status: 400 }),
+      ),
     );
 
     renderWithProviders(
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    const coverInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]');
-    expect(coverInput).not.toBeNull();
-
-    const fakeFile = new File([new Uint8Array([137, 80, 78, 71])], "cover.jpg", { type: "image/jpeg" });
-    await user.upload(coverInput!, fakeFile);
+    await uploadCoverFile(user);
 
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith("too big");
@@ -375,9 +324,9 @@ describe("book-edit-form — covers", () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     server.use(
-      http.post("/api/books/:id/cover", () => {
-        return HttpResponse.json({ ok: true, tempCoverUrl: "/api/uploads/cover/42" });
-      }),
+      http.post("/api/books/:id/cover", () =>
+        HttpResponse.json({ ok: true, tempCoverUrl: "/api/uploads/cover/42" }),
+      ),
       http.put("/api/books/:id/cover", () => {
         putCalled = true;
         return HttpResponse.json({ ok: true });
@@ -388,18 +337,13 @@ describe("book-edit-form — covers", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={onSave} />,
     );
 
-    // Upload a cover first to set coverChanged = true
-    const coverInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]');
-    const fakeFile = new File([new Uint8Array([137, 80, 78, 71])], "cover.jpg", { type: "image/jpeg" });
-    await user.upload(coverInput!, fakeFile);
+    await uploadCoverFile(user);
 
-    // Wait for the upload to complete (coverChanged flag set)
     await waitFor(() => {
       const img = screen.queryByRole("img", { name: /тестовая книга/i });
       expect((img as HTMLImageElement | null)?.src).toContain("/api/uploads/cover/42");
     });
 
-    // Click Save
     const saveBtn = screen.getByRole("button", { name: /сохранить/i });
     await user.click(saveBtn);
 
@@ -413,9 +357,9 @@ describe("book-edit-form — covers", () => {
     let deleteCalled = false;
 
     server.use(
-      http.post("/api/books/:id/cover", () => {
-        return HttpResponse.json({ ok: true, tempCoverUrl: "/api/uploads/cover/42" });
-      }),
+      http.post("/api/books/:id/cover", () =>
+        HttpResponse.json({ ok: true, tempCoverUrl: "/api/uploads/cover/42" }),
+      ),
       http.delete("/api/books/:id/cover", () => {
         deleteCalled = true;
         return HttpResponse.json({ ok: true });
@@ -426,18 +370,13 @@ describe("book-edit-form — covers", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // Upload a cover first
-    const coverInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]');
-    const fakeFile = new File([new Uint8Array([137, 80, 78, 71])], "cover.jpg", { type: "image/jpeg" });
-    await user.upload(coverInput!, fakeFile);
+    await uploadCoverFile(user);
 
-    // Wait for the upload to complete
     await waitFor(() => {
       const img = screen.queryByRole("img", { name: /тестовая книга/i });
       expect((img as HTMLImageElement | null)?.src).toContain("/api/uploads/cover/42");
     });
 
-    // Click Cancel
     const cancelBtn = screen.getByRole("button", { name: /^отмена$/i });
     await user.click(cancelBtn);
 
@@ -465,18 +404,16 @@ describe("book-edit-form — books", () => {
       http.post("/api/books/:id/files", () => {
         uploadCalled = true;
         return HttpResponse.json({ format: "fb2", size: 204800 });
-      })
+      }),
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
     // Select a file via the hidden file input (non-image, non-cover input)
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    const bookFileInput = Array.from(fileInputs).find(
-      (i) => !i.accept.includes("image")
-    );
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
     expect(bookFileInput).not.toBeNull();
 
     const fakeFile = new File([new Uint8Array([0, 1, 2, 3])], "book.fb2", {
@@ -488,9 +425,7 @@ describe("book-edit-form — books", () => {
       expect(uploadCalled).toBe(true);
     });
 
-    // New format should appear in the list (along with existing "epub")
     await waitFor(() => {
-      // After upload, both "epub" and "fb2" are in the list
       const formatText = document.body.textContent || "";
       expect(formatText).toMatch(/fb2/i);
     });
@@ -507,7 +442,7 @@ describe("book-edit-form — books", () => {
         deletedFormat = url.searchParams.get("format") || "";
         deleteCalled = true;
         return HttpResponse.json({ ok: true });
-      })
+      }),
     );
 
     // Need 2+ formats so delete buttons appear (desktop-book-edit-form only shows
@@ -521,36 +456,24 @@ describe("book-edit-form — books", () => {
     };
 
     renderWithProviders(
-      <BookEditForm book={bookWithTwoFormats} options={mockOptions} onSave={vi.fn()} />
+      <BookEditForm book={bookWithTwoFormats} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // With 2 formats, "Удалить" buttons should appear for each format
-    // Find the one associated with "epub"
-    const formatRows = document.querySelectorAll('[style*="display: flex"]');
-    // Find the "Удалить" button near the "epub" text
     const bodyText = document.body.textContent || "";
     expect(bodyText).toMatch(/epub/);
     expect(bodyText).toMatch(/fb2/);
 
-    // Get all "Удалить" buttons — format delete buttons show when formats.length > 1
     const allButtons = screen.getAllByRole("button");
-    const deleteFormatBtns = allButtons.filter(b =>
-      b.textContent?.includes("Удалить")
-    );
-
+    const deleteFormatBtns = allButtons.filter((b) => b.textContent?.includes("Удалить"));
     expect(deleteFormatBtns.length).toBeGreaterThan(0);
 
-    // Click the first delete button (for epub — first in list)
     await user.click(deleteFormatBtns[0]);
 
-    // Confirm dialog appears with the format name
     await waitFor(() => {
       const bodyContent = document.body.textContent || "";
-      // ConfirmDialog shows "Удалить файл epub?"
       expect(bodyContent).toMatch(/Удалить файл epub/);
     });
 
-    // Click the confirm button in the dialog deterministically via data-testid
     const confirmBtnInDialog = screen.getByTestId("confirm-dialog-submit");
     await user.click(confirmBtnInDialog);
 
@@ -560,10 +483,8 @@ describe("book-edit-form — books", () => {
 
     expect(deletedFormat).toBe("epub");
 
-    // The epub format row should be gone from the list
     await waitFor(() => {
       const remaining = document.body.textContent || "";
-      // fb2 still there
       expect(remaining).toMatch(/fb2/);
     });
   });
