@@ -29,7 +29,7 @@ def _set_device_cookie(response, device_id: str):
     )
 
 
-@router.get("/api/reader/settings", response_model=ReaderSettingsGetResponse)
+@router.get("/api/reader/settings")
 def api_get_settings(request: Request, response: Response, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> ReaderSettingsGetResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     result = reader_service.get_settings(db, user.user_id, device_id)
@@ -37,7 +37,7 @@ def api_get_settings(request: Request, response: Response, user: Annotated[Curre
     return result
 
 
-@router.put("/api/reader/settings", response_model=OkResponse)
+@router.put("/api/reader/settings")
 def api_save_settings(body: ReaderSettingsBody, request: Request, response: Response, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     device_id = reader_service.get_or_create_device_id(request.cookies.get(DEVICE_COOKIE))
     reader_service.save_settings(db, user.user_id, device_id, body)
