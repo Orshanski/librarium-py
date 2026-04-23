@@ -52,12 +52,15 @@ def _check_size_header(response: httpx.Response, url: str) -> bool:
 def _resolve_ext(response: httpx.Response, url: str) -> str | None:
     """Map Content-Type header to a file extension via CONTENT_TYPE_TO_EXT.
 
-    Returns the extension string, or None if content-type is not supported.
+    Returns the extension string, or None if content-type is absent or unsupported.
     """
     content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
+    if not content_type:
+        log.warning("Missing content-type header for %s", url)
+        return None
     ext = CONTENT_TYPE_TO_EXT.get(content_type)
     if not ext:
-        log.warning("Non-image content-type for %s: %s", url, content_type)
+        log.warning("Unsupported content-type for %s: %s", url, content_type)
     return ext
 
 
@@ -88,6 +91,7 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
 
     current_url = url
     for _ in range(MAX_REDIRECTS + 1):
+        # SSRF check on every hop (initial URL + each redirect target)
         if not is_safe_url(current_url):
             return None, None
 
