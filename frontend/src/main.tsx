@@ -52,7 +52,7 @@ async function syncUnsyncedSettings() {
 evictExpired().catch((err) => console.warn("Failed to evict expired books:", err));
 
 // Sync unsynced reading progress and settings when coming back online
-window.addEventListener("online", async () => {
+globalThis.addEventListener("online", async () => {
   if (!isReaderActive()) {
     await syncUnsyncedProgress();
   }
@@ -68,13 +68,13 @@ document.addEventListener("visibilitychange", async () => {
 });
 
 // Evict expired books when going offline to free space
-window.addEventListener("offline", () => {
+globalThis.addEventListener("offline", () => {
   evictExpired().catch((err) => console.warn("Failed to evict expired books on offline:", err));
 });
 
 // Register Service Worker for PWA offline support (production only)
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
+  globalThis.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed:", err));
   });
 }

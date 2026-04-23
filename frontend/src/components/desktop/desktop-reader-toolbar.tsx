@@ -19,7 +19,7 @@ const btnStyle: React.CSSProperties = {
   lineHeight: 1,
 };
 
-const isPWA = window.matchMedia("(display-mode: standalone)").matches
+const isPWA = globalThis.matchMedia("(display-mode: standalone)").matches
   || (navigator as { standalone?: boolean }).standalone === true;
 
 export default function DesktopReaderToolbar({

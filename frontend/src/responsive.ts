@@ -4,15 +4,14 @@ import { layout } from "./theme";
 const ResponsiveContext = createContext<boolean | null>(null);
 
 function getMatches() {
-  if (typeof window === "undefined") return false;
-  return window.innerWidth < layout.mobileBreakpoint;
+  return globalThis.innerWidth < layout.mobileBreakpoint;
 }
 
 function useResponsiveValue() {
   const [isMobile, setIsMobile] = useState(getMatches);
 
   useEffect(() => {
-    const media = window.matchMedia(`(max-width: ${layout.mobileBreakpoint - 1}px)`);
+    const media = globalThis.matchMedia(`(max-width: ${layout.mobileBreakpoint - 1}px)`);
     const update = () => setIsMobile(media.matches);
     update();
     media.addEventListener("change", update);

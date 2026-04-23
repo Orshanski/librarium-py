@@ -8,9 +8,7 @@ export default defineConfig({
     alias: { "@": path.resolve(__dirname, "src") },
   },
   test: {
-    environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
     css: false,
     coverage: {
       provider: "v8",
@@ -26,5 +24,26 @@ export default defineConfig({
         "src/**/*.d.ts",
       ],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "jsdom",
+          environment: "jsdom",
+          setupFiles: ["./src/test/setup-common.ts", "./src/test/setup-jsdom.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
+          exclude: ["src/test/references/logic.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          setupFiles: ["./src/test/setup-common.ts"],
+          include: ["src/test/references/logic.test.ts"],
+        },
+      },
+    ],
   },
 });

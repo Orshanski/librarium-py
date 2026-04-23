@@ -1,14 +1,17 @@
 import { useEffect } from "react";
 
-const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
+declare global {
+  // eslint-disable-next-line no-var
+  var __librariumReaderActiveCount: number | undefined;
+}
 
 /** Tracks how many reader instances are active on the page. */
 export function useReaderSessionFlag() {
   useEffect(() => {
-    readerWindow.__librariumReaderActiveCount = (readerWindow.__librariumReaderActiveCount ?? 0) + 1;
+    globalThis.__librariumReaderActiveCount = (globalThis.__librariumReaderActiveCount ?? 0) + 1;
     return () => {
-      const next = (readerWindow.__librariumReaderActiveCount ?? 1) - 1;
-      readerWindow.__librariumReaderActiveCount = Math.max(0, next);
+      const next = (globalThis.__librariumReaderActiveCount ?? 1) - 1;
+      globalThis.__librariumReaderActiveCount = Math.max(0, next);
     };
   }, []);
 }

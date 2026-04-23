@@ -295,7 +295,7 @@ describe("book-edit-form — covers", () => {
     });
   });
 
-  it("upload reject 400: POST /api/books/:id/cover returns 400 → window.alert called", async () => {
+  it("upload reject 400: POST /api/books/:id/cover returns 400 → globalThis.alert called", async () => {
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
     const user = userEvent.setup();
 

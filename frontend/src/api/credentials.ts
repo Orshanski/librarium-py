@@ -19,8 +19,8 @@ function withDefaultHeaders(init?: RequestInit): RequestInit {
 export function installFetchCredentials() {
   if (_installed) return;
   _installed = true;
-  const _origFetch = window.fetch;
-  window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+  const _origFetch = globalThis.fetch;
+  globalThis.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
     return _origFetch.call(window, input, withDefaultHeaders(init));
   };
 }

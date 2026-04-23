@@ -139,7 +139,7 @@ export default function SimilarBooksPage() {
           Не удалось загрузить рекомендации. Сервис Litres недоступен.
           <br />
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => globalThis.location.reload()}
             style={{
               marginTop: 12,
               padding: "8px 20px",

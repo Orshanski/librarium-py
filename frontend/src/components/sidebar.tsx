@@ -64,8 +64,8 @@ export function SidebarContent({
   useEffect(() => {
     fetchShelves();
     const handler = () => fetchShelves();
-    window.addEventListener("shelves-changed", handler);
-    return () => window.removeEventListener("shelves-changed", handler);
+    globalThis.addEventListener("shelves-changed", handler);
+    return () => globalThis.removeEventListener("shelves-changed", handler);
   }, [fetchShelves]);
 
   async function createShelf() {
@@ -75,7 +75,7 @@ export function SidebarContent({
       setShelves([...shelves, { id, name: newShelfName.trim(), is_system: false, book_count: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
-      window.dispatchEvent(new Event("shelves-changed"));
+      globalThis.dispatchEvent(new Event("shelves-changed"));
       onNavigate?.();
     } catch (err) {
       console.warn("Failed to create shelf:", err);

@@ -40,11 +40,11 @@ export default function MobilePageHeader({
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(element);
-    window.addEventListener("resize", updateHeight);
+    globalThis.addEventListener("resize", updateHeight);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", updateHeight);
+      globalThis.removeEventListener("resize", updateHeight);
       document.documentElement.style.setProperty("--page-header-height", "0px");
     };
   }, []);
