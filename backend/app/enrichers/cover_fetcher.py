@@ -80,6 +80,41 @@ def _stream_with_cap(response: httpx.Response, url: str) -> bytes | None:
     return b"".join(chunks)
 
 
+def _attempt(current_url: str) -> tuple[str | None, tuple[bytes, str] | None]:
+    """One HTTP hop: GET, handle redirect/success/fail.
+
+    Returns:
+        (next_url, None) — redirect to next_url (caller does continue); next_url may be
+            None if Location header is missing, which caller treats as fail.
+        (None, (body, ext)) — success
+        (None, None) — any fail (HTTP error, missing/bad Content-Length, unsupported
+            content-type, stream cap exceeded, or exception)
+    """
+    try:
+        with httpx.stream("GET", current_url, timeout=TIMEOUT_SEC, follow_redirects=False) as response:
+            if response.is_redirect:
+                next_url = _follow_redirect(response, current_url)
+                return (next_url, None)
+
+            response.raise_for_status()
+
+            if not _check_size_header(response, current_url):
+                return (None, None)
+
+            ext = _resolve_ext(response, current_url)
+            if ext is None:
+                return (None, None)
+
+            body = _stream_with_cap(response, current_url)
+            if body is None:
+                return (None, None)
+
+            return (None, (body, ext))
+    except Exception as e:
+        log.warning("Cover fetch failed for %s: %s", current_url, e)
+        return (None, None)
+
+
 def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
     """Download image from URL. Returns (bytes, ext) or (None, None) on failure.
 
@@ -95,31 +130,12 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
         if not is_safe_url(current_url):
             return None, None
 
-        try:
-            with httpx.stream("GET", current_url, timeout=TIMEOUT_SEC, follow_redirects=False) as response:
-                if response.is_redirect:
-                    next_url = _follow_redirect(response, current_url)
-                    if next_url is None:
-                        return None, None
-                    current_url = next_url
-                    continue
-
-                response.raise_for_status()
-
-                if not _check_size_header(response, current_url):
-                    return None, None
-
-                ext = _resolve_ext(response, current_url)
-                if ext is None:
-                    return None, None
-
-                body = _stream_with_cap(response, current_url)
-                if body is None:
-                    return None, None
-                return body, ext
-        except Exception as e:
-            log.warning("Cover fetch failed for %s: %s", current_url, e)
+        next_url, result = _attempt(current_url)
+        if result is not None:
+            return result
+        if next_url is None:
             return None, None
+        current_url = next_url
 
     log.warning("Too many redirects starting from %s", url)
     return None, None
