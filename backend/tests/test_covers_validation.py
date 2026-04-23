@@ -260,3 +260,85 @@ def test_commit_db_failure_preserves_old_cover_same_ext(admin_client, db):
     # Backup не должен остаться на диске после rollback.
     assert not (book_dir / "cover.jpg.bak").exists(), \
         "bak должен быть переименован обратно в cover.jpg"
+
+
+def test_commit_no_bak_after_success_no_old_cover(admin_client, db):
+    """E3a: book без старой обложки — после успешного commit в book_dir нет *.bak файлов."""
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    # book_id=1 не имеет обложки в baseline (см. seed.py).
+    book_dir = Path(LIBRARY_DIR) / "1"
+    assert find_cover(str(book_dir)) is None, "baseline: book 1 не должен иметь обложки"
+
+    resp = admin_client.post(
+        "/api/books/1/cover",
+        files={"file": ("new.png", TINY_PNG, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    cover_service.commit(db, book_id=1)
+
+    bak_files = glob.glob(str(book_dir / "*.bak"))
+    assert bak_files == [], f"*.bak файлы не должны оставаться после успешного commit: {bak_files}"
+
+
+def test_commit_no_bak_after_success_with_old_cover(admin_client, db):
+    """E3b: book с существующей обложкой — после успешного commit поверх неё *.bak удаляется."""
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+    from app.services.cover_service import find_cover
+
+    # book_id=2 имеет cover.jpg в baseline.
+    book_dir = Path(LIBRARY_DIR) / "2"
+    assert find_cover(str(book_dir)) is not None, "baseline: book 2 должен иметь обложку"
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.png", TINY_PNG, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    cover_service.commit(db, book_id=2)
+
+    bak_files = glob.glob(str(book_dir / "*.bak"))
+    assert bak_files == [], f"*.bak файлы не должны оставаться после успешного commit: {bak_files}"
+
+
+def test_commit_embed_failure_returns_true(admin_client, db, monkeypatch):
+    """E4: embed_cover падает с OSError (best-effort) → commit всё равно возвращает True."""
+    from app.services import cover_service
+
+    def boom(db_conn, book_id):
+        raise OSError("simulated FS failure")
+
+    monkeypatch.setattr(cover_service, "embed_cover", boom)
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.png", TINY_PNG, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    result = cover_service.commit(db, book_id=2)
+    assert result is True
+
+
+def test_commit_embed_programming_bug_raises(admin_client, db, monkeypatch):
+    """E5: embed_cover падает с AttributeError (не в _EMBED_BEST_EFFORT_EXCEPTIONS) → commit пробрасывает."""
+    from app.services import cover_service
+
+    def boom(db_conn, book_id):
+        raise AttributeError("simulated programming bug")
+
+    monkeypatch.setattr(cover_service, "embed_cover", boom)
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.png", TINY_PNG, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    with pytest.raises(AttributeError):
+        cover_service.commit(db, book_id=2)
