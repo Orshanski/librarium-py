@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { DesktopTapZones, TapAction } from "../types/reader-settings";
+import type { DesktopTapZones } from "../types/reader-settings";
 import { DEFAULT_PDF_TAP_ZONES } from "../constants/reader-defaults";
 import { resolveDesktopZone } from "../utils/reader-input";
 

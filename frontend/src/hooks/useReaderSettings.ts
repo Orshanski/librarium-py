@@ -3,7 +3,7 @@ import type { ReaderSettings } from "../types/reader-settings";
 import { DEFAULT_SETTINGS } from "../constants/reader-defaults";
 import {
   LocalSettings,
-  getSettings as getLocalSettings, saveSettings as saveLocalSettings, markSettingsSynced,
+  saveSettings as saveLocalSettings, markSettingsSynced,
 } from "../utils/offline-storage";
 import { getSettings, saveSettings } from "../api/endpoints/reader";
 

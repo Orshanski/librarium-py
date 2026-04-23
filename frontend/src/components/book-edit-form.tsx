@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "../responsive";
-import MetadataSearch from "./metadata-search";
 import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import MobileBookEditForm from "./mobile/mobile-book-edit-form";

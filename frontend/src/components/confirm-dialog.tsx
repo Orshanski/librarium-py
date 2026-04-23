@@ -1,4 +1,4 @@
-import { colors, fonts } from "../theme";
+import { colors } from "../theme";
 
 export default function ConfirmDialog({
   message,

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { colors, fonts, layout } from "../../theme";
+import { colors, fonts } from "../../theme";
 import type { ReaderToolbarProps } from "../../types/reader-toolbar";
 import type { ReaderSettings } from "../../types/reader-settings";
 import { FONT_OPTIONS } from "../../constants/reader-defaults";
