@@ -1,22 +1,22 @@
-import contextlib  # noqa: F401  # staged for Task 4 rollback block
+import contextlib
 import logging
 import os
 import shutil
 import sqlite3
 from typing import cast
 
-from ..config import LIBRARY_DIR, UPLOADS_DIR  # noqa: F401  # UPLOADS_DIR staged for Task 4
+from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (  # noqa: F401  # BookFileLookup staged for Task 5 resolved_deletes
     BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
-    UploadFileResponse,
+    UploadFileResponse,  # noqa: F401  # UploadFileResponse staged for Task 11
 )
-from ..exceptions import BadInputError, ConflictError, NotFoundError  # noqa: F401  # BadInputError/ConflictError staged for Task 4
-from ..fs_utils import write_with_rollback
-from . import cover_service, filters_service, thumb  # noqa: F401  # cover_service staged for Task 6
+from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..fs_utils import write_with_rollback  # noqa: F401  # staged for Task 11
+from . import cover_service, filters_service, thumb  # noqa: F401  # cover_service staged for Task 6; filters_service/thumb pre-existing
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
-from .temp_cleanup import cleanup_temp_session, find_temp_file  # noqa: F401  # staged for Task 4
+from .temp_cleanup import cleanup_temp_session, find_temp_file
 
 log = logging.getLogger("librarium.services.books")
 
@@ -110,16 +110,70 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
     if not data and not add_formats and not delete_formats and not body.commitCover:
         return
 
-    # Шаги 1–6 — добавляются в Task 4–6.
+    # Шаг 1: валидация (rollback-дешёвая, до side effects)
 
+    # 1a. Duplicate tempId → 409.
+    if len(set(add_formats)) != len(add_formats):
+        raise ConflictError("Duplicate tempId in addFormats")
+
+    # 1b. Резолв tempId → (src_path, fmt, ext).
+    resolved_adds: list[tuple[str, str, str, str]] = []  # (tempId, src_path, fmt, ext)
+    for tid in add_formats:
+        basename = find_temp_file(tid)
+        if basename is None:
+            raise BadInputError(f"Temp file not found: {tid}")
+        ext = basename.rsplit(".", 1)[-1].lower()
+        fmt = ext.upper()
+        src_path = str(UPLOADS_DIR / basename)
+        resolved_adds.append((tid, src_path, fmt, ext))
+
+    # 1c. Duplicate format в addFormats после резолва → 409.
+    added_fmts = [r[2] for r in resolved_adds]
+    if len(set(added_fmts)) != len(added_fmts):
+        raise ConflictError("Duplicate format in addFormats")
+
+    # 1d. Early conflict check: итоговый набор форматов не должен иметь дубликатов.
+    existing_fmts = {f["format"] for f in dal.get_book_files(db, book_id)}
+    deleted_set = set(delete_formats)
+    added_set = set(added_fmts)
+    conflict = added_set & (existing_fmts - deleted_set)
+    if conflict:
+        raise ConflictError(f"Формат {next(iter(conflict))} уже есть")
+
+    # 1e. commitCover pending-check.
+    if body.commitCover and cover_service._find_temp_cover(book_id) is None:
+        raise BadInputError("No pending cover to commit")
+
+    # Шаг 2 (delete) — добавляется в Task 5.
+
+    # Шаг 3: apply addFormats (copyfile + register + manual rollback).
+    copied_dsts: list[str] = []
+    try:
+        for (_tid, src, fmt, ext) in resolved_adds:
+            dst = prepare_book_format_path(db, book_id, fmt, ext)
+            copied_dsts.append(dst)
+            shutil.copyfile(src, dst)
+            register_and_linearize(db, book_id, dst, ext)
+    except Exception:
+        for d in copied_dsts:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(d)
+        raise
+
+    # Шаг 4 (commit cover) — добавляется в Task 6.
+
+    # Шаг 5: apply metadata (всегда — updated_at bump при file-only тоже).
     if "authorIds" in data:
         data["authorIds"] = resolve_authors(db, data["authorIds"])
     if "tagIds" in data:
         data["tagIds"] = resolve_tags(db, data["tagIds"])
     if "seriesId" in data:
         data["seriesId"] = resolve_series(db, data["seriesId"])
-
     dal.update_book(db, book_id, data)
+
+    # Шаг 6: cleanup temp-буфера после успеха.
+    for (tid, _src, _fmt, _ext) in resolved_adds:
+        cleanup_temp_session(tid)
 
     # Шаг 7: SSE publish hook (будущее в `ewg0`).
     # TODO(ewg0): publish event здесь; wrap в try/except в ewg0-impl чтобы сбой не ломал уже успешный Save.
