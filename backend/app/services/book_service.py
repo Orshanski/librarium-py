@@ -1,20 +1,22 @@
+import contextlib
 import logging
 import os
 import shutil
 import sqlite3
 from typing import cast
 
-from ..config import LIBRARY_DIR
+from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
-    BookDetailResponse, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
     UploadFileResponse,
 )
-from ..exceptions import NotFoundError
+from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..fs_utils import write_with_rollback
-from . import filters_service, thumb
+from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
+from .temp_cleanup import cleanup_temp_session, find_temp_file
 
 log = logging.getLogger("librarium.services.books")
 
@@ -86,12 +88,30 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
 
 
 def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:
-    """Update book fields. Resolves authorIds/tagIds/seriesId raw input to IDs
-    (creates entities if missing). Raises NotFoundError if the book is absent."""
+    """Apply full desired state to a book: metadata + files + cover commit.
+
+    Последовательность шагов — spec 2026-04-24-book-format-staging-design.md §5.
+    """
     if not dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
 
-    data: BookUpdateData = cast(BookUpdateData, body.model_dump(exclude_unset=True))
+    data: BookUpdateData = cast(
+        BookUpdateData,
+        body.model_dump(
+            exclude_unset=True,
+            exclude={"addFormats", "deleteFormats", "commitCover"},
+        ),
+    )
+
+    add_formats = body.addFormats or []
+    delete_formats = body.deleteFormats or []
+
+    # Шаг 0: no-op guard
+    if not data and not add_formats and not delete_formats and not body.commitCover:
+        return
+
+    # Шаги 1–6 — добавляются в Task 4–6.
+
     if "authorIds" in data:
         data["authorIds"] = resolve_authors(db, data["authorIds"])
     if "tagIds" in data:
@@ -100,6 +120,9 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         data["seriesId"] = resolve_series(db, data["seriesId"])
 
     dal.update_book(db, book_id, data)
+
+    # Шаг 7: SSE publish hook (будущее в `ewg0`).
+    # TODO(ewg0): publish event здесь; wrap в try/except в ewg0-impl чтобы сбой не ломал уже успешный Save.
 
 
 def list_books(
