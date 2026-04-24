@@ -62,14 +62,6 @@ def get_temp_cover(temp_id: TempIdStr, user: Annotated[CurrentUser, Depends(get_
     return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
-@router.put("/api/books/{book_id}/cover")
-def commit_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
-    if not cover_service.commit(db, book_id):
-        raise BadInputError("No pending cover to commit")
-    log.info("Cover updated book=%d by user_id=%s", book_id, user.user_id)
-    return OkResponse()
-
-
 @router.delete("/api/books/{book_id}/cover")
 def discard_cover(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]) -> OkResponse:
     cover_service.discard_temp(db, book_id)

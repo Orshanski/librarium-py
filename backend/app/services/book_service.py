@@ -9,10 +9,8 @@ from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
-    UploadFileResponse,
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
-from ..fs_utils import write_with_rollback
 from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
@@ -21,35 +19,6 @@ from .temp_cleanup import cleanup_temp_session, find_temp_file
 log = logging.getLogger("librarium.services.books")
 
 _BOOK_NOT_FOUND = "Book not found"
-
-
-def upload_file(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) -> UploadFileResponse:
-    """Write a book file to disk and register in DB.
-
-    Rollback: removes file on DB failure via write_with_rollback.
-    """
-    fmt = ext.upper()
-    dst = prepare_book_format_path(db, book_id, fmt, ext)
-    with write_with_rollback(dst, content):
-        size = register_and_linearize(db, book_id, dst, ext)
-    return UploadFileResponse(ok=True, format=fmt, size=size)
-
-
-def delete_file(db: sqlite3.Connection, book_id: int, fmt: str) -> None:
-    """Delete a book format file. FS first, then DB.
-
-    Intentionally FS-first: if FS fails, DB is untouched and state is consistent.
-    DB-first was tried and reverted — it creates false transactional guarantees
-    that break down at the DB commit boundary (db_session commits after handler return).
-    """
-    row = dal.get_book_file(db, book_id, fmt)
-    if not row:
-        raise NotFoundError("Not found")
-
-    file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}")
-    if os.path.isfile(file_path):
-        os.remove(file_path)
-    dal.delete_book_file(db, row["id"])
 
 
 def delete_book(db: sqlite3.Connection, book_id: int) -> None:

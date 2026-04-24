@@ -161,13 +161,6 @@ class BookListResponse(BaseModel):
     hasMore: bool
 
 
-class UploadFileResponse(BaseModel):
-    """Response for POST /api/books/{book_id}/files."""
-    ok: bool = True
-    format: str
-    size: int
-
-
 class BookFormatItem(BaseModel):
     """Формат книги (файл) — элемент `BookItem.formats`. Заготовка
     на будущее (BookDetail endpoint): в jmdc для shelves/tags не
