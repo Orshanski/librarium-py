@@ -34,7 +34,6 @@ from .routers import metadata as metadata_router
 from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
-from .routers import sse_test as sse_test_router  # TEMP spike, удалить после bd ewg0 validation
 
 app = FastAPI(
     title="Librarium",
@@ -97,7 +96,6 @@ app.include_router(metadata_router.router)
 app.include_router(upload_router.router)
 app.include_router(similar_router.router)
 app.include_router(reader_router.router)
-app.include_router(sse_test_router.router)  # TEMP spike, удалить после bd ewg0 validation
 
 # Static files (Vite build) — added last so API routes take priority
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
