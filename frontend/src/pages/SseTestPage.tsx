@@ -46,6 +46,10 @@ export default function SseTestPage() {
   return (
     <div style={{ padding: 20, fontFamily: "monospace", fontSize: 13 }}>
       <h2>SSE Test (temp spike, bd ewg0)</h2>
+      <div style={{ marginBottom: 10, color: "#888" }}>
+        Idle-паттерн: data event раз в 60 сек, keepalive ':ping' раз в 25 сек.
+        Нормальный gap ≈60 сек. Красным — {">70"} сек (признак reconnect'а или idle-timeout'а).
+      </div>
       <div>Started: {startedAt}</div>
       <div>State: <b style={{ color: stateColor(state) }}>{state}</b></div>
       <div>Reconnects: {reconnects}</div>
@@ -65,7 +69,7 @@ export default function SseTestPage() {
         </thead>
         <tbody>
           {events.map((ev) => (
-            <tr key={ev.n} style={{ color: ev.gapSec > 3.5 ? "red" : "inherit" }}>
+            <tr key={ev.n} style={{ color: ev.gapSec > 70 ? "red" : "inherit" }}>
               <td style={td}>{ev.n}</td>
               <td style={td}>{ev.ts}</td>
               <td style={td}>{ev.receivedAt}</td>
