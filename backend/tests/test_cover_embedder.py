@@ -314,7 +314,7 @@ class TestCoverCommitIntegration:
         assert resp.status_code == 200
 
         # Commit the cover
-        resp = admin_client.put("/api/books/1/cover")
+        resp = admin_client.put("/api/books/1", json={"commitCover": True})
         assert resp.status_code == 200
 
         # Extract cover from FB2 file on disk and verify
