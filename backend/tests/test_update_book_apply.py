@@ -310,6 +310,13 @@ def test_update_book_dal_update_fail_in_metadata_stage(admin_client):
     test_data = os.environ["DATA_DIR"]
     temp_id = _upload_temp(admin_client, "minimal.epub")
 
+    # Snapshot title до запроса — для точного ассерта, что metadata откачена.
+    db = connect_test_db()
+    try:
+        original_title = db.execute("SELECT title FROM books WHERE id=1").fetchone()[0]
+    finally:
+        db.close()
+
     from app.main import app
     no_raise = TestClient(app, raise_server_exceptions=False, cookies=admin_client.cookies)
     no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
@@ -333,7 +340,7 @@ def test_update_book_dal_update_fail_in_metadata_stage(admin_client):
         title = db.execute("SELECT title FROM books WHERE id=1").fetchone()[0]
     finally:
         db.close()
-    assert title != "should not apply"
+    assert title == original_title
 
 
 def test_update_book_cover_commit_rollback(admin_client):
@@ -361,6 +368,6 @@ def test_update_book_cover_commit_rollback(admin_client):
         resp = no_raise.put("/api/books/2", json={"commitCover": True})
     assert_error(resp, 500)
 
-    with open(os.path.join(book_dir, "cover.jpg"), "rb") as f:
+    with open(os.path.join(book_dir, old_cover), "rb") as f:
         assert f.read() == old_content
     assert not os.path.exists(os.path.join(book_dir, "cover.jpg.bak"))
