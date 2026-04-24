@@ -141,7 +141,6 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         raise ConflictError(f"Format {sorted(conflict)[0]} already present")
 
     # 1e. commitCover pending-check.
-    # TODO(task-6): cover_service._commit is added в Task 6 — move check into stable public API.
     if body.commitCover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
 

@@ -5,6 +5,7 @@
 # Staged imports для Tasks 3-9: `logging`/`shutil`/`patch` — rollback-тесты,
 # `TestClient` — custom no_raise клиент, `assert_error`/`connect_test_db` —
 # error-path и DB-ассерты. Plan 2026-04-24-book-format-staging.md.
+import glob
 import logging  # noqa: F401  # used in Task 5 caplog tests
 import os  # noqa: F401  # used in Task 4+ FS assertions
 import shutil  # noqa: F401  # used in Task 9 rollback mock
@@ -117,7 +118,6 @@ def test_update_book_commit_cover_happy(admin_client):
     get_resp = admin_client.get("/api/covers/2", params={"full": 1})
     assert get_resp.status_code == 200
 
-    import glob
     uploads_dir = os.path.join(test_data, "uploads")
     temp_covers = glob.glob(os.path.join(uploads_dir, "2-cover.*"))
     assert temp_covers == [], f"Temp cover должен быть удалён: {temp_covers}"
