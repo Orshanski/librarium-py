@@ -54,7 +54,7 @@ class TestCoverCommit:
         data = assert_ok(resp)
         assert "tempCoverUrl" in data
 
-        resp = admin_client.put("/api/books/2/cover")
+        resp = admin_client.put("/api/books/2", json={"commitCover": True})
         assert_ok(resp)
 
         # verify cover exists on disk (full=1 skips PIL thumb)
@@ -118,7 +118,7 @@ class TestCoverAuth:
         assert_error(resp, 403)
 
     def test_reader_cannot_commit_cover(self, reader_client):
-        resp = reader_client.put("/api/books/2/cover")
+        resp = reader_client.put("/api/books/2", json={"commitCover": True})
         assert_error(resp, 403)
 
     def test_reader_cannot_discard_cover(self, reader_client):
@@ -140,11 +140,11 @@ class TestCoverEdgeCases:
         assert_error(resp, 404)
 
     def test_commit_nonexistent_book(self, admin_client):
-        assert_error(admin_client.put("/api/books/999/cover"), 404)
+        assert_error(admin_client.put("/api/books/999", json={"commitCover": True}), 404)
 
     def test_commit_without_upload_returns_400(self, admin_client):
         """PUT /cover без предшествующего POST — теперь honest 400 (было silent 200)."""
-        resp = admin_client.put("/api/books/1/cover")
+        resp = admin_client.put("/api/books/1", json={"commitCover": True})
         assert_error(resp, 400)
 
     def test_temp_preview_non_alphanumeric_id(self, reader_client):
@@ -188,7 +188,7 @@ def test_commit_move_failure_preserves_old_cover(admin_client, db):
 
     Используется book_id=2: baseline seed даёт ему cover.jpg (см. seed.py:76);
     book_id=1 обложки не имеет, для этого теста не подходит. После T1
-    cover_service.commit делает move+DB внутри move_with_rollback, старая
+    cover_service._commit делает move+DB внутри move_with_rollback, старая
     обложка удаляется только после успеха. Мокаем move на OSError →
     проверяем что старая обложка цела и её mtime не изменился.
     """
@@ -211,7 +211,7 @@ def test_commit_move_failure_preserves_old_cover(admin_client, db):
     # Мокаем move на OSError — commit должен упасть, старая обложка сохраниться.
     with patch("app.fs_utils.shutil.move", side_effect=OSError("disk full")):
         with pytest.raises(OSError):
-            cover_service.commit(db, book_id=2)
+            cover_service._commit(db, book_id=2)
 
     assert (book_dir / old_cover_before).exists()
     assert (book_dir / old_cover_before).stat().st_mtime == old_mtime
@@ -251,7 +251,7 @@ def test_commit_db_failure_preserves_old_cover_same_ext(admin_client, db):
         side_effect=RuntimeError("simulated db failure"),
     ):
         with pytest.raises(RuntimeError):
-            cover_service.commit(db, book_id=2)
+            cover_service._commit(db, book_id=2)
 
     # Старая обложка должна быть на месте с оригинальным содержимым.
     assert (book_dir / "cover.jpg").exists(), "старая обложка должна быть восстановлена"
@@ -278,7 +278,7 @@ def test_commit_no_bak_after_success_no_old_cover(admin_client, db):
     )
     assert resp.status_code == 200
 
-    cover_service.commit(db, book_id=1)
+    cover_service._commit(db, book_id=1)
 
     bak_files = glob.glob(str(book_dir / "*.bak"))
     assert bak_files == [], f"*.bak файлы не должны оставаться после успешного commit: {bak_files}"
@@ -300,7 +300,7 @@ def test_commit_no_bak_after_success_with_old_cover(admin_client, db):
     )
     assert resp.status_code == 200
 
-    cover_service.commit(db, book_id=2)
+    cover_service._commit(db, book_id=2)
 
     bak_files = glob.glob(str(book_dir / "*.bak"))
     assert bak_files == [], f"*.bak файлы не должны оставаться после успешного commit: {bak_files}"
@@ -321,7 +321,7 @@ def test_commit_embed_failure_returns_true(admin_client, db, monkeypatch):
     )
     assert resp.status_code == 200
 
-    result = cover_service.commit(db, book_id=2)
+    result = cover_service._commit(db, book_id=2)
     assert result is True
 
 
@@ -341,4 +341,4 @@ def test_commit_embed_programming_bug_raises(admin_client, db, monkeypatch):
     assert resp.status_code == 200
 
     with pytest.raises(AttributeError):
-        cover_service.commit(db, book_id=2)
+        cover_service._commit(db, book_id=2)
