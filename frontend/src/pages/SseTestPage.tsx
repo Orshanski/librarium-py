@@ -69,7 +69,7 @@ export default function SseTestPage() {
         </thead>
         <tbody>
           {events.map((ev) => (
-            <tr key={ev.n} style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}>
+            <tr key={ev.receivedAt} style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}>
               <td style={td}>{ev.n}</td>
               <td style={td}>{ev.ts}</td>
               <td style={td}>{ev.receivedAt}</td>
