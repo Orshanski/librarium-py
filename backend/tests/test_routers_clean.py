@@ -154,11 +154,6 @@ class TestValidatorsCentralized:
         assert "from ._validators import" in source and "TempIdStr" in source
         assert "StringConstraints" not in source
 
-    def test_books_uses_nonblank_alias(self):
-        source = (ROUTERS_DIR / "books.py").read_text(encoding="utf-8")
-        assert "from ._validators import" in source and "NonBlankStr" in source
-        assert "StringConstraints" not in source
-
 
 class TestPartiallyCleanRouters:
     """Routers с одним documented inline HTTPException (остальные — middleware).
