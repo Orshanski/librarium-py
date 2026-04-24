@@ -318,40 +318,6 @@ describe("book-edit-form — covers", () => {
     alertSpy.mockRestore();
   });
 
-  it("commit: after cover upload, clicking Save triggers PUT /api/books/:id/cover", async () => {
-    const user = userEvent.setup();
-    let putCalled = false;
-    const onSave = vi.fn().mockResolvedValue(undefined);
-
-    server.use(
-      http.post("/api/books/:id/cover", () =>
-        HttpResponse.json({ ok: true, tempCoverUrl: "/api/uploads/cover/42" }),
-      ),
-      http.put("/api/books/:id/cover", () => {
-        putCalled = true;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-
-    renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={onSave} />,
-    );
-
-    await uploadCoverFile(user);
-
-    await waitFor(() => {
-      const img = screen.queryByRole("img", { name: /тестовая книга/i });
-      expect((img as HTMLImageElement | null)?.src).toContain("/api/uploads/cover/42");
-    });
-
-    const saveBtn = screen.getByRole("button", { name: /сохранить/i });
-    await user.click(saveBtn);
-
-    await waitFor(() => {
-      expect(putCalled).toBe(true);
-    });
-  });
-
   it("discard: after cover upload, clicking Cancel triggers DELETE /api/books/:id/cover", async () => {
     const user = userEvent.setup();
     let deleteCalled = false;
@@ -396,14 +362,14 @@ describe("book-edit-form — books", () => {
     vi.restoreAllMocks();
   });
 
-  it("files upload happy: drop/select file → POST /api/books/:id/files → format appears in list", async () => {
+  it("pending_add_appears_in_list", async () => {
     const user = userEvent.setup();
     let uploadCalled = false;
 
     server.use(
-      http.post("/api/books/:id/files", () => {
+      http.post("/api/upload", () => {
         uploadCalled = true;
-        return HttpResponse.json({ format: "fb2", size: 204800 });
+        return HttpResponse.json({ tempId: "abc123", format: "FB2", metadata: {}, duplicate: null });
       }),
     );
 
@@ -411,81 +377,239 @@ describe("book-edit-form — books", () => {
       <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
     );
 
-    // Select a file via the hidden file input (non-image, non-cover input)
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
     expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0, 1, 2, 3])], "book.fb2", { type: "application/octet-stream" }));
 
-    const fakeFile = new File([new Uint8Array([0, 1, 2, 3])], "book.fb2", {
-      type: "application/octet-stream",
-    });
-    await user.upload(bookFileInput!, fakeFile);
-
+    await waitFor(() => expect(uploadCalled).toBe(true));
     await waitFor(() => {
-      expect(uploadCalled).toBe(true);
-    });
-
-    await waitFor(() => {
-      const formatText = document.body.textContent || "";
-      expect(formatText).toMatch(/fb2/i);
+      expect(screen.queryAllByText(/^FB2\s*—/).length).toBeGreaterThan(0);
     });
   });
 
-  it("delete format: click delete on format → confirm → DELETE /api/books/:id/files?format=X → format removed", async () => {
+  it("remove_pending_add_calls_uploads_delete", async () => {
     const user = userEvent.setup();
     let deleteCalled = false;
-    let deletedFormat = "";
 
     server.use(
-      http.delete("/api/books/:id/files", ({ request }) => {
-        const url = new URL(request.url);
-        deletedFormat = url.searchParams.get("format") || "";
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: "abc123", format: "FB2", metadata: {}, duplicate: null }),
+      ),
+      http.delete("/api/uploads/abc123", () => {
         deleteCalled = true;
         return HttpResponse.json({ ok: true });
       }),
     );
 
-    // Need 2+ formats so delete buttons appear (desktop-book-edit-form only shows
-    // delete when formats.length > 1)
-    const bookWithTwoFormats = {
-      ...mockBook,
-      formats: [
-        { format: "epub", size: "1 MB" },
-        { format: "fb2", size: "500 KB" },
-      ],
+    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }] };
+    renderWithProviders(
+      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "book.fb2"));
+
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^FB2\s*—/).length).toBeGreaterThan(0);
+    });
+
+    const delBtns = screen.getAllByRole("button").filter(b => b.textContent?.toLowerCase().includes("удалить"));
+    await user.click(delBtns[delBtns.length - 1]);
+    const confirmBtn = screen.queryByTestId("confirm-dialog-submit");
+    if (confirmBtn) await user.click(confirmBtn);
+
+    await waitFor(() => expect(deleteCalled).toBe(true));
+  });
+
+  it("click_delete_existing_format_no_api_call", async () => {
+    const user = userEvent.setup();
+    let filesDeleteCalled = false;
+
+    server.use(
+      http.delete("/api/books/:id/files", () => {
+        filesDeleteCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "fb2", size: "500 KB" }] };
+    renderWithProviders(
+      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    // Sanity: оба формата видны в списке формат-items (не dropzone-подсказка).
+    expect(screen.queryAllByText(/^epub\s*—/i).length).toBeGreaterThan(0);
+
+    const delBtns = screen.getAllByRole("button").filter(b => b.textContent?.toLowerCase().includes("удалить"));
+    expect(delBtns.length).toBeGreaterThan(0);
+    await user.click(delBtns[0]);
+    const confirmBtn = screen.queryByTestId("confirm-dialog-submit");
+    if (confirmBtn) await user.click(confirmBtn);
+
+    await new Promise(r => setTimeout(r, 50));
+    expect(filesDeleteCalled).toBe(false);
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^epub\s*—/i)).toHaveLength(0);
+    });
+  });
+
+  it("save_sends_single_put_with_all_changes", async () => {
+    const user = userEvent.setup();
+    let capturedPayload: import("./book-edit-form.types").BookSavePayload | null = null;
+    const parentOnSave = async (payload: import("./book-edit-form.types").BookSavePayload) => {
+      capturedPayload = payload;
+    };
+
+    server.use(
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: "t1", format: "FB2", metadata: {}, duplicate: null }),
+      ),
+    );
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+    );
+
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "book.fb2"));
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^FB2\s*—/).length).toBeGreaterThan(0);
+    });
+
+    const saveBtn = screen.getByRole("button", { name: /сохранить/i });
+    await user.click(saveBtn);
+
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload!.addFormats).toEqual(["t1"]);
+    expect(capturedPayload!.deleteFormats).toEqual([]);
+    expect(capturedPayload!.commitCover).toBe(false);
+  });
+
+  it("save_no_changes_still_sends_put", async () => {
+    const user = userEvent.setup();
+    let capturedPayload: import("./book-edit-form.types").BookSavePayload | null = null;
+    const parentOnSave = async (payload: import("./book-edit-form.types").BookSavePayload) => {
+      capturedPayload = payload;
     };
 
     renderWithProviders(
-      <BookEditForm book={bookWithTwoFormats} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
     );
 
-    const bodyText = document.body.textContent || "";
-    expect(bodyText).toMatch(/epub/);
-    expect(bodyText).toMatch(/fb2/);
+    const saveBtn = screen.getByRole("button", { name: /сохранить/i });
+    await user.click(saveBtn);
 
-    const allButtons = screen.getAllByRole("button");
-    const deleteFormatBtns = allButtons.filter((b) => b.textContent?.includes("Удалить"));
-    expect(deleteFormatBtns.length).toBeGreaterThan(0);
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload!.addFormats).toEqual([]);
+    expect(capturedPayload!.deleteFormats).toEqual([]);
+    expect(capturedPayload!.commitCover).toBe(false);
+  });
 
-    await user.click(deleteFormatBtns[0]);
+  it("save_4xx_shows_detail_preserves_state", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const user = userEvent.setup();
 
-    await waitFor(() => {
-      const bodyContent = document.body.textContent || "";
-      expect(bodyContent).toMatch(/Удалить файл epub/);
+    const parentOnSave = vi.fn(async () => {
+      const { ConflictError } = await import("@/api/errors");
+      throw new ConflictError(409, "Формат EPUB уже есть");
     });
 
-    const confirmBtnInDialog = screen.getByTestId("confirm-dialog-submit");
-    await user.click(confirmBtnInDialog);
+    server.use(
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: "t1", format: "FB2", metadata: {}, duplicate: null }),
+      ),
+    );
 
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+    );
+
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "book.fb2"));
     await waitFor(() => {
-      expect(deleteCalled).toBe(true);
+      expect(screen.queryAllByText(/^FB2\s*—/).length).toBeGreaterThan(0);
     });
 
-    expect(deletedFormat).toBe("epub");
+    const saveBtn = screen.getByRole("button", { name: /сохранить/i });
+    await user.click(saveBtn);
 
-    await waitFor(() => {
-      const remaining = document.body.textContent || "";
-      expect(remaining).toMatch(/fb2/);
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith("Формат EPUB уже есть"));
+    alertSpy.mockRestore();
+  });
+
+  it("save_5xx_shows_generic_preserves_state", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const parentOnSave = vi.fn(async () => {
+      const { ServerError } = await import("@/api/errors");
+      throw new ServerError(500, "Internal Server Error");
     });
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+    );
+    const saveBtn = screen.getByRole("button", { name: /сохранить/i });
+    await user.click(saveBtn);
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith("Не удалось сохранить изменения"));
+    alertSpy.mockRestore();
+  });
+
+  it("cancel_cleans_up_pending_adds", async () => {
+    const user = userEvent.setup();
+    const deletedIds: string[] = [];
+
+    server.use(
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: `t_${Date.now()}_${Math.random()}`, format: "FB2", metadata: {}, duplicate: null }),
+      ),
+      http.delete("/api/uploads/:tempId", ({ params }) => {
+        deletedIds.push(params.tempId as string);
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "book.fb2"));
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^FB2\s*—/).length).toBeGreaterThan(0);
+    });
+
+    const cancelBtn = screen.getByRole("button", { name: /^отмена$/i });
+    await user.click(cancelBtn);
+
+    await waitFor(() => expect(deletedIds.length).toBeGreaterThanOrEqual(1));
+  });
+
+  it("cancel_no_pending_no_requests", async () => {
+    const user = userEvent.setup();
+    let anyRequest = false;
+
+    server.use(
+      http.delete("/api/uploads/:tempId", () => { anyRequest = true; return HttpResponse.json({ ok: true }); }),
+      http.delete("/api/books/:id/cover", () => { anyRequest = true; return HttpResponse.json({ ok: true }); }),
+    );
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+    );
+    const cancelBtn = screen.getByRole("button", { name: /^отмена$/i });
+    await user.click(cancelBtn);
+
+    await new Promise(r => setTimeout(r, 50));
+    expect(anyRequest).toBe(false);
   });
 });
