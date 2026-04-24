@@ -1,22 +1,22 @@
-import contextlib
+import contextlib  # noqa: F401  # staged for Task 4 rollback block
 import logging
 import os
 import shutil
 import sqlite3
 from typing import cast
 
-from ..config import LIBRARY_DIR, UPLOADS_DIR
+from ..config import LIBRARY_DIR, UPLOADS_DIR  # noqa: F401  # UPLOADS_DIR staged for Task 4
 from ..dal import books as dal
-from ..dtos.books import (
+from ..dtos.books import (  # noqa: F401  # BookFileLookup staged for Task 5 resolved_deletes
     BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
     UploadFileResponse,
 )
-from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..exceptions import BadInputError, ConflictError, NotFoundError  # noqa: F401  # BadInputError/ConflictError staged for Task 4
 from ..fs_utils import write_with_rollback
-from . import cover_service, filters_service, thumb
+from . import cover_service, filters_service, thumb  # noqa: F401  # cover_service staged for Task 6
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
-from .temp_cleanup import cleanup_temp_session, find_temp_file
+from .temp_cleanup import cleanup_temp_session, find_temp_file  # noqa: F401  # staged for Task 4
 
 log = logging.getLogger("librarium.services.books")
 
