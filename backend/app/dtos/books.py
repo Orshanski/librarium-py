@@ -1,7 +1,9 @@
 """Book request DTOs, write-input TypedDicts, and Response DTOs."""
-from typing import NotRequired, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from ._types import FormatCode, TempIdStr
 
 
 class UpdateBookBody(BaseModel):
@@ -15,6 +17,10 @@ class UpdateBookBody(BaseModel):
     authorIds: list[int | str] | None = None
     tagIds: list[int | str] | None = None
     isbn: str | None = None
+
+    addFormats: Annotated[list[TempIdStr], Field(max_length=10)] | None = None
+    deleteFormats: Annotated[list[FormatCode], Field(max_length=10)] | None = None
+    commitCover: bool = False
 
 
 class BookCreateData(TypedDict):
