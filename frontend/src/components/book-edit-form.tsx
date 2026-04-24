@@ -8,11 +8,9 @@ import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./bo
 import type { ListOrigin } from "./breadcrumb-origin";
 import { splitCsv } from "../types";
 import { fetchCoverProxy } from "../api/endpoints/metadata";
-import { uploadCover, commitCover, discardCover } from "../api/endpoints/covers";
-import {
-  uploadFile as apiUploadFile,
-  deleteFile as apiDeleteFile,
-} from "@/api/endpoints/books";
+import { uploadCover, discardCover } from "../api/endpoints/covers";
+import { uploadTempFile, deleteTempUpload } from "@/api/endpoints/upload";
+import { ApiError, ServerError, ValidationError } from "@/api/errors";
 
 export default function BookEditForm({ book, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
   const isMobile = useIsMobile();
@@ -39,6 +37,8 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
   const [coverUrl, setCoverUrl] = useState(book.coverPath);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [pendingAddFormats, setPendingAddFormats] = useState<{ tempId: string; format: string; size: number }[]>([]);
+  const [pendingDeleteFormats, setPendingDeleteFormats] = useState<string[]>([]);
 
   const seriesOptions = options?.series.map((s: NamedOption) => ({ value: s.name })) || [];
   const languageOptions = options?.languages.map((l) => ({ value: l.name })) || [];
@@ -48,15 +48,17 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
   async function uploadFile(file: File) {
     setUploading(true);
     try {
-      const data = await apiUploadFile(book.id, file);
-      const size =
-        data.size > 1048576
-          ? `${(data.size / 1048576).toFixed(1)} MB`
-          : `${Math.round(data.size / 1024)} KB`;
-      setFormats((prev) => [...prev, { format: data.format, size }]);
+      const data = await uploadTempFile(file);
+      const sizeBytes = file.size;
+      const sizeDisplay =
+        sizeBytes > 1048576
+          ? `${(sizeBytes / 1048576).toFixed(1)} MB`
+          : `${Math.round(sizeBytes / 1024)} KB`;
+      setPendingAddFormats((prev) => [...prev, { tempId: data.tempId, format: data.format, size: sizeBytes }]);
+      setFormats((prev) => [...prev, { format: data.format, size: sizeDisplay }]);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
-      const detail = err instanceof Error ? err.message : "Ошибка загрузки";
+      const detail = err instanceof ApiError ? err.detail : (err instanceof Error ? err.message : "Ошибка загрузки");
       alert(detail);
     } finally {
       setUploading(false);
@@ -109,9 +111,6 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     if (!onSave) return;
     setSaving(true);
     try {
-      if (coverChanged) {
-        await commitCover(book.id);
-      }
       await onSave({
         title,
         authors,
@@ -123,10 +122,20 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
         publisher: publisher || null,
         pubDate: pubDate || null,
         isbn: isbn || null,
-        addFormats: [],
-        deleteFormats: [],
-        commitCover: false,
+        addFormats: pendingAddFormats.map(p => p.tempId),
+        deleteFormats: pendingDeleteFormats,
+        commitCover: coverChanged,
       });
+    } catch (err: unknown) {
+      if (err instanceof ValidationError) {
+        alert("Проверьте заполнение формы");
+      } else if (err instanceof ServerError) {
+        alert("Не удалось сохранить изменения");
+      } else if (err instanceof ApiError) {
+        alert(err.detail);
+      } else {
+        alert(err instanceof Error ? err.message : "Неизвестная ошибка");
+      }
     } finally {
       setSaving(false);
     }
@@ -136,17 +145,15 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     const cancelTarget: ListOrigin =
       editOrigin?.bookOrigin ?? { type: "catalog", url: "/", label: "Каталог" };
 
-    if (!coverChanged) {
-      navigate(`/book/${book.id}`, { replace: true, state: { origin: cancelTarget } });
-      return;
+    const cleanups: Promise<unknown>[] = [];
+    for (const p of pendingAddFormats) {
+      cleanups.push(deleteTempUpload(p.tempId).catch(() => undefined));
     }
-
-    try {
-      await discardCover(book.id);
-      navigate(`/book/${book.id}`, { replace: true, state: { origin: cancelTarget } });
-    } catch {
-      alert("Не удалось отменить изменения");
+    if (coverChanged) {
+      cleanups.push(discardCover(book.id).catch(() => undefined));
     }
+    await Promise.allSettled(cleanups);
+    navigate(`/book/${book.id}`, { replace: true, state: { origin: cancelTarget } });
   }
 
   const viewProps = {
@@ -225,16 +232,21 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
           message={`Удалить файл ${deleteFormatConfirm}?`}
           onCancel={() => setDeleteFormatConfirm(null)}
           onConfirm={async () => {
-            try {
-              await apiDeleteFile(book.id, deleteFormatConfirm);
-              setFormats((prev) => prev.filter((x) => x.format !== deleteFormatConfirm));
-            } catch (err: unknown) {
-              if (err instanceof Error && err.name === "AbortError") return;
-              console.warn("Failed to delete format:", err);
-              alert("Не удалось удалить формат");
-            } finally {
-              setDeleteFormatConfirm(null);
+            const fmt = deleteFormatConfirm!;
+            const pendingIdx = pendingAddFormats.findIndex(p => p.format === fmt);
+            if (pendingIdx >= 0) {
+              const { tempId } = pendingAddFormats[pendingIdx];
+              try {
+                await deleteTempUpload(tempId);
+              } catch {
+                // ignore: cleanup_old_uploads подчистит через час
+              }
+              setPendingAddFormats(prev => prev.filter((_, i) => i !== pendingIdx));
+            } else {
+              setPendingDeleteFormats(prev => [...prev, fmt.toUpperCase()]);
             }
+            setFormats(prev => prev.filter(x => x.format !== fmt));
+            setDeleteFormatConfirm(null);
           }}
         />
       )}
