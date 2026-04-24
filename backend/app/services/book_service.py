@@ -13,7 +13,7 @@ from ..dtos.books import (  # noqa: F401  # BookFileLookup staged for Task 5 res
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..fs_utils import write_with_rollback
-from . import cover_service, filters_service, thumb  # noqa: F401  # cover_service staged for Task 6; filters_service/thumb pre-existing
+from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
