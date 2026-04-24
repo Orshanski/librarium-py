@@ -164,6 +164,37 @@ class TestBookServiceUpdateBook:
         assert row is not None
         assert row["name"] == "Brand New Series T9"
 
+    def test_update_add_formats_via_service(self, db):
+        """Direct service call: addFormats применяется. Temp-файл записан прямо
+        в UPLOADS_DIR (минуя HTTP admin_client, чтобы не плодить конкурирующие connection'ы)."""
+        from app.config import UPLOADS_DIR
+        from pathlib import Path
+        fixtures = Path(__file__).parent / "fixtures" / "books"
+        temp_id = "svcepub1234"
+        temp_path = UPLOADS_DIR / f"{temp_id}.epub"
+        temp_path.write_bytes((fixtures / "minimal.epub").read_bytes())
+        try:
+            book_service.update_book(db, 1, UpdateBookBody(addFormats=[temp_id]))
+            formats = [r["format"] for r in db.execute(
+                "SELECT format FROM book_files WHERE book_id=1"
+            ).fetchall()]
+            assert "EPUB" in formats
+        finally:
+            # Cleanup: если тест упал до `cleanup_temp_session`, убрать temp руками.
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_update_delete_formats_via_service(self, db):
+        book_service.update_book(db, 1, UpdateBookBody(deleteFormats=["FB2"]))
+        formats = [r["format"] for r in db.execute(
+            "SELECT format FROM book_files WHERE book_id=1"
+        ).fetchall()]
+        assert "FB2" not in formats
+
+    def test_update_commit_cover_without_pending_raises(self, db):
+        with pytest.raises(BadInputError, match="No pending cover"):
+            book_service.update_book(db, 1, UpdateBookBody(commitCover=True))
+
 
 # ---------- T3: cover_service migration ----------
 
