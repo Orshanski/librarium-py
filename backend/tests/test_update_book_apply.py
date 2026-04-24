@@ -160,6 +160,9 @@ def test_update_book_combo(admin_client):
 def test_update_book_replace_format(admin_client):
     """deleteFormats: ['FB2'] + addFormats: [tempId_fb2] — delete перед add."""
     test_data = os.environ["DATA_DIR"]
+    # Precondition: book 1 должен иметь FB2 по seed, чтобы replace-семантика
+    # (delete ∩ add одного формата) реально тестировалась, а не сводилась к add.
+    assert os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
     temp_id = _upload_temp(admin_client, "minimal.fb2")
 
     resp = admin_client.put("/api/books/1", json={
@@ -181,6 +184,12 @@ def test_update_book_replace_format(admin_client):
 
 # ---------------------------------------------------------------------------
 # Task 8: Validation tests
+#
+# Domain-level errors (400/404/409) — через assert_error, т.к. body содержит
+# {"detail": str} с человеческим сообщением.
+# Pydantic-level errors (422) — через прямой `resp.status_code == 422`,
+# т.к. body содержит `{"detail": [{"type": ..., "loc": ...}]}` и
+# `message_matches` на нём бесполезен.
 # ---------------------------------------------------------------------------
 
 def test_update_book_add_invalid_tempid(admin_client):
