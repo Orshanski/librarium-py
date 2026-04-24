@@ -53,11 +53,6 @@ export interface BookOkResponse {
   ok: true;
 }
 
-export interface UploadFileResponse {
-  format: string;
-  size: number;
-}
-
 export interface AddFormatResponse {
   ok: true;
   format: string;
@@ -118,26 +113,6 @@ export function downloadBook(
     blob: true,
     signal: opts.signal,
     onProgress: opts.onProgress,
-  });
-}
-
-export function uploadFile(
-  id: number,
-  file: File,
-): Promise<UploadFileResponse> {
-  const form = new FormData();
-  form.append("file", file);
-  return client<UploadFileResponse>("POST", `/api/books/${id}/files`, {
-    body: form,
-  });
-}
-
-export function deleteFile(
-  id: number,
-  format: string,
-): Promise<BookOkResponse> {
-  return client<BookOkResponse>("DELETE", `/api/books/${id}/files`, {
-    query: { format },
   });
 }
 
