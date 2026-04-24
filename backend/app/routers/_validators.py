@@ -8,7 +8,7 @@ from typing import Annotated
 
 from pydantic import StringConstraints
 
-from ..dtos.upload import TempIdStr  # canonical definition; re-exported for router imports
+from ..dtos._types import TempIdStr  # canonical definition; re-exported for router imports
 """Temp upload ID: 1-20 alphanumeric chars. Используется в upload/covers
 path params и upload CreateBookBody/AddFormatBody."""
 
