@@ -7,7 +7,7 @@ from typing import cast
 
 from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
-from ..dtos.books import (  # noqa: F401  # BookFileLookup staged for Task 5 resolved_deletes
+from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
     UploadFileResponse,
 )
@@ -145,7 +145,24 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
     if body.commitCover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
 
-    # Шаг 2 (delete) — добавляется в Task 5.
+    # 1f. Резолв deleteFormats → идемпотентный список (format, row) + skipped.
+    resolved_deletes: list[tuple[str, BookFileLookup]] = []  # (format, row)
+    for fmt_code in delete_formats:
+        row = dal.get_book_file(db, book_id, fmt_code)
+        if row is None:
+            log.info(
+                "idempotent delete skipped: book=%d format=%s not present",
+                book_id, fmt_code,
+            )
+            continue
+        resolved_deletes.append((fmt_code, row))
+
+    # Шаг 2: apply deleteFormats (FS-first, по pattern текущего delete_file).
+    for fmt_code, row in resolved_deletes:
+        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        dal.delete_book_file(db, row["id"])
 
     # Шаг 3: apply addFormats (copyfile + register + manual rollback).
     # Note: `copied_dsts.append(dst)` идёт ДО `shutil.copyfile` — чтобы

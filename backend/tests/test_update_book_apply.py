@@ -59,3 +59,42 @@ def test_update_book_add_formats_happy(admin_client):
 
     assert os.path.isfile(os.path.join(test_data, "library", "1", "book.epub"))
     assert not os.path.exists(os.path.join(test_data, "uploads", f"{temp_id}.epub"))
+
+
+def test_update_book_delete_formats_happy(admin_client):
+    """PUT с deleteFormats: ['FB2'] → файл и DAL-запись удалены."""
+    test_data = os.environ["DATA_DIR"]
+    assert os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
+
+    resp = admin_client.put("/api/books/1", json={"deleteFormats": ["FB2"]})
+    assert_ok(resp)
+
+    db = connect_test_db()
+    try:
+        formats = [r[0] for r in db.execute(
+            "SELECT format FROM book_files WHERE book_id = 1"
+        ).fetchall()]
+    finally:
+        db.close()
+    assert "FB2" not in formats
+    assert not os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
+
+
+def test_update_book_delete_nonexistent_format_idempotent(admin_client, caplog):
+    """deleteFormats: ['XYZ'] (valid code, not present) → 200 OK, log.info, остальные поля применились."""
+    with caplog.at_level(logging.INFO, logger="librarium.services.books"):
+        resp = admin_client.put(
+            "/api/books/1",
+            json={"deleteFormats": ["XYZ"], "description": "updated via idempotent test"},
+        )
+    assert_ok(resp)
+    assert any("idempotent delete skipped" in r.message for r in caplog.records)
+
+    db = connect_test_db()
+    try:
+        desc = db.execute(
+            "SELECT description FROM books WHERE id=1"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert desc == "updated via idempotent test"
