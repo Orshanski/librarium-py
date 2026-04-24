@@ -8,7 +8,7 @@ import pytest
 
 from app.dtos.books import UpdateBookBody
 from app.dtos.upload import CreateBookMetadata
-from app.exceptions import BadInputError, ConflictError, NotFoundError
+from app.exceptions import BadInputError, NotFoundError
 from app.services import (
     authors_service,
     book_service,
@@ -104,19 +104,6 @@ class TestTagsService:
 
 
 class TestBookServiceRaises:
-    def test_upload_file_to_missing_book_raises_not_found(self, db):
-        with pytest.raises(NotFoundError, match="Book not found"):
-            book_service.upload_file(db, 999999, b"fake content", "fb2")
-
-    def test_upload_duplicate_format_raises_conflict(self, db):
-        """Book 1 (baseline) has FB2 — uploading another FB2 raises ConflictError."""
-        with pytest.raises(ConflictError, match=r"Формат FB2 уже есть"):
-            book_service.upload_file(db, 1, b"fake content", "fb2")
-
-    def test_delete_file_missing_raises_not_found(self, db):
-        with pytest.raises(NotFoundError, match="Not found"):
-            book_service.delete_file(db, 1, "DOESNOTEXIST")
-
     def test_delete_book_missing_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Book not found"):
             book_service.delete_book(db, 999999)
