@@ -9,10 +9,10 @@ from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (  # noqa: F401  # BookFileLookup staged for Task 5 resolved_deletes
     BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
-    UploadFileResponse,  # noqa: F401  # UploadFileResponse staged for Task 11
+    UploadFileResponse,
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
-from ..fs_utils import write_with_rollback  # noqa: F401  # staged for Task 11
+from ..fs_utils import write_with_rollback
 from . import cover_service, filters_service, thumb  # noqa: F401  # cover_service staged for Task 6; filters_service/thumb pre-existing
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
