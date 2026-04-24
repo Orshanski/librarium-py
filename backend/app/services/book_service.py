@@ -138,15 +138,18 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
     added_set = set(added_fmts)
     conflict = added_set & (existing_fmts - deleted_set)
     if conflict:
-        raise ConflictError(f"Формат {next(iter(conflict))} уже есть")
+        raise ConflictError(f"Format {sorted(conflict)[0]} already present")
 
     # 1e. commitCover pending-check.
+    # TODO(task-6): cover_service._commit is added в Task 6 — move check into stable public API.
     if body.commitCover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
 
     # Шаг 2 (delete) — добавляется в Task 5.
 
     # Шаг 3: apply addFormats (copyfile + register + manual rollback).
+    # Note: `copied_dsts.append(dst)` идёт ДО `shutil.copyfile` — чтобы
+    # частично записанный dst при сбое copyfile тоже попал в cleanup.
     copied_dsts: list[str] = []
     try:
         for (_tid, src, fmt, ext) in resolved_adds:
