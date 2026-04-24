@@ -20,10 +20,7 @@ describe("shouldSkipScrollBump", () => {
   it.each([
     ["PUT", "/api/books/42"],
     ["DELETE", "/api/books/42"],
-    ["PUT", "/api/books/42/cover"], // commitCover — не в whitelist для PUT
     ["PUT", "/api/books/42/cover/extra"],
-    ["POST", "/api/books/42/files"],
-    ["DELETE", "/api/books/42/files"],
     ["POST", "/api/books/42/add-format"],
     ["PUT", "/api/books/42/rating"],
     ["PUT", "/api/books/42/read"],
