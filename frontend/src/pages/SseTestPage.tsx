@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 type Ev = {
   n: number;
   ts: string;
+  serverStartedAt: string;
   receivedAt: string;
   gapSec: number;
 };
@@ -15,8 +16,11 @@ export default function SseTestPage() {
   const [events, setEvents] = useState<Ev[]>([]);
   const [state, setState] = useState<ConnState>("CONNECTING");
   const [reconnects, setReconnects] = useState(0);
-  const [startedAt] = useState(() => new Date().toISOString());
+  const [serverRestarts, setServerRestarts] = useState(0);
+  const [pageLoadedAt] = useState(() => new Date().toISOString());
+  const [serverStartedAt, setServerStartedAt] = useState<string | null>(null);
   const lastReceivedAtRef = useRef<number | null>(null);
+  const lastServerStartedRef = useRef<string | null>(null);
 
   useEffect(() => {
     const es = new EventSource("/api/_sse_ping");
@@ -27,13 +31,27 @@ export default function SseTestPage() {
       setReconnects((r) => r + 1);
     };
     es.onmessage = (e) => {
-      const data = JSON.parse(e.data) as { n: number; ts: string };
+      const data = JSON.parse(e.data) as { n: number; ts: string; server_started_at: string };
       const now = Date.now();
       const gapSec = lastReceivedAtRef.current ? (now - lastReceivedAtRef.current) / 1000 : 0;
       lastReceivedAtRef.current = now;
+
+      // Если server_started_at изменился — backend рестартовал.
+      if (lastServerStartedRef.current && lastServerStartedRef.current !== data.server_started_at) {
+        setServerRestarts((r) => r + 1);
+      }
+      lastServerStartedRef.current = data.server_started_at;
+      setServerStartedAt(data.server_started_at);
       setState("OPEN");
+
       setEvents((prev) => [
-        { n: data.n, ts: data.ts, receivedAt: new Date(now).toISOString(), gapSec },
+        {
+          n: data.n,
+          ts: data.ts,
+          serverStartedAt: data.server_started_at,
+          receivedAt: new Date(now).toISOString(),
+          gapSec,
+        },
         ...prev,
       ].slice(0, 200));
     };
@@ -41,23 +59,29 @@ export default function SseTestPage() {
     return () => es.close();
   }, []);
 
-  const missing = computeMissingSequences(events);
-
   return (
     <div style={{ padding: 20, fontFamily: "monospace", fontSize: 13 }}>
       <h2>SSE Test (temp spike, bd ewg0)</h2>
       <div style={{ marginBottom: 10, color: "#888" }}>
-        Idle-паттерн: data event раз в 5 мин, keepalive ':ping' каждые 25 сек.
-        Нормальный gap ≈300 сек. Красным — {">330"} сек (признак reconnect'а или idle-timeout'а).
+        Broker-паттерн: глобальный counter тикает +1 каждые 5 мин (background task на сервере),
+        keepalive ':ping' каждые 25 сек. Counter не сбрасывается при reload страницы — только при
+        рестарте процесса (тогда server_started_at меняется и засчитывается Server restart).
       </div>
-      <div>Started: {startedAt}</div>
+      <div>Page loaded at: {pageLoadedAt}</div>
+      <div>
+        Server started at:{" "}
+        <b style={{ color: serverStartedAt ? "green" : "gray" }}>
+          {serverStartedAt ?? "..."}
+        </b>
+      </div>
       <div>State: <b style={{ color: stateColor(state) }}>{state}</b></div>
-      <div>Reconnects: {reconnects}</div>
+      <div>Reconnects (transport): {reconnects}</div>
+      <div style={{ color: serverRestarts > 0 ? "orange" : "inherit" }}>
+        Server restarts (detected): {serverRestarts}
+      </div>
       <div>Events received: {events.length}</div>
       <div>Latest n on server: {events[0]?.n ?? "-"}</div>
-      <div style={{ color: missing.length ? "red" : "inherit" }}>
-        Missing sequences: {missing.length === 0 ? "none" : missing.join(", ")}
-      </div>
+
       <table style={{ marginTop: 16, borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ textAlign: "left" }}>
@@ -69,7 +93,10 @@ export default function SseTestPage() {
         </thead>
         <tbody>
           {events.map((ev) => (
-            <tr key={ev.receivedAt} style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}>
+            <tr
+              key={ev.receivedAt}
+              style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}
+            >
               <td style={td}>{ev.n}</td>
               <td style={td}>{ev.ts}</td>
               <td style={td}>{ev.receivedAt}</td>
@@ -80,16 +107,6 @@ export default function SseTestPage() {
       </table>
     </div>
   );
-}
-
-function computeMissingSequences(events: Ev[]): number[] {
-  if (events.length < 2) return [];
-  const ns = events.map((e) => e.n).sort((a, b) => a - b);
-  const missing: number[] = [];
-  for (let i = ns[0]; i < ns[ns.length - 1]; i++) {
-    if (!ns.includes(i)) missing.push(i);
-  }
-  return missing.slice(0, 20);
 }
 
 function stateColor(s: ConnState): string {
