@@ -229,7 +229,7 @@ describe("CatalogPage", () => {
     );
 
     // Version=5 в счётчике, version=1 в записи → stale
-    sessionStorage.setItem("librarium_cache_version", "5");
+    sessionStorage.setItem("librarium_scroll_counter", "5");
     sessionStorage.setItem(
       "librarium_catalog_cache",
       JSON.stringify({

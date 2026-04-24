@@ -3,7 +3,7 @@ import { render, fireEvent } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useScrollRestore } from "../useScrollRestore";
-import { invalidateCache } from "../../utils/cache-invalidation";
+import { bumpScrollCounter } from "../../utils/scroll-counter";
 
 const STACK_KEY = "librarium_scroll_state";
 
@@ -95,7 +95,7 @@ describe("useScrollRestore", () => {
   });
 
   it("click в <main>: обновляется scrollTop и version верхней записи стека", () => {
-    invalidateCache(); // version = 1
+    bumpScrollCounter(); // version = 1
     render(
       <MemoryRouter initialEntries={["/catalog"]}>
         <Harness />
@@ -155,7 +155,7 @@ describe("useScrollRestore", () => {
   });
 
   it("stale version: scroll не применяется", () => {
-    for (let i = 0; i < 5; i++) invalidateCache();
+    for (let i = 0; i < 5; i++) bumpScrollCounter();
     sessionStorage.setItem(
       STACK_KEY,
       JSON.stringify([{ url: "/catalog", scrollTop: 200, version: 1 }]),

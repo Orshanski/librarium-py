@@ -12,7 +12,7 @@ const RULES: Rule[] = [
   { regex: /^\/api\/books\/\d+\/cover$/, methods: new Set<HttpMethod>(["POST", "DELETE"]) },
 ];
 
-export function shouldSkipInvalidation(method: HttpMethod, path: string): boolean {
+export function shouldSkipScrollBump(method: HttpMethod, path: string): boolean {
   for (const rule of RULES) {
     if (rule.regex.test(path) && rule.methods.has(method)) return true;
   }

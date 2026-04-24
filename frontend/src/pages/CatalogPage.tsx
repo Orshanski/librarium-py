@@ -9,9 +9,11 @@ import { colors } from "../theme";
 import { toBook, RawBook } from "../types";
 import { useCachedBookIds } from "../hooks/useCachedBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
-import { getCacheVersion, CATALOG_CACHE_KEY } from "../utils/cache-invalidation";
+import { getScrollCounter } from "../utils/scroll-counter";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
+
+const CATALOG_CACHE_KEY = "librarium_catalog_cache";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -37,7 +39,7 @@ function readCatalogCache(url: string): CatalogCacheEntry | null {
     if (!raw) return null;
     const map: Record<string, CatalogCacheEntry> = JSON.parse(raw);
     const entry = map[url];
-    if (!entry || entry.version !== getCacheVersion()) return null;
+    if (!entry || entry.version !== getScrollCounter()) return null;
     return entry;
   } catch {
     return null;
@@ -153,7 +155,7 @@ export default function CatalogPage() {
           books: current.books,
           hasMore: current.hasMore,
           cursor: current.cursor,
-          version: getCacheVersion(),
+          version: getScrollCounter(),
         });
       }
     };

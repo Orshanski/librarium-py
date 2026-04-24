@@ -9,8 +9,8 @@ import {
   ValidationError,
   type PydanticDetailItem,
 } from "./errors";
-import { invalidateCache } from "../utils/cache-invalidation";
-import { shouldSkipInvalidation } from "./non-invalidating-paths";
+import { bumpScrollCounter } from "../utils/scroll-counter";
+import { shouldSkipScrollBump } from "./non-bumping-paths";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -129,8 +129,8 @@ export async function client<T>(
     await mapErrorResponse(res);
   }
 
-  if (CSRF_METHODS.has(method) && !shouldSkipInvalidation(method, path)) {
-    invalidateCache();
+  if (CSRF_METHODS.has(method) && !shouldSkipScrollBump(method, path)) {
+    bumpScrollCounter();
   }
 
   if (options.blob) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { shouldSkipInvalidation } from "../non-invalidating-paths";
+import { shouldSkipScrollBump } from "../non-bumping-paths";
 
-describe("shouldSkipInvalidation", () => {
+describe("shouldSkipScrollBump", () => {
   it.each([
     ["POST", "/api/auth/login"],
     ["POST", "/api/auth/logout"],
@@ -14,7 +14,7 @@ describe("shouldSkipInvalidation", () => {
     ["POST", "/api/books/42/cover"],
     ["DELETE", "/api/books/42/cover"],
   ] as const)("%s %s — skip (whitelist)", (method, path) => {
-    expect(shouldSkipInvalidation(method, path)).toBe(true);
+    expect(shouldSkipScrollBump(method, path)).toBe(true);
   });
 
   it.each([
@@ -41,7 +41,7 @@ describe("shouldSkipInvalidation", () => {
     ["POST", "/api/books/create"],
     ["POST", "/api/uploads/abc-123/commit"],
     ["POST", "/api/uploads/abc-123"],
-  ] as const)("%s %s — инвалидировать", (method, path) => {
-    expect(shouldSkipInvalidation(method, path)).toBe(false);
+  ] as const)("%s %s — bump scroll-counter", (method, path) => {
+    expect(shouldSkipScrollBump(method, path)).toBe(false);
   });
 });

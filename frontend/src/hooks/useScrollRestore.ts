@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getCacheVersion } from "../utils/cache-invalidation";
+import { getScrollCounter } from "../utils/scroll-counter";
 
 const STACK_KEY = "librarium_scroll_state";
 
@@ -65,7 +65,7 @@ export function useScrollRestore(ready: boolean): void {
     const stack = readStack();
     let target: number;
     if (location.state === null) {
-      writeStack([{ url, scrollTop: 0, version: getCacheVersion() }]);
+      writeStack([{ url, scrollTop: 0, version: getScrollCounter() }]);
       target = 0;
     } else {
       const idx = stack.findIndex((e) => e.url === url);
@@ -76,7 +76,7 @@ export function useScrollRestore(ready: boolean): void {
         }
         target = stack[idx].scrollTop;
       } else {
-        writeStack([...stack, { url, scrollTop: 0, version: getCacheVersion() }]);
+        writeStack([...stack, { url, scrollTop: 0, version: getScrollCounter() }]);
         target = 0;
       }
     }
@@ -86,7 +86,7 @@ export function useScrollRestore(ready: boolean): void {
 
     const latest = readStack();
     const top = latest[latest.length - 1];
-    if (!top || top.version !== getCacheVersion()) {
+    if (!top || top.version !== getScrollCounter()) {
       hasRestored.current = true;
       return;
     }
@@ -112,7 +112,7 @@ export function useScrollRestore(ready: boolean): void {
       stack[stack.length - 1] = {
         ...stack[stack.length - 1],
         scrollTop: mainEl.scrollTop,
-        version: getCacheVersion(),
+        version: getScrollCounter(),
       };
       writeStack(stack);
     };

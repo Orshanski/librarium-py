@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "../client";
 import { ServerError } from "../errors";
-import { getCacheVersion } from "../../utils/cache-invalidation";
+import { getScrollCounter } from "../../utils/scroll-counter";
 
 function mockFetchOk(): void {
   vi.stubGlobal(
@@ -29,7 +29,7 @@ function mockFetchError(status: number): void {
   );
 }
 
-describe("client invalidation integration", () => {
+describe("client scroll-counter integration", () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.restoreAllMocks();
@@ -39,45 +39,45 @@ describe("client invalidation integration", () => {
     vi.unstubAllGlobals();
   });
 
-  it("PUT /api/books/42 инкрементит cacheVersion", async () => {
+  it("PUT /api/books/42 инкрементит scrollCounter", async () => {
     mockFetchOk();
     await client("PUT", "/api/books/42", { body: { title: "t" } });
-    expect(getCacheVersion()).toBe(1);
+    expect(getScrollCounter()).toBe(1);
   });
 
   it("PUT /api/auth/profile не инкрементит (whitelist)", async () => {
     mockFetchOk();
     await client("PUT", "/api/auth/profile", { body: { name: "x" } });
-    expect(getCacheVersion()).toBe(0);
+    expect(getScrollCounter()).toBe(0);
   });
 
   it("GET не инкрементит", async () => {
     mockFetchOk();
     await client("GET", "/api/books");
-    expect(getCacheVersion()).toBe(0);
+    expect(getScrollCounter()).toBe(0);
   });
 
   it("500-ответ не инкрементит (исключение бросается раньше)", async () => {
     mockFetchError(500);
     await expect(client("PUT", "/api/books/42", { body: {} })).rejects.toBeInstanceOf(ServerError);
-    expect(getCacheVersion()).toBe(0);
+    expect(getScrollCounter()).toBe(0);
   });
 
   it("POST /api/books/42/cover не инкрементит (whitelist)", async () => {
     mockFetchOk();
     await client("POST", "/api/books/42/cover", { body: new FormData() });
-    expect(getCacheVersion()).toBe(0);
+    expect(getScrollCounter()).toBe(0);
   });
 
   it("PUT /api/books/42/cover (commitCover) инкрементит (не в whitelist для PUT)", async () => {
     mockFetchOk();
     await client("PUT", "/api/books/42/cover");
-    expect(getCacheVersion()).toBe(1);
+    expect(getScrollCounter()).toBe(1);
   });
 
   it("DELETE /api/uploads/abc-123 не инкрементит", async () => {
     mockFetchOk();
     await client("DELETE", "/api/uploads/abc-123");
-    expect(getCacheVersion()).toBe(0);
+    expect(getScrollCounter()).toBe(0);
   });
 });
