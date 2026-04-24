@@ -12,6 +12,7 @@ import { getLastReadBook } from "./utils/offline-storage";
 import LoginPage from "./pages/LoginPage";
 import CatalogPage from "./pages/CatalogPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import SseTestPage from "./pages/SseTestPage"; // TEMP spike, удалить после bd ewg0 validation
 
 const BookPage = lazy(() => import("./pages/BookPage"));
 const BookEditPage = lazy(() => import("./pages/BookEditPage"));
@@ -88,6 +89,7 @@ export default function App() {
     <Suspense>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/sse-test" element={<SseTestPage />} /> {/* TEMP spike, bd ewg0 */}
         <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад" onBack={() => { clearReadingFlag(); globalThis.history.back(); }}><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
         <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
           <Route path="/" element={<CatalogPage />} />
