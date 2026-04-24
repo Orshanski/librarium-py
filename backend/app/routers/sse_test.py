@@ -16,27 +16,32 @@ router = APIRouter(prefix="/api", tags=["_sse_spike"])
 SERVER_STARTED_AT = datetime.now(timezone.utc).isoformat()
 
 _counter: int = 0
+# ts возникновения текущего значения counter — фиксируется при инкременте (или старте
+# процесса для n=0). НЕ обновляется на подписки клиентов, чтобы все получали одно и то же
+# "время когда событие реально произошло".
+_counter_ts: str = SERVER_STARTED_AT
 _subscribers: set[asyncio.Queue] = set()
 _bg_started: bool = False
 _bg_lock = asyncio.Lock()
 
 
-def _make_data_frame(n: int) -> str:
+def _make_data_frame(n: int, ts: str) -> str:
     payload = {
         "n": n,
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": ts,
         "server_started_at": SERVER_STARTED_AT,
     }
     return f"data: {json.dumps(payload)}\n\n"
 
 
 async def _tick_forever():
-    """Каждые 5 мин инкрементит counter и публикует data frame всем subscribers."""
-    global _counter
+    """Каждые 5 мин инкрементит counter + фиксирует ts возникновения и публикует всем subscribers."""
+    global _counter, _counter_ts
     while True:
         await asyncio.sleep(300.0)
         _counter += 1
-        frame = _make_data_frame(_counter)
+        _counter_ts = datetime.now(timezone.utc).isoformat()
+        frame = _make_data_frame(_counter, _counter_ts)
         for q in list(_subscribers):
             try:
                 q.put_nowait(frame)
@@ -78,9 +83,9 @@ async def sse_ping() -> StreamingResponse:
 
     async def event_stream():
         try:
-            # Initial snapshot — не зависит от background tick'а, даёт клиенту
-            # немедленный сигнал что connection живой + текущий state.
-            yield _make_data_frame(_counter)
+            # Initial snapshot с сохранённым _counter_ts (время возникновения текущего n,
+            # НЕ время подписки) — все клиенты видят одинаковый ts для одного event'а.
+            yield _make_data_frame(_counter, _counter_ts)
             while True:
                 frame = await queue.get()
                 yield frame

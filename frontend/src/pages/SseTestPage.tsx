@@ -60,53 +60,60 @@ export default function SseTestPage() {
   }, []);
 
   return (
-    <div style={{ padding: 20, fontFamily: "monospace", fontSize: 13 }}>
-      <h2>SSE Test (temp spike, bd ewg0)</h2>
-      <div style={{ marginBottom: 10, color: "#888" }}>
-        Broker-паттерн: глобальный counter тикает +1 каждые 5 мин (background task на сервере),
-        keepalive ':ping' каждые 25 сек. Counter не сбрасывается при reload страницы — только при
-        рестарте процесса (тогда server_started_at меняется и засчитывается Server restart).
+    <div style={{ padding: 12, fontFamily: "monospace", fontSize: 13, height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <h2 style={{ margin: "0 0 8px 0" }}>SSE Test (temp spike, bd ewg0)</h2>
+      <div style={{ flexShrink: 0 }}>
+        <div>Page loaded at: {fmt(pageLoadedAt)}</div>
+        <div>
+          Server started at:{" "}
+          <b style={{ color: serverStartedAt ? "green" : "gray" }}>
+            {serverStartedAt ? fmt(serverStartedAt) : "..."}
+          </b>
+        </div>
+        <div>State: <b style={{ color: stateColor(state) }}>{state}</b></div>
+        <div>Reconnects (transport): {reconnects}</div>
+        <div style={{ color: serverRestarts > 0 ? "orange" : "inherit" }}>
+          Server restarts (detected): {serverRestarts}
+        </div>
+        <div>Events received: {events.length}</div>
+        <div>Latest n on server: {events[0]?.n ?? "-"}</div>
       </div>
-      <div>Page loaded at: {pageLoadedAt}</div>
-      <div>
-        Server started at:{" "}
-        <b style={{ color: serverStartedAt ? "green" : "gray" }}>
-          {serverStartedAt ?? "..."}
-        </b>
-      </div>
-      <div>State: <b style={{ color: stateColor(state) }}>{state}</b></div>
-      <div>Reconnects (transport): {reconnects}</div>
-      <div style={{ color: serverRestarts > 0 ? "orange" : "inherit" }}>
-        Server restarts (detected): {serverRestarts}
-      </div>
-      <div>Events received: {events.length}</div>
-      <div>Latest n on server: {events[0]?.n ?? "-"}</div>
-
-      <table style={{ marginTop: 16, borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left" }}>
-            <th style={th}>n</th>
-            <th style={th}>server ts</th>
-            <th style={th}>received</th>
-            <th style={th}>gap (s)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((ev) => (
-            <tr
-              key={ev.receivedAt}
-              style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}
-            >
-              <td style={td}>{ev.n}</td>
-              <td style={td}>{ev.ts}</td>
-              <td style={td}>{ev.receivedAt}</td>
-              <td style={td}>{ev.gapSec.toFixed(2)}</td>
+      <div style={{ marginTop: 12, flex: 1, overflow: "auto", border: "1px solid #333" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead style={{ position: "sticky", top: 0, background: "#1e1e2e" }}>
+            <tr style={{ textAlign: "left" }}>
+              <th style={th}>n</th>
+              <th style={th}>server ts</th>
+              <th style={th}>received</th>
+              <th style={th}>gap (s)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {events.map((ev) => (
+              <tr
+                key={ev.receivedAt}
+                style={{ color: ev.gapSec > 330 ? "red" : "inherit" }}
+              >
+                <td style={td}>{ev.n}</td>
+                <td style={td}>{fmt(ev.ts)}</td>
+                <td style={td}>{fmt(ev.receivedAt)}</td>
+                <td style={td}>{ev.gapSec.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
+}
+
+function fmt(iso: string): string {
+  // HH:MM:SS из ISO (UTC). Без микросекунд, без timezone.
+  const d = new Date(iso);
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
 function stateColor(s: ConnState): string {
