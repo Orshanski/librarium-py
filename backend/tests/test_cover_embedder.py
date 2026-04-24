@@ -300,7 +300,7 @@ class TestEmbedCover:
 
 
 class TestCoverCommitIntegration:
-    """Task 7: Integration — PUT /api/books/{id}/cover embeds into book files."""
+    """Integration: PUT /api/books/{id} с commitCover=True встраивает обложку в файлы книги."""
 
     def test_commit_cover_embeds_into_fb2(self, admin_client):
         from app.config import LIBRARY_DIR

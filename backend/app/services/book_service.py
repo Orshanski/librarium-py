@@ -125,7 +125,8 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
             continue
         resolved_deletes.append((fmt_code, row))
 
-    # Шаг 2: apply deleteFormats (FS-first, по pattern текущего delete_file).
+    # Шаг 2: apply deleteFormats. FS-first: если FS падает, DAL не тронута
+    # (spec §5 — db_session коммитит на выходе handler'а, явный rollback не работает).
     for fmt_code, row in resolved_deletes:
         file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
         if os.path.isfile(file_path):

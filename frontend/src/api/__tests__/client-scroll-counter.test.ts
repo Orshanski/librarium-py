@@ -69,12 +69,6 @@ describe("client scroll-counter integration", () => {
     expect(getScrollCounter()).toBe(0);
   });
 
-  it("PUT /api/books/42/cover (commitCover) инкрементит (не в whitelist для PUT)", async () => {
-    mockFetchOk();
-    await client("PUT", "/api/books/42/cover");
-    expect(getScrollCounter()).toBe(1);
-  });
-
   it("DELETE /api/uploads/abc-123 не инкрементит", async () => {
     mockFetchOk();
     await client("DELETE", "/api/uploads/abc-123");

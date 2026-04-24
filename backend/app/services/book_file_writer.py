@@ -1,12 +1,13 @@
 """Helpers для записи формата книги в library-каталог.
 
 Используется тремя call sites:
-- book_service.upload_file (content из памяти)
+- book_service.update_book шаг 3 (file via shutil.copyfile из UPLOADS_DIR)
 - upload_service.add_format (файл из temp)
 - upload_service.create_book (новая книга из temp + опционально cover)
 
 Функции оставлены узкими: guards + path build, либо linearize + DAL. Rollback
-FS-операций — ответственность caller'а (через fs_utils context managers).
+FS-операций — ответственность caller'а (через fs_utils context managers или
+ручной copied_dsts-cleanup в book_service.update_book).
 """
 import os
 import sqlite3
