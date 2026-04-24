@@ -98,3 +98,26 @@ def test_update_book_delete_nonexistent_format_idempotent(admin_client, caplog):
     finally:
         db.close()
     assert desc == "updated via idempotent test"
+
+
+def test_update_book_commit_cover_happy(admin_client):
+    """commitCover: true применяет pending cover, temp-cover удалён."""
+    test_data = os.environ["DATA_DIR"]
+
+    with open(FIXTURES / "../test_cover.png", "rb") as f:
+        upload = admin_client.post(
+            "/api/books/2/cover",
+            files={"file": ("new.png", f, "image/png")},
+        )
+    assert_ok(upload)
+
+    resp = admin_client.put("/api/books/2", json={"commitCover": True})
+    assert_ok(resp)
+
+    get_resp = admin_client.get("/api/covers/2", params={"full": 1})
+    assert get_resp.status_code == 200
+
+    import glob
+    uploads_dir = os.path.join(test_data, "uploads")
+    temp_covers = glob.glob(os.path.join(uploads_dir, "2-cover.*"))
+    assert temp_covers == [], f"Temp cover должен быть удалён: {temp_covers}"

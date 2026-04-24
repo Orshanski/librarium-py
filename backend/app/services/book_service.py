@@ -180,7 +180,15 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
                 os.remove(d)
         raise
 
-    # Шаг 4 (commit cover) — добавляется в Task 6.
+    # Шаг 4: apply commitCover.
+    if body.commitCover:
+        if not cover_service._commit(db, book_id):
+            # Pending-cover был в шаге 1e, но исчез между check и commit (race с
+            # `cleanup_old_uploads` — grace 3600 s, практически невозможно).
+            log.warning(
+                "commitCover: pending cover vanished between check and commit, book=%d",
+                book_id,
+            )
 
     # Шаг 5: apply metadata (всегда — updated_at bump при file-only тоже).
     if "authorIds" in data:
