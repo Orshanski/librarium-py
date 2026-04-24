@@ -371,3 +371,26 @@ def test_update_book_cover_commit_rollback(admin_client):
     with open(os.path.join(book_dir, old_cover), "rb") as f:
         assert f.read() == old_content
     assert not os.path.exists(os.path.join(book_dir, "cover.jpg.bak"))
+
+
+# ---------------------------------------------------------------------------
+# Task 10: Legacy endpoint removal tests (TDD — fail before Task 11)
+# ---------------------------------------------------------------------------
+
+
+def test_old_files_endpoints_removed(admin_client):
+    """POST/DELETE /api/books/:id/files → 404/405."""
+    resp = admin_client.post(
+        "/api/books/1/files",
+        files={"file": ("x.epub", b"\x00", "application/octet-stream")},
+    )
+    assert resp.status_code in (404, 405)
+
+    resp = admin_client.delete("/api/books/1/files", params={"format": "FB2"})
+    assert resp.status_code in (404, 405)
+
+
+def test_old_cover_commit_endpoint_removed(admin_client):
+    """PUT /api/books/:id/cover → 404/405."""
+    resp = admin_client.put("/api/books/1/cover")
+    assert resp.status_code in (404, 405)
