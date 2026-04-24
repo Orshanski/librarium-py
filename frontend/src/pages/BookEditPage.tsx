@@ -120,22 +120,16 @@ export default function BookEditPage() {
       seriesNumber: data.seriesNumber ? parseFloat(data.seriesNumber) : null,
       authorIds,
       tagIds,
-      addFormats: [],
-      deleteFormats: [],
-      commitCover: false,
+      addFormats: data.addFormats,
+      deleteFormats: data.deleteFormats,
+      commitCover: data.commitCover,
     };
 
-    try {
-      await updateBook(Number(id), body);
-      navigate(`/book/${id}`, {
-        replace: true,
-        state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },
-      });
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      console.warn("Failed to save book:", err);
-      alert("Не удалось сохранить изменения");
-    }
+    await updateBook(Number(id), body);
+    navigate(`/book/${id}`, {
+      replace: true,
+      state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },
+    });
   }
 
   return (
