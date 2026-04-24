@@ -7,7 +7,7 @@ import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { toBook } from "../types";
 import { useScrollRestore } from "../hooks/useScrollRestore";
-import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { searchAll, type SearchResponse } from "../api/endpoints/search";
 
 function SearchResults() {
@@ -65,7 +65,7 @@ function SearchResults() {
 
   const { books = [], authors = [], series = [] } = results || {};
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds(bookIds);
 
   if (!q.trim()) {
     return <div style={{ fontSize: 14, color: colors.textDim, padding: 24 }}>Введите запрос в поле поиска</div>;
@@ -167,7 +167,7 @@ function SearchResults() {
               <BookCard
                 key={b.id}
                 book={toBook(b)}
-                isCached={cachedBookIds.has(b.id)}
+                hasOffline={offlineBookIds.has(b.id)}
                 linkState={searchLinkState}
               />
             ))}

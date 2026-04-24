@@ -11,7 +11,7 @@ import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
 import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
-import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { NotFoundError } from "@/api/errors";
@@ -66,7 +66,7 @@ export default function SeriesPage() {
   }, [id]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds(bookIds);
 
   if (notFoundState) {
     return (
@@ -141,7 +141,7 @@ export default function SeriesPage() {
           <BookCard
             key={b.id}
             book={toBook(b)}
-            isCached={cachedBookIds.has(b.id)}
+            hasOffline={offlineBookIds.has(b.id)}
             linkState={{
               origin: {
                 type: "series",

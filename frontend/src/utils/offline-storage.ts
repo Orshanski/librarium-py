@@ -1,9 +1,9 @@
-import { openDB, type IDBPDatabase } from "idb";
+import { openDB, type IDBPDatabase, type IDBPTransaction, type DBSchema } from "idb";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
-interface CachedBookFormat {
+interface OfflineBookFormat {
   format: string;
   fileBlob: Blob;
   fileSize: number;
@@ -24,18 +24,18 @@ interface StoredBook {
   coverBuffer: ArrayBuffer;
   coverType: string;
   formats: StoredBookFormat[];
-  cachedAt: number;
+  savedAt: number;
   lastAccessedAt: number;
   manuallyAdded: boolean;
 }
 
-export interface CachedBook {
+export interface OfflineBook {
   bookId: number;
   title: string;
   authors: string[];
   coverBlob: Blob;
-  formats: CachedBookFormat[];
-  cachedAt: number;
+  formats: OfflineBookFormat[];
+  savedAt: number;
   lastAccessedAt: number;
   manuallyAdded: boolean;
 }
@@ -57,8 +57,15 @@ export interface LocalSettings {
   synced: boolean;
 }
 
-interface LibrariumDBSchema {
+// Legacy schema for upgrade path (v3 → v4 rename). Used via cast inside upgrade().
+interface LibrariumDBSchemaV3 extends DBSchema {
   cached_books: { key: number; value: StoredBook };
+  reading_progress: { key: number; value: LocalProgress };
+  reader_settings: { key: string; value: LocalSettings };
+}
+
+interface LibrariumDBSchema extends DBSchema {
+  offline_books: { key: number; value: StoredBook };
   reading_progress: { key: number; value: LocalProgress };
   reader_settings: { key: string; value: LocalSettings };
 }
@@ -71,25 +78,44 @@ export function initDB(): Promise<LibrariumDB> {
   if (!dbPromise) {
     dbPromise = openDB<LibrariumDBSchema>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, _newVersion, transaction) {
-        if (!db.objectStoreNames.contains("cached_books")) {
-          db.createObjectStore("cached_books", { keyPath: "bookId" });
+        // Cast для доступа к legacy-store "cached_books" при миграции v3→v4.
+        // Документированный паттерн idb: https://github.com/jakearchibald/idb#typescript
+        type V3StoreNames = ("cached_books" | "reading_progress" | "reader_settings")[];
+        const v3Db = db as unknown as IDBPDatabase<LibrariumDBSchemaV3>;
+        const v3Tx = transaction as unknown as IDBPTransaction<LibrariumDBSchemaV3, V3StoreNames, "versionchange">;
+
+        // Fresh install (oldVersion === 0): создаём сразу под новым именем.
+        if (oldVersion === 0) {
+          db.createObjectStore("offline_books", { keyPath: "bookId" });
+          db.createObjectStore("reading_progress", { keyPath: "bookId" });
+          db.createObjectStore("reader_settings", { keyPath: "deviceType" });
+          return;
         }
-        if (!db.objectStoreNames.contains("reading_progress")) {
+
+        // Upgrade от существующей установки. Legacy-store называется "cached_books" до v4.
+        if (!v3Db.objectStoreNames.contains("reading_progress")) {
           db.createObjectStore("reading_progress", { keyPath: "bookId" });
         }
-        if (!db.objectStoreNames.contains("reader_settings")) {
+        if (!v3Db.objectStoreNames.contains("reader_settings")) {
           db.createObjectStore("reader_settings", { keyPath: "deviceType" });
         }
-        // v1→v2: Blob→ArrayBuffer — clear old incompatible cached books
-        if (oldVersion < 2) {
-          transaction.objectStore("cached_books").clear();
+
+        // v1→v2: Blob→ArrayBuffer — сбрасываем несовместимые offline-книги.
+        if (oldVersion < 2 && v3Db.objectStoreNames.contains("cached_books")) {
+          v3Tx.objectStore("cached_books").clear();
         }
-        // v2→v3: reading_progress gained serverVersion. No users with real
-        // data yet — just wipe the store. On next book open, local progress
-        // is re-populated from the server via adopt (server rows are
-        // backfilled to version=1 by migrations/003_reading_progress_version.sql).
-        if (oldVersion < 3) {
+
+        // v2→v3: локальные записи reading_progress без поля serverVersion
+        // несовместимы с CAS-sync в схеме v3+ — сбрасываем.
+        if (oldVersion < 3 && v3Db.objectStoreNames.contains("reading_progress")) {
           transaction.objectStore("reading_progress").clear();
+        }
+
+        // v3→v4: native rename cached_books → offline_books через setter
+        // IDBObjectStore.name внутри versionchange-транзакции (стандартный
+        // IndexedDB API). Данные сохраняются атомарно, копирование не требуется.
+        if (oldVersion < 4 && v3Db.objectStoreNames.contains("cached_books")) {
+          v3Tx.objectStore("cached_books").name = "offline_books";
         }
       },
     });
@@ -101,9 +127,9 @@ export function initDB(): Promise<LibrariumDB> {
 export async function _resetDB(): Promise<void> {
   if (dbPromise) {
     const db = await dbPromise;
-    const tx = db.transaction(["cached_books", "reading_progress", "reader_settings"], "readwrite");
+    const tx = db.transaction(["offline_books", "reading_progress", "reader_settings"], "readwrite");
     await Promise.all([
-      tx.objectStore("cached_books").clear(),
+      tx.objectStore("offline_books").clear(),
       tx.objectStore("reading_progress").clear(),
       tx.objectStore("reader_settings").clear(),
       tx.done,
@@ -112,9 +138,9 @@ export async function _resetDB(): Promise<void> {
   dbPromise = null;
 }
 
-// ── Book cache ──
+// ── Offline book storage ──
 
-export async function cacheBook(
+export async function saveOfflineBook(
   meta: { bookId: number; title: string; authors: string[]; manuallyAdded?: boolean },
   files: { format: string; fileBlob: Blob; fileSize: number }[],
   cover: Blob,
@@ -126,7 +152,7 @@ export async function cacheBook(
     cover.arrayBuffer(),
     ...files.map((f) => f.fileBlob.arrayBuffer()),
   ]);
-  await db.put("cached_books", {
+  await db.put("offline_books", {
     bookId: meta.bookId,
     title: meta.title,
     authors: meta.authors,
@@ -138,13 +164,13 @@ export async function cacheBook(
       fileType: f.fileBlob.type || "application/octet-stream",
       fileSize: f.fileSize,
     })),
-    cachedAt: now,
+    savedAt: now,
     lastAccessedAt: now,
     manuallyAdded: meta.manuallyAdded ?? false,
   });
 }
 
-function storedToCachedBook(stored: StoredBook): CachedBook {
+function storedToOfflineBook(stored: StoredBook): OfflineBook {
   return {
     bookId: stored.bookId,
     title: stored.title,
@@ -155,57 +181,57 @@ function storedToCachedBook(stored: StoredBook): CachedBook {
       fileBlob: new Blob([f.fileBuffer], { type: f.fileType }),
       fileSize: f.fileSize,
     })),
-    cachedAt: stored.cachedAt,
+    savedAt: stored.savedAt,
     lastAccessedAt: stored.lastAccessedAt,
     manuallyAdded: stored.manuallyAdded,
   };
 }
 
-export async function getCachedBook(bookId: number): Promise<CachedBook | null> {
+export async function getOfflineBook(bookId: number): Promise<OfflineBook | null> {
   const db = await initDB();
-  const stored = await db.get("cached_books", bookId);
+  const stored = await db.get("offline_books", bookId);
   if (!stored) return null;
-  return storedToCachedBook(stored);
+  return storedToOfflineBook(stored);
 }
 
-export async function getCachedBooks(): Promise<CachedBook[]> {
+export async function getOfflineBooks(): Promise<OfflineBook[]> {
   const db = await initDB();
-  const all = await db.getAll("cached_books");
-  return all.map(storedToCachedBook);
+  const all = await db.getAll("offline_books");
+  return all.map(storedToOfflineBook);
 }
 
-export async function isCached(bookId: number): Promise<boolean> {
+export async function hasOfflineBook(bookId: number): Promise<boolean> {
   const db = await initDB();
-  const key = await db.getKey("cached_books", bookId);
+  const key = await db.getKey("offline_books", bookId);
   return key !== undefined;
 }
 
-export async function removeCachedBook(bookId: number): Promise<void> {
+export async function removeOfflineBook(bookId: number): Promise<void> {
   const db = await initDB();
-  await db.delete("cached_books", bookId);
+  await db.delete("offline_books", bookId);
 }
 
 /**
- * Remove all local traces of a book — cached blob + reading progress.
+ * Remove all local traces of a book — offline blob + reading progress.
  * Used when the book is deleted on the server to keep client state consistent.
  * Idempotent: no-op if stores don't contain the book.
  */
 export async function removeBookFromLocalStorage(bookId: number): Promise<void> {
   const db = await initDB();
-  const tx = db.transaction(["cached_books", "reading_progress"], "readwrite");
+  const tx = db.transaction(["offline_books", "reading_progress"], "readwrite");
   await Promise.all([
-    tx.objectStore("cached_books").delete(bookId),
+    tx.objectStore("offline_books").delete(bookId),
     tx.objectStore("reading_progress").delete(bookId),
     tx.done,
   ]);
 }
 
-export async function touchBook(bookId: number): Promise<void> {
+export async function touchOfflineBook(bookId: number): Promise<void> {
   const db = await initDB();
-  const book = await db.get("cached_books", bookId);
+  const book = await db.get("offline_books", bookId);
   if (book) {
     book.lastAccessedAt = Date.now();
-    await db.put("cached_books", book);
+    await db.put("offline_books", book);
   }
 }
 
@@ -343,12 +369,12 @@ const TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 export async function evictExpired(ttlMs: number = TTL_MS): Promise<number> {
   const db = await initDB();
-  const all = await db.getAll("cached_books");
+  const all = await db.getAll("offline_books");
   const cutoff = Date.now() - ttlMs;
   let count = 0;
   for (const book of all) {
     if (book.lastAccessedAt < cutoff) {
-      await db.delete("cached_books", book.bookId);
+      await db.delete("offline_books", book.bookId);
       count++;
     }
   }
@@ -357,7 +383,7 @@ export async function evictExpired(ttlMs: number = TTL_MS): Promise<number> {
 
 export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
   const db = await initDB();
-  const all = await db.getAll("cached_books");
+  const all = await db.getAll("offline_books");
   if (all.length === 0) return [];
   // Only evict non-manually-added books, sorted by LRU
   const candidates = all.filter((b) => !b.manuallyAdded);
@@ -367,7 +393,7 @@ export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
   for (const book of candidates) {
     if (targetBytes > 0 && freed >= targetBytes) break;
     const bookSize = book.formats.reduce((sum: number, f: StoredBookFormat) => sum + f.fileSize, 0) + book.coverBuffer.byteLength;
-    await db.delete("cached_books", book.bookId);
+    await db.delete("offline_books", book.bookId);
     freed += bookSize;
     evicted.push(book.bookId);
     if (targetBytes === 0) break; // evict at least one if no target
@@ -379,7 +405,7 @@ export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
 
 export async function getStorageUsage(): Promise<{ bookCount: number; totalBytes: number }> {
   const db = await initDB();
-  const all = await db.getAll("cached_books");
+  const all = await db.getAll("offline_books");
   let totalBytes = 0;
   for (const book of all) {
     for (const f of book.formats) {

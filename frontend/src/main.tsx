@@ -48,7 +48,7 @@ async function syncUnsyncedSettings() {
   }
 }
 
-// Evict expired cached books on startup (14-day TTL)
+// Evict expired offline books on startup (14-day TTL)
 evictExpired().catch((err) => console.warn("Failed to evict expired books:", err));
 
 // Sync unsynced reading progress and settings when coming back online

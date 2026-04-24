@@ -3,7 +3,7 @@ import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
 import CloudBadge from "../cloud-badge";
 
-export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, isCached, linkState }: Readonly<BookCardProps>) {
+export default function DesktopBookCard({ book, onRemove, href, onClick, progressPercent, hasOffline, linkState }: Readonly<BookCardProps>) {
   return (
     <Link
       to={href ?? `/book/${book.id}`}
@@ -65,7 +65,7 @@ export default function DesktopBookCard({ book, onRemove, href, onClick, progres
               {"★".repeat(book.rating)}
             </div>
           )}
-          {isCached && (
+          {hasOffline && (
             <div style={{
               position: "absolute",
               bottom: progressPercent != null ? 7 : 6,
@@ -78,7 +78,7 @@ export default function DesktopBookCard({ book, onRemove, href, onClick, progres
               alignItems: "center",
               justifyContent: "center",
             }}>
-              <CloudBadge cached size={16} />
+              <CloudBadge hasOffline size={16} />
             </div>
           )}
         </div>

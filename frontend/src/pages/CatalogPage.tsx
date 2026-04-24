@@ -7,7 +7,7 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { toBook, RawBook } from "../types";
-import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { getScrollCounter } from "../utils/scroll-counter";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
@@ -234,7 +234,7 @@ export default function CatalogPage() {
   }
 
   const bookIds = useMemo(() => books.map((b: RawBook) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds(bookIds);
 
   return (
     <>
@@ -259,7 +259,7 @@ export default function CatalogPage() {
           <BookCard
             key={b.id}
             book={toBook(b)}
-            isCached={cachedBookIds.has(b.id)}
+            hasOffline={offlineBookIds.has(b.id)}
             linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
           />
         ))}

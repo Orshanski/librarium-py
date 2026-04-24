@@ -1,23 +1,23 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { colors, fonts } from "../theme";
-import { getCachedBooks, getProgress, type CachedBook } from "../utils/offline-storage";
+import { getOfflineBooks, getProgress, type OfflineBook } from "../utils/offline-storage";
 import { setReadingFlag } from "../utils/readerFlag";
 import { useIsMobile } from "../responsive";
 
 export default function OfflineShell() {
-  const [books, setBooks] = useState<CachedBook[]>([]);
+  const [books, setBooks] = useState<OfflineBook[]>([]);
   const [progressMap, setProgressMap] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    getCachedBooks()
+    getOfflineBooks()
       .then(async (b) => {
         b.sort((a, c) => c.lastAccessedAt - a.lastAccessedAt);
         setBooks(b);
 
-        // Load reading progress for each cached book
+        // Load reading progress for each offline book
         const map = new Map<number, number>();
         for (const book of b) {
           const p = await getProgress(book.bookId).catch(() => null);
@@ -108,7 +108,7 @@ export default function OfflineShell() {
   );
 }
 
-function OfflineBookCard({ book, isMobile, progressPercent }: Readonly<{ book: CachedBook; isMobile: boolean; progressPercent?: number }>) {
+function OfflineBookCard({ book, isMobile, progressPercent }: Readonly<{ book: OfflineBook; isMobile: boolean; progressPercent?: number }>) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {

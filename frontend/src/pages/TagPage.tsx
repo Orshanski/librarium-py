@@ -10,7 +10,7 @@ import { selectedToApiParams } from "../api/filter-params";
 import type { Book } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
-import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
@@ -89,7 +89,7 @@ export default function TagPage() {
   }
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds(bookIds);
 
   const bookLinkState = useMemo(
     () =>
@@ -176,7 +176,7 @@ export default function TagPage() {
           <BookCard
             key={book.id}
             book={book}
-            isCached={cachedBookIds.has(book.id)}
+            hasOffline={offlineBookIds.has(book.id)}
             linkState={bookLinkState}
           />
         ))}

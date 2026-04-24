@@ -7,6 +7,6 @@ export interface BookCardProps {
   href?: string;
   onClick?: () => void;
   progressPercent?: number;
-  isCached?: boolean;
+  hasOffline?: boolean;
   linkState?: { origin: BookOrigin };
 }

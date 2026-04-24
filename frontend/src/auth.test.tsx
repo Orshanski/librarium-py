@@ -33,8 +33,8 @@ describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
   // localStorage is stubbed globally per-test in src/test/setup.ts with a
   // fresh in-memory fake, so no local beforeEach is needed.
 
-  it("stale schema in localStorage → cached value ignored, falls back to anon when offline", async () => {
-    // Write a legacy entry without schemaVersion (simulates old cached format)
+  it("stale schema in localStorage → stored value ignored, falls back to anon when offline", async () => {
+    // Write a legacy entry without schemaVersion (simulates old stored format)
     localStorage.setItem(
       AUTH_KEY,
       JSON.stringify({ id: 99, username: "stale_user", displayName: "Stale", email: null, role: "reader" }),
@@ -62,13 +62,13 @@ describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
     Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
   });
 
-  it("valid schema in localStorage → cached user restored when offline", async () => {
+  it("valid schema in localStorage → stored user restored when offline", async () => {
     // Write a valid versioned entry
     localStorage.setItem(
       AUTH_KEY,
       JSON.stringify({
         schemaVersion: 1,
-        user: { id: 5, username: "cached_user", displayName: "Cached", email: null, role: "reader" },
+        user: { id: 5, username: "stored_user", displayName: "Stored", email: null, role: "reader" },
       }),
     );
 
@@ -90,7 +90,7 @@ describe("auth provider — localStorage schema invalidation (jrx.17)", () => {
     await waitFor(() =>
       expect(screen.getByTestId("user")).not.toHaveTextContent("loading"),
     );
-    expect(screen.getByTestId("user")).toHaveTextContent("Cached");
+    expect(screen.getByTestId("user")).toHaveTextContent("Stored");
 
     Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
   });

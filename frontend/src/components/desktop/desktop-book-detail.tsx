@@ -38,10 +38,10 @@ export default function DesktopBookDetail({
   onToggleShelfMenu,
   onToggleShelfBook,
   onShowDeleteConfirm,
-  isCached,
-  cacheLoading,
-  onToggleCache,
-  showCacheToggle,
+  hasOffline,
+  offlineLoading,
+  onToggleOffline,
+  showOfflineToggle,
 }: BookDetailViewProps) {
   const bookContext = {
     origin: {
@@ -233,12 +233,12 @@ export default function DesktopBookDetail({
             >
               {isRead ? "✓ Прочитано" : "Не прочитано"}
             </button>
-            {showCacheToggle && (
+            {showOfflineToggle && (
               <CloudBadge
-                cached={isCached}
+                hasOffline={hasOffline}
                 size={20}
-                onClick={cacheLoading ? undefined : onToggleCache}
-                style={cacheLoading ? { opacity: 0.3 } : undefined}
+                onClick={offlineLoading ? undefined : onToggleOffline}
+                style={offlineLoading ? { opacity: 0.3 } : undefined}
               />
             )}
           </div>

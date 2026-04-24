@@ -26,7 +26,7 @@ export interface BookLoaderOptions {
 export interface BlobResult {
   blob: File;
   title: string;
-  fromCache: boolean;
+  fromOffline: boolean;
 }
 
 /**
@@ -50,7 +50,7 @@ export type PostLoadHook = (ctx: {
   format: string;
   blob: File;
   bookData: BookDetailResponse | null;
-  fromCache: boolean;
+  fromOffline: boolean;
 }) => void;
 
 export function useBookLoaderBase(
@@ -97,7 +97,7 @@ export function useBookLoaderBase(
         onLocalDataLoadedRef.current(localProgress, localSettings);
 
         // 2. Acquire blob via strategy
-        const { blob, title: blobTitle, fromCache } = await blobStrategyRef.current({
+        const { blob, title: blobTitle, fromOffline } = await blobStrategyRef.current({
           bookId, id, format,
           download: async () => {
             const { downloadBook } = await import("../utils/book-download");
@@ -114,9 +114,9 @@ export function useBookLoaderBase(
           try {
             const data = await getBook(Number(id));
             bookData = data;
-            if (!fromCache) title = bookData.book?.title || "";
+            if (!fromOffline) title = bookData.book?.title || "";
           } catch (err: unknown) {
-            if (!fromCache) {
+            if (!fromOffline) {
               throw new Error(
                 err instanceof Error ? err.message : "Failed to fetch book data",
               );
@@ -140,7 +140,7 @@ export function useBookLoaderBase(
             console.warn("Failed to clear is_read:", err),
           );
         }
-        postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromCache });
+        postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromOffline });
       } catch (err: unknown) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Ошибка загрузки");

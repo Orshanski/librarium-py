@@ -9,7 +9,7 @@ import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
 import type { Book } from "../types";
-import { useCachedBookIds } from "../hooks/useCachedBookIds";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
@@ -49,7 +49,7 @@ export default function ShelfPage() {
   }, [shelfId, sort]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const cachedBookIds = useCachedBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds(bookIds);
 
   async function handleDelete() {
     try {
@@ -125,7 +125,7 @@ export default function ShelfPage() {
               href={readerHref}
               onClick={readerHref ? setReadingFlag : undefined}
               progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
-              isCached={cachedBookIds.has(b.id)}
+              hasOffline={offlineBookIds.has(b.id)}
               linkState={linkState}
               onRemove={!shelf.isSystem ? async () => {
                 try {

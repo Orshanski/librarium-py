@@ -39,10 +39,10 @@ export default function MobileBookDetail({
   onToggleShelfMenu,
   onToggleShelfBook,
   onShowDeleteConfirm,
-  isCached,
-  cacheLoading,
-  onToggleCache,
-  showCacheToggle,
+  hasOffline,
+  offlineLoading,
+  onToggleOffline,
+  showOfflineToggle,
 }: BookDetailViewProps) {
   const otherSeriesBooks = seriesBooks.filter((item) => item.id !== book.id);
   const bookContext = {
@@ -258,12 +258,12 @@ export default function MobileBookDetail({
         >
           {isRead ? "✓ Прочитано" : "Не прочитано"}
         </button>
-        {showCacheToggle && (
+        {showOfflineToggle && (
           <CloudBadge
-            cached={isCached}
+            hasOffline={hasOffline}
             size={18}
-            onClick={cacheLoading ? undefined : onToggleCache}
-            style={cacheLoading ? { opacity: 0.3 } : undefined}
+            onClick={offlineLoading ? undefined : onToggleOffline}
+            style={offlineLoading ? { opacity: 0.3 } : undefined}
           />
         )}
       </div>

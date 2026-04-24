@@ -6,7 +6,7 @@ import type { User } from "./api/types";
 const LOCALSTORAGE_AUTH_KEY = "librarium_user";
 const LOCALSTORAGE_AUTH_SCHEMA_VERSION = 1;
 
-interface CachedAuth {
+interface StoredAuth {
   schemaVersion: number;
   user: User;
 }
@@ -34,7 +34,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       .then((data) => {
         setUser(data);
         try {
-          const entry: CachedAuth = { schemaVersion: LOCALSTORAGE_AUTH_SCHEMA_VERSION, user: data };
+          const entry: StoredAuth = { schemaVersion: LOCALSTORAGE_AUTH_SCHEMA_VERSION, user: data };
           localStorage.setItem(LOCALSTORAGE_AUTH_KEY, JSON.stringify(entry));
         } catch {}
       })
@@ -43,9 +43,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
           try {
             const raw = localStorage.getItem(LOCALSTORAGE_AUTH_KEY);
             if (raw) {
-              const cached: CachedAuth = JSON.parse(raw);
-              if (cached.schemaVersion === LOCALSTORAGE_AUTH_SCHEMA_VERSION && cached.user) {
-                setUser(cached.user);
+              const stored: StoredAuth = JSON.parse(raw);
+              if (stored.schemaVersion === LOCALSTORAGE_AUTH_SCHEMA_VERSION && stored.user) {
+                setUser(stored.user);
                 return;
               }
             }

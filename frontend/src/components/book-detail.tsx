@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
-import { useCacheStatus } from "../hooks/useCacheStatus";
+import { useOfflineBookStatus } from "../hooks/useOfflineBookStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
@@ -40,10 +40,10 @@ export default function BookDetail({
   const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
   const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
   const shelfRef = useRef<HTMLDivElement>(null);
-  const { cached: isCached, loading: cacheLoading, toggleCache, evict: evictFromCache, isPwa } = useCacheStatus(book.id);
+  const { hasOffline, loading: offlineLoading, toggleOffline, evict: evictOffline, isPwa } = useOfflineBookStatus(book.id);
 
-  const handleToggleCache = useCallback(() => {
-    toggleCache(
+  const handleToggleOffline = useCallback(() => {
+    toggleOffline(
       { title: book.title, authors: book.authors, manuallyAdded: true },
       async () => {
         const data = await getBook(book.id);
@@ -59,7 +59,7 @@ export default function BookDetail({
         return getCover(book.id, true);
       },
     );
-  }, [book.id, book.title, book.authors, toggleCache]);
+  }, [book.id, book.title, book.authors, toggleOffline]);
 
   useEffect(() => {
     if (!showShelfMenu) return;
@@ -88,7 +88,7 @@ export default function BookDetail({
     setIsRead(next);
     try {
       await apiSetRead(book.id, next);
-      if (next) evictFromCache().catch((err) => console.warn("Failed to remove cached book:", err));
+      if (next) evictOffline().catch((err) => console.warn("Failed to remove offline book:", err));
     } catch {
       setIsRead(previous);
     }
@@ -148,10 +148,10 @@ export default function BookDetail({
     onToggleShelfMenu: toggleShelfMenu,
     onToggleShelfBook: toggleShelfBook,
     onShowDeleteConfirm: () => setShowDeleteConfirm(true),
-    isCached,
-    cacheLoading,
-    onToggleCache: handleToggleCache,
-    showCacheToggle: isPwa,
+    hasOffline,
+    offlineLoading,
+    onToggleOffline: handleToggleOffline,
+    showOfflineToggle: isPwa,
   };
 
   return (
@@ -165,13 +165,13 @@ export default function BookDetail({
           onConfirm={async () => {
             try {
               await deleteBook(book.id);
-              // Server side удалил книгу — снесём локальные следы (IDB cache + progress),
-              // иначе в offline-mode и через getCachedBooks() она остаётся видна.
+              // Server side удалил книгу — снесём локальные следы (IDB offline + progress),
+              // иначе в offline-mode и через getOfflineBooks() она остаётся видна.
               // Best-effort — навигация не должна блокироваться на сбое IDB.
               await removeBookFromLocalStorage(book.id).catch(() => {});
               // После удаления — возврат на parent-список (source, откуда открыли книгу).
               // replace: true — чтобы системный жест "назад" не привёл на 404 удалённой книги.
-              // Без state — sidebar-like переход, стек wipe'нется. Счётчик cacheVersion уже
+              // Без state — sidebar-like переход, стек wipe'нется. Scroll-counter уже
               // инкрементирован через DELETE, stale записи сами игнорируются.
               navigate(bookOrigin.url, { replace: true });
             } catch (err: unknown) {

@@ -1,14 +1,14 @@
 import { colors } from "../theme";
 
 interface CloudBadgeProps {
-  cached: boolean;
+  hasOffline: boolean;
   size?: number;
   onClick?: () => void;
   style?: React.CSSProperties;
 }
 
-export default function CloudBadge({ cached, size = 16, onClick, style }: Readonly<CloudBadgeProps>) {
-  if (!cached && !onClick) return null;
+export default function CloudBadge({ hasOffline, size = 16, onClick, style }: Readonly<CloudBadgeProps>) {
+  if (!hasOffline && !onClick) return null;
 
   return (
     <svg
@@ -16,19 +16,19 @@ export default function CloudBadge({ cached, size = 16, onClick, style }: Readon
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={cached ? colors.accent : "#888"}
+      stroke={hasOffline ? colors.accent : "#888"}
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{
         cursor: onClick ? "pointer" : "default",
         flexShrink: 0,
-        opacity: cached ? 1 : 0.35,
+        opacity: hasOffline ? 1 : 0.35,
         ...style,
       }}
       onClick={onClick ? (e) => { e.preventDefault(); e.stopPropagation(); onClick(); } : undefined}
     >
-      {cached ? (
+      {hasOffline ? (
         <>
           <path d="M8 17l4 4 4-4" />
           <path d="M12 12v9" />
