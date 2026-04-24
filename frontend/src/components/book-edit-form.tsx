@@ -123,6 +123,9 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
         publisher: publisher || null,
         pubDate: pubDate || null,
         isbn: isbn || null,
+        addFormats: [],
+        deleteFormats: [],
+        commitCover: false,
       });
     } finally {
       setSaving(false);

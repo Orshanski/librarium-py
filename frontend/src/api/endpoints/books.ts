@@ -44,6 +44,9 @@ export interface BookUpdatePayload {
   seriesNumber: number | null;
   authorIds: (number | string)[];
   tagIds: (number | string)[];
+  addFormats: string[];
+  deleteFormats: string[];
+  commitCover: boolean;
 }
 
 export interface BookOkResponse {

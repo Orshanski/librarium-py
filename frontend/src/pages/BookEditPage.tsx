@@ -120,6 +120,9 @@ export default function BookEditPage() {
       seriesNumber: data.seriesNumber ? parseFloat(data.seriesNumber) : null,
       authorIds,
       tagIds,
+      addFormats: [],
+      deleteFormats: [],
+      commitCover: false,
     };
 
     try {

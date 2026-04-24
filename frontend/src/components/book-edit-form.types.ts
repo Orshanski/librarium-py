@@ -32,6 +32,9 @@ export interface BookSavePayload {
   publisher: string | null;
   pubDate: string | null;
   isbn: string | null;
+  addFormats: string[];
+  deleteFormats: string[];
+  commitCover: boolean;
 }
 
 export interface MetadataPayload {
