@@ -212,6 +212,9 @@ class EntityBookItem(BaseModel):
     id: int
     title: str
     sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
     pub_date: str | None = None
     series: SeriesRef | None = None
     series_number: float | None = None
@@ -230,6 +233,9 @@ class TagDetailBookItem(BaseModel):
     id: int
     title: str
     sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
     pub_date: str | None = None
     series: SeriesRef | None = None
     series_number: float | None = None

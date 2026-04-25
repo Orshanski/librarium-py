@@ -171,6 +171,11 @@ def test_get_author_detail_wire(admin_client):
     assert "cover_path" not in book
     assert "addedAt" in book
     assert "updatedAt" in book
+    # book metadata fields exposed (regression: EntityBookItem must declare these,
+    # иначе FastAPI отфильтрует их из wire несмотря на наличие в DAL row)
+    assert "description" in book
+    assert "language" in book
+    assert "publisher" in book
     # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
@@ -214,6 +219,10 @@ def test_get_series_detail_wire(admin_client):
     assert "cover_path" not in book
     assert "addedAt" in book
     assert "updatedAt" in book
+    # book metadata fields exposed (regression guard).
+    assert "description" in book
+    assert "language" in book
+    assert "publisher" in book
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])

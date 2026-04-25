@@ -375,7 +375,7 @@ export default function UploadForm() {
               {/* DB duplicate — user chooses action */}
               {g.duplicate && (
                 <div style={{ padding: "8px 12px", borderRadius: 6, backgroundColor: "rgba(249, 190, 3, 0.08)", border: "1px solid rgba(249, 190, 3, 0.2)", fontSize: 13, color: colors.accent, marginBottom: 8 }}>
-                  <div style={{ marginBottom: 6 }}>Похожая книга: {g.duplicate.title} ({g.duplicate.authors})</div>
+                  <div style={{ marginBottom: 6 }}>Похожая книга: {g.duplicate.title} ({g.duplicate.authors.map((a) => a.name).join(", ")})</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       style={{ padding: "4px 10px", fontSize: 12, borderRadius: 4, border: "1px solid " + colors.accent, background: g.duplicateAction === "add-format" ? colors.accent : "transparent", color: g.duplicateAction === "add-format" ? "#fff" : colors.accent, cursor: "pointer" }}
