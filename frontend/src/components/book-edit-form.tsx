@@ -49,6 +49,22 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     setUploading(true);
     try {
       const data = await uploadTempFile(file);
+      const fmtUpper = data.format.toUpperCase();
+
+      // Bug 2 guard: запретить duplicate формат если оригинал не помечен на удаление.
+      const existingDuplicate = formats.some(f => f.format.toUpperCase() === fmtUpper);
+      const markedForDelete = pendingDeleteFormats.includes(fmtUpper);
+      if (existingDuplicate && !markedForDelete) {
+        alert(`Формат ${fmtUpper} уже есть. Удалите старый перед загрузкой нового.`);
+        // Откат temp на сервере, чтобы не оставить orphan.
+        try {
+          await deleteTempUpload(data.tempId);
+        } catch {
+          // ignore: cleanup_old_uploads подчистит через час.
+        }
+        return;
+      }
+
       const sizeBytes = file.size;
       const sizeDisplay =
         sizeBytes > 1048576

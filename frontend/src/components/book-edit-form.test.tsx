@@ -612,4 +612,80 @@ describe("book-edit-form — books", () => {
     await new Promise(r => setTimeout(r, 50));
     expect(anyRequest).toBe(false);
   });
+
+  it("upload_duplicate_format_alerts_and_reverts", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const user = userEvent.setup();
+    let deleteTempCalled = false;
+
+    server.use(
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: "dup1", format: "EPUB", metadata: {}, duplicate: null }),
+      ),
+      http.delete("/api/uploads/dup1", () => {
+        deleteTempCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    // mockBook.formats содержит EPUB.
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "another.epub"));
+
+    // Bug 2 guard сработал: alert + deleteTempUpload + НЕ добавлено в список.
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining("EPUB"));
+    });
+    await waitFor(() => expect(deleteTempCalled).toBe(true));
+
+    // В списке только одна запись EPUB (оригинал; не удвоилась).
+    expect(screen.queryAllByText(/^EPUB\s*—/i).length).toBe(1);
+
+    alertSpy.mockRestore();
+  });
+
+  it("upload_replace_after_pending_delete_allowed", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.post("/api/upload", () =>
+        HttpResponse.json({ tempId: "rep1", format: "EPUB", metadata: {}, duplicate: null }),
+      ),
+    );
+
+    // Используем книгу с двумя форматами — кнопка удаления рендерится только если formats.length > 1.
+    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }] };
+    renderWithProviders(
+      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+    );
+
+    // Шаг 1: пометить оригинальный EPUB на удаление.
+    const delBtns = screen.getAllByRole("button").filter(b => b.textContent?.toLowerCase().includes("удалить"));
+    expect(delBtns.length).toBeGreaterThan(0);
+    await user.click(delBtns[0]);
+    const confirmBtn = screen.queryByTestId("confirm-dialog-submit");
+    if (confirmBtn) await user.click(confirmBtn);
+
+    // Сейчас EPUB удалён из formats (помечен в pendingDelete или отфильтрован).
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^epub\s*—/i).length).toBe(0);
+    });
+
+    // Шаг 2: загрузить новый EPUB. Guard НЕ должен сработать (replace-flow).
+    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));
+    expect(bookFileInput).not.toBeNull();
+    await user.upload(bookFileInput!, new File([new Uint8Array([0])], "new.epub"));
+
+    // Новый EPUB добавлен без alert (replace-flow разрешён).
+    await waitFor(() => {
+      expect(screen.queryAllByText(/^EPUB\s*—/i).length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
