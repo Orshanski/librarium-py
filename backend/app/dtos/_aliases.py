@@ -18,3 +18,7 @@ BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra
 """Пресет для input body-моделей: strict camel wire (alias_generator), snake Python,
 no unknown fields (extra=forbid). Используется в UpdateBookBody, RenameBody, MergeBody,
 MapBody (с дополнительным str_strip_whitespace), ShelfBody, ShelfBookBody."""
+
+RESPONSE_CONFIG = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+"""Пресет для response-моделей: camelCase wire (alias_generator), snake Python fields,
+populate_by_name=True позволяет конструировать через snake kwargs из сервисного слоя."""

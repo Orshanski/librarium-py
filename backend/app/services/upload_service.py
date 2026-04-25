@@ -112,20 +112,20 @@ def _build_upload_response(
     else:
         series_number_str = ""
     return UploadParseResponse(
-        tempId=temp_id,
+        temp_id=temp_id,
         format=ext.upper(),
         metadata=CreateBookMetadata(
             title=meta.title,
             authors=", ".join(meta.authors),
             series=meta.series or "",
-            seriesNumber=series_number_str,
+            series_number=series_number_str,
             description=meta.description or "",
             language=meta.language or "",
             tags=", ".join(meta.genres),
             publisher=meta.publisher or "",
-            pubDate=meta.pub_date or "",
+            pub_date=meta.pub_date or "",
             isbn=meta.isbn or "",
-            coverUrl=cover_url,
+            cover_url=cover_url,
         ),
         duplicate=duplicate,
     )
@@ -189,9 +189,9 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetada
     ext = temp_file.rsplit(".", 1)[-1]
 
     series_number = None
-    if metadata.seriesNumber:
+    if metadata.series_number:
         try:
-            series_number = float(metadata.seriesNumber)
+            series_number = float(metadata.series_number)
         except ValueError:
             pass
 
@@ -204,7 +204,7 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetada
         "description": metadata.description or None,
         "language": metadata.language or None,
         "publisher": metadata.publisher or None,
-        "pub_date": metadata.pubDate or None,
+        "pub_date": metadata.pub_date or None,
         "series_id": series_id,
         "series_number": series_number,
         "author_ids": author_ids,

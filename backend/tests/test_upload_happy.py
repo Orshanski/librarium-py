@@ -131,7 +131,7 @@ class TestBuildUploadResponseSeriesNumber:
             cover_ext=None,
         )
         resp = _build_upload_response(meta, temp_id="t1", ext="fb2", cover_url=None, duplicate=None)
-        return resp.metadata.seriesNumber
+        return resp.metadata.series_number
 
     def test_none(self):
         assert self._build(None) == ""

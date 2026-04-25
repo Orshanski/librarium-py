@@ -113,8 +113,8 @@ class TestReadingProgressAPI:
         resp = reader_client.put(
             "/api/reader/progress/1",
             json={
-                "position": "ch1", "last_device": "d", "last_format": "EPUB",
-                "fraction": 0.1, "expected_version": 0,
+                "position": "ch1", "lastDevice": "d", "lastFormat": "EPUB",
+                "fraction": 0.1, "expectedVersion": 0,
             },
         )
         assert resp.status_code == 200
@@ -127,11 +127,11 @@ class TestReadingProgressAPI:
         """Rewind in conflict → accepted is False explicitly, current has version."""
         reader_client.put(
             "/api/reader/progress/1",
-            json={"position": "far", "last_device": "d", "fraction": 0.8, "expected_version": 0},
+            json={"position": "far", "lastDevice": "d", "fraction": 0.8, "expectedVersion": 0},
         )
         resp = reader_client.put(
             "/api/reader/progress/1",
-            json={"position": "back", "last_device": "d", "fraction": 0.2, "expected_version": 0},
+            json={"position": "back", "lastDevice": "d", "fraction": 0.2, "expectedVersion": 0},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -145,11 +145,11 @@ class TestReadingProgressAPI:
     def test_put_progress_returns_rebased_true_on_forward_conflict(self, reader_client):
         reader_client.put(
             "/api/reader/progress/1",
-            json={"position": "p1", "last_device": "d", "fraction": 0.3, "expected_version": 0},
+            json={"position": "p1", "lastDevice": "d", "fraction": 0.3, "expectedVersion": 0},
         )
         resp = reader_client.put(
             "/api/reader/progress/1",
-            json={"position": "p2", "last_device": "d", "fraction": 0.6, "expected_version": 0},
+            json={"position": "p2", "lastDevice": "d", "fraction": 0.6, "expectedVersion": 0},
         )
         data = resp.json()
         assert data["accepted"] is True
@@ -159,7 +159,7 @@ class TestReadingProgressAPI:
     def test_get_progress_returns_version_field_for_populated_row(self, reader_client):
         reader_client.put(
             "/api/reader/progress/1",
-            json={"position": "p1", "last_device": "d", "fraction": 0.3, "expected_version": 0},
+            json={"position": "p1", "lastDevice": "d", "fraction": 0.3, "expectedVersion": 0},
         )
         data = reader_client.get("/api/reader/progress/1").json()
         assert "version" in data

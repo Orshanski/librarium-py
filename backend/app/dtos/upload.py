@@ -1,31 +1,38 @@
 """Upload request DTOs and Response DTOs."""
 from pydantic import BaseModel, Field
 
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._types import TempIdStr
 from .books import DuplicateHit
 
 
 class CreateBookMetadata(BaseModel):
+    model_config = RESPONSE_CONFIG
+
     title: str
     authors: str = ""
     series: str = ""
-    seriesNumber: str = ""
+    series_number: str = ""
     description: str = ""
     language: str = ""
     tags: str = ""
     publisher: str = ""
-    pubDate: str = ""
+    pub_date: str = ""
     isbn: str = ""
-    coverUrl: str | None = None
+    cover_url: str | None = None
 
 
 class CreateBookBody(BaseModel):
-    tempId: TempIdStr
+    model_config = BODY_CONFIG
+
+    temp_id: TempIdStr
     metadata: CreateBookMetadata = Field(default_factory=CreateBookMetadata)
 
 
 class AddFormatBody(BaseModel):
-    tempId: TempIdStr
+    model_config = BODY_CONFIG
+
+    temp_id: TempIdStr
 
 
 # ---------------------------------------------------------------------------
@@ -36,16 +43,13 @@ class AddFormatBody(BaseModel):
 class UploadParseResponse(BaseModel):
     """Response for POST /api/upload.
 
-    Wire format:
-    {
-        "tempId": str,
-        "format": str,
-        "metadata": {title, authors, series, seriesNumber, description,
-                     language, tags, publisher, pubDate, isbn, coverUrl},
-        "duplicate": {id, title, authors} | null
-    }
+    Wire: {tempId, format, metadata: {title, authors, series, seriesNumber,
+    description, language, tags, publisher, pubDate, isbn, coverUrl},
+    duplicate: {id, title, authors} | null}.
     """
-    tempId: str
+    model_config = RESPONSE_CONFIG
+
+    temp_id: str
     format: str
     metadata: CreateBookMetadata
     duplicate: DuplicateHit | None = None
@@ -53,10 +57,14 @@ class UploadParseResponse(BaseModel):
 
 class CreateBookResponse(BaseModel):
     """Response for POST /api/books/create."""
-    bookId: int
+    model_config = RESPONSE_CONFIG
+
+    book_id: int
 
 
 class AddFormatResponse(BaseModel):
     """Response for POST /api/books/{book_id}/add-format."""
+    model_config = RESPONSE_CONFIG
+
     ok: bool = True
     format: str

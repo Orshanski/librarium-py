@@ -54,8 +54,8 @@ def test_reading_now_shows_book_with_progress(reader_client):
     # Save reading progress for book 2
     reader_client.put("/api/reader/progress/2", json={
         "position": "epubcfi(/6/4!/4/2/1:0)",
-        "last_device": "test",
-        "last_format": "fb2",
+        "lastDevice": "test",
+        "lastFormat": "fb2",
         "fraction": 0.25,
     })
     sid = find_shelf_id(reader_client, "reading_now")
@@ -71,8 +71,8 @@ def test_reading_now_excludes_read_book(reader_client):
     # Save progress for book 3
     reader_client.put("/api/reader/progress/3", json={
         "position": "epubcfi(/6/4!/4/2/1:0)",
-        "last_device": "test",
-        "last_format": "epub",
+        "lastDevice": "test",
+        "lastFormat": "epub",
         "fraction": 0.5,
     })
     # Mark as read

@@ -6,9 +6,7 @@ Coverage: /api/books (list/detail/PUT), /api/authors (list/detail),
 
 Each endpoint above is asserted to emit camelCase keys and structured
 author/tag/series objects (not CSV strings, not legacy snake fields).
-Note: /api/search retains snake_case wire by spec (SearchResponse has no
-RESPONSE_CONFIG); only the structured authors/series payload is checked
-there, not the surrounding camelCase shape.
+/api/search emits camelCase keys (coverPath, bookCount) via RESPONSE_CONFIG.
 
 Baseline seed (conftest + seed.py):
   - Authors: 1 "Test Author", 2 "Cover Writer", 3 "Test Autor"
@@ -334,6 +332,9 @@ def test_search_books_authors_wire(admin_client):
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
+    # camelCase keys in book hit
+    assert "coverPath" in book
+    assert "cover_path" not in book
 
 
 def test_search_series_authors_wire(admin_client):
@@ -346,6 +347,20 @@ def test_search_series_authors_wire(admin_client):
     assert isinstance(series["authors"], list)
     assert len(series["authors"]) > 0
     assert all("id" in a and "name" in a for a in series["authors"])
+    # camelCase keys in series hit
+    assert "bookCount" in series
+    assert "book_count" not in series
+
+
+def test_search_authors_book_count_wire(admin_client):
+    resp = admin_client.get("/api/search", params={"q": "Test Author"})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert "authors" in payload
+    assert len(payload["authors"]) > 0
+    author = payload["authors"][0]
+    assert "bookCount" in author
+    assert "book_count" not in author
 
 
 def test_search_books_no_csv_author_fields(admin_client):
