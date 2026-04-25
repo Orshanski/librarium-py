@@ -56,9 +56,9 @@ def _parse_item(item: dict) -> MetadataResult | None:
         authors=authors,
         description=info.get("description", ""),
         publisher=info.get("publisher", ""),
-        pubDate=pub_date,
+        pub_date=pub_date,
         isbn=isbn,
         tags=", ".join(info.get("categories", [])),
         source="Google Books",
-        coverUrl=cover_url,
+        cover_url=cover_url,
     )

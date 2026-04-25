@@ -288,10 +288,10 @@ class TestBuildResultLiveFixture:
         assert result.authors == "Брендон Сандерсон"
         # isbn отсутствует в search_instance, берётся fallback из arts_detail
         assert result.isbn == "9785389325043"
-        assert result.pubDate == "2024"
+        assert result.pub_date == "2024"
         assert result.source == "Litres"
-        assert result.coverUrl.startswith("https://www.litres.ru")
-        assert result.coverUrl.endswith(".jpg")
+        assert result.cover_url.startswith("https://www.litres.ru")
+        assert result.cover_url.endswith(".jpg")
         tags = result.tags.split(", ")
         assert len(tags) == 6
         assert result.description != ""
@@ -304,8 +304,8 @@ class TestBuildResultLiveFixture:
         assert result.authors == "Брендон Сандерсон"
         assert result.tags == ""
         assert result.isbn == ""
-        assert result.pubDate == "2024"
-        assert result.coverUrl.startswith("https://www.litres.ru")
+        assert result.pub_date == "2024"
+        assert result.cover_url.startswith("https://www.litres.ru")
 
     def test_build_result_live_authors_count(self, search_instance, arts_detail):
         result = _build_result(search_instance, arts_detail)
