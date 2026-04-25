@@ -16,8 +16,7 @@ def to_camel(s: str) -> str:
 
 BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra="forbid")
 """Пресет для input body-моделей: strict camel wire (alias_generator), snake Python,
-no unknown fields (extra=forbid). Используется в UpdateBookBody, RenameBody, MergeBody,
-MapBody (с дополнительным str_strip_whitespace), ShelfBody, ShelfBookBody."""
+no unknown fields (extra=forbid). Применяется ко всем Body-классам в dtos/."""
 
 RESPONSE_CONFIG = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 """Пресет для response-моделей: camelCase wire (alias_generator), snake Python fields,

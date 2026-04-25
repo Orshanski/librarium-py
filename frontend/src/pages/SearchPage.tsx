@@ -5,10 +5,9 @@ import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
-import { toBook } from "../types";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
-import { searchAll, type SearchResponse } from "../api/endpoints/search";
+import { searchAll, searchHitToBook, type SearchResponse } from "../api/endpoints/search";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
@@ -132,7 +131,7 @@ function SearchResults() {
                 >
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 14, color: colors.text, lineHeight: 1.35, marginBottom: s.authors ? 4 : 0 }}>
+                      <div style={{ fontSize: 14, color: colors.text, lineHeight: 1.35, marginBottom: s.authors && s.authors.length > 0 ? 4 : 0 }}>
                         {s.name}
                       </div>
                       {s.authors && s.authors.length > 0 && (
@@ -166,7 +165,7 @@ function SearchResults() {
             {books.map((b) => (
               <BookCard
                 key={b.id}
-                book={toBook(b)}
+                book={searchHitToBook(b)}
                 hasOffline={offlineBookIds.has(b.id)}
                 linkState={searchLinkState}
               />

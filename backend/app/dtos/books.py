@@ -28,7 +28,7 @@ class UpdateBookBody(BaseModel):
 
 class BookCreateData(TypedDict):
     """Write-data for `dal.books.create_book`. Built in upload_service from
-    CreateBookMetadata + resolved author/series/tag IDs."""
+    CreateBookMetadataIn + resolved author/series/tag IDs."""
     title: str
     sort_title: NotRequired[str]
     description: NotRequired[str | None]

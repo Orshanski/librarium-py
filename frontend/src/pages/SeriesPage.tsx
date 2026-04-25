@@ -110,7 +110,7 @@ export default function SeriesPage() {
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
       <span>{pluralizeBooks(bookCount)}</span>
-      {series.authors && series.authors.length > 0 ? <span>{series.authors.map((a) => a.name).join(", ")}</span> : null}
+      {series.authors && series.authors.length > 0 && <span>{series.authors.map((a) => a.name).join(", ")}</span>}
     </div>
   );
 

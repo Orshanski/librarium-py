@@ -3,10 +3,28 @@ from pydantic import BaseModel, Field
 
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._types import TempIdStr
-from .books import DuplicateHit
+from .books import DuplicateHitItem
 
 
-class CreateBookMetadata(BaseModel):
+class CreateBookMetadataIn(BaseModel):
+    """Input shape for upload create-book body. Strict camel wire, extra=forbid."""
+    model_config = BODY_CONFIG
+
+    title: str
+    authors: str = ""
+    series: str = ""
+    series_number: str = ""
+    description: str = ""
+    language: str = ""
+    tags: str = ""
+    publisher: str = ""
+    pub_date: str = ""
+    isbn: str = ""
+    cover_url: str | None = None
+
+
+class CreateBookMetadataOut(BaseModel):
+    """Output shape for upload parse response. Snake Python, camel wire."""
     model_config = RESPONSE_CONFIG
 
     title: str
@@ -26,7 +44,7 @@ class CreateBookBody(BaseModel):
     model_config = BODY_CONFIG
 
     temp_id: TempIdStr
-    metadata: CreateBookMetadata = Field(default_factory=CreateBookMetadata)
+    metadata: CreateBookMetadataIn = Field(default_factory=CreateBookMetadataIn)
 
 
 class AddFormatBody(BaseModel):
@@ -51,8 +69,8 @@ class UploadParseResponse(BaseModel):
 
     temp_id: str
     format: str
-    metadata: CreateBookMetadata
-    duplicate: DuplicateHit | None = None
+    metadata: CreateBookMetadataOut
+    duplicate: DuplicateHitItem | None = None
 
 
 class CreateBookResponse(BaseModel):

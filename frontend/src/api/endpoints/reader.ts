@@ -34,7 +34,7 @@ export interface SaveProgressAcceptResponse {
 export interface SaveProgressRejectResponse {
   accepted: false;
   current: ReadingProgressState | null;
-  retry_exhausted?: boolean;
+  retryExhausted?: boolean;
 }
 
 export type SaveProgressResponse = SaveProgressAcceptResponse | SaveProgressRejectResponse;

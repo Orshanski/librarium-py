@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
 from ..dtos.books import BookCreateData, DuplicateHit
-from ..dtos.upload import CreateBookMetadata, UploadParseResponse
+from ..dtos.upload import CreateBookMetadataIn, CreateBookMetadataOut, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
 from ..parsers import parse_book, ParsedMetadata
@@ -114,7 +114,7 @@ def _build_upload_response(
     return UploadParseResponse(
         temp_id=temp_id,
         format=ext.upper(),
-        metadata=CreateBookMetadata(
+        metadata=CreateBookMetadataOut(
             title=meta.title,
             authors=", ".join(meta.authors),
             series=meta.series or "",
@@ -171,7 +171,7 @@ async def upload_and_parse(db: sqlite3.Connection, content: bytes, filename: str
     return response
 
 
-def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetadata) -> int:
+def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetadataIn) -> int:
     """Create book from uploaded temp file.
 
     Returns book_id.
