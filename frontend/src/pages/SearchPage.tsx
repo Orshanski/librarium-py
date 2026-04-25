@@ -106,7 +106,7 @@ function SearchResults() {
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <span style={{ fontSize: 14, color: colors.text }}>{a.name}</span>
-                  <span style={{ fontSize: 12, color: colors.textDim }}>{pluralize(a.book_count, "книга", "книги", "книг")}</span>
+                  <span style={{ fontSize: 12, color: colors.textDim }}>{pluralize(a.bookCount, "книга", "книги", "книг")}</span>
                 </div>
               </Link>
             ))}
@@ -135,7 +135,7 @@ function SearchResults() {
                       <div style={{ fontSize: 14, color: colors.text, lineHeight: 1.35, marginBottom: s.authors ? 4 : 0 }}>
                         {s.name}
                       </div>
-                      {s.authors && (
+                      {s.authors && s.authors.length > 0 && (
                         <div
                           style={{
                             fontSize: 12,
@@ -144,12 +144,12 @@ function SearchResults() {
                             wordBreak: "break-word",
                           }}
                         >
-                          {s.authors}
+                          {s.authors.map((a) => a.name).join(", ")}
                         </div>
                       )}
                     </div>
                     <span style={{ fontSize: 12, color: colors.textDim, whiteSpace: "nowrap", flexShrink: 0, paddingTop: 2 }}>
-                      {pluralize(s.book_count, "книга", "книги", "книг")}
+                      {pluralize(s.bookCount, "книга", "книги", "книг")}
                     </span>
                   </div>
                 </div>

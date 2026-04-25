@@ -37,8 +37,8 @@ export default function TagsPage() {
 
   const shuffledCloud = useMemo(() => shuffled(cloudTags), [cloudTags]);
 
-  const maxCount = cloudTags[0]?.book_count || 1;
-  const minCloudCount = cloudTags[cloudTags.length - 1]?.book_count || 1;
+  const maxCount = cloudTags[0]?.bookCount || 1;
+  const minCloudCount = cloudTags[cloudTags.length - 1]?.bookCount || 1;
 
   function ratio(count: number): number {
     if (maxCount === minCloudCount) return 1;
@@ -94,10 +94,10 @@ export default function TagsPage() {
               key={t.id}
               to={`/tags/${t.id}`}
               style={{
-                fontSize: fontSize(t.book_count),
+                fontSize: fontSize(t.bookCount),
                 fontFamily: fonts.display,
                 color: colors.textSecondary,
-                opacity: opacity(t.book_count),
+                opacity: opacity(t.bookCount),
                 textDecoration: "none",
                 transition: "color 0.15s, opacity 0.15s",
                 padding: "2px 4px",
@@ -108,10 +108,10 @@ export default function TagsPage() {
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.color = colors.textSecondary;
-                e.currentTarget.style.opacity = String(opacity(t.book_count));
+                e.currentTarget.style.opacity = String(opacity(t.bookCount));
               }}
             >
-              {t.name} <span style={{ fontSize: "0.65em", opacity: 0.6 }}>({t.book_count})</span>
+              {t.name} <span style={{ fontSize: "0.65em", opacity: 0.6 }}>({t.bookCount})</span>
             </Link>
           ))}
         </div>

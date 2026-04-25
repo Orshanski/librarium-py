@@ -10,19 +10,18 @@ import SimilarBooksPage from "./SimilarBooksPage";
 const mockBook = {
   id: 42,
   title: "Dune",
-  authors: "Herbert",
-  series_name: null,
-  series_id: null,
-  series_number: null,
-  tags: null,
+  authors: [{ id: 1, name: "Herbert" }],
+  series: null,
+  seriesNumber: null,
+  tags: [],
   rating: null,
   language: "en",
-  cover_path: null,
+  coverPath: null,
   description: null,
   publisher: null,
-  pub_date: null,
-  updated_at: null,
-  is_read: null,
+  pubDate: null,
+  updatedAt: null,
+  isRead: null,
 };
 
 const mockSimilarBook = {

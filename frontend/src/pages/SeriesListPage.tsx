@@ -112,11 +112,11 @@ export default function SeriesListPage() {
                   {s.name}
                 </div>
                 <div style={{ fontSize: 12, color: colors.textDim }}>
-                  {s.authors}
+                  {s.authors?.map((a) => a.name).join(", ")}
                 </div>
               </div>
               <div style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap", marginLeft: 16 }}>
-                {pluralizeBooks(s.book_count)}
+                {pluralizeBooks(s.bookCount)}
               </div>
             </div>
           </Link>

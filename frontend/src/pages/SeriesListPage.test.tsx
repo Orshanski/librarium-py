@@ -16,8 +16,8 @@ describe("SeriesListPage", () => {
       http.get("/api/series", () =>
         HttpResponse.json({
           series: [
-            { id: 1, name: "Dune", authors: "Frank Herbert", book_count: 6 },
-            { id: 2, name: "Foundation", authors: "Isaac Asimov", book_count: 7 },
+            { id: 1, name: "Dune", authors: [{ id: 1, name: "Frank Herbert" }], bookCount: 6 },
+            { id: 2, name: "Foundation", authors: [{ id: 2, name: "Isaac Asimov" }], bookCount: 7 },
           ],
           authors: [],
           tags: [],
