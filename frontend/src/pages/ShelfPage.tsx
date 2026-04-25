@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
@@ -62,6 +62,15 @@ export default function ShelfPage() {
       console.warn("Failed to delete shelf:", err);
     }
   }
+
+  const handleRemoveBookFromShelf = useCallback(async (bookId: number) => {
+    try {
+      await removeBookFromShelf(shelfId, bookId);
+      setRawBooks((prev) => prev.filter((x) => x.id !== bookId));
+    } catch (err) {
+      console.warn("Failed to remove book from shelf:", err);
+    }
+  }, [shelfId]);
 
   if (loading) {
     return (
@@ -129,14 +138,7 @@ export default function ShelfPage() {
               progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
               hasOffline={offlineBookIds.has(b.id)}
               linkState={linkState}
-              onRemove={!shelf.isSystem ? async () => {
-                try {
-                  await removeBookFromShelf(shelfId, b.id);
-                  setRawBooks((prev) => prev.filter((x) => x.id !== b.id));
-                } catch (err) {
-                  console.warn("Failed to remove book from shelf:", err);
-                }
-              } : undefined}
+              onRemove={!shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
             />
           );
         })}
