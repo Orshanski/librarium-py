@@ -11,7 +11,7 @@ describe("reference: integration — search page renders API results", () => {
     server.use(
       http.get("/api/search", () =>
         HttpResponse.json({
-          books: [{ id: 1, title: "Example Book", authors: "Some Author" }],
+          books: [{ id: 1, title: "Example Book", authors: [{ id: 1, name: "Some Author" }], series: null, coverPath: null }],
           authors: [],
           series: [],
         })

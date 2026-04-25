@@ -286,8 +286,8 @@ export async function adoptServerProgressLocal(
   server: {
     position: string;
     fraction?: number | null;
-    last_format?: string | null;
-    last_read_at?: string | null;
+    lastFormat?: string | null;
+    lastReadAt?: string | null;
     version?: number;
   },
   fallbackLastFormat: string,
@@ -295,9 +295,9 @@ export async function adoptServerProgressLocal(
   await saveProgress(bookId, {
     position: server.position,
     fraction: server.fraction ?? 0,
-    lastFormat: server.last_format ?? fallbackLastFormat,
-    lastReadAt: server.last_read_at
-      ? new Date(server.last_read_at).getTime()
+    lastFormat: server.lastFormat ?? fallbackLastFormat,
+    lastReadAt: server.lastReadAt
+      ? new Date(server.lastReadAt).getTime()
       : Date.now(),
     serverVersion: server.version ?? 0,
   });

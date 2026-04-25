@@ -41,7 +41,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
   const pushProgressToServerRef = useRef<(progress: LocalProgress) => Promise<boolean>>(async () => false);
   const adoptServerProgressRef = useRef<(
     bookId: number,
-    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number },
+    server: { position: string; fraction?: number | null; lastFormat?: string | null; lastReadAt?: string | null; version?: number },
     options?: { resume?: boolean },
   ) => Promise<void>>(async () => {});
 
@@ -96,7 +96,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
 
   const adoptServerProgress = useCallback(async (
     bookId: number,
-    server: { position: string; fraction?: number | null; last_format?: string | null; last_read_at?: string | null; version?: number },
+    server: { position: string; fraction?: number | null; lastFormat?: string | null; lastReadAt?: string | null; version?: number },
     options?: { resume?: boolean },
   ) => {
     const parsed = parsePositionValue(server.position);

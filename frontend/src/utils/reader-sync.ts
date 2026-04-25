@@ -43,10 +43,10 @@ export async function pushProgressToServerCAS(
       progress.bookId,
       {
         position: progress.position,
-        last_device: opts.deviceName,
-        last_format: progress.lastFormat,
+        lastDevice: opts.deviceName,
+        lastFormat: progress.lastFormat,
         fraction: progress.fraction,
-        expected_version: progress.serverVersion,
+        expectedVersion: progress.serverVersion,
       },
       { keepalive: opts.keepalive },
     );
@@ -76,8 +76,8 @@ export async function pushProgressToServerCAS(
       const srvNarrowed = {
         position: srvPosition,
         fraction: data.current.fraction,
-        last_format: data.current.last_format,
-        last_read_at: data.current.last_read_at,
+        lastFormat: data.current.lastFormat,
+        lastReadAt: data.current.lastReadAt,
         version: srvVersion,
       };
       await adoptServerProgressLocal(progress.bookId, srvNarrowed, progress.lastFormat);

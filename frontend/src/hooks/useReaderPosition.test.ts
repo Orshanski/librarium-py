@@ -39,8 +39,8 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     const serverState = {
       position: '{"kind":"cfi","value":"epubcfi(/6/2!/4/2/2:0)"}',
       fraction: 0.3,
-      last_device: "desktop",
-      last_format: "epub",
+      lastDevice: "desktop",
+      lastFormat: "epub",
       version: 1,
     };
 
@@ -76,8 +76,8 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     const serverState = {
       position: '{"kind":"cfi","value":"epubcfi(/6/8!/4/2/2:0)"}',
       fraction: 0.9,
-      last_device: "mobile",
-      last_format: "epub",
+      lastDevice: "mobile",
+      lastFormat: "epub",
       version: 5,
     };
 

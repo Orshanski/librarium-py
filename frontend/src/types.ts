@@ -92,5 +92,8 @@ export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string |
     pubDate: b.pubDate ?? null,
     formats: [],
     isbn: opts?.isbn ?? null,
+    fraction: b.fraction ?? null,
+    lastFormat: b.lastFormat ?? null,
+    lastReadAt: b.lastReadAt ?? null,
   };
 }

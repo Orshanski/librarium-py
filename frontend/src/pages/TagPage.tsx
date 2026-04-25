@@ -7,7 +7,8 @@ import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterKey, SelectedFilters, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
-import type { Book } from "../types";
+import type { Book, RawBook } from "../types";
+import { toBook } from "../types";
 import { useAuth } from "../auth";
 import { colors } from "../theme";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
@@ -25,7 +26,8 @@ export default function TagPage() {
   const { user } = useAuth();
 
   const [tag, setTag] = useState<TagSummary | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
+  const books: Book[] = rawBooks.map((b) => toBook(b));
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -52,7 +54,7 @@ export default function TagPage() {
     getTag(tagId, apiParams, controller.signal)
       .then((data) => {
         setTag(data.tag);
-        setBooks(data.books);
+        setRawBooks(data.books);
       })
       .catch((err) => {
         if (err instanceof NotFoundError) {

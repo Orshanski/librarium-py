@@ -8,7 +8,8 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
-import type { Book } from "../types";
+import type { Book, RawBook } from "../types";
+import { toBook } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
@@ -22,7 +23,8 @@ export default function ShelfPage() {
   const [searchParams] = useSearchParams();
 
   const [shelf, setShelf] = useState<ShelfSummary | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
+  const books: Book[] = rawBooks.map((b) => toBook(b));
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -37,7 +39,7 @@ export default function ShelfPage() {
     getShelf(shelfId, { sort }, controller.signal)
       .then((data) => {
         setShelf(data.shelf);
-        setBooks(data.books || []);
+        setRawBooks(data.books || []);
       })
       .catch((err) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -130,7 +132,7 @@ export default function ShelfPage() {
               onRemove={!shelf.isSystem ? async () => {
                 try {
                   await removeBookFromShelf(shelfId, b.id);
-                  setBooks((prev) => prev.filter((x) => x.id !== b.id));
+                  setRawBooks((prev) => prev.filter((x) => x.id !== b.id));
                 } catch (err) {
                   console.warn("Failed to remove book from shelf:", err);
                 }
