@@ -22,10 +22,10 @@ def list_books(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
     sort: UserSort = "addedDesc",
     cursor: int = 0,
-    pageSize: int = 50,
-    authorIds: Annotated[list[int] | None, Query()] = None,
-    tagIds: Annotated[list[int] | None, Query()] = None,
-    seriesIds: Annotated[list[int] | None, Query()] = None,
+    page_size: Annotated[int, Query(alias="pageSize")] = 50,
+    author_ids: Annotated[list[int] | None, Query(alias="authorIds")] = None,
+    tag_ids: Annotated[list[int] | None, Query(alias="tagIds")] = None,
+    series_ids: Annotated[list[int] | None, Query(alias="seriesIds")] = None,
     language: Annotated[list[str] | None, Query()] = None,
 ):
     return book_service.list_books(
@@ -33,10 +33,10 @@ def list_books(
         user.user_id,
         sort=sort,
         cursor=cursor,
-        page_size=min(pageSize, 100),
-        author_ids=authorIds,
-        tag_ids=tagIds,
-        series_ids=seriesIds,
+        page_size=min(page_size, 100),
+        author_ids=author_ids,
+        tag_ids=tag_ids,
+        series_ids=series_ids,
         language=language,
     )
 

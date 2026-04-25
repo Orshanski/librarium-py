@@ -18,15 +18,15 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 def list_series(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: Annotated[list[int] | None, Query()] = None,
-    tagIds: Annotated[list[int] | None, Query()] = None,
+    author_ids: Annotated[list[int] | None, Query(alias="authorIds")] = None,
+    tag_ids: Annotated[list[int] | None, Query(alias="tagIds")] = None,
     language: Annotated[list[str] | None, Query()] = None,
 ):
     return series_service.list_series(
         db,
         user_id=user.user_id,
-        author_ids=authorIds,
-        tag_ids=tagIds,
+        author_ids=author_ids,
+        tag_ids=tag_ids,
         language=language,
     )
 

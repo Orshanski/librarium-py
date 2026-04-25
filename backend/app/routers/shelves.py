@@ -2,7 +2,7 @@ from typing import Annotated
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
@@ -19,9 +19,9 @@ router = APIRouter(prefix="/api/shelves", tags=["shelves"])
 def list_shelves(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    bookId: int | None = None,
+    book_id: Annotated[int | None, Query(alias="bookId")] = None,
 ):
-    return shelves_service.list_shelves(db, user.user_id, bookId)
+    return shelves_service.list_shelves(db, user.user_id, book_id)
 
 
 @router.post("", response_model=IdResponse)

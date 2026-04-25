@@ -28,12 +28,12 @@ def get_tag(
     tag_id: int,
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    authorIds: Annotated[list[int] | None, Query()] = None,
-    seriesIds: Annotated[list[int] | None, Query()] = None,
+    author_ids: Annotated[list[int] | None, Query(alias="authorIds")] = None,
+    series_ids: Annotated[list[int] | None, Query(alias="seriesIds")] = None,
     language: Annotated[list[str] | None, Query()] = None,
     sort: UserSort = "addedDesc",
 ):
-    return tags_service.get_tag(db, tag_id, user.user_id, authorIds, seriesIds, language, sort)
+    return tags_service.get_tag(db, tag_id, user.user_id, author_ids, series_ids, language, sort)
 
 
 @router.put("/{tag_id}/map", response_model=TagMapResponse)
