@@ -74,7 +74,7 @@ class SeriesRow(TypedDict):
     name: str
     sort_name: str | None
     book_count: int
-    authors: str | None
+    authors: list[AuthorRef]
 
 
 class SeriesList(TypedDict):

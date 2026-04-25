@@ -1,11 +1,16 @@
 import { client } from "../client";
 import type { RawBook } from "@/types";
 
+export interface SeriesAuthorRef {
+  id: number;
+  name: string;
+}
+
 export interface Series {
   id: number;
   name: string;
   sort_name?: string;
-  authors?: string | null;
+  authors?: SeriesAuthorRef[];
   book_count: number;
 }
 

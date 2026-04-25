@@ -112,7 +112,7 @@ export default function SeriesListPage() {
                   {s.name}
                 </div>
                 <div style={{ fontSize: 12, color: colors.textDim }}>
-                  {s.authors}
+                  {s.authors && s.authors.length > 0 ? s.authors.map((a) => a.name).join(", ") : null}
                 </div>
               </div>
               <div style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap", marginLeft: 16 }}>
