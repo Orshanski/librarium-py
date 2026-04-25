@@ -17,10 +17,11 @@ def parse_book_row_aggregates(row: dict) -> None:
     использует `json_group_array`/`json_object` для этих полей. Если SQL
     не возвращает поле — оно не трогается.
     """
+    # По спеке §4: json_group_array на пустом наборе возвращает '[]' — задокументированное
+    # поведение SQLite, не fallback. `or '[]'` ниже (для authors и tags) — защита от дрейфа:
+    # если будущий SQL-запрос вдруг вернёт NULL или пустую строку, это предотвращает
+    # падение JSON-парсера.
     if "authors" in row:
-        # По спеке §4: json_group_array на пустом наборе возвращает '[]' — задокументированное
-        # поведение SQLite. or '[]' здесь — защита от дрейфа: если будущий SQL-запрос вдруг
-        # вернёт NULL или пустую строку, это предотвращает падение JSON-парсера.
         row["authors"] = AUTHOR_LIST.validate_json(row["authors"] or "[]")
     if "tags" in row:
         row["tags"] = TAG_LIST.validate_json(row["tags"] or "[]")

@@ -86,7 +86,8 @@ def author_with_multiple_tags_inserted_non_alphabetically(db):
     )
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (50, 50)")
     db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (51, 50)")
-    # Insert tag 50 (Фэнтези) before tag 51 (Детектив) on book 50
+    # Теги вставляются в неалфавитном порядке id (50 «Приключения» раньше 51 «Антиутопия»),
+    # чтобы ORDER BY t.name в derived table отрабатывал на видимом контрасте.
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (50, 50)")
     db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (51, 51)")
     db.commit()
