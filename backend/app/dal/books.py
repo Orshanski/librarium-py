@@ -24,7 +24,7 @@ from ..search import (
     search_preprocess,
     token_min_ratio,
 )
-from ._parsers import parse_book_row_aggregates, AUTHOR_LIST
+from ._parsers import parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
@@ -222,7 +222,7 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     # Series: fuzzy-rank against name + authors.
     series_rows = dicts_from_rows(queries.search_books_series(db))
     for r in series_rows:
-        r["authors"] = AUTHOR_LIST.validate_json(r["authors"] or "[]")
+        parse_book_row_aggregates(r)
     series_choices = {
         r["id"]: f"{r['name'] or ''} {' '.join(a.name for a in r['authors'])}"
         for r in series_rows
@@ -274,5 +274,5 @@ def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[Duplica
     pattern = f"%{escaped}%"
     rows = dicts_from_rows(queries.find_duplicates_by_title(db, pattern=pattern))
     for r in rows:
-        r["authors"] = AUTHOR_LIST.validate_json(r["authors"] or "[]")
+        parse_book_row_aggregates(r)
     return cast(list[DuplicateHit], rows)
