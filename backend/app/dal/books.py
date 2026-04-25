@@ -37,25 +37,13 @@ def get_books(
     sort: str = "addedDesc",
     cursor: int = 0,
     page_size: int = 50,
-    author_ids: list[int] | None = None,
-    tag_ids: list[int] | None = None,
-    series_ids: list[int] | None = None,
-    language: list[str] | None = None,
+    filters: CatalogFilters | None = None,
 ) -> list[BookListRow]:
     if sort in ("ratingDesc", "ratingAsc") and user_id is None:
         raise ValueError(f"{sort} requires userId")
 
-    filters: CatalogFilters = {"userId": user_id} if user_id is not None else {}  # type: ignore[typeddict-item]
-    if author_ids:
-        filters["authorIds"] = author_ids
-    if tag_ids:
-        filters["tagIds"] = tag_ids
-    if series_ids:
-        filters["seriesIds"] = series_ids
-    if language:
-        filters["language"] = language
-
-    where, params = build_book_where(filters)
+    effective_filters: CatalogFilters = filters if filters is not None else {}  # type: ignore[typeddict-item]
+    where, params = build_book_where(effective_filters)
     # uid always in params: None is valid for the LEFT JOIN via three-valued logic.
     params.update(lim=page_size, off=cursor, uid=user_id)
 

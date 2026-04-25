@@ -1,6 +1,7 @@
 """Tests for dal.books.get_books — JSON-array contract (authors/tags/series as objects)."""
 import pytest
 from app.dtos._refs import AuthorRef, SeriesRef
+from app.dtos.catalog import CatalogFilters
 from app.dal import books as dal
 
 
@@ -59,10 +60,8 @@ def book_without_series(db):
 
 
 def test_get_books_returns_authors_as_list_of_refs(db, sample_book_with_two_authors):
-    rows = dal.get_books(db, user_id=1, sort="addedDesc",
-                         cursor=0, page_size=10,
-                         author_ids=None, tag_ids=None,
-                         series_ids=None, language=None)
+    filters: CatalogFilters = {"userId": 1}
+    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     assert len(rows) >= 1
     book = next(r for r in rows if r["id"] == 201)
     assert isinstance(book["authors"], list)
@@ -73,23 +72,23 @@ def test_get_books_returns_authors_as_list_of_refs(db, sample_book_with_two_auth
 
 
 def test_get_books_returns_empty_authors_for_book_without_authors(db, book_without_authors):
-    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10,
-                         author_ids=None, tag_ids=None, series_ids=None, language=None)
+    filters: CatalogFilters = {"userId": 1}
+    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     target = next(r for r in rows if r["id"] == 202)
     assert target["authors"] == []
 
 
 def test_get_books_returns_series_as_ref_or_none(db, book_with_series, book_without_series):
-    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10,
-                         author_ids=None, tag_ids=None, series_ids=None, language=None)
+    filters: CatalogFilters = {"userId": 1}
+    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     by_id = {r["id"]: r for r in rows}
     assert isinstance(by_id[book_with_series.id]["series"], SeriesRef)
     assert by_id[book_without_series.id]["series"] is None
 
 
 def test_get_books_no_author_ids_or_tag_ids_in_row(db, sample_book_with_two_authors):
-    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10,
-                         author_ids=None, tag_ids=None, series_ids=None, language=None)
+    filters: CatalogFilters = {"userId": 1}
+    rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     book = next(r for r in rows if r["id"] == 201)
     assert "author_ids" not in book
     assert "tag_ids" not in book
