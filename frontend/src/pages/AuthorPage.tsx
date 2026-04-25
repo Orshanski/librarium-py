@@ -6,7 +6,7 @@ import { useScrollRestore } from "../hooks/useScrollRestore";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
-import { Book, toBook, splitCsv } from "../types";
+import { Book, toBook } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { useAuth } from "../auth";
@@ -14,12 +14,12 @@ import { getAuthor } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { NotFoundError } from "@/api/errors";
 
-// UI-local shape: tags split to string[], sort_name required (post-splitCsv transform).
+// UI-local shape: tags split to string[], sortName required (post-map transform).
 interface AuthorData {
   id: number;
   name: string;
-  sort_name: string;
-  book_count: number;
+  sortName: string;
+  bookCount: number;
   tags: string[];
 }
 
@@ -61,9 +61,9 @@ export default function AuthorPage() {
         const authorData: AuthorData = {
           id: raw.id,
           name: raw.name,
-          sort_name: raw.sort_name ?? "",
-          book_count: data.books?.length || 0,
-          tags: splitCsv(raw.tags),
+          sortName: raw.sortName ?? "",
+          bookCount: data.books?.length || 0,
+          tags: raw.tags?.map((t) => t.name) ?? [],
         };
         setAuthor(authorData);
         setBooks((data.books || []).map((b) => toBook(b)));
@@ -103,7 +103,7 @@ export default function AuthorPage() {
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
       <span>
-        {pluralizeBooks(author.book_count)}
+        {pluralizeBooks(author.bookCount)}
       </span>
       <span>{author.tags.slice(0, 5).join(", ")}</span>
     </div>
@@ -141,14 +141,14 @@ export default function AuthorPage() {
           entityType="author"
           entityId={author.id}
           currentName={author.name}
-          bookCount={author.book_count}
+          bookCount={author.bookCount}
           onRenamed={(newName) => { setAuthor({...author, name: newName}); setShowAdmin(false); }}
           onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/authors")}
         />
       )}
       <AuthorDetail
-        author={{ id: author.id, name: author.name, bookCount: author.book_count, tags: author.tags }}
+        author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
         books={books}
         bookLinkState={{
           origin: {

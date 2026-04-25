@@ -11,18 +11,18 @@ import BookEditPage from "./BookEditPage";
 const mockRawBook = {
   id: 42,
   title: "Тестовая книга",
-  authors: "Автор Тестов",
-  series_name: null,
-  series_number: null,
-  tags: null,
+  authors: [{ id: 1, name: "Автор Тестов" }],
+  series: null,
+  seriesNumber: null,
+  tags: [],
   rating: null,
   language: "ru",
-  cover_path: null,
+  coverPath: null,
   description: null,
   publisher: null,
-  pub_date: null,
-  updated_at: null,
-  is_read: null,
+  pubDate: null,
+  updatedAt: null,
+  isRead: null,
 };
 
 function setupAllHandlers() {
@@ -30,7 +30,7 @@ function setupAllHandlers() {
     http.get("/api/books/:id", () =>
       HttpResponse.json({
         book: mockRawBook,
-        files: [{ format: "epub", file_size: 512000 }],
+        files: [{ format: "epub", fileSize: 512000 }],
         identifiers: [],
       })
     ),

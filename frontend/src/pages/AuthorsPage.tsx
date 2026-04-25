@@ -5,7 +5,6 @@ import PageHeader from "../components/page-header";
 import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
-import { splitCsv } from "../types";
 import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
@@ -85,7 +84,7 @@ export default function AuthorsPage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {authors.map((author) => {
-          const tagList = splitCsv(author.tags);
+          const tagList = author.tags?.map((t) => t.name) ?? [];
           return (
             <Link
               key={author.id}
@@ -116,7 +115,7 @@ export default function AuthorsPage() {
                   </div>
                 </div>
                 <div style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap", marginLeft: 16 }}>
-                  {pluralizeBooks(author.book_count)}
+                  {pluralizeBooks(author.bookCount)}
                 </div>
               </div>
             </Link>

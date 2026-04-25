@@ -10,19 +10,18 @@ import BookPage from "./BookPage";
 const mockRawBook = {
   id: 42,
   title: "Мастер и Маргарита",
-  authors: "Михаил Булгаков",
-  series_name: null,
-  series_id: null,
-  series_number: null,
-  tags: "роман,классика",
+  authors: [{ id: 1, name: "Михаил Булгаков" }],
+  series: null,
+  seriesNumber: null,
+  tags: [{ id: 1, name: "роман" }, { id: 2, name: "классика" }],
   rating: null,
   language: "ru",
-  cover_path: null,
+  coverPath: null,
   description: null,
   publisher: null,
-  pub_date: null,
-  updated_at: null,
-  is_read: null,
+  pubDate: null,
+  updatedAt: null,
+  isRead: null,
 };
 
 describe("BookPage", () => {
@@ -35,7 +34,7 @@ describe("BookPage", () => {
       http.get("/api/books/:id", () =>
         HttpResponse.json({
           book: mockRawBook,
-          files: [{ format: "epub", file_size: 1048576 }],
+          files: [{ format: "epub", fileSize: 1048576 }],
           identifiers: [],
         })
       )
@@ -54,7 +53,7 @@ describe("BookPage", () => {
   });
 
   it("happy with series: loads series books when book has series_id", async () => {
-    const bookWithSeries = { ...mockRawBook, series_id: 5, series_name: "Серия" };
+    const bookWithSeries = { ...mockRawBook, series: { id: 5, name: "Серия" } };
 
     server.use(
       http.get("/api/books/:id", ({ params }) => {
@@ -73,7 +72,7 @@ describe("BookPage", () => {
         if (url.searchParams.get("seriesIds") === "5") {
           return HttpResponse.json({
             books: [
-              { ...mockRawBook, id: 43, title: "Другая книга серии", series_id: 5 },
+              { ...mockRawBook, id: 43, title: "Другая книга серии", series: { id: 5, name: "Серия" } },
             ],
             hasMore: false,
           });
