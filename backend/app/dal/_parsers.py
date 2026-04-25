@@ -1,6 +1,6 @@
-"""Общие TypeAdapter'ы для парсинга JSON-полей из SQLite в python-структуры
-после `cur.fetchall()`. Используется во всех DAL-функциях, читающих
-authors/tags/series-агрегаты."""
+"""Общие `TypeAdapter`-ы для парсинга JSON-полей из SQLite в python-структуры
+после `cur.fetchall()`. Используются во всех DAL-функциях, читающих
+агрегаты `authors`/`tags`/`series`."""
 from pydantic import TypeAdapter
 
 from ..dtos._refs import AuthorRef, TagRef, SeriesRef
@@ -13,7 +13,7 @@ SERIES_REF = TypeAdapter(SeriesRef | None)
 def parse_book_row_aggregates(row: dict) -> None:
     """Разбирает JSON-поля `authors`/`tags`/`series` строки на месте, мутируя `row`.
 
-    Применяется после `cur.fetchall()` для каждой row из SQL, который
+    Применяется после `cur.fetchall()` для каждой строки из SQL, который
     использует `json_group_array`/`json_object` для этих полей. Если SQL
     не возвращает поле — оно не трогается.
     """

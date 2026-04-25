@@ -8,10 +8,10 @@ from typing import cast
 from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
-    BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
-from . import cover_service, filters_service, thumb
+from . import cover_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
@@ -205,12 +205,17 @@ def list_books(
     language: list[str] | None,
 ) -> BookListResponse:
     """Paginated catalog listing with user-scoped filters."""
-    filters = filters_service.build_catalog_filters(
-        user_id,
+    rows = dal.get_books(
+        db,
+        user_id=user_id,
+        sort=sort,
+        cursor=cursor,
+        page_size=page_size + 1,
         author_ids=author_ids,
         tag_ids=tag_ids,
         series_ids=series_ids,
         language=language,
     )
-    page: BookListPage = dal.get_books(db, filters, sort, cursor, page_size)
-    return BookListResponse(books=page["books"], hasMore=page["hasMore"])
+    has_more = len(rows) > page_size
+    books = rows[:page_size] if has_more else rows
+    return BookListResponse(books=books, hasMore=has_more)

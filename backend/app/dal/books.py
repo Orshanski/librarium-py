@@ -1,6 +1,7 @@
 import re
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import aiosql
 from rapidfuzz import process
@@ -11,7 +12,6 @@ from ..dtos.books import (
     BookFileLookup,
     BookFileRow,
     BookIdentifierRow,
-    BookListPage,
     BookListRow,
     BookUpdateData,
     DuplicateHit,
@@ -24,42 +24,64 @@ from ..search import (
     search_preprocess,
     token_min_ratio,
 )
+from ._parsers import parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "books", "sqlite3")
 
 
-def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort: str = "addedDesc", cursor=0, page_size=50) -> BookListPage:
-    if sort in ("ratingDesc", "ratingAsc") and not filters.get("userId"):
-        raise ValueError(f"{sort} requires userId in filters")
+def get_books(
+    db: sqlite3.Connection,
+    user_id: int | None = None,
+    sort: str = "addedDesc",
+    cursor: int = 0,
+    page_size: int = 50,
+    author_ids: list[int] | None = None,
+    tag_ids: list[int] | None = None,
+    series_ids: list[int] | None = None,
+    language: list[str] | None = None,
+) -> list[BookListRow]:
+    if sort in ("ratingDesc", "ratingAsc") and user_id is None:
+        raise ValueError(f"{sort} requires userId")
+
+    filters: CatalogFilters = {"userId": user_id} if user_id is not None else {}  # type: ignore[typeddict-item]
+    if author_ids:
+        filters["authorIds"] = author_ids
+    if tag_ids:
+        filters["tagIds"] = tag_ids
+    if series_ids:
+        filters["seriesIds"] = series_ids
+    if language:
+        filters["language"] = language
 
     where, params = build_book_where(filters)
-    uid = filters.get("userId")
-    # uid всегда в params: None валиден для JOIN через NULL-three-valued logic.
-    params.update(lim=page_size + 1, off=cursor, uid=uid)
+    # uid always in params: None is valid for the LEFT JOIN via three-valued logic.
+    params.update(lim=page_size, off=cursor, uid=user_id)
 
-    # SQL-safe: {where_clause} and {order_clause} from whitelist-sources.
+    # SQL-safe: {where_clause} and {order_clause} from whitelist-sources only.
     order_clause = resolve_order_clause(sort)
     final_sql = (
         queries.get_books.sql
         .replace("{where_clause}", where)
         .replace("{order_clause}", order_clause)
     )
-    rows = db.execute(final_sql, params).fetchall()
+    raw_rows = db.execute(final_sql, params).fetchall()
 
-    books = dicts_from_rows(rows)
-    has_more = len(books) > page_size
-    if has_more:
-        books = books[:page_size]
-
-    return {"books": books, "hasMore": has_more}
+    rows = [dict(r) for r in raw_rows]
+    for row in rows:
+        parse_book_row_aggregates(row)
+    return cast(list[BookListRow], rows)
 
 
 def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None) -> BookListRow | None:
-    # uid всегда передаётся — None валиден через NULL-three-valued logic в JOIN.
+    # uid always passed — None is valid via three-valued logic in LEFT JOIN.
     row = queries.get_book_by_id(db, id=book_id, uid=user_id)
-    return dict_from_row(row)
+    if row is None:
+        return None
+    result = dict(row)
+    parse_book_row_aggregates(result)
+    return cast(BookListRow, result)
 
 
 def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:

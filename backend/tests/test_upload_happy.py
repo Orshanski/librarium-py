@@ -63,8 +63,9 @@ def test_create_book_end_to_end(admin_client):
 
     book = assert_ok(admin_client.get(f"/api/books/{bid}"))
     assert book["book"]["title"] == "New Book"
-    assert "New Author" in book["book"]["authors"]
-    assert book["book"]["series_name"] == "New Series"
+    author_names = {a["name"] for a in book["book"]["authors"]}
+    assert "New Author" in author_names
+    assert book["book"]["series"]["name"] == "New Series"
     assert book["book"]["series_number"] == 1.0
     assert book["book"]["language"] == "ru"
     assert book["book"]["publisher"] == "New Press"
@@ -75,8 +76,9 @@ def test_create_book_end_to_end(admin_client):
     isbn_values = [i["value"] for i in identifiers if i["type"] == "isbn"]
     assert "978-0-000-00099-0" in isbn_values
 
-    assert "Фэнтези" in book["book"]["tags"]
-    assert "Детектив" in book["book"]["tags"]
+    tag_names = {t["name"] for t in book["book"]["tags"]}
+    assert "Фэнтези" in tag_names
+    assert "Детектив" in tag_names
 
     test_data = os.environ["DATA_DIR"]
     assert os.path.isfile(os.path.join(test_data, "library", str(bid), "book.fb2"))

@@ -31,30 +31,34 @@ class TestBookUpdate:
         resp = admin_client.put("/api/books/1", json={"authorIds": [2, 3]})
         data = assert_ok(resp)
         book = get_book(admin_client, 1)
-        assert "Cover Writer" in book["authors"]
-        assert "Test Autor" in book["authors"]
+        author_names = {a["name"] for a in book["authors"]}
+        assert "Cover Writer" in author_names
+        assert "Test Autor" in author_names
 
     def test_update_author_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"authorIds": ["Brand New Author"]})
         data = assert_ok(resp)
-        assert "Brand New Author" in get_book(admin_client, 1)["authors"]
+        author_names = {a["name"] for a in get_book(admin_client, 1)["authors"]}
+        assert "Brand New Author" in author_names
 
     def test_update_tag_ids_int(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"tagIds": [2]})
         data = assert_ok(resp)
         book = get_book(admin_client, 1)
-        assert "Классический детектив" in book["tags"]
-        assert "Фэнтези" not in book["tags"]
+        tag_names = {t["name"] for t in book["tags"]}
+        assert "Классический детектив" in tag_names
+        assert "Фэнтези" not in tag_names
 
     def test_update_tag_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"tagIds": ["Новый Жанр"]})
         data = assert_ok(resp)
-        assert "Новый Жанр" in get_book(admin_client, 1)["tags"]
+        tag_names = {t["name"] for t in get_book(admin_client, 1)["tags"]}
+        assert "Новый Жанр" in tag_names
 
     def test_update_series_by_name(self, admin_client):
         resp = admin_client.put("/api/books/1", json={"seriesId": "Brand New Series"})
         data = assert_ok(resp)
-        assert get_book(admin_client, 1)["series_name"] == "Brand New Series"
+        assert get_book(admin_client, 1)["series"]["name"] == "Brand New Series"
 
     def test_partial_update(self, admin_client):
         original = get_book(admin_client, 1)

@@ -3,6 +3,7 @@ from typing import Annotated, NotRequired, TypedDict
 
 from pydantic import BaseModel, Field
 
+from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
 
 
@@ -62,12 +63,11 @@ class BookUpdateData(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 class BookListRow(TypedDict):
-    """Single row from the `_BOOK_SELECT` JOIN block. Returned by
-    `dal.books.get_books` (list) and `get_book_by_id` (single row).
+    """Single row from `dal.books.get_books` (list) and `get_book_by_id` (single row).
 
-    Columns 1:1 with the SELECT; GROUP_CONCAT aggregates arrive as
-    comma-separated strings (authors, tags) or comma-separated ids
-    (author_ids, tag_ids). Deterministic ordering per E5.
+    Authors/tags are returned as list[Ref] after parse_book_row_aggregates;
+    series is SeriesRef or None. Columns author_ids/tag_ids/series_id/series_name
+    are not in the row (id is already inside the ref objects).
     """
     id: int
     title: str
@@ -76,16 +76,13 @@ class BookListRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
+    series: SeriesRef | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    author_ids: str | None
-    tags: str | None
-    tag_ids: str | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
     rating: int | None
     is_read: int | None  # SQLite BOOLEAN stored as 0/1; NULL via LEFT JOIN
 

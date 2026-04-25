@@ -1,17 +1,20 @@
 """
-Baseline snapshot tests for DAL book-listing queries.
+Snapshot tests for DAL book-listing queries.
 
-Purpose: lock down current behavior of get_author_by_id / get_series_by_id /
-get_tag_by_id / get_shelf_by_id / get_books / get_book_by_id so the E5 refactor
-can prove byte-identical semantics (modulo the intended GROUP_CONCAT ORDER BY
-change introduced in Task 2).
+Purpose: lock the row shape (column set) and ordering contract of
+get_author_by_id / get_series_by_id / get_tag_by_id / get_shelf_by_id /
+get_books / get_book_by_id so accidental SELECT drift fails loudly.
 
-These tests use SET-MEMBERSHIP assertions for GROUP_CONCAT content because
-current SQL has no ORDER BY inside aggregates. Task 3+ tighten to exact string
-once the ORDER BY contract is in place.
+Two row-shape contracts coexist:
+- get_books / get_book_by_id: JSON-array shape (authors/tags as list of refs,
+  series as ref-or-None) — migrated in pbz2 Task 2.
+- author/series/tag/shelf detail queries: legacy flat GROUP_CONCAT shape
+  (authors/tags as comma-separated names, *_ids as comma-separated ids) —
+  not yet migrated.
 
-Extra fixture: we add a multi-author book (book_id=100) whose authors are
-inserted in non-alphabetical order to prove the Task 2 ORDER BY fix works.
+Extra fixture: a multi-author book (book_id=100) with authors inserted in
+non-alphabetical order pins down the alphabetical ORDER BY contract for both
+shapes.
 """
 import pytest
 from app.dal import authors as authors_dal
@@ -27,7 +30,8 @@ def db_with_multi_author(db):
     — non-alphabetical insertion — plus tags id=1 and id=2 (non-alphabetical
     Cyrillic), and places the book into series 1 at series_number=10 (after
     book 3 which has series_number=2). This lets series tests verify the
-    GROUP_CONCAT ORDER BY contract alongside the author-page tests."""
+    alphabetical ORDER BY contract for aggregates alongside the author-page
+    tests."""
     db.execute("INSERT INTO authors (id, name, sort_name) VALUES (101, 'Smith', 'Smith')")
     db.execute("INSERT INTO authors (id, name, sort_name) VALUES (102, 'Brown', 'Brown')")
     db.execute(
@@ -79,7 +83,16 @@ EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS | {
 # "default" (regular) shelf: same as base.
 EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
 
-# books.get_books / books.get_book_by_id: entity-detail + id arrays + user data.
+# books.get_books: JSON-array contract — series/authors/tags as objects, no flat id columns.
+EXPECTED_GET_BOOKS_COLUMNS = {
+    "id", "title", "sort_title", "description", "language", "publisher",
+    "pub_date", "series", "series_number", "cover_path", "added_at", "updated_at",
+    "authors", "tags",
+    "rating", "is_read",
+}
+
+# Flat GROUP_CONCAT row shape — used by tag/shelf detail queries
+# (not yet migrated to JSON arrays in pbz2 Task 2; will migrate in Task 9).
 EXPECTED_BOOKS_FULL_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
     "author_ids", "tag_ids", "rating", "is_read",
 }
@@ -100,13 +113,12 @@ class TestAuthorDetailSnapshot:
 
     def test_author_100_multi_author_book(self, db_with_multi_author):
         # Author 101 (Smith) — their page should show the multi-author book.
-        # After Task 3 migration: the shared fragment sorts authors alphabetically
-        # by name, so the GROUP_CONCAT should be "Brown,Smith" exactly.
+        # get_author_by_id still uses the flat GROUP_CONCAT row shape (not yet
+        # migrated to JSON arrays), so authors arrive as a comma-separated string
+        # ordered alphabetically by name → "Brown,Smith".
         result = authors_dal.get_author_by_id(db_with_multi_author, 101)
         assert result is not None
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        # Was set-membership — tighten to exact string now that Task 3 wires
-        # the deterministic book_list_query aggregation.
         assert multi_book["authors"] == "Brown,Smith"
 
 
@@ -226,55 +238,53 @@ class TestShelfDetailSnapshot:
 
 class TestBooksSnapshot:
     def test_get_books_default_order(self, db):
-        resp = books_dal.get_books(db, filters={})
+        rows = books_dal.get_books(db)
         # Default sort = addedDesc
-        book_ids = [b["id"] for b in resp["books"]]
+        book_ids = [b["id"] for b in rows]
         assert book_ids == [5, 4, 3, 2, 1]
-        assert set(resp["books"][0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
+        assert set(rows[0].keys()) == EXPECTED_GET_BOOKS_COLUMNS
 
     def test_get_book_by_id_shape(self, db):
         result = books_dal.get_book_by_id(db, 1)
         assert result is not None
         # Book 1 has 1 author (Test Author) and 1 tag (Фэнтези)
-        assert result["authors"] == "Test Author"
-        assert result["tags"] == "Фэнтези"
-        # Exact column set — same as get_books row shape.
-        assert set(result.keys()) == EXPECTED_BOOKS_FULL_COLUMNS
+        assert isinstance(result["authors"], list)
+        assert result["authors"][0].name == "Test Author"
+        assert isinstance(result["tags"], list)
+        assert result["tags"][0].name == "Фэнтези"
+        # Exact column set — same JSON-array shape as get_books.
+        assert set(result.keys()) == EXPECTED_GET_BOOKS_COLUMNS
 
     def test_get_books_multi_author_membership(self, db_with_multi_author):
-        resp = books_dal.get_books(db_with_multi_author, filters={})
-        multi = next(b for b in resp["books"] if b["id"] == 100)
-        assert set(multi["authors"].split(",")) == {"Smith", "Brown"}
-        # Matching IDs
-        assert set(multi["author_ids"].split(",")) == {"101", "102"}
+        rows = books_dal.get_books(db_with_multi_author)
+        multi = next(b for b in rows if b["id"] == 100)
+        author_names = {a.name for a in multi["authors"]}
+        assert author_names == {"Smith", "Brown"}
 
     def test_get_books_multi_author_exact_string(self, db_with_multi_author):
-        # Prove ORDER BY a.name inside GROUP_CONCAT: insertion order was Smith, Brown;
-        # expected alphabetical is Brown, Smith. Also author_ids must pair with names
-        # by the same axis — so ids should come in the same (Brown-first, Smith-second)
-        # order, i.e. "102,101" — not "101,102" (which would indicate sort-by-id).
-        resp = books_dal.get_books(db_with_multi_author, filters={})
-        multi = next(b for b in resp["books"] if b["id"] == 100)
-        assert multi["authors"] == "Brown,Smith"
-        assert multi["author_ids"] == "102,101"
+        # Prove ORDER BY a.name: insertion order was Smith, Brown;
+        # expected alphabetical is Brown first, then Smith.
+        rows = books_dal.get_books(db_with_multi_author)
+        multi = next(b for b in rows if b["id"] == 100)
+        assert [a.name for a in multi["authors"]] == ["Brown", "Smith"]
+        assert [a.id for a in multi["authors"]] == [102, 101]
 
     def test_get_book_by_id_100_multi_author_exact_string(self, db_with_multi_author):
         result = books_dal.get_book_by_id(db_with_multi_author, 100)
         assert result is not None
-        assert result["authors"] == "Brown,Smith"
-        assert result["author_ids"] == "102,101"
+        assert [a.name for a in result["authors"]] == ["Brown", "Smith"]
+        assert [a.id for a in result["authors"]] == [102, 101]
 
     def test_get_books_multi_tag_exact_string(self, db_with_multi_author):
         # Book 100 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
         # Alphabetical by Russian: "Классический детектив" < "Фэнтези".
-        # Expected tags: "Классический детектив,Фэнтези", tag_ids: "2,1".
-        resp = books_dal.get_books(db_with_multi_author, filters={})
-        multi = next(b for b in resp["books"] if b["id"] == 100)
-        assert multi["tags"] == "Классический детектив,Фэнтези"
-        assert multi["tag_ids"] == "2,1"
+        rows = books_dal.get_books(db_with_multi_author)
+        multi = next(b for b in rows if b["id"] == 100)
+        assert [t.name for t in multi["tags"]] == ["Классический детектив", "Фэнтези"]
+        assert [t.id for t in multi["tags"]] == [2, 1]
 
 
 def test_get_books_ratingDesc_requires_user_id(db):
-    """ratingDesc без userId поднимает ValueError (spec: удаление fallback)."""
+    """ratingDesc without user_id raises ValueError."""
     with pytest.raises(ValueError, match="ratingDesc requires userId"):
-        books_dal.get_books(db, filters={}, sort="ratingDesc")
+        books_dal.get_books(db, sort="ratingDesc")

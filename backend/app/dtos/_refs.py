@@ -1,6 +1,6 @@
-"""Reference объекты для авторов, тегов, серий — единый BaseModel
-для DAL-output (через TypeAdapter) и wire (внутри response-моделей).
-Поля id/name camelCase-friendly, alias-конвертация не требуется."""
+"""Ссылочные объекты для авторов, тегов, серий — единый BaseModel
+для DAL-выдачи (через TypeAdapter) и провода (внутри ответных моделей).
+Поля id/name дружественны camelCase, alias-конвертация не требуется."""
 from pydantic import BaseModel
 
 
