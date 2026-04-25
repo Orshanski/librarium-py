@@ -57,6 +57,7 @@ def test_get_series_returns_authors_as_refs(db, series_with_single_author):
     result = dal_series.get_series(db, user_id=1)
     s = next(se for se in result["series"] if se["id"] == series_with_single_author.id)
     assert isinstance(s["authors"], list)
+    assert len(s["authors"]) == 1
     assert all(isinstance(a, AuthorRef) for a in s["authors"])
 
 
@@ -72,6 +73,7 @@ def test_get_series_no_duplicate_authors(db, series_with_single_author):
     result = dal_series.get_series(db, user_id=1)
     s = next(se for se in result["series"] if se["id"] == series_with_single_author.id)
     author_ids = [a.id for a in s["authors"]]
+    assert len(author_ids) == 1
     assert len(author_ids) == len(set(author_ids)), "Duplicate authors returned"
 
 

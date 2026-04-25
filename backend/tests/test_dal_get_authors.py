@@ -41,6 +41,7 @@ def test_get_authors_returns_tags_as_refs(db, author_with_tagged_books):
     authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]
     a = next(a for a in authors if a["id"] == author_with_tagged_books.id)
     assert isinstance(a["tags"], list)
+    assert len(a["tags"]) == 1
     assert all(isinstance(t, TagRef) for t in a["tags"])
 
 
@@ -63,6 +64,7 @@ def test_get_authors_no_duplicate_tags(db, author_with_tagged_books):
     authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]
     a = next(a for a in authors if a["id"] == author_with_tagged_books.id)
     tag_ids = [t.id for t in a["tags"]]
+    assert len(tag_ids) == 1
     assert len(tag_ids) == len(set(tag_ids)), "Duplicate tags returned"
 
 
