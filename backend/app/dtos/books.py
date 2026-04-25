@@ -111,11 +111,10 @@ class BookIdentifierRow(TypedDict):
 
 
 class DuplicateHit(TypedDict):
-    """Row shape from `find_duplicates_by_title` — subset of book columns
-    used for upload dedup."""
+    """Строка из `find_duplicates_by_title` — субмножество колонок книги для upload-dedup UI."""
     id: int
     title: str
-    authors: str | None
+    authors: list[AuthorRef]
 
 
 class BookListPage(TypedDict):

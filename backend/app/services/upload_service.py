@@ -273,7 +273,7 @@ def _check_duplicate(db: sqlite3.Connection, title: str, authors: list[str]) -> 
             if r["title"].lower() == title.lower():
                 return r
             continue
-        r_authors = (r["authors"] or "").lower()
-        if any(a.lower() in r_authors for a in authors):
+        r_author_names = [a.name.lower() for a in r["authors"]]
+        if any(a.lower() in name for a in authors for name in r_author_names):
             return r
     return None

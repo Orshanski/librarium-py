@@ -272,4 +272,7 @@ def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[Duplica
     # search_preprocess из app.search запланирована отдельно.
     escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped}%"
-    return dicts_from_rows(queries.find_duplicates_by_title(db, pattern=pattern))
+    rows = dicts_from_rows(queries.find_duplicates_by_title(db, pattern=pattern))
+    for r in rows:
+        r["authors"] = AUTHOR_LIST.validate_json(r["authors"] or "[]")
+    return cast(list[DuplicateHit], rows)
