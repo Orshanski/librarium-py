@@ -159,8 +159,9 @@ class BookItem(BaseModel):
     ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
     services.book_item_builder.row_to_book_item().
 
-    После pbz2 Task 10: authors/tags/series хранят ref-объекты (AuthorRef,
-    TagRef, SeriesRef) напрямую — flat-поля authorIds/tagIds/seriesId удалены.
+    `authors`/`tags`/`series` хранят ref-объекты (AuthorRef, TagRef, SeriesRef)
+    напрямую — id и name доступны через атрибут, отдельные authorIds/tagIds/
+    seriesId-поля не нужны.
 
     Поля, отсутствующие в конкретном endpoint (rating/isRead только в best;
     fraction/lastFormat/lastReadAt только в reading_now), остаются None и

@@ -13,9 +13,13 @@ from ..dtos.books import BookItem
 
 def row_to_book_item(row: dict) -> BookItem:
     """Маппинг row из DAL (snake_case) в BookItem (camelCase wire).
-    После pbz2 Task 9: row['authors'] уже list[AuthorRef], row['tags'] уже
-    list[TagRef], row['series'] уже SeriesRef | None. Bridge схлопывается
-    до passthrough.
+
+    Контракт row на входе (гарантируется parse_book_row_aggregates):
+    - row['authors'] — list[AuthorRef], отсутствует или пустой список для
+      запросов без author-агрегата;
+    - row['tags'] — list[TagRef], аналогично;
+    - row['series'] — SeriesRef | None.
+    Поэтому ref-поля проходят насквозь без распаковки.
     """
     book_id = row["id"]
     updated_at = row["updated_at"]
