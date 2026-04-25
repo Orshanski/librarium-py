@@ -3,6 +3,7 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._refs import TagRef
 from .books import BookItem
 from .catalog import LanguageOptionRow
 
@@ -43,7 +44,7 @@ class AuthorRow(TypedDict):
     name: str
     sort_name: str | None
     book_count: int
-    tags: str | None
+    tags: list[TagRef]
 
 
 class AuthorsList(TypedDict):
