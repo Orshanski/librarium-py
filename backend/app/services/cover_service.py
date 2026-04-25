@@ -129,7 +129,7 @@ def _try_embed(db: sqlite3.Connection, book_id: int) -> None:
         log.warning("Failed to embed cover into book files: %s", e)
 
 
-def commit(db: sqlite3.Connection, book_id: int) -> bool:
+def _commit(db: sqlite3.Connection, book_id: int) -> bool:
     """Move temp cover to library, update DB, invalidate thumb, embed into book files.
 
     Returns True if a cover was committed, False if no temp cover found.

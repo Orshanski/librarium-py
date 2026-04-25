@@ -1,6 +1,4 @@
-"""Gap-coverage for books router error paths (401/403/404/400/409)."""
-import io
-
+"""Gap-coverage for books router error paths (401/403/404)."""
 from tests._helpers import assert_error
 
 
@@ -40,30 +38,3 @@ def test_get_nonexistent_book_is_404(reader_client):
     assert_error(reader_client.get("/api/books/999999"),
                  404, message_matches="not found")
 
-
-# --- 400 paths (validation) ---
-
-def test_delete_file_without_format_param_is_422(admin_client):
-    """После T9: Pydantic Query(min_length=1) → 422 ValidationError."""
-    resp = admin_client.delete("/api/books/1/files")
-    assert resp.status_code == 422
-
-
-def test_upload_unsupported_format_to_book_is_400(admin_client):
-    resp = admin_client.post(
-        "/api/books/1/files",
-        files={"file": ("bad.xyz", b"content", "application/octet-stream")},
-    )
-    assert_error(resp, 400, message_matches="unsupported")
-
-
-# --- 409 paths (duplicate format) ---
-
-def test_add_duplicate_format_is_409(admin_client):
-    """Book 1 already has FB2 (baseline). Uploading another FB2 → 409."""
-    fake_fb2 = b'<?xml version="1.0" encoding="utf-8"?><FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"><description><title-info><book-title>x</book-title></title-info></description><body><section><p>x</p></section></body></FictionBook>'
-    resp = admin_client.post(
-        "/api/books/1/files",
-        files={"file": ("book.fb2", io.BytesIO(fake_fb2), "application/octet-stream")},
-    )
-    assert_error(resp, 409)

@@ -25,10 +25,6 @@ export function uploadCover(
   return client<CoverUploadResponse>("POST", `/api/books/${bookId}/cover`, { body: form });
 }
 
-export function commitCover(bookId: number): Promise<CoverOkResponse> {
-  return client<CoverOkResponse>("PUT", `/api/books/${bookId}/cover`);
-}
-
 export function discardCover(bookId: number): Promise<CoverOkResponse> {
   return client<CoverOkResponse>("DELETE", `/api/books/${bookId}/cover`);
 }

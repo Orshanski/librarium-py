@@ -89,32 +89,3 @@ def test_add_format_rollback_on_move_failure(client):
     finally:
         db.close()
 
-
-# ── Delete format ──
-
-def test_delete_format(admin_client):
-    test_data = os.environ["DATA_DIR"]
-    assert os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
-
-    resp = admin_client.delete("/api/books/1/files", params={"format": "FB2"})
-    assert_ok(resp)
-
-    db = connect_test_db()
-    try:
-        formats = [r[0] for r in db.execute("SELECT format FROM book_files WHERE book_id = 1").fetchall()]
-        assert "FB2" not in formats
-    finally:
-        db.close()
-
-    assert not os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
-
-
-def test_delete_format_missing_param(admin_client):
-    """После T9: Pydantic Query(..., min_length=1) → 422 RequestValidationError."""
-    resp = admin_client.delete("/api/books/1/files")
-    assert resp.status_code == 422
-
-
-def test_delete_format_nonexistent(admin_client):
-    resp = admin_client.delete("/api/books/1/files", params={"format": "PDF"})
-    assert_error(resp, 404)

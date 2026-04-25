@@ -1,12 +1,8 @@
 """Upload request DTOs and Response DTOs."""
-from typing import Annotated
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, Field, StringConstraints
-
+from ._types import TempIdStr
 from .books import DuplicateHit
-
-TempIdStr = Annotated[str, StringConstraints(pattern=r'^[a-zA-Z0-9]{1,20}$')]
-"""Temp upload ID: 1-20 alphanumeric chars."""
 
 
 class CreateBookMetadata(BaseModel):
