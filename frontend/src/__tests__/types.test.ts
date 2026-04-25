@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toBook, RawBook, AuthorRef } from "../types";
+import { toBook, RawBook } from "../types";
 
 const baseRaw: RawBook = {
   id: 1,
@@ -24,7 +24,7 @@ describe("toBook", () => {
       ...baseRaw,
       id: 1,
       title: "X",
-      authors: [{ id: 1, name: "A" }, { id: 2, name: "B" }] as AuthorRef[],
+      authors: [{ id: 1, name: "A" }, { id: 2, name: "B" }],
       updatedAt: "2020",
     };
     const b = toBook(raw);

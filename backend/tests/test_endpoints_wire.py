@@ -1,8 +1,14 @@
-"""Integration tests: all endpoints return camelCase wire format.
+"""Integration tests for the post-pbz2 wire format on the listed endpoints.
 
-Verifies that after the pbz2 csv-to-objects migration every endpoint emits
-camelCase keys and structured author/tag/series objects instead of CSV strings
-or legacy snake_case fields.
+Coverage: /api/books (list/detail/PUT), /api/authors (list/detail),
+/api/series (list/detail), /api/tags/{id}, /api/shelves/{id},
+/api/upload duplicate hit, /api/search.
+
+Each endpoint above is asserted to emit camelCase keys and structured
+author/tag/series objects (not CSV strings, not legacy snake fields).
+Note: /api/search retains snake_case wire by spec (SearchResponse has no
+RESPONSE_CONFIG); only the structured authors/series payload is checked
+there, not the surrounding camelCase shape.
 
 Baseline seed (conftest + seed.py):
   - Authors: 1 "Test Author", 2 "Cover Writer", 3 "Test Autor"
@@ -14,6 +20,12 @@ Baseline seed (conftest + seed.py):
   - Book 4: author=3, tag=2, series=2
   - Book 5: author=2, tags=1+2
 """
+
+
+def assert_no_legacy_csv_fields(book: dict) -> None:
+    """Assert that a book payload does not carry any pre-pbz2 CSV/flat keys."""
+    for key in ("author_ids", "tag_ids", "series_id", "series_name"):
+        assert key not in book, f"Legacy field '{key}' present in {book!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +151,7 @@ def test_get_authors_wire(admin_client):
     assert "sortName" in author
     assert "sort_name" not in author
     assert isinstance(author["tags"], list)
+    assert len(author["tags"]) > 0
     assert all("id" in t and "name" in t for t in author["tags"])
 
 
@@ -164,10 +177,7 @@ def test_get_author_detail_wire(admin_client):
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
-    # no CSV/legacy fields
-    assert "author_ids" not in book
-    assert "series_id" not in book
-    assert "series_name" not in book
+    assert_no_legacy_csv_fields(book)
 
 
 # ---------------------------------------------------------------------------
@@ -209,8 +219,7 @@ def test_get_series_detail_wire(admin_client):
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
-    assert "author_ids" not in book
-    assert "series_id" not in book
+    assert_no_legacy_csv_fields(book)
 
 
 # ---------------------------------------------------------------------------
@@ -241,10 +250,9 @@ def test_get_tag_wire(admin_client):
 
 def test_get_tag_books_no_legacy_fields(admin_client):
     payload = admin_client.get("/api/tags/1").json()
+    assert len(payload["books"]) > 0
     for book in payload["books"]:
-        assert "author_ids" not in book
-        assert "series_id" not in book
-        assert "series_name" not in book
+        assert_no_legacy_csv_fields(book)
         assert "tag_ids" not in book
 
 
@@ -279,10 +287,9 @@ def test_get_shelf_books_no_legacy_fields(reader_client, db):
     db.commit()
 
     payload = reader_client.get(f"/api/shelves/{shelf_id}").json()
+    assert len(payload["books"]) > 0
     for book in payload["books"]:
-        assert "author_ids" not in book
-        assert "series_id" not in book
-        assert "series_name" not in book
+        assert_no_legacy_csv_fields(book)
 
 
 # ---------------------------------------------------------------------------
@@ -291,10 +298,13 @@ def test_get_shelf_books_no_legacy_fields(reader_client, db):
 
 
 def test_upload_duplicate_authors_wire(admin_client):
-    """Upload a file whose title matches a seeded book — duplicate.authors is list[{id,name}]."""
+    """Upload a file whose title matches a seeded book — duplicate.authors is list[{id,name}].
+
+    minimal.fb2 has title "Minimal Test Book" and author "Test Author", which
+    is an exact match against seeded Book 1; the duplicate path is deterministic.
+    """
     from pathlib import Path
     fixtures = Path(__file__).resolve().parent / "fixtures" / "books"
-    # minimal.fb2 title is "Minimal Test Book" — matches book 1 in seed
     with open(fixtures / "minimal.fb2", "rb") as f:
         resp = admin_client.post(
             "/api/upload",
@@ -303,10 +313,10 @@ def test_upload_duplicate_authors_wire(admin_client):
     assert resp.status_code == 200
     payload = resp.json()
     dup = payload.get("duplicate")
-    if dup is not None:
-        assert isinstance(dup["authors"], list)
-        assert len(dup["authors"]) > 0
-        assert all("id" in a and "name" in a for a in dup["authors"])
+    assert dup is not None, "Seeded title match must surface a duplicate hit"
+    assert isinstance(dup["authors"], list)
+    assert len(dup["authors"]) > 0
+    assert all("id" in a and "name" in a for a in dup["authors"])
 
 
 # ---------------------------------------------------------------------------
