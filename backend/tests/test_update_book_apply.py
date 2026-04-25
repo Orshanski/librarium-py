@@ -394,3 +394,58 @@ def test_old_cover_commit_endpoint_removed(admin_client):
     """PUT /api/books/:id/cover → 404/405."""
     resp = admin_client.put("/api/books/1/cover")
     assert resp.status_code in (404, 405)
+
+
+# ---------------------------------------------------------------------------
+# Bug 1 regression: replace-flow rollback restores original file from .bak
+# ---------------------------------------------------------------------------
+
+
+def test_update_book_replace_format_add_fail_restores_original(admin_client):
+    """Bug 1 regression: replace = delete + add same fmt; если add падает,
+    оригинальный файл должен быть восстановлен из .bak (не потерян)."""
+    test_data = os.environ["DATA_DIR"]
+    original_fb2_path = os.path.join(test_data, "library", "1", "book.fb2")
+    assert os.path.isfile(original_fb2_path), "baseline: book 1 должна иметь FB2"
+    with open(original_fb2_path, "rb") as f:
+        original_content = f.read()
+
+    temp_id = _upload_temp(admin_client, "minimal.fb2")
+
+    from app.main import app
+    no_raise = TestClient(app, raise_server_exceptions=False, cookies=admin_client.cookies)
+    no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
+
+    # Mock copyfile → падение на add-этапе. delete-этап (renames в .bak) уже завершится.
+    with patch(
+        "app.services.book_service.shutil.copyfile",
+        side_effect=OSError("disk full"),
+    ):
+        resp = no_raise.put(
+            "/api/books/1",
+            json={"deleteFormats": ["FB2"], "addFormats": [temp_id]},
+        )
+    assert_error(resp, 500)
+
+    # Bug fix: оригинальный файл должен быть восстановлен.
+    assert os.path.isfile(original_fb2_path), \
+        "Оригинальный FB2 должен быть восстановлен из .bak после сбоя add"
+    with open(original_fb2_path, "rb") as f:
+        assert f.read() == original_content, "Содержимое должно быть исходным"
+
+    # .bak не должен остаться на диске.
+    assert not os.path.exists(original_fb2_path + ".bak"), \
+        ".bak должен быть переименован обратно в исходный файл"
+
+    # DB: FB2 row должен существовать (DAL rollback восстановил).
+    db = connect_test_db()
+    try:
+        formats = [r[0] for r in db.execute(
+            "SELECT format FROM book_files WHERE book_id = 1"
+        ).fetchall()]
+    finally:
+        db.close()
+    assert "FB2" in formats, "DAL rollback должен восстановить FB2 row"
+
+    # temp файл сохранён для повтора.
+    assert os.path.exists(os.path.join(test_data, "uploads", f"{temp_id}.fb2"))

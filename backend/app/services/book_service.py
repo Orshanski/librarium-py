@@ -125,12 +125,17 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
             continue
         resolved_deletes.append((fmt_code, row))
 
-    # Шаг 2: apply deleteFormats. FS-first: если FS падает, DAL не тронута
-    # (spec §5 — db_session коммитит на выходе handler'а, явный rollback не работает).
+    # Шаг 2: apply deleteFormats — backup-then-delete pattern.
+    # FS-файлы переименовываются в `.bak`, чтобы при сбое шага 3 их можно
+    # было восстановить. После успеха шага 5 — `.bak` удаляются финально.
+    # Симметрично cover_service._backup_existing/_restore_from_backup.
+    backed_up_paths: list[tuple[str, str]] = []  # (original_path, bak_path)
     for fmt_code, row in resolved_deletes:
         file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
         if os.path.isfile(file_path):
-            os.remove(file_path)
+            bak_path = file_path + ".bak"
+            os.rename(file_path, bak_path)
+            backed_up_paths.append((file_path, bak_path))
         dal.delete_book_file(db, row["id"])
 
     # Шаг 3: apply addFormats (copyfile + register + manual rollback).
@@ -144,9 +149,15 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
             shutil.copyfile(src, dst)
             register_and_linearize(db, book_id, dst, ext)
     except Exception:
+        # Cleanup новых dst — частично/полностью скопированных.
         for d in copied_dsts:
             with contextlib.suppress(FileNotFoundError):
                 os.remove(d)
+        # Restore — вернуть переименованные .bak обратно (replace-flow).
+        # DB-rollback восстановит book_files rows, файлы должны соответствовать.
+        for orig_path, bak_path in backed_up_paths:
+            with contextlib.suppress(FileNotFoundError):
+                os.rename(bak_path, orig_path)
         raise
 
     # Шаг 4: apply commitCover.
@@ -167,6 +178,11 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
     if "seriesId" in data:
         data["seriesId"] = resolve_series(db, data["seriesId"])
     dal.update_book(db, book_id, data)
+
+    # Шаг 5b: финальное удаление backed-up `.bak` (replace-flow успешно завершён).
+    for _orig_path, bak_path in backed_up_paths:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.
     for (tid, _src, _fmt, _ext) in resolved_adds:
