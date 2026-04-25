@@ -66,12 +66,13 @@ class ShelfBookRow(TypedDict):
     Authors and tags are parsed JSON arrays (list[AuthorRef] / list[TagRef]).
     Series is a parsed JSON object (SeriesRef) or None.
 
-    Extra columns present only in specific branches (NotRequired):
-    - rating, is_read  — best and regular shelves (via LEFT JOIN user_books).
-    - fraction, last_format, last_read_at  — reading_now shelf only.
+    User-state columns rating и is_read селектируются всеми тремя ветками
+    через LEFT JOIN user_books — ключи всегда присутствуют, значение None при
+    отсутствии user_books-ряда. NotRequired остаётся только у reading_now-only
+    полей: fraction, last_format, last_read_at.
 
-    R-A: one TypedDict with NotRequired extras is correct — single return site
-    (ShelfDetailRow.books), callers receive all variants through the same path."""
+    R-A: одна TypedDict с NotRequired-extras для reading_now — single return
+    site (ShelfDetailRow.books); callers получают все варианты одинаковой формы."""
     id: int
     title: str
     sort_title: str | None
@@ -86,10 +87,9 @@ class ShelfBookRow(TypedDict):
     series: SeriesRef | None
     authors: list[AuthorRef]
     tags: list[TagRef]
-    # user-specific (present in all three branches; None when no user_books row)
-    rating: NotRequired[int | None]
-    is_read: NotRequired[int | None]
-    # reading_now extras
+    rating: int | None
+    is_read: int | None
+    # reading_now-only
     fraction: NotRequired[float | None]
     last_format: NotRequired[str | None]
     last_read_at: NotRequired[str | None]

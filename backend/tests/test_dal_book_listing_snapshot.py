@@ -146,7 +146,6 @@ class TestTagDetailSnapshot:
         # Book 5 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
         # json_group_array orders by tag name; "К" (U+041A) < "Ф" (U+0424),
         # so "Классический детектив" first.
-        from app.dtos._refs import TagRef
         result = tags_dal.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book5 = next(b for b in result["books"] if b["id"] == 5)

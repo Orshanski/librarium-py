@@ -2,9 +2,11 @@
 -- Explicit columns instead of b.* to control the output shape.
 -- series is a JSON object (SeriesRef) or NULL, not a flat series_name column.
 -- authors/tags are json_group_array of JSON objects (AuthorRef/TagRef), not GROUP_CONCAT strings.
--- Top-level LEFT JOIN authors (alias a) is kept for authorAsc/authorDesc sort via MIN(a.sort_name);
--- correlated subqueries use distinct aliases (ba_sub, a_sub, bt_sub, t_sub) to avoid conflict.
--- GROUP BY b.id collapses the author-join fanout.
+-- Top-level LEFT JOIN authors / book_authors / GROUP BY b.id mirror the structural
+-- shape of get_shelf_books_best.sql и get_shelf_books_regular.sql; reading_now sort
+-- is forced to lastReadDesc (config/sort.json shelf_reading_now.options=[]), but the
+-- shared shape lets all three SQL files reuse the same DAL parsing path.
+-- Correlated subqueries use distinct aliases (ba_sub, a_sub, bt_sub, t_sub) to avoid conflict.
 SELECT
     b.id, b.title, b.sort_title, b.description, b.language, b.publisher,
     b.pub_date, b.series_number, b.cover_path, b.added_at, b.updated_at,
