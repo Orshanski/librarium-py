@@ -1,9 +1,10 @@
 import { client } from "../client";
 import type { RawBook } from "@/types";
 
-export interface FileInfo {
+export interface BookFileInfo {
+  id: number;
   format: string;
-  file_size: number;
+  fileSize: number | null;
 }
 
 export interface BookIdentifier {
@@ -13,7 +14,7 @@ export interface BookIdentifier {
 
 export interface BookDetailResponse {
   book: RawBook;
-  files: FileInfo[];
+  files: BookFileInfo[];
   identifiers: BookIdentifier[];
 }
 

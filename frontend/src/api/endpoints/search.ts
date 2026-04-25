@@ -1,17 +1,17 @@
 import { client } from "../client";
-import type { RawBook } from "@/types";
+import type { RawBook, AuthorRef } from "@/types";
 
 export interface SearchAuthorResult {
   id: number;
   name: string;
-  book_count: number;
+  bookCount: number;
 }
 
 export interface SearchSeriesResult {
   id: number;
   name: string;
-  authors: string;
-  book_count: number;
+  authors: AuthorRef[];
+  bookCount: number;
 }
 
 export interface SearchResponse {

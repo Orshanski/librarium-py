@@ -1,13 +1,13 @@
 import { client } from "../client";
-import type { Book } from "@/types";
+import type { RawBook } from "@/types";
 
 export interface Shelf {
   id: number;
   name: string;
-  is_system: boolean;
-  has_book?: boolean;
-  book_count?: number;
-  system_code?: string;
+  isSystem: boolean;
+  hasBook?: boolean;
+  bookCount?: number;
+  systemCode?: string;
 }
 
 export interface ShelfSummary {
@@ -19,7 +19,7 @@ export interface ShelfSummary {
 
 export interface BookShelfMembership {
   id: number;
-  has_book: boolean;
+  hasBook: boolean;
 }
 
 export interface ShelvesListResponse {
@@ -29,7 +29,7 @@ export interface ShelvesListResponse {
 
 export interface ShelfDetail {
   shelf: ShelfSummary;
-  books: Book[];
+  books: RawBook[];
 }
 
 export interface CreateShelfResponse {
