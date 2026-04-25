@@ -1,9 +1,9 @@
 """Book request DTOs, write-input TypedDicts, and Response DTOs."""
 from typing import Annotated, NotRequired, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
-from ._aliases import BODY_CONFIG, to_camel
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
 
@@ -123,11 +123,6 @@ class DuplicateHit(TypedDict):
 # Response DTOs (L4) — Pydantic, service→router boundary only. R-B: never
 # used as DAL row type; construction happens in service layer only.
 # ---------------------------------------------------------------------------
-
-RESPONSE_CONFIG = ConfigDict(
-    populate_by_name=True,
-    alias_generator=to_camel,
-)
 
 
 class BookListItem(BaseModel):

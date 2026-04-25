@@ -3,9 +3,8 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._aliases import BODY_CONFIG, to_camel
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG, to_camel
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import RESPONSE_CONFIG
 from .catalog import LanguageOptionRow
 
 

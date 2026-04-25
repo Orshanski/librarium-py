@@ -3,9 +3,9 @@ from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
-from ._aliases import BODY_CONFIG
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import BookItem, RESPONSE_CONFIG
+from .books import BookItem
 
 
 class ShelfSummary(BaseModel):
