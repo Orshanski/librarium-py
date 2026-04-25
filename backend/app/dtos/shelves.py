@@ -1,10 +1,13 @@
 """Shelves request DTOs and Response DTOs."""
 from typing import NotRequired, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
+from ._aliases import to_camel
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import BookItem
+from .books import BookItem, RESPONSE_CONFIG
+
+_BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra="forbid")
 
 
 class ShelfSummary(BaseModel):
@@ -16,11 +19,13 @@ class ShelfSummary(BaseModel):
 
 
 class ShelfBody(BaseModel):
+    model_config = _BODY_CONFIG
     name: str
 
 
 class ShelfBookBody(BaseModel):
-    bookId: int
+    model_config = _BODY_CONFIG
+    book_id: int
 
 
 # ---------------------------------------------------------------------------
@@ -121,17 +126,17 @@ class BookShelfEntry(TypedDict):
 class ShelvesListResponse(BaseModel):
     """Response for GET /api/shelves.
 
-    Wire format:
+    Wire format (camelCase):
       without bookId: {"shelves": [...]}
       with bookId:    {"shelves": [...], "bookShelves": [...]}
 
-    Pre-L4 the service returned a ShelvesList TypedDict (total=False), which
-    FastAPI serialized as a plain dict without the bookShelves key when absent.
-    We preserve this by setting bookShelves=None and using
+    `book_shelves` is None when book_id is absent; omitted from wire via
     response_model_exclude_none=True on the endpoint.
     """
+    model_config = RESPONSE_CONFIG
+
     shelves: list[ShelfRow]
-    bookShelves: list[BookShelfEntry] | None = None
+    book_shelves: list[BookShelfEntry] | None = None
 
 
 class ShelfDetailResponse(BaseModel):
@@ -139,5 +144,7 @@ class ShelfDetailResponse(BaseModel):
 
     Wire format (camelCase): {"shelf": {...}, "books": [...]}
     """
+    model_config = RESPONSE_CONFIG
+
     shelf: ShelfSummary
     books: list[BookItem]

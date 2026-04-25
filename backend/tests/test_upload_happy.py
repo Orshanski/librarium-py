@@ -66,7 +66,7 @@ def test_create_book_end_to_end(admin_client):
     author_names = {a["name"] for a in book["book"]["authors"]}
     assert "New Author" in author_names
     assert book["book"]["series"]["name"] == "New Series"
-    assert book["book"]["series_number"] == 1.0
+    assert book["book"]["seriesNumber"] == 1.0
     assert book["book"]["language"] == "ru"
     assert book["book"]["publisher"] == "New Press"
     assert len(book["files"]) == 1

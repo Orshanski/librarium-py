@@ -56,7 +56,7 @@ def delete_shelf(shelf_id: int, user: Annotated[CurrentUser, Depends(get_current
 
 @router.post("/{shelf_id}/books", response_model=OkResponse)
 def add_book(shelf_id: int, body: ShelfBookBody, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
-    shelves_service.add_book(db, shelf_id, user.user_id, body.bookId)
+    shelves_service.add_book(db, shelf_id, user.user_id, body.book_id)
     return OkResponse()
 
 

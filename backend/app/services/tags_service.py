@@ -5,7 +5,6 @@ from ..dal import tags as dal
 from ..dtos.catalog import UserSort
 from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse, TagSummary
 from ..exceptions import NotFoundError
-from .book_item_builder import row_to_book_item
 
 
 def tag_cloud(db: sqlite3.Connection, top: int | None) -> TagCloudResponse:
@@ -34,7 +33,7 @@ def get_tag(
             name=tag_row["name"],
             code=tag_row.get("code"),
         ),
-        books=[row_to_book_item(r) for r in result["books"]],
+        books=result["books"],
     )
 
 
@@ -46,4 +45,4 @@ def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:
     if not dal.tag_exists(db, tag_id):
         raise NotFoundError("Not found")
     result = dal.map_tag(db, tag_id, name)
-    return TagMapResponse(ok=True, targetId=result["target_id"], renamed=result["renamed"])
+    return TagMapResponse(ok=True, target_id=result["target_id"], renamed=result["renamed"])

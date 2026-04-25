@@ -23,7 +23,7 @@ def test_create_user_creates_system_shelves(admin_client):
     # Login as new user and check shelves
     c = login_client(username="shelfuser", password="pass1234")
     shelves = assert_ok(c.get("/api/shelves"))["shelves"]
-    system_codes = {s["system_code"] for s in shelves if s["is_system"]}
+    system_codes = {s["systemCode"] for s in shelves if s["isSystem"]}
     assert system_codes == {"best", "reading_now"}
 
 

@@ -68,15 +68,15 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         BookUpdateData,
         body.model_dump(
             exclude_unset=True,
-            exclude={"addFormats", "deleteFormats", "commitCover"},
+            exclude={"add_formats", "delete_formats", "commit_cover"},
         ),
     )
 
-    add_formats = body.addFormats or []
-    delete_formats = body.deleteFormats or []
+    add_formats = body.add_formats or []
+    delete_formats = body.delete_formats or []
 
     # Шаг 0: no-op guard
-    if not data and not add_formats and not delete_formats and not body.commitCover:
+    if not data and not add_formats and not delete_formats and not body.commit_cover:
         return
 
     # Шаг 1: валидация (rollback-дешёвая, до side effects)
@@ -110,7 +110,7 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         raise ConflictError(f"Format {sorted(conflict)[0]} already present")
 
     # 1e. commitCover pending-check.
-    if body.commitCover and cover_service._find_temp_cover(book_id) is None:
+    if body.commit_cover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
 
     # 1f. Резолв deleteFormats → идемпотентный список (format, row) + skipped.
@@ -161,7 +161,7 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         raise
 
     # Шаг 4: apply commitCover.
-    if body.commitCover:
+    if body.commit_cover:
         if not cover_service._commit(db, book_id):
             # Pending-cover был в шаге 1e, но исчез между check и commit (race с
             # `cleanup_old_uploads` — grace 3600 s, практически невозможно).
@@ -171,12 +171,12 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
             )
 
     # Шаг 5: apply metadata (всегда — updated_at bump при file-only тоже).
-    if "authorIds" in data:
-        data["authorIds"] = resolve_authors(db, data["authorIds"])
-    if "tagIds" in data:
-        data["tagIds"] = resolve_tags(db, data["tagIds"])
-    if "seriesId" in data:
-        data["seriesId"] = resolve_series(db, data["seriesId"])
+    if "author_ids" in data:
+        data["author_ids"] = resolve_authors(db, data["author_ids"])
+    if "tag_ids" in data:
+        data["tag_ids"] = resolve_tags(db, data["tag_ids"])
+    if "series_id" in data:
+        data["series_id"] = resolve_series(db, data["series_id"])
     dal.update_book(db, book_id, data)
 
     # Шаг 5b: финальное удаление backed-up `.bak` (replace-flow успешно завершён).
@@ -222,4 +222,4 @@ def list_books(
     )
     has_more = len(rows) > page_size
     books = rows[:page_size] if has_more else rows
-    return BookListResponse(books=books, hasMore=has_more)
+    return BookListResponse(books=books, has_more=has_more)

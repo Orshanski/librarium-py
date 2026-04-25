@@ -1,27 +1,33 @@
 """Book request DTOs, write-input TypedDicts, and Response DTOs."""
 from typing import Annotated, NotRequired, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from ._aliases import to_camel
 from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
 
 
 class UpdateBookBody(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=False,
+        alias_generator=to_camel,
+        extra="forbid",
+    )
+
     title: str | None = None
     description: str | None = None
     language: str | None = None
     publisher: str | None = None
-    pubDate: str | None = None
-    seriesId: int | str | None = None
-    seriesNumber: float | None = None
-    authorIds: list[int | str] | None = None
-    tagIds: list[int | str] | None = None
+    pub_date: str | None = None
+    series_id: int | str | None = None
+    series_number: float | None = None
+    author_ids: list[int | str] | None = None
+    tag_ids: list[int | str] | None = None
     isbn: str | None = None
-
-    addFormats: Annotated[list[TempIdStr], Field(max_length=10)] | None = None
-    deleteFormats: Annotated[list[FormatCode], Field(max_length=10)] | None = None
-    commitCover: bool = False
+    add_formats: Annotated[list[TempIdStr], Field(max_length=10)] | None = None
+    delete_formats: Annotated[list[FormatCode], Field(max_length=10)] | None = None
+    commit_cover: bool = False
 
 
 class BookCreateData(TypedDict):
@@ -48,14 +54,14 @@ class BookUpdateData(TypedDict, total=False):
     description: str | None
     language: str | None
     publisher: str | None
-    pubDate: str | None
-    seriesId: int | str | None
-    seriesNumber: float | None
-    authorIds: list[int | str]
-    tagIds: list[int | str]
+    pub_date: str | None
+    series_id: int | str | None
+    series_number: float | None
+    author_ids: list[int | str]
+    tag_ids: list[int | str]
     isbn: str | None
-    sortTitle: str
-    coverPath: str
+    sort_title: str
+    cover_path: str
 
 
 # ---------------------------------------------------------------------------
@@ -122,28 +128,87 @@ class DuplicateHit(TypedDict):
 # used as DAL row type; construction happens in service layer only.
 # ---------------------------------------------------------------------------
 
+RESPONSE_CONFIG = ConfigDict(
+    populate_by_name=True,
+    alias_generator=to_camel,
+)
+
+
+class BookListItem(BaseModel):
+    """Single book item in list/detail responses. Snake-case Python fields;
+    serialises to camelCase wire via alias_generator. Accepts snake keys from
+    DAL TypedDicts (populate_by_name=True) and camel keys from wire."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pub_date: str | None = None
+    series: SeriesRef | None = None
+    series_number: float | None = None
+    cover_path: str | None = None
+    added_at: str
+    updated_at: str
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None = None
+    is_read: int | None = None
+
+
+class BookFileItem(BaseModel):
+    """Book file (format) item in detail response."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    format: str
+    file_size: int | None = None
+
+
+class BookIdentifierItem(BaseModel):
+    """Book identifier (e.g. ISBN) in detail response."""
+    model_config = RESPONSE_CONFIG
+
+    type: str
+    value: str
+
+
+class DuplicateHitItem(BaseModel):
+    """Duplicate candidate item in upload-dedup response."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    authors: list[AuthorRef]
+
 
 class BookDetailResponse(BaseModel):
     """Response for GET /api/books/{book_id}.
 
-    Wire format: {"book": {...}, "files": [...], "identifiers": [...]}
-    All nested items are TypedDicts; Pydantic v2 validates TypedDict items
-    natively. snake_case keys are preserved end-to-end (matching pre-L4 wire).
+    Wire format (camelCase): {"book": {...}, "files": [...], "identifiers": [...]}
+    Pydantic validates DAL TypedDict rows (snake keys) into BookListItem/
+    BookFileItem/BookIdentifierItem via populate_by_name=True on each item.
     """
-    book: BookListRow
-    files: list[BookFileRow]
-    identifiers: list[BookIdentifierRow]
+    model_config = RESPONSE_CONFIG
+
+    book: BookListItem
+    files: list[BookFileItem]
+    identifiers: list[BookIdentifierItem]
 
 
 class BookListResponse(BaseModel):
     """Response for GET /api/books (paginated catalog).
 
-    Wire format: {"books": [...], "hasMore": bool}
+    Wire format (camelCase): {"books": [...], "hasMore": bool}
     `books` contains at most `page_size` rows; `hasMore` signals that more
     rows exist beyond the current cursor.
     """
-    books: list[BookListRow]
-    hasMore: bool
+    model_config = RESPONSE_CONFIG
+
+    books: list[BookListItem]
+    has_more: bool
 
 
 class BookFormatItem(BaseModel):

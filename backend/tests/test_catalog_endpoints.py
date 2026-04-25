@@ -45,7 +45,7 @@ class TestSeriesFilters:
         for b in books:
             assert b["series"]["name"] == "Test Series"
             assert b["series"]["id"] == 1
-            assert b["series_number"] is not None
+            assert b["seriesNumber"] is not None
 
 
 class TestTags:

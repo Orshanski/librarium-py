@@ -18,7 +18,7 @@ def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> S
         book_shelves = [
             BookShelfEntry(id=s["id"], has_book=s["id"] in on_shelf_ids) for s in shelves
         ]
-    return ShelvesListResponse(shelves=shelves, bookShelves=book_shelves)
+    return ShelvesListResponse(shelves=shelves, book_shelves=book_shelves)
 
 
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:

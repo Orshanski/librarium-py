@@ -8,18 +8,18 @@ def book_ids(books):
 
 def find_shelf_id(client, system_code: str) -> int:
     shelves = client.get("/api/shelves").json()["shelves"]
-    return next(s["id"] for s in shelves if s.get("system_code") == system_code)
+    return next(s["id"] for s in shelves if s.get("systemCode") == system_code)
 
 
 def test_system_shelf_in_list(reader_client):
     resp = reader_client.get("/api/shelves")
     shelves = resp.json()["shelves"]
-    system = [s for s in shelves if s["is_system"]]
+    system = [s for s in shelves if s["isSystem"]]
     assert len(system) == 2
-    best = [s for s in system if s["system_code"] == "best"]
+    best = [s for s in system if s["systemCode"] == "best"]
     assert len(best) == 1
-    assert best[0]["book_count"] == 1
-    reading_now = [s for s in system if s["system_code"] == "reading_now"]
+    assert best[0]["bookCount"] == 1
+    reading_now = [s for s in system if s["systemCode"] == "reading_now"]
     assert len(reading_now) == 1
 
 
@@ -95,4 +95,4 @@ def test_book_shelves_system_has_book_false(reader_client):
     best_id = find_shelf_id(reader_client, "best")
     system = [bs for bs in book_shelves if bs["id"] == best_id]
     assert len(system) == 1
-    assert system[0]["has_book"] is False
+    assert system[0]["hasBook"] is False

@@ -100,10 +100,10 @@ def register_entity_crud(
         user: Annotated[CurrentUser, Depends(require_admin)],
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
-        merge_fn(db, entity_id, body.sourceId)
+        merge_fn(db, entity_id, body.source_id)
         logger.info(
             "Merged %s source=%d into target=%d by user_id=%s",
-            entity_label, body.sourceId, entity_id, user.user_id,
+            entity_label, body.source_id, entity_id, user.user_id,
         )
         return OkResponse()
 

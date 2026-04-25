@@ -47,6 +47,6 @@ def map_tag(
     action = "renamed" if result.renamed else "merged"
     log.info(
         "Tag %s: %d → %s (target=%d) by user_id=%s",
-        action, tag_id, body.name, result.targetId, user.user_id,
+        action, tag_id, body.name, result.target_id, user.user_id,
     )
     return result

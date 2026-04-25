@@ -115,8 +115,8 @@ def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> N
 
     field_map = {
         "title": "title", "description": "description", "language": "language",
-        "publisher": "publisher", "pubDate": "pub_date", "seriesId": "series_id",
-        "seriesNumber": "series_number", "coverPath": "cover_path",
+        "publisher": "publisher", "pub_date": "pub_date", "series_id": "series_id",
+        "series_number": "series_number", "cover_path": "cover_path",
     }
     for key, col in field_map.items():
         if key in data:
@@ -124,19 +124,19 @@ def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> N
             params[key] = data[key]
 
     if "title" in data:
-        sets.append("sort_title = :sortTitle")
-        params["sortTitle"] = data.get("sortTitle") or _sort_title(data["title"])
+        sets.append("sort_title = :sort_title")
+        params["sort_title"] = data.get("sort_title") or _sort_title(data["title"])
 
     db.execute(f"UPDATE books SET {', '.join(sets)} WHERE id = :id", params)
 
-    if "authorIds" in data:
+    if "author_ids" in data:
         queries.delete_book_authors(db, book_id=book_id)
-        for aid in data["authorIds"]:
+        for aid in data["author_ids"]:
             queries.insert_book_author(db, book_id=book_id, author_id=aid)
 
-    if "tagIds" in data:
+    if "tag_ids" in data:
         queries.delete_book_tags(db, book_id=book_id)
-        for tid in data["tagIds"]:
+        for tid in data["tag_ids"]:
             queries.insert_book_tag(db, book_id=book_id, tag_id=tid)
 
     if "isbn" in data:

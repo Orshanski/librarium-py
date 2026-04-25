@@ -12,7 +12,7 @@ class TestDirectoryEndpoints:
     def test_tags_cloud(self, reader_client):
         data = reader_client.get("/api/tags/cloud").json()
         assert len(data["tags"]) > 0
-        assert "book_count" in data["tags"][0]
+        assert "bookCount" in data["tags"][0]
 
     def test_tags_cloud_top(self, reader_client):
         data = reader_client.get("/api/tags/cloud", params={"top": "1"}).json()
