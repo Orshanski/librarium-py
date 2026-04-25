@@ -3,13 +3,15 @@ from typing import TypedDict
 
 from pydantic import BaseModel
 
+from ._refs import AuthorRef, SeriesRef
+
 
 class SearchBookHit(TypedDict):
     id: int
     title: str
     cover_path: str | None
-    authors: str | None
-    series_name: str | None
+    authors: list[AuthorRef]
+    series: SeriesRef | None
 
 
 class SearchAuthorHit(TypedDict):
@@ -22,7 +24,7 @@ class SearchSeriesHit(TypedDict):
     id: int
     name: str
     book_count: int
-    authors: str | None
+    authors: list[AuthorRef]
 
 
 class SearchResults(TypedDict):

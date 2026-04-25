@@ -24,7 +24,7 @@ from ..search import (
     search_preprocess,
     token_min_ratio,
 )
-from ._parsers import parse_book_row_aggregates
+from ._parsers import parse_book_row_aggregates, AUTHOR_LIST
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
@@ -194,15 +194,16 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
         "score_cutoff": SEARCH_SCORE_CUTOFF,
     }
 
-    # Books: full outer fetch, fuzzy-rank against title + authors + series_name.
-    # GROUP_CONCAT uses SQLite's default comma separator. That's fine
-    # here because search_preprocess turns the comma into a space
-    # before scoring. If search_preprocess ever stops normalising
-    # punctuation, this concat will silently break — see also the
-    # series query below, same caveat.
+    # Books: full outer fetch, fuzzy-rank against title + authors + series.
     book_rows = dicts_from_rows(queries.search_books_books(db))
+    for r in book_rows:
+        parse_book_row_aggregates(r)
     book_choices = {
-        r["id"]: f"{r['title'] or ''} {r['authors'] or ''} {r['series_name'] or ''}"
+        r["id"]: (
+            f"{r['title'] or ''}"
+            f" {' '.join(a.name for a in r['authors'])}"
+            f" {r['series'].name if r['series'] else ''}"
+        )
         for r in book_rows
     }
     book_matches = process.extract(q, book_choices, limit=limit, **extract_kwargs)
@@ -218,10 +219,13 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     author_by_id = {r["id"]: r for r in author_rows}
     authors = [author_by_id[aid] for _, _, aid in author_matches]
 
-    # Series: fuzzy-rank against name + concatenated authors.
+    # Series: fuzzy-rank against name + authors.
     series_rows = dicts_from_rows(queries.search_books_series(db))
+    for r in series_rows:
+        r["authors"] = AUTHOR_LIST.validate_json(r["authors"] or "[]")
     series_choices = {
-        r["id"]: f"{r['name'] or ''} {r['authors'] or ''}" for r in series_rows
+        r["id"]: f"{r['name'] or ''} {' '.join(a.name for a in r['authors'])}"
+        for r in series_rows
     }
     series_matches = process.extract(
         q, series_choices, limit=AUTHORS_SERIES_LIMIT, **extract_kwargs
