@@ -42,10 +42,10 @@ def get_books(
     if sort in ("ratingDesc", "ratingAsc") and user_id is None:
         raise ValueError(f"{sort} requires userId")
 
-    effective_filters: CatalogFilters = filters if filters is not None else {}  # type: ignore[typeddict-item]
-    where, params = build_book_where(effective_filters)
+    where, params = build_book_where(filters or {}, user_id=user_id)
     # uid always in params: None is valid for the LEFT JOIN via three-valued logic.
-    params.update(lim=page_size, off=cursor, uid=user_id)
+    params.update(lim=page_size, off=cursor)
+    params["uid"] = user_id
 
     # SQL-safe: {where_clause} and {order_clause} from whitelist-sources only.
     order_clause = resolve_order_clause(sort)

@@ -9,17 +9,17 @@ UserSort = Literal[
 ]
 
 
-class CatalogFilters(TypedDict):
-    """Filter parameters for book-listing queries.
+class CatalogFilters(TypedDict, total=False):
+    """Dimension filters for book-listing queries.
 
-    Constructed in ``filters_service.build_catalog_filters``; consumed by
-    ``dal.books.get_books``, ``dal.filters.build_book_where``, and the
-    four ``list_*_options`` DAL functions. ``userId`` is always present
-    (user scoping is universal); the other keys are omitted entirely when the
-    corresponding filter is not requested — they are never set to empty list or None.
+    Содержит только то, что пользователь выбрал в UI (authors/tags/series/language).
+    user_id (scope context) передаётся отдельным параметром в DAL/сервисы,
+    а не как поле этой структуры — см. bd librarium-py-bv0e.
+
+    Ключи опускаются целиком, когда соответствующий фильтр не запрошен;
+    они никогда не устанавливаются в пустой список или None.
     """
 
-    userId: int
     authorIds: NotRequired[list[int]]
     tagIds: NotRequired[list[int]]
     seriesIds: NotRequired[list[int]]

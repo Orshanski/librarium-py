@@ -134,3 +134,12 @@ def test_tag_summary_serialises_camel():
     item = TagSummary(id=1, name="X", code="abc")
     wire = item.model_dump(by_alias=True)
     assert wire == {"id": 1, "name": "X", "code": "abc"}
+
+
+def test_catalog_filters_typed_dict_does_not_have_user_id():
+    """Regression: bd librarium-py-bv0e — userId must not be a field of CatalogFilters."""
+    from typing import get_type_hints
+    from app.dtos.catalog import CatalogFilters
+    hints = get_type_hints(CatalogFilters)
+    assert "userId" not in hints
+    assert "user_id" not in hints

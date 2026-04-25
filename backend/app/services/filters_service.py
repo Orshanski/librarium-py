@@ -17,19 +17,19 @@ from ..dtos.entities import (
 
 
 def build_catalog_filters(
-    user_id: int,
     *,
     author_ids: list[int] | None = None,
     tag_ids: list[int] | None = None,
     series_ids: list[int] | None = None,
     language: list[str] | None = None,
 ) -> CatalogFilters:
-    """Assemble `CatalogFilters` scoped to the user.
+    """Assemble dimension filters from UI query parameters.
 
+    user_id (scope) — отдельный параметр на уровне DAL.
     Router receives typed lists directly from FastAPI (`list[T] | None = Query(None)`)
     and passes them through without transformation.
     """
-    filters: CatalogFilters = {"userId": user_id}
+    filters: CatalogFilters = {}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
@@ -41,17 +41,17 @@ def build_catalog_filters(
     return filters
 
 
-def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> AuthorOptionsResponse:
-    return AuthorOptionsResponse(authors=_authors_dal.list_author_options(db, filters))
+def list_author_options(db: sqlite3.Connection, user_id: int, filters: CatalogFilters) -> AuthorOptionsResponse:
+    return AuthorOptionsResponse(authors=_authors_dal.list_author_options(db, user_id=user_id, filters=filters))
 
 
-def list_tag_options(db: sqlite3.Connection, filters: CatalogFilters) -> TagOptionsResponse:
-    return TagOptionsResponse(tags=_tags_dal.list_tag_options(db, filters))
+def list_tag_options(db: sqlite3.Connection, user_id: int, filters: CatalogFilters) -> TagOptionsResponse:
+    return TagOptionsResponse(tags=_tags_dal.list_tag_options(db, user_id=user_id, filters=filters))
 
 
-def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> SeriesOptionsResponse:
-    return SeriesOptionsResponse(series=_series_dal.list_series_options(db, filters))
+def list_series_options(db: sqlite3.Connection, user_id: int, filters: CatalogFilters) -> SeriesOptionsResponse:
+    return SeriesOptionsResponse(series=_series_dal.list_series_options(db, user_id=user_id, filters=filters))
 
 
-def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> LanguageOptionsResponse:
-    return LanguageOptionsResponse(languages=_filters_dal.list_language_options(db, filters))
+def list_language_options(db: sqlite3.Connection, user_id: int, filters: CatalogFilters) -> LanguageOptionsResponse:
+    return LanguageOptionsResponse(languages=_filters_dal.list_language_options(db, user_id=user_id, filters=filters))

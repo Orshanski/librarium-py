@@ -28,15 +28,18 @@ _LIST_DIMENSIONS: tuple[_ListDimension, ...] = (
 def build_book_where(
     filters: CatalogFilters,
     *,
+    user_id: int | None = None,
     exclude: str | None = None,
     extra_clauses: list[tuple[str, dict]] | None = None,
 ) -> tuple[str, dict]:
     """Build WHERE clause for queries filtering through the books table.
 
-    Supported filter keys: userId, authorIds, tagIds, seriesIds, language.
+    Supported filter keys: authorIds, tagIds, seriesIds, language.
+    user_id — scope context для hidden-books фильтра; передаётся отдельно от filters.
 
     Args:
-        filters: `CatalogFilters` — user scope plus optional dimension filters
+        filters: `CatalogFilters` — dimension filters only (no user scope)
+        user_id: scope context; when not None, hidden books for this user are excluded
         exclude: optional key to skip (for cross-dimension filter options)
         extra_clauses: additional (sql_fragment, params_dict) tuples.
             Param names must not collide with built-in: uid, a0..aN, t0..tN, s0..sN, l0..lN.
@@ -53,9 +56,9 @@ def build_book_where(
             clauses.append(sql)
             params.update(p)
 
-    if uid := effective.get("userId"):
+    if user_id is not None:
         clauses.append("b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1)")
-        params["uid"] = uid
+        params["uid"] = user_id
 
     for dim in _LIST_DIMENSIONS:
         values = effective.get(dim.key)
@@ -71,10 +74,11 @@ def build_book_where(
     return "WHERE " + " AND ".join(clauses), params
 
 
-def list_language_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[LanguageOptionRow]:
+def list_language_options(db: sqlite3.Connection, *, user_id: int, filters: CatalogFilters) -> list[LanguageOptionRow]:
     """Language options for filter bar, scoped by other filters."""
     where, params = build_book_where(
         filters,
+        user_id=user_id,
         exclude="language",
         extra_clauses=[("b.language IS NOT NULL", {})],
     )

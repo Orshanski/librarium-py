@@ -236,7 +236,6 @@ def list_books(
 ) -> BookListResponse:
     """Paginated catalog listing with user-scoped filters."""
     filters = filters_service.build_catalog_filters(
-        user_id,
         author_ids=author_ids,
         tag_ids=tag_ids,
         series_ids=series_ids,

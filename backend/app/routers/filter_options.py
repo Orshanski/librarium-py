@@ -22,12 +22,11 @@ def author_options(
     language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
-        user.user_id,
         tag_ids=tag_ids,
         series_ids=series_ids,
         language=language,
     )
-    return filters_service.list_author_options(db, filters)
+    return filters_service.list_author_options(db, user.user_id, filters)
 
 
 @router.get("/tags", response_model=TagOptionsResponse)
@@ -39,12 +38,11 @@ def tag_options(
     language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
-        user.user_id,
         author_ids=author_ids,
         series_ids=series_ids,
         language=language,
     )
-    return filters_service.list_tag_options(db, filters)
+    return filters_service.list_tag_options(db, user.user_id, filters)
 
 
 @router.get("/series", response_model=SeriesOptionsResponse)
@@ -56,12 +54,11 @@ def series_options(
     language: Annotated[list[str] | None, Query()] = None,
 ):
     filters = filters_service.build_catalog_filters(
-        user.user_id,
         author_ids=author_ids,
         tag_ids=tag_ids,
         language=language,
     )
-    return filters_service.list_series_options(db, filters)
+    return filters_service.list_series_options(db, user.user_id, filters)
 
 
 @router.get("/languages", response_model=LanguageOptionsResponse)
@@ -73,9 +70,8 @@ def language_options(
     series_ids: Annotated[list[int] | None, Query(alias="seriesIds")] = None,
 ):
     filters = filters_service.build_catalog_filters(
-        user.user_id,
         author_ids=author_ids,
         tag_ids=tag_ids,
         series_ids=series_ids,
     )
-    return filters_service.list_language_options(db, filters)
+    return filters_service.list_language_options(db, user.user_id, filters)
