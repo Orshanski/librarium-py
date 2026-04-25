@@ -44,9 +44,9 @@ function autoSaveOfflineBook(bookId: number, id: string, format: string, blob: B
   const allFiles = bookData.files || [];
   (async () => {
     const files = await Promise.all(
-      allFiles.map(async (f: { format: string; file_size: number }) => {
+      allFiles.map(async (f) => {
         if (f.format.toLowerCase() === format.toLowerCase()) {
-          return { format: f.format, fileBlob: blob, fileSize: f.file_size };
+          return { format: f.format, fileBlob: blob, fileSize: f.fileSize ?? 0 };
         }
         let fileBlob: Blob;
         try {
@@ -55,7 +55,7 @@ function autoSaveOfflineBook(bookId: number, id: string, format: string, blob: B
           console.warn(`Failed to download format ${f.format}`);
           return null;
         }
-        return { format: f.format, fileBlob, fileSize: f.file_size };
+        return { format: f.format, fileBlob, fileSize: f.fileSize ?? 0 };
       }),
     );
     const validFiles = files.filter((f): f is { format: string; fileBlob: Blob; fileSize: number } => f !== null);
@@ -67,7 +67,7 @@ function autoSaveOfflineBook(bookId: number, id: string, format: string, blob: B
       console.warn("Failed to fetch cover for offline save");
       return;
     }
-    const authors = (bk.authors || "").split(",").map((a: string) => a.trim()).filter(Boolean);
+    const authors = (bk.authors || []).map((a) => a.name);
     try {
       await saveOfflineBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
     } catch (saveErr: unknown) {

@@ -3,29 +3,32 @@ from typing import Annotated, NotRequired, TypedDict
 
 from pydantic import BaseModel, Field
 
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
+from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
 
 
 class UpdateBookBody(BaseModel):
+    model_config = BODY_CONFIG
+
     title: str | None = None
     description: str | None = None
     language: str | None = None
     publisher: str | None = None
-    pubDate: str | None = None
-    seriesId: int | str | None = None
-    seriesNumber: float | None = None
-    authorIds: list[int | str] | None = None
-    tagIds: list[int | str] | None = None
+    pub_date: str | None = None
+    series_id: int | str | None = None
+    series_number: float | None = None
+    author_ids: list[int | str] | None = None
+    tag_ids: list[int | str] | None = None
     isbn: str | None = None
-
-    addFormats: Annotated[list[TempIdStr], Field(max_length=10)] | None = None
-    deleteFormats: Annotated[list[FormatCode], Field(max_length=10)] | None = None
-    commitCover: bool = False
+    add_formats: Annotated[list[TempIdStr], Field(max_length=10)] | None = None
+    delete_formats: Annotated[list[FormatCode], Field(max_length=10)] | None = None
+    commit_cover: bool = False
 
 
 class BookCreateData(TypedDict):
     """Write-data for `dal.books.create_book`. Built in upload_service from
-    CreateBookMetadata + resolved author/series/tag IDs."""
+    CreateBookMetadataIn + resolved author/series/tag IDs."""
     title: str
     sort_title: NotRequired[str]
     description: NotRequired[str | None]
@@ -47,14 +50,14 @@ class BookUpdateData(TypedDict, total=False):
     description: str | None
     language: str | None
     publisher: str | None
-    pubDate: str | None
-    seriesId: int | str | None
-    seriesNumber: float | None
-    authorIds: list[int | str]
-    tagIds: list[int | str]
+    pub_date: str | None
+    series_id: int | str | None
+    series_number: float | None
+    author_ids: list[int | str]
+    tag_ids: list[int | str]
     isbn: str | None
-    sortTitle: str
-    coverPath: str
+    sort_title: str
+    cover_path: str
 
 
 # ---------------------------------------------------------------------------
@@ -62,12 +65,11 @@ class BookUpdateData(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 class BookListRow(TypedDict):
-    """Single row from the `_BOOK_SELECT` JOIN block. Returned by
-    `dal.books.get_books` (list) and `get_book_by_id` (single row).
+    """Single row from `dal.books.get_books` (list) and `get_book_by_id` (single row).
 
-    Columns 1:1 with the SELECT; GROUP_CONCAT aggregates arrive as
-    comma-separated strings (authors, tags) or comma-separated ids
-    (author_ids, tag_ids). Deterministic ordering per E5.
+    Authors/tags are returned as list[Ref] after parse_book_row_aggregates;
+    series is SeriesRef or None. Columns author_ids/tag_ids/series_id/series_name
+    are not in the row (id is already inside the ref objects).
     """
     id: int
     title: str
@@ -76,16 +78,13 @@ class BookListRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
+    series: SeriesRef | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    author_ids: str | None
-    tags: str | None
-    tag_ids: str | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
     rating: int | None
     is_read: int | None  # SQLite BOOLEAN stored as 0/1; NULL via LEFT JOIN
 
@@ -114,23 +113,10 @@ class BookIdentifierRow(TypedDict):
 
 
 class DuplicateHit(TypedDict):
-    """Row shape from `find_duplicates_by_title` — subset of book columns
-    used for upload dedup."""
+    """Строка из `find_duplicates_by_title` — субмножество колонок книги для upload-dedup UI."""
     id: int
     title: str
-    authors: str | None
-
-
-class BookListPage(TypedDict):
-    """Paginated response shape from `dal.books.get_books`.
-
-    The `books` list is at most `page_size` long. `hasMore` is derived
-    from a `page_size + 1` peek at the DAL level: if the underlying query
-    returned one extra row, `hasMore=True` and the row is trimmed before
-    return.
-    """
-    books: list[BookListRow]
-    hasMore: bool
+    authors: list[AuthorRef]
 
 
 # ---------------------------------------------------------------------------
@@ -139,74 +125,138 @@ class BookListPage(TypedDict):
 # ---------------------------------------------------------------------------
 
 
+class BookListItem(BaseModel):
+    """Single book item in list/detail responses. Snake-case Python fields;
+    serialises to camelCase wire via alias_generator. Accepts snake keys from
+    DAL TypedDicts (populate_by_name=True) and camel keys from wire."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pub_date: str | None = None
+    series: SeriesRef | None = None
+    series_number: float | None = None
+    cover_path: str | None = None
+    added_at: str
+    updated_at: str
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None = None
+    is_read: int | None = None
+
+
+class BookFileItem(BaseModel):
+    """Book file (format) item in detail response."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    format: str
+    file_size: int | None = None
+
+
+class BookIdentifierItem(BaseModel):
+    """Book identifier (e.g. ISBN) in detail response."""
+    model_config = RESPONSE_CONFIG
+
+    type: str
+    value: str
+
+
+class DuplicateHitItem(BaseModel):
+    """Duplicate candidate item in upload-dedup response."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    authors: list[AuthorRef]
+
+
 class BookDetailResponse(BaseModel):
     """Response for GET /api/books/{book_id}.
 
-    Wire format: {"book": {...}, "files": [...], "identifiers": [...]}
-    All nested items are TypedDicts; Pydantic v2 validates TypedDict items
-    natively. snake_case keys are preserved end-to-end (matching pre-L4 wire).
+    Wire format (camelCase): {"book": {...}, "files": [...], "identifiers": [...]}
+    Pydantic validates DAL TypedDict rows (snake keys) into BookListItem/
+    BookFileItem/BookIdentifierItem via populate_by_name=True on each item.
     """
-    book: BookListRow
-    files: list[BookFileRow]
-    identifiers: list[BookIdentifierRow]
+    model_config = RESPONSE_CONFIG
+
+    book: BookListItem
+    files: list[BookFileItem]
+    identifiers: list[BookIdentifierItem]
 
 
 class BookListResponse(BaseModel):
     """Response for GET /api/books (paginated catalog).
 
-    Wire format: {"books": [...], "hasMore": bool}
-    Same as BookListPage TypedDict but as Pydantic for response_model.
+    Wire format (camelCase): {"books": [...], "hasMore": bool}
+    `books` contains at most `page_size` rows; `hasMore` signals that more
+    rows exist beyond the current cursor.
     """
-    books: list[BookListRow]
-    hasMore: bool
+    model_config = RESPONSE_CONFIG
+
+    books: list[BookListItem]
+    has_more: bool
 
 
 class BookFormatItem(BaseModel):
-    """Формат книги (файл) — элемент `BookItem.formats`. Заготовка
-    на будущее (BookDetail endpoint): в jmdc для shelves/tags не
-    заполняется."""
+    """Формат книги (файл) — элемент `BookItem.formats`. Snake-поля, camel-wire
+    через alias_generator. Заготовка на будущее (BookDetail endpoint): в jmdc
+    для shelves/tags не заполняется."""
+    model_config = RESPONSE_CONFIG
+
     format: str
     size: int
 
 
 class BookItem(BaseModel):
-    """Pydantic response DTO для книги (camelCase wire). Используется в
-    ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
-    services.book_item_builder.row_to_book_item().
+    """Pydantic response DTO для книги в составе ShelfDetailResponse.
 
-    Поля, отсутствующие в конкретном endpoint (rating/isRead только в best;
-    fraction/lastFormat/lastReadAt только в reading_now), остаются None и
-    вырезаются через response_model_exclude_none=True на router-уровне.
+    Единственный потребитель — ShelfDetailResponse (shelves.py).
+    Собирается через services.book_item_builder.row_to_book_item().
+
+    Snake-поля Python, camelCase wire через alias_generator=to_camel.
+
+    Опциональные поля endpoint-специфичны:
+    - rating / is_read — только для полки «лучшее»;
+    - fraction / last_format / last_read_at — только для «читаю сейчас».
+    Отсутствующие поля остаются None и вырезаются через
+    response_model_exclude_none=True на уровне роутера.
+
+    formats / isbn — всегда None, зарезервированы для будущего
+    BookDetail-via-shelves сценария.
     """
+    model_config = RESPONSE_CONFIG
+
     # Core — всегда присутствуют
     id: int
     title: str
-    coverPath: str                      # composed: /api/covers/{id}?t={updated_at}
-    authors: list[str]
-    authorIds: list[int]
-    tags: list[str]
-    tagIds: list[int]
-    addedAt: str
-    updatedAt: str
+    cover_path: str
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    added_at: str
+    updated_at: str
 
     # Optional — могут отсутствовать в конкретных полях SQL
-    sortTitle: str | None = None
+    sort_title: str | None = None
     description: str | None = None
     language: str | None = None
     publisher: str | None = None
-    pubDate: str | None = None
-    series: str | None = None
-    seriesId: int | None = None
-    seriesNumber: float | None = None
+    pub_date: str | None = None
+    series: SeriesRef | None = None
+    series_number: float | None = None
 
     # User-specific (JOIN user_books)
     rating: int | None = None
-    isRead: bool | None = None
+    is_read: bool | None = None
 
     # Reading progress (только reading_now)
     fraction: float | None = None
-    lastFormat: str | None = None
-    lastReadAt: str | None = None
+    last_format: str | None = None
+    last_read_at: str | None = None
 
     # BookDetail-only (в jmdc не заполняется, на будущее)
     formats: list[BookFormatItem] | None = None

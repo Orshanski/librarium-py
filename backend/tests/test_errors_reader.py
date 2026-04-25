@@ -12,20 +12,20 @@ def test_progress_require_auth_get(anon_client):
 
 def test_progress_require_auth_put(anon_client):
     resp = anon_client.put("/api/reader/progress/1",
-                           json={"position": "ch1", "last_device": "x"})
+                           json={"position": "ch1", "lastDevice": "x"})
     assert_error(resp, 401)
 
 
 def test_progress_nonexistent_book_returns_defaults(reader_client):
     """Fixed behavior: GET /api/reader/progress/{missing_id} returns 200 with
-    default state (position/fraction/last_read_at are None, version == 0).
+    default state (position/fraction/lastReadAt are None, version == 0).
     The endpoint does NOT 404 on a missing book — it returns a starting-point
     progress record so the client can begin reading.
     """
     data = assert_ok(reader_client.get("/api/reader/progress/999999"))
     assert data["position"] is None
-    assert data["last_device"] is None
-    assert data["last_format"] is None
+    assert data["lastDevice"] is None
+    assert data["lastFormat"] is None
     assert data["fraction"] is None
-    assert data["last_read_at"] is None
+    assert data["lastReadAt"] is None
     assert data["version"] == 0

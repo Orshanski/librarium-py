@@ -71,8 +71,8 @@ describe("book-detail — shelves", () => {
         const bookId = url.searchParams.get("bookId");
         if (bookId) {
           return HttpResponse.json({
-            shelves: [{ id: 1, name: "Wishlist", is_system: false }],
-            bookShelves: [{ id: 1, has_book: false }],
+            shelves: [{ id: 1, name: "Wishlist", isSystem: false }],
+            bookShelves: [{ id: 1, hasBook: false }],
           });
         }
         return HttpResponse.json({ shelves: [] });
@@ -114,8 +114,8 @@ describe("book-detail — shelves", () => {
         const bookId = url.searchParams.get("bookId");
         if (bookId) {
           return HttpResponse.json({
-            shelves: [{ id: 1, name: "Wishlist", is_system: false }],
-            bookShelves: [{ id: 1, has_book: true }],
+            shelves: [{ id: 1, name: "Wishlist", isSystem: false }],
+            bookShelves: [{ id: 1, hasBook: true }],
           });
         }
         return HttpResponse.json({ shelves: [] });

@@ -11,18 +11,18 @@ export interface ReaderOkResponse {
 export interface ReadingProgressState {
   position: string | null;
   fraction: number | null;
-  last_device: string | null;
-  last_format: string | null;
+  lastDevice: string | null;
+  lastFormat: string | null;
   version: number;
-  last_read_at?: string | null;
+  lastReadAt?: string | null;
 }
 
 export interface SaveProgressBody {
   position: string;
-  last_device: string;
-  last_format: string;
+  lastDevice: string;
+  lastFormat: string;
   fraction: number;
-  expected_version: number;
+  expectedVersion: number;
 }
 
 export interface SaveProgressAcceptResponse {
@@ -34,7 +34,7 @@ export interface SaveProgressAcceptResponse {
 export interface SaveProgressRejectResponse {
   accepted: false;
   current: ReadingProgressState | null;
-  retry_exhausted?: boolean;
+  retryExhausted?: boolean;
 }
 
 export type SaveProgressResponse = SaveProgressAcceptResponse | SaveProgressRejectResponse;

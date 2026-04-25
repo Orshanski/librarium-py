@@ -6,7 +6,7 @@ import { listShelves, createShelf as apiCreateShelf, type Shelf } from "@/api/en
 import { SORT_CONFIG, shelfSortConfigKey } from "../config/sort";
 
 function shelfHref(shelf: Shelf): string {
-  const key = shelfSortConfigKey(shelf.system_code);
+  const key = shelfSortConfigKey(shelf.systemCode);
   const cfg = SORT_CONFIG[key];
   // Если options пустой (reading_now) — dropdown нет, sort в URL не нужен
   if (cfg.options.length === 0) {
@@ -72,7 +72,7 @@ export function SidebarContent({
     if (!newShelfName.trim()) return;
     try {
       const { id } = await apiCreateShelf(newShelfName.trim());
-      setShelves([...shelves, { id, name: newShelfName.trim(), is_system: false, book_count: 0 }]);
+      setShelves([...shelves, { id, name: newShelfName.trim(), isSystem: false, bookCount: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
       globalThis.dispatchEvent(new Event("shelves-changed"));

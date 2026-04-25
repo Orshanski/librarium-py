@@ -88,7 +88,7 @@ export default function SeriesPage() {
 
   if (!series) return null;
 
-  const bookCount = series.book_count;
+  const bookCount = series.bookCount;
 
   const adminButton = user?.role === "admin" ? (
     <button
@@ -110,7 +110,7 @@ export default function SeriesPage() {
   const infoSlot = (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
       <span>{pluralizeBooks(bookCount)}</span>
-      {series.authors ? <span>{series.authors}</span> : null}
+      {series.authors && series.authors.length > 0 && <span>{series.authors.map((a) => a.name).join(", ")}</span>}
     </div>
   );
 
@@ -129,7 +129,7 @@ export default function SeriesPage() {
           entityType="series"
           entityId={series.id}
           currentName={series.name}
-          bookCount={series.book_count}
+          bookCount={series.bookCount}
           onRenamed={(newName) => { setSeries({...series, name: newName}); setShowAdmin(false); }}
           onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/series")}

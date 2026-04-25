@@ -18,7 +18,7 @@ def list_shelves(db: sqlite3.Connection, user_id: int, book_id: int | None) -> S
         book_shelves = [
             BookShelfEntry(id=s["id"], has_book=s["id"] in on_shelf_ids) for s in shelves
         ]
-    return ShelvesListResponse(shelves=shelves, bookShelves=book_shelves)
+    return ShelvesListResponse(shelves=shelves, book_shelves=book_shelves)
 
 
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
@@ -39,8 +39,8 @@ def get_shelf(
         shelf=ShelfSummary(
             id=shelf_row["id"],
             name=shelf_row["name"],
-            isSystem=bool(shelf_row["is_system"]),
-            systemCode=shelf_row["system_code"],
+            is_system=bool(shelf_row["is_system"]),
+            system_code=shelf_row["system_code"],
         ),
         books=[row_to_book_item(r) for r in result["books"]],
     )

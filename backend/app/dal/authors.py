@@ -1,13 +1,15 @@
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
-from ..dtos.entities import AuthorDetailRow, AuthorsList, FilterOptionRow
+from ..dtos.entities import AuthorDetailRow, AuthorRow, AuthorsList, EntityBookRow, FilterOptionRow
 from ..exceptions import BadInputError, NotFoundError
 from .filters import build_book_where
+from ._parsers import parse_book_row_aggregates
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "authors", "sqlite3")
 
@@ -22,9 +24,11 @@ def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | No
     where, params = build_book_where(filters)
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.get_authors.sql.replace("{where_clause}", where)
-    authors = dicts_from_rows(db.execute(final_sql, params).fetchall())
+    rows = dicts_from_rows(db.execute(final_sql, params).fetchall())
+    for r in rows:
+        parse_book_row_aggregates(r)
 
-    return {"authors": authors}
+    return {"authors": cast(list[AuthorRow], rows)}
 
 
 def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
@@ -40,9 +44,11 @@ def get_author_by_id(db: sqlite3.Connection, author_id: int) -> AuthorDetailRow 
     if not author:
         return None
 
-    books = dicts_from_rows(queries.get_author_books(db, id=author_id))
+    rows = dicts_from_rows(queries.get_author_books(db, id=author_id))
+    for r in rows:
+        parse_book_row_aggregates(r)
 
-    return {"author": author, "books": books}
+    return {"author": author, "books": cast(list[EntityBookRow], rows)}
 
 
 def _generate_sort_name(name: str) -> str:

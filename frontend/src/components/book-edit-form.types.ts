@@ -10,7 +10,7 @@ export interface NamedOption {
 export interface TagOption {
   id: number;
   name: string;
-  book_count?: number;
+  bookCount?: number;
 }
 
 export interface BookEditOptions {

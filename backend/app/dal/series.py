@@ -1,13 +1,15 @@
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
-from ..dtos.entities import FilterOptionRow, SeriesDetailRow, SeriesList
+from ..dtos.entities import EntityBookRow, FilterOptionRow, SeriesDetailRow, SeriesList, SeriesRow
 from ..exceptions import BadInputError, NotFoundError
 from .filters import build_book_where
+from ._parsers import parse_book_row_aggregates
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "series", "sqlite3")
 
@@ -32,9 +34,11 @@ def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | 
     where, params = build_book_where(filters)
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.get_series.sql.replace("{where_clause}", where)
-    series = dicts_from_rows(db.execute(final_sql, params).fetchall())
+    rows = dicts_from_rows(db.execute(final_sql, params).fetchall())
+    for r in rows:
+        parse_book_row_aggregates(r)
 
-    return {"series": series}
+    return {"series": cast(list[SeriesRow], rows)}
 
 
 def get_series_by_id(db: sqlite3.Connection, series_id: int) -> SeriesDetailRow | None:
@@ -42,9 +46,11 @@ def get_series_by_id(db: sqlite3.Connection, series_id: int) -> SeriesDetailRow 
     if not s:
         return None
 
-    books = dicts_from_rows(queries.get_series_books(db, id=series_id))
+    rows = dicts_from_rows(queries.get_series_books(db, id=series_id))
+    for r in rows:
+        parse_book_row_aggregates(r)
 
-    return {"series": s, "books": books}
+    return {"series": s, "books": cast(list[EntityBookRow], rows)}
 
 
 def get_or_create_series(db: sqlite3.Connection, name: str) -> int:

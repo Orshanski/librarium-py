@@ -1,13 +1,16 @@
 -- name: get_author_books(id)
 SELECT
-b.*, s.name AS series_name,
-GROUP_CONCAT(DISTINCT a.name ORDER BY a.name) AS authors,
-GROUP_CONCAT(DISTINCT t.name ORDER BY t.name) AS tags
+    b.id, b.title, b.sort_title, b.description, b.language, b.publisher,
+    b.pub_date, b.series_number, b.cover_path, b.added_at, b.updated_at,
+    CASE WHEN s.id IS NULL THEN NULL
+         ELSE json_object('id', s.id, 'name', s.name) END AS series,
+    (SELECT json_group_array(json_object('id', a.id, 'name', a.name) ORDER BY a.name)
+     FROM book_authors ba2 JOIN authors a ON ba2.author_id = a.id
+     WHERE ba2.book_id = b.id) AS authors,
+    (SELECT json_group_array(json_object('id', t.id, 'name', t.name) ORDER BY t.name)
+     FROM book_tags bt JOIN tags t ON bt.tag_id = t.id
+     WHERE bt.book_id = b.id) AS tags
 FROM books b
-JOIN book_authors ba_scope ON b.id = ba_scope.book_id AND ba_scope.author_id = :id
+JOIN book_authors ba ON b.id = ba.book_id AND ba.author_id = :id
 LEFT JOIN series s ON b.series_id = s.id
-LEFT JOIN book_authors ba ON b.id = ba.book_id
-LEFT JOIN authors a ON ba.author_id = a.id
-LEFT JOIN book_tags bt ON b.id = bt.book_id
-LEFT JOIN tags t ON bt.tag_id = t.id
-GROUP BY b.id ORDER BY b.added_at DESC
+ORDER BY b.added_at DESC

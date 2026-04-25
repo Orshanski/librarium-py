@@ -4,27 +4,18 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
-import type { RawBook } from "@/types";
+import type { SearchBookHit } from "../api/endpoints/search";
 import SearchPage from "./SearchPage";
 
-// Shared fixture factory — central place to add fields if RawBook grows a
-// new non-nullable key. Tests that need a book pass only the overrides
-// they care about; defaults fill the rest.
-function makeRawBook(overrides: Partial<RawBook> = {}): RawBook {
+// Shared fixture factory — central place to add fields if SearchBookHit grows.
+// Tests that need a book pass only the overrides they care about.
+function makeSearchHit(overrides: Partial<SearchBookHit> = {}): SearchBookHit {
   return {
     id: 1,
     title: "Example Book",
-    authors: "Some Author",
-    cover_path: null,
-    series_name: null,
-    series_number: null,
-    tags: null,
-    rating: null,
-    language: null,
-    description: null,
-    publisher: null,
-    pub_date: null,
-    updated_at: null,
+    authors: [],
+    coverPath: null,
+    series: null,
     ...overrides,
   };
 }
@@ -34,7 +25,7 @@ describe("SearchPage — integration", () => {
     server.use(
       http.get("/api/search", () =>
         HttpResponse.json({
-          books: [makeRawBook({ title: "Example Book" })],
+          books: [makeSearchHit({ title: "Example Book" })],
           authors: [],
           series: [],
         }),

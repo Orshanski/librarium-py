@@ -1,52 +1,47 @@
-"""Builder: конвертирует snake_case DAL row → camelCase BookItem.
+"""Builder: конвертирует snake_case DAL-ряд в BookItem.
 
-Используется в shelves_service и tags_service при формировании response.
-Один центральный билдер гарантирует консистентный маппинг полей.
+Используется в shelves_service при сборке ответа.
+Единая точка сборки гарантирует согласованный маппинг полей.
+
+Ряды приходят после обработки parse_book_row_aggregates:
+- authors: list[AuthorRef]   (не CSV-строка)
+- tags: list[TagRef]         (не CSV-строка)
+- series: SeriesRef | None   (не плоские series_name + series_id)
 """
 from ..dtos.books import BookItem
 
 
-def _split_csv(s: str | None) -> list[str]:
-    if not s:
-        return []
-    return [x for x in s.split(",") if x]
-
-
-def _split_csv_int(s: str | None) -> list[int]:
-    if not s:
-        return []
-    return [int(x) for x in s.split(",") if x]
-
-
 def row_to_book_item(row: dict) -> BookItem:
-    """Маппинг snake_case row из DAL в BookItem.
+    """Маппинг row из DAL (snake_case) в BookItem.
 
-    Обязательные поля: id, title, updated_at, authors, author_ids, tags,
-    tag_ids, added_at. Опциональные берутся через row.get().
+    Контракт row на входе (гарантируется parse_book_row_aggregates):
+    - row['authors'] — list[AuthorRef], отсутствует или пустой список для
+      запросов без author-агрегата;
+    - row['tags'] — list[TagRef], аналогично;
+    - row['series'] — SeriesRef | None.
+    Ref-поля проходят насквозь без распаковки.
     """
     book_id = row["id"]
     updated_at = row["updated_at"]
+
     return BookItem(
         id=book_id,
         title=row["title"],
-        coverPath=f"/api/covers/{book_id}?t={updated_at}",
-        authors=_split_csv(row.get("authors")),
-        authorIds=_split_csv_int(row.get("author_ids")),
-        tags=_split_csv(row.get("tags")),
-        tagIds=_split_csv_int(row.get("tag_ids")),
-        addedAt=row["added_at"],
-        updatedAt=updated_at,
-        sortTitle=row.get("sort_title"),
+        cover_path=f"/api/covers/{book_id}?t={updated_at}",
+        authors=row.get("authors") or [],
+        tags=row.get("tags") or [],
+        series=row.get("series"),
+        series_number=row.get("series_number"),
+        added_at=row["added_at"],
+        updated_at=updated_at,
+        sort_title=row.get("sort_title"),
         description=row.get("description"),
         language=row.get("language"),
         publisher=row.get("publisher"),
-        pubDate=row.get("pub_date"),
-        series=row.get("series_name"),
-        seriesId=row.get("series_id"),
-        seriesNumber=row.get("series_number"),
+        pub_date=row.get("pub_date"),
         rating=row.get("rating"),
-        isRead=bool(row["is_read"]) if row.get("is_read") is not None else None,
+        is_read=bool(row["is_read"]) if row.get("is_read") is not None else None,
         fraction=row.get("fraction"),
-        lastFormat=row.get("last_format"),
-        lastReadAt=row.get("last_read_at"),
+        last_format=row.get("last_format"),
+        last_read_at=row.get("last_read_at"),
     )

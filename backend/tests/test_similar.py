@@ -151,8 +151,8 @@ class TestLitresProviderFetchSimilar:
         mock_get.return_value = _similar_response([item])
         result = fetch_similar(1)
         assert result[0]["authors"] == "Author One, Author Two"
-        assert result[0]["coverUrl"] == "/api/metadata/cover-proxy?url=https://cv5.litres.ru/pub/c/cover/55.jpg"
-        assert result[0]["litresUrl"] == "https://www.litres.ru/book/test-55/"
+        assert result[0]["cover_url"] == "/api/metadata/cover-proxy?url=https://cv5.litres.ru/pub/c/cover/55.jpg"
+        assert result[0]["litres_url"] == "https://www.litres.ru/book/test-55/"
 
     @patch("app.providers.litres._session.get")
     def test_non_200_raises(self, mock_get):
@@ -193,8 +193,8 @@ class TestSimilarEndpoint:
     def test_happy_path(self, mock_find, mock_fetch, reader_client):
         mock_find.return_value = 123
         mock_fetch.return_value = [
-            {"title": "New Recommendation", "authors": "New Author", "coverUrl": "", "litresUrl": "", "rating": 4.5, "ratingCount": 50},
-            {"title": "Minimal Test Book", "authors": "Test Author", "coverUrl": "", "litresUrl": "", "rating": 5.0, "ratingCount": 100},
+            {"title": "New Recommendation", "authors": "New Author", "cover_url": "", "litres_url": "", "rating": 4.5, "rating_count": 50},
+            {"title": "Minimal Test Book", "authors": "Test Author", "cover_url": "", "litres_url": "", "rating": 5.0, "rating_count": 100},
         ]
         resp = reader_client.get("/api/books/1/similar")
         assert resp.status_code == 200

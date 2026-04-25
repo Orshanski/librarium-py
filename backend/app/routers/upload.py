@@ -44,7 +44,7 @@ async def upload_file(
     content = await file.read()
     result = await upload_and_parse(db, content, filename)
 
-    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.tempId, safe_log(filename), user.user_id)
+    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.temp_id, safe_log(filename), user.user_id)
     return result
 
 
@@ -63,9 +63,9 @@ def create_book_from_upload(
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
-    book_id = create_book(db, body.tempId, body.metadata)
+    book_id = create_book(db, body.temp_id, body.metadata)
     log.info("Created book=%d by user_id=%s", book_id, user.user_id)
-    return CreateBookResponse(bookId=book_id)
+    return CreateBookResponse(book_id=book_id)
 
 
 @router.post("/api/books/{book_id}/add-format", response_model=AddFormatResponse)
@@ -75,6 +75,6 @@ def add_format_endpoint(
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
-    fmt = add_format(db, book_id, body.tempId)
+    fmt = add_format(db, book_id, body.temp_id)
     log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
     return AddFormatResponse(format=fmt)

@@ -2,7 +2,7 @@ from typing import Annotated
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..auth import CurrentUser, get_current_user
 from ..database import db_session
@@ -15,13 +15,13 @@ log = logging.getLogger("librarium.shelves")
 router = APIRouter(prefix="/api/shelves", tags=["shelves"])
 
 
-@router.get("", response_model=ShelvesListResponse, response_model_exclude_none=True)
+@router.get("", response_model=ShelvesListResponse, response_model_exclude_none=True)  # exclude_none: book_shelves is None when bookId absent
 def list_shelves(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    bookId: int | None = None,
+    book_id: Annotated[int | None, Query(alias="bookId")] = None,
 ):
-    return shelves_service.list_shelves(db, user.user_id, bookId)
+    return shelves_service.list_shelves(db, user.user_id, book_id)
 
 
 @router.post("", response_model=IdResponse)
@@ -31,7 +31,7 @@ def create_shelf(body: ShelfBody, user: Annotated[CurrentUser, Depends(get_curre
     return IdResponse(id=shelf_id)
 
 
-@router.get("/{shelf_id}", response_model=ShelfDetailResponse, response_model_exclude_none=True)
+@router.get("/{shelf_id}", response_model=ShelfDetailResponse, response_model_exclude_none=True)  # exclude_none: optional fields are endpoint-specific extras (rating, fraction, ...) absent for some shelf branches
 def get_shelf(
     shelf_id: int,
     user: Annotated[CurrentUser, Depends(get_current_user)],
@@ -56,7 +56,7 @@ def delete_shelf(shelf_id: int, user: Annotated[CurrentUser, Depends(get_current
 
 @router.post("/{shelf_id}/books", response_model=OkResponse)
 def add_book(shelf_id: int, body: ShelfBookBody, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
-    shelves_service.add_book(db, shelf_id, user.user_id, body.bookId)
+    shelves_service.add_book(db, shelf_id, user.user_id, body.book_id)
     return OkResponse()
 
 

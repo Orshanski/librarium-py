@@ -1,11 +1,19 @@
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
-from ..dtos.entities import FilterOptionRow, TagCloudEntry, TagDetailRow, TagMapResult
+from ..dtos.entities import (
+    FilterOptionRow,
+    TagCloudEntry,
+    TagDetailBookRow,
+    TagDetailRow,
+    TagMapResult,
+)
+from ._parsers import parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
@@ -61,7 +69,9 @@ def get_tag_by_id(
         .replace("{order_clause}", order_clause)
     )
     books = dicts_from_rows(db.execute(final_sql, params).fetchall())
-    return {"tag": tag, "books": books}
+    for r in books:
+        parse_book_row_aggregates(r)
+    return cast(TagDetailRow, {"tag": tag, "books": cast(list[TagDetailBookRow], books)})
 
 
 def resolve_raw_tag(db: sqlite3.Connection, raw_tag: str) -> int:

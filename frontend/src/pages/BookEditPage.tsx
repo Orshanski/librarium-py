@@ -8,7 +8,7 @@ import type { BookContextOrigin, ListOrigin } from "../components/breadcrumb-ori
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, RawBook, toBook, splitCsv } from "../types";
-import { getBook, updateBook, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
+import { getBook, updateBook, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 
 const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
@@ -18,7 +18,7 @@ export default function BookEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [files, setFiles] = useState<BookFileInfo[]>([]);
   const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [options, setOptions] = useState<BookEditOptions>();
   const [loading, setLoading] = useState(true);
@@ -88,12 +88,13 @@ export default function BookEditPage() {
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
   const bookData: Book = {
     ...toBook(book, { fullCover: true, isbn }),
-    formats: files.map((f) => ({
-      format: f.format,
-      size: f.file_size > 1048576
-        ? `${(f.file_size / 1048576).toFixed(1)} MB`
-        : `${Math.round(f.file_size / 1024)} KB`,
-    })),
+    formats: files.map((f) => {
+      const sz = f.fileSize ?? 0;
+      return {
+        format: f.format,
+        size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
+      };
+    }),
   };
 
   async function handleSave(data: BookSavePayload) {

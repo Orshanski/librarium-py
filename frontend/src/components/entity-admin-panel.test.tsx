@@ -9,13 +9,13 @@ import EntityAdminPanel from "./entity-admin-panel";
 // Default /api/auth/me returns admin (from defaultHandlers in handlers.ts)
 // Default /api/authors and /api/series for entity list
 const defaultAuthorsList = [
-  { id: 1, name: "Frank Herbert", sort_name: "Herbert, Frank", book_count: 6, tags: null },
-  { id: 2, name: "Isaac Asimov", sort_name: "Asimov, Isaac", book_count: 15, tags: null },
+  { id: 1, name: "Frank Herbert", sortName: "Herbert, Frank", bookCount: 6, tags: [] },
+  { id: 2, name: "Isaac Asimov", sortName: "Asimov, Isaac", bookCount: 15, tags: [] },
 ];
 
 const defaultSeriesList = [
-  { id: 1, name: "Dune", authors: "Frank Herbert", book_count: 6 },
-  { id: 2, name: "Foundation", authors: "Isaac Asimov", book_count: 7 },
+  { id: 1, name: "Dune", authors: [{ id: 1, name: "Frank Herbert" }], bookCount: 6 },
+  { id: 2, name: "Foundation", authors: [{ id: 2, name: "Isaac Asimov" }], bookCount: 7 },
 ];
 
 function setupDefaultHandlers() {

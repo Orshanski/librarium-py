@@ -1,4 +1,5 @@
 import { client } from "../client";
+import type { AuthorRef } from "@/types";
 
 export interface UploadMetadata {
   title: string;
@@ -17,8 +18,7 @@ export interface UploadMetadata {
 export interface UploadDuplicate {
   id: number;
   title: string;
-  authors: string;
-  [key: string]: unknown; // backend sends more fields; permit unknown
+  authors: AuthorRef[];
 }
 
 export interface UploadResponse {

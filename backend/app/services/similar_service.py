@@ -19,8 +19,8 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> SimilarResponse:
         raise NotFoundError("Not found")
 
     title = book["title"]
-    authors = book.get("authors") or ""
-    first_author = authors.split(",")[0].strip() if authors else ""
+    author_refs = book.get("authors") or []
+    first_author = author_refs[0].name if author_refs else ""
     query = f"{title} {first_author}".strip()
 
     try:

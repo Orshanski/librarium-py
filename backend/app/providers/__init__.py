@@ -7,11 +7,11 @@ class MetadataResult:
     authors: str = ""
     description: str = ""
     publisher: str = ""
-    pubDate: str = ""
+    pub_date: str = ""
     isbn: str = ""
     tags: str = ""
     source: str = ""
-    coverUrl: str = ""
+    cover_url: str = ""
 
     def to_dict(self):
         return asdict(self)

@@ -12,6 +12,7 @@ rather than via the shared baseline seed so other tests don't need
 to be updated for count changes.
 """
 import pytest
+from app.dtos._refs import AuthorRef, SeriesRef
 
 
 # Author/book IDs are high enough not to collide with the shared
@@ -238,6 +239,174 @@ class TestSearchBooksFuzzy:
         res = search_books(_get_db(), "проект аве мария")
         if len(res["books"]) >= 2:
             assert res["books"][0]["id"] == _BOOK_PUNCT
+
+
+# ── pbz2: objects contract for search results ──
+
+
+# IDs 20+ chosen to avoid baseline (1-5) and fuzzy seed (10-14).
+_SERIES_STELMAH = 20
+_BOOK_STELMAH = 20
+_AUTHOR_STELMAH = 20
+
+_SERIES_DEDUP = 21
+_BOOK_DEDUP_A = 21
+_BOOK_DEDUP_B = 22
+_AUTHOR_DEDUP = 21
+
+
+@pytest.fixture
+def series_with_authors():
+    """Series with one book and one author — the fuzzy `_seed_fuzzy_fixtures`
+    fixture does not set up series data, so we add a self-contained series here."""
+    from app.database import _get_db
+    db = _get_db()
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_STELMAH, "Михаил Стельмах", "Стельмах, Михаил"))
+    db.execute("INSERT INTO series (id, name) VALUES (?, ?)",
+               (_SERIES_STELMAH, "Щедрий вечір"))
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'uk', ?, '2025-03-01 00:00:00')",
+        (_BOOK_STELMAH, "Щедрий вечір. Книга 1", "Щедрий вечір Книга 1", _SERIES_STELMAH),
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_STELMAH, _AUTHOR_STELMAH))
+    db.commit()
+    yield
+    # cleanup handled by autouse reset_test_data in conftest
+
+
+@pytest.fixture
+def series_with_one_author_and_two_books():
+    """Series with two books, both by the same author — regression fixture for
+    the deduplication contract: SQL must not produce duplicate author entries
+    when an author has multiple books in the same series."""
+    from app.database import _get_db
+    db = _get_db()
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_DEDUP, "Дедуп Автор", "Автор, Дедуп"))
+    db.execute("INSERT INTO series (id, name) VALUES (?, ?)",
+               (_SERIES_DEDUP, "Дедуп Серия"))
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'ru', ?, '2025-03-02 00:00:00')",
+        (_BOOK_DEDUP_A, "Дедуп Книга 1", "Дедуп Книга 1", _SERIES_DEDUP),
+    )
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'ru', ?, '2025-03-03 00:00:00')",
+        (_BOOK_DEDUP_B, "Дедуп Книга 2", "Дедуп Книга 2", _SERIES_DEDUP),
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_DEDUP_A, _AUTHOR_DEDUP))
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_DEDUP_B, _AUTHOR_DEDUP))
+    db.commit()
+    yield
+    # cleanup handled by autouse reset_test_data in conftest
+
+
+class TestSearchBooksObjectsContract:
+    """search_books returns structured objects (AuthorRef/SeriesRef), not CSV strings."""
+
+    def test_search_books_returns_authors_as_refs(self):
+        from app.dal.books import search_books
+        res = search_books(_get_db(), "проект", limit=10)
+        assert len(res["books"]) >= 1
+        book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
+        assert isinstance(book["authors"], list)
+        assert all(isinstance(a, AuthorRef) for a in book["authors"])
+
+    def test_search_books_returns_series_as_ref_or_none(self):
+        from app.dal.books import search_books
+        res = search_books(_get_db(), "проект", limit=10)
+        book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
+        assert isinstance(book["series"], (SeriesRef, type(None)))
+
+    def test_search_books_no_csv_fields(self):
+        from app.dal.books import search_books
+        res = search_books(_get_db(), "проект", limit=10)
+        book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
+        assert "author_ids" not in book
+        assert "series_name" not in book
+        assert "series_id" not in book
+
+    def test_search_series_returns_authors_as_refs(self, series_with_authors):
+        from app.dal.books import search_books
+        res = search_books(_get_db(), "Щедрий", limit=10)
+        assert len(res["series"]) >= 1
+        s = next(se for se in res["series"] if se["id"] == _SERIES_STELMAH)
+        assert isinstance(s["authors"], list)
+        assert all(isinstance(a, AuthorRef) for a in s["authors"])
+
+    def test_search_series_authors_deduplicate_when_author_has_multiple_books_in_series(
+        self, series_with_one_author_and_two_books
+    ):
+        """Regression: corellated subquery must produce one entry per author,
+        not one per (author, book) pair. Same applies to `book_count`."""
+        from app.dal.books import search_books
+        res = search_books(_get_db(), "Дедуп", limit=10)
+        s = next(se for se in res["series"] if se["id"] == _SERIES_DEDUP)
+        author_ids = [a.id for a in s["authors"]]
+        assert author_ids == [_AUTHOR_DEDUP], f"expected single entry, got {s['authors']}"
+        assert s["book_count"] == 2
+
+
+# ── S-3: Ordering regression for search_books_series ──
+
+_SERIES_ORDER = 30
+_BOOK_ORDER_A = 30
+_BOOK_ORDER_B = 31
+_AUTHOR_ZEBRA = 30   # name starts with 'Z' — inserted first
+_AUTHOR_ANNA = 31    # name starts with 'A' — inserted second
+
+
+@pytest.fixture
+def series_with_authors_inserted_non_alphabetically():
+    """Series 30 has two books by two authors inserted in reverse alphabetical order
+    (Zebra Author before Anna Author). Verifies ORDER BY a.name in the derived table.
+    """
+    from app.database import _get_db
+    db = _get_db()
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_ZEBRA, "Zebra Author", "Zebra, Author"))
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_ANNA, "Anna Author", "Author, Anna"))
+    db.execute("INSERT INTO series (id, name) VALUES (?, ?)",
+               (_SERIES_ORDER, "Order Regression Series"))
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'en', ?, '2025-08-01 00:00:00')",
+        (_BOOK_ORDER_A, "Order Series Book A", "Order Series Book A", _SERIES_ORDER),
+    )
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'en', ?, '2025-08-02 00:00:00')",
+        (_BOOK_ORDER_B, "Order Series Book B", "Order Series Book B", _SERIES_ORDER),
+    )
+    # Deliberately insert Zebra (non-alphabetically first) before Anna
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_ORDER_A, _AUTHOR_ZEBRA))
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_ORDER_B, _AUTHOR_ANNA))
+    db.commit()
+    yield
+
+
+def test_search_series_authors_sorted_alphabetically(
+    series_with_authors_inserted_non_alphabetically,
+):
+    """Regression: authors array on a returned series row must be sorted alphabetically
+    by name. Exercises ORDER BY a.name inside the derived table in search_books_series.sql.
+    """
+    from app.dal.books import search_books
+    res = search_books(_get_db(), "Order Regression", limit=10)
+    s = next((se for se in res["series"] if se["id"] == _SERIES_ORDER), None)
+    assert s is not None, "Series not found in search results"
+    author_names = [a.name for a in s["authors"]]
+    assert len(author_names) == 2
+    assert author_names == sorted(author_names), f"Authors not alphabetically sorted: {author_names}"
 
 
 # ── Morphology aspirational ──

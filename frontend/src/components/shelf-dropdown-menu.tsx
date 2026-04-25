@@ -12,7 +12,7 @@ export default function ShelfDropdownMenu({
   onToggleShelf: (shelfId: number) => void | Promise<void>;
   compact?: boolean;
 }>) {
-  const visibleShelves = shelves.filter((shelf) => !shelf.is_system);
+  const visibleShelves = shelves.filter((shelf) => !shelf.isSystem);
 
   return (
     <>

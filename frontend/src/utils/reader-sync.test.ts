@@ -73,9 +73,9 @@ describe("pushProgressToServerCAS — adopt (conflict) path", () => {
     const serverState = {
       position: '{"kind":"cfi","value":"epubcfi(/6/4!/4/2/2:0)"}',
       fraction: 0.8,
-      last_device: "mobile",
-      last_format: "epub",
-      last_read_at: new Date().toISOString(),
+      lastDevice: "mobile",
+      lastFormat: "epub",
+      lastReadAt: new Date().toISOString(),
       version: 7,
     };
 

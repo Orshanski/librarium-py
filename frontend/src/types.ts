@@ -3,6 +3,21 @@ export interface BookFormat {
   size: string;
 }
 
+export interface AuthorRef {
+  id: number;
+  name: string;
+}
+
+export interface TagRef {
+  id: number;
+  name: string;
+}
+
+export interface SeriesRef {
+  id: number;
+  name: string;
+}
+
 export interface Book {
   id: number;
   title: string;
@@ -30,29 +45,25 @@ export interface Book {
   lastReadAt?: string | null;
 }
 
-/** Raw book data from API (GROUP_CONCAT strings for authors/tags). */
+/** Raw book data from API (object arrays for authors/tags/series). */
 export interface RawBook {
   id: number;
   title: string;
-  authors: string | null;
-  series_id?: number | null;
-  series_name: string | null;
-  series_number: number | null;
-  tags: string | null;
+  authors: AuthorRef[];
+  series: SeriesRef | null;
+  seriesNumber: number | null;
+  tags: TagRef[];
   rating: number | null;
   language: string | null;
-  cover_path: string | null;
+  coverPath: string | null;
   description: string | null;
   publisher: string | null;
-  pub_date: string | null;
-  updated_at: string | null;
-  // User-specific fields (from LEFT JOIN user_books)
-  is_read?: number | null;
-  // Reading progress fields (present on "reading_now" shelf)
+  pubDate: string | null;
+  updatedAt: string | null;
+  isRead?: number | null;
   fraction?: number | null;
-  last_format?: string | null;
-  last_read_at?: string | null;
-  [key: string]: unknown;
+  lastFormat?: string | null;
+  lastReadAt?: string | null;
 }
 
 /** Split a comma-separated string into trimmed non-empty array. */
@@ -66,22 +77,23 @@ export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string |
   return {
     id: b.id,
     title: b.title,
-    authors: splitCsv(b.authors),
-    series: b.series_name ?? null,
-    seriesNumber: b.series_number ?? null,
-    tags: splitCsv(b.tags),
+    authors: b.authors.map((a) => a.name),
+    series: b.series?.name ?? null,
+    seriesNumber: b.seriesNumber,
+    tags: b.tags.map((t) => t.name),
     rating: b.rating ?? null,
-    isRead: !!(b.is_read),
+    isRead: !!(b.isRead),
     language: b.language || "",
     coverPath: opts?.fullCover
-      ? `/api/covers/${b.id}?full=1&t=${b.updated_at || ""}`
-      : `/api/covers/${b.id}?t=${b.updated_at || ""}`,
+      ? `/api/covers/${b.id}?full=1&t=${b.updatedAt || ""}`
+      : `/api/covers/${b.id}?t=${b.updatedAt || ""}`,
     description: b.description ?? null,
     publisher: b.publisher ?? null,
-    pubDate: b.pub_date ?? null,
+    pubDate: b.pubDate ?? null,
     formats: [],
     isbn: opts?.isbn ?? null,
+    fraction: b.fraction ?? null,
+    lastFormat: b.lastFormat ?? null,
+    lastReadAt: b.lastReadAt ?? null,
   };
 }
-
-

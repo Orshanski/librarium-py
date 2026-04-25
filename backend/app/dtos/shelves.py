@@ -3,23 +3,29 @@ from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
+from ._refs import AuthorRef, SeriesRef, TagRef
 from .books import BookItem
 
 
 class ShelfSummary(BaseModel):
     """Заголовок полки на wire в camelCase — поле shelf в ответе /api/shelves/{id}."""
+    model_config = RESPONSE_CONFIG
+
     id: int
     name: str
-    isSystem: bool
-    systemCode: str | None = None
+    is_system: bool
+    system_code: str | None = None
 
 
 class ShelfBody(BaseModel):
+    model_config = BODY_CONFIG
     name: str
 
 
 class ShelfBookBody(BaseModel):
-    bookId: int
+    model_config = BODY_CONFIG
+    book_id: int
 
 
 # ---------------------------------------------------------------------------
@@ -58,15 +64,20 @@ class ShelfRow(TypedDict):
 
 
 class ShelfBookRow(TypedDict):
-    """Book row inside dal.shelves.get_shelf_by_id books list.
-    Base columns come from BOOK_LIST_AGGREGATE_COLUMNS (b.*, series_name,
-    authors aggregate, tags aggregate).  Extra columns depend on system_code
-    branch and are NotRequired because they are absent for regular shelves:
-    - rating    present for system_code='best' branch
-    - fraction, last_format, last_read_at  present for system_code='reading_now'
-    All three are absent for regular (non-system) shelves.
-    R-A: one TypedDict with NotRequired extras is correct here — the function
-    has one return site (ShelfDetailRow.books), callers receive all variants."""
+    """Строка книги в dal.shelves.get_shelf_by_id, список books.
+
+    Все три ветки полок (best, reading_now, regular) используют явный набор
+    колонок — без b.*, без плоских series_name/series_id/author_ids/tag_ids.
+    Поля authors и tags — разобранные JSON-массивы (list[AuthorRef] / list[TagRef]).
+    Поле series — разобранный JSON-объект (SeriesRef) или None.
+
+    Колонки rating и is_read выбираются всеми тремя ветками через LEFT JOIN
+    user_books — ключи всегда присутствуют, значение None при отсутствии
+    user_books-ряда. NotRequired — только у полей reading_now: fraction,
+    last_format, last_read_at.
+
+    R-A: одна TypedDict с NotRequired-extras для reading_now — единственная
+    точка возврата (ShelfDetailRow.books); все вызывающие получают одну форму."""
     id: int
     title: str
     sort_title: str | None
@@ -74,16 +85,16 @@ class ShelfBookRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    tags: str | None
-    # system shelf extras
-    rating: NotRequired[int | None]
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None
+    is_read: int | None
+    # reading_now-only
     fraction: NotRequired[float | None]
     last_format: NotRequired[str | None]
     last_read_at: NotRequired[str | None]
@@ -115,17 +126,17 @@ class BookShelfEntry(TypedDict):
 class ShelvesListResponse(BaseModel):
     """Response for GET /api/shelves.
 
-    Wire format:
+    Wire format (camelCase):
       without bookId: {"shelves": [...]}
       with bookId:    {"shelves": [...], "bookShelves": [...]}
 
-    Pre-L4 the service returned a ShelvesList TypedDict (total=False), which
-    FastAPI serialized as a plain dict without the bookShelves key when absent.
-    We preserve this by setting bookShelves=None and using
+    `book_shelves` is None when book_id is absent; omitted from wire via
     response_model_exclude_none=True on the endpoint.
     """
+    model_config = RESPONSE_CONFIG
+
     shelves: list[ShelfRow]
-    bookShelves: list[BookShelfEntry] | None = None
+    book_shelves: list[BookShelfEntry] | None = None
 
 
 class ShelfDetailResponse(BaseModel):
@@ -133,5 +144,7 @@ class ShelfDetailResponse(BaseModel):
 
     Wire format (camelCase): {"shelf": {...}, "books": [...]}
     """
+    model_config = RESPONSE_CONFIG
+
     shelf: ShelfSummary
     books: list[BookItem]

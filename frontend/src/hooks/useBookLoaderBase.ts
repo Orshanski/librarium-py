@@ -134,10 +134,10 @@ export function useBookLoaderBase(
         setBookBlob(blob);
         setLoading(false);
 
-        // 5. Background: clear is_read + post-load hook
-        if (navigator.onLine && bookData?.book?.is_read) {
+        // 5. Background: clear isRead + post-load hook
+        if (navigator.onLine && bookData?.book?.isRead) {
           apiSetRead(Number(id), false).catch((err) =>
-            console.warn("Failed to clear is_read:", err),
+            console.warn("Failed to clear isRead:", err),
           );
         }
         postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromOffline });

@@ -36,7 +36,7 @@ def test_set_read(reader_client):
     resp = reader_client.put("/api/books/3/read", json={"isRead": True})
     assert_ok(resp)
     book = reader_client.get("/api/books/3").json()["book"]
-    assert book["is_read"] == 1
+    assert book["isRead"] == 1
 
 
 def test_set_hidden(reader_client, db):
@@ -64,7 +64,7 @@ def test_unhide_restores_to_catalog(reader_client):
 
 def test_default_is_read_null(reader_client):
     book = reader_client.get("/api/books/3").json()["book"]
-    assert book["is_read"] is None or book["is_read"] == 0
+    assert book["isRead"] is None or book["isRead"] == 0
 
 
 def test_default_rating_null(reader_client):
@@ -74,13 +74,13 @@ def test_default_rating_null(reader_client):
 
 def test_book_detail_has_is_read(reader_client):
     book = reader_client.get("/api/books/1").json()["book"]
-    assert "is_read" in book
+    assert "isRead" in book
 
 
 def test_book_detail_reflects_read(reader_client):
     reader_client.put("/api/books/3/read", json={"isRead": True})
     book = reader_client.get("/api/books/3").json()["book"]
-    assert book["is_read"] == 1
+    assert book["isRead"] == 1
 
 
 def test_book_detail_has_rating(reader_client):
@@ -93,4 +93,4 @@ def test_catalog_has_is_read(reader_client):
     reader_client.put("/api/books/1/read", json={"isRead": True})
     data = reader_client.get("/api/books").json()
     book = next(b for b in data["books"] if b["id"] == 1)
-    assert book["is_read"] == 1
+    assert book["isRead"] == 1

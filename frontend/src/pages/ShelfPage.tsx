@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
@@ -8,7 +8,8 @@ import BookCard from "../components/book-card";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
-import type { Book } from "../types";
+import type { Book, RawBook } from "../types";
+import { toBook } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
@@ -22,7 +23,8 @@ export default function ShelfPage() {
   const [searchParams] = useSearchParams();
 
   const [shelf, setShelf] = useState<ShelfSummary | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
+  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -37,7 +39,7 @@ export default function ShelfPage() {
     getShelf(shelfId, { sort }, controller.signal)
       .then((data) => {
         setShelf(data.shelf);
-        setBooks(data.books || []);
+        setRawBooks(data.books || []);
       })
       .catch((err) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -60,6 +62,15 @@ export default function ShelfPage() {
       console.warn("Failed to delete shelf:", err);
     }
   }
+
+  const handleRemoveBookFromShelf = useCallback(async (bookId: number) => {
+    try {
+      await removeBookFromShelf(shelfId, bookId);
+      setRawBooks((prev) => prev.filter((x) => x.id !== bookId));
+    } catch (err) {
+      console.warn("Failed to remove book from shelf:", err);
+    }
+  }, [shelfId]);
 
   if (loading) {
     return (
@@ -127,14 +138,7 @@ export default function ShelfPage() {
               progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
               hasOffline={offlineBookIds.has(b.id)}
               linkState={linkState}
-              onRemove={!shelf.isSystem ? async () => {
-                try {
-                  await removeBookFromShelf(shelfId, b.id);
-                  setBooks((prev) => prev.filter((x) => x.id !== b.id));
-                } catch (err) {
-                  console.warn("Failed to remove book from shelf:", err);
-                }
-              } : undefined}
+              onRemove={!shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
             />
           );
         })}

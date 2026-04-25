@@ -1,10 +1,10 @@
 import { client } from "../client";
-import type { Book } from "@/types";
+import type { RawBook } from "@/types";
 
 export interface CloudTag {
   id: number;
   name: string;
-  book_count: number;
+  bookCount: number;
 }
 
 export interface DirectoryTag {
@@ -28,7 +28,7 @@ export interface TagSummary {
 
 export interface TagBooksResponse {
   tag: TagSummary;
-  books: Book[];
+  books: RawBook[];
 }
 
 export interface MapTagResponse {

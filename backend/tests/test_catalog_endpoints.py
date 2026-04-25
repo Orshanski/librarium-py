@@ -38,13 +38,14 @@ class TestSeriesFilters:
         ids = {s["id"] for s in data["series"]}
         assert ids == {1}
 
-    def test_series_detail_books_have_series_name(self, reader_client):
+    def test_series_detail_books_have_series_object(self, reader_client):
         data = reader_client.get("/api/series/1").json()
         books = data["books"]
         assert len(books) == 2
         for b in books:
-            assert b["series_name"] == "Test Series"
-            assert b["series_number"] is not None
+            assert b["series"]["name"] == "Test Series"
+            assert b["series"]["id"] == 1
+            assert b["seriesNumber"] is not None
 
 
 class TestTags:

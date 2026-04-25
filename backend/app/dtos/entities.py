@@ -3,20 +3,32 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .books import BookItem
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG, to_camel
+from ._refs import AuthorRef, SeriesRef, TagRef
 from .catalog import LanguageOptionRow
 
 
 class RenameBody(BaseModel):
+    model_config = BODY_CONFIG
     name: str
 
 
 class MergeBody(BaseModel):
-    sourceId: int
+    model_config = BODY_CONFIG
+    source_id: int
+
+
+MAP_BODY_CONFIG = ConfigDict(
+    str_strip_whitespace=True,
+    populate_by_name=False,
+    alias_generator=to_camel,
+    extra="forbid",
+)
+"""BODY_CONFIG + str_strip_whitespace=True для MapBody."""
 
 
 class MapBody(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = MAP_BODY_CONFIG
     name: str = Field(..., min_length=1)
 
 
@@ -43,7 +55,7 @@ class AuthorRow(TypedDict):
     name: str
     sort_name: str | None
     book_count: int
-    tags: str | None
+    tags: list[TagRef]
 
 
 class AuthorsList(TypedDict):
@@ -73,7 +85,7 @@ class SeriesRow(TypedDict):
     name: str
     sort_name: str | None
     book_count: int
-    authors: str | None
+    authors: list[AuthorRef]
 
 
 class SeriesList(TypedDict):
@@ -99,7 +111,7 @@ class SeriesDetailRow(TypedDict):
 # --- tag ---
 
 class TagSummaryRow(TypedDict):
-    """DAL-level форма тега, raw row из SELECT * FROM tags. Snake keys."""
+    """DAL-уровень: тип тега из SELECT * FROM tags, ключи snake_case."""
     id: int
     name: str
     code: str | None
@@ -107,15 +119,46 @@ class TagSummaryRow(TypedDict):
 
 class TagSummary(BaseModel):
     """Заголовок тега на wire в camelCase — поле tag в ответе /api/tags/{id}."""
+    model_config = RESPONSE_CONFIG
+
     id: int
     name: str
     code: str | None = None
 
 
+class TagDetailBookRow(TypedDict):
+    """Book row inside dal.tags.get_tag_by_id books list.
+
+    Extends the EntityBookRow shape with rating and is_read from the
+    user_books JOIN present in get_tag_books.sql. Option A (separate TypedDict)
+    is chosen over reusing ShelfBookRow to avoid cross-coupling between the
+    shelves and tags modules — they share the same SQL pattern but belong to
+    different domain boundaries.
+
+    Authors and tags are parsed JSON arrays (list[AuthorRef] / list[TagRef]).
+    Series is a parsed JSON object (SeriesRef) or None."""
+    id: int
+    title: str
+    sort_title: str | None
+    description: str | None
+    language: str | None
+    publisher: str | None
+    pub_date: str | None
+    series_number: float | None
+    cover_path: str | None
+    added_at: str
+    updated_at: str
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None
+    is_read: int | None
+
+
 class TagDetailRow(TypedDict):
     """Return shape of dal.tags.get_tag_by_id."""
     tag: TagSummaryRow
-    books: list["EntityBookRow"]
+    books: list[TagDetailBookRow]
 
 
 class TagCloudEntry(TypedDict):
@@ -134,10 +177,10 @@ class TagMapResult(TypedDict):
 # --- shared entity-detail book row ---
 
 class EntityBookRow(TypedDict):
-    """Book row used by all three entity-detail DAL functions (get_author_by_id,
-    get_series_by_id, get_tag_by_id) — all select the same BOOK_LIST_AGGREGATE_COLUMNS:
-    b.*, s.name AS series_name, GROUP_CONCAT(authors), GROUP_CONCAT(tags).
-    Single TypedDict justified by R-A: identical SELECT shape across all three."""
+    """Book row used by author-detail and series-detail DAL functions
+    (get_author_by_id, get_series_by_id). Both queries select identical columns:
+    explicit b.* fields, series as json_object, authors/tags as json_group_array.
+    Single TypedDict justified by R-A: identical SELECT shape across both queries."""
     id: int
     title: str
     sort_title: str | None
@@ -145,14 +188,13 @@ class EntityBookRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    tags: str | None
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
 
 
 # ---------------------------------------------------------------------------
@@ -161,33 +203,85 @@ class EntityBookRow(TypedDict):
 # ---------------------------------------------------------------------------
 
 
+class EntityBookItem(BaseModel):
+    """Book item in author-detail and series-detail responses. Snake-case Python
+    fields; serialises to camelCase wire via alias_generator. Accepts snake keys
+    from DAL TypedDicts (populate_by_name=True) for construction in service layer."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pub_date: str | None = None
+    series: SeriesRef | None = None
+    series_number: float | None = None
+    cover_path: str | None = None
+    added_at: str
+    updated_at: str
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+
+
+class TagDetailBookItem(BaseModel):
+    """Book item in tag-detail response. Extends EntityBookItem shape with
+    user-specific rating/is_read from the user_books JOIN in get_tag_books.sql."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    title: str
+    sort_title: str | None = None
+    description: str | None = None
+    language: str | None = None
+    publisher: str | None = None
+    pub_date: str | None = None
+    series: SeriesRef | None = None
+    series_number: float | None = None
+    cover_path: str | None = None
+    added_at: str
+    updated_at: str
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None = None
+    is_read: int | None = None
+
+
 class AuthorDetailResponse(BaseModel):
     """Response for GET /api/authors/{id}.
 
-    Wire format: {"author": {...}, "books": [...]}
-    The nested dicts are raw TypedDicts (AuthorSummary, EntityBookRow) with
-    snake_case keys — preserving pre-L4 passthrough.
+    Wire format (camelCase): {"author": {...}, "books": [...]}.
+    `books[]`: EntityBookItem (snake fields, camel wire).
     """
+    model_config = RESPONSE_CONFIG
+
     author: AuthorSummary
-    books: list[EntityBookRow]
+    books: list[EntityBookItem]
 
 
 class AuthorsListResponse(BaseModel):
     """Response for GET /api/authors."""
+    model_config = RESPONSE_CONFIG
+
     authors: list[AuthorRow]
 
 
 class SeriesDetailResponse(BaseModel):
     """Response for GET /api/series/{id}.
 
-    Wire format: {"series": {...}, "books": [...]}
+    Wire format (camelCase): {"series": {...}, "books": [...]}
     """
+    model_config = RESPONSE_CONFIG
+
     series: SeriesDetailSummary
-    books: list[EntityBookRow]
+    books: list[EntityBookItem]
 
 
 class SeriesListResponse(BaseModel):
     """Response for GET /api/series."""
+    model_config = RESPONSE_CONFIG
+
     series: list[SeriesRow]
 
 
@@ -196,12 +290,16 @@ class TagDetailResponse(BaseModel):
 
     Wire format (camelCase): {"tag": {...}, "books": [...]}
     """
+    model_config = RESPONSE_CONFIG
+
     tag: TagSummary
-    books: list[BookItem]
+    books: list[TagDetailBookItem]
 
 
 class TagCloudResponse(BaseModel):
     """Response for GET /api/tags/cloud."""
+    model_config = RESPONSE_CONFIG
+
     tags: list[TagCloudEntry]
 
 
@@ -212,26 +310,36 @@ class TagMapResponse(BaseModel):
     `renamed` is present on the object for router-side logging but excluded
     from JSON serialisation via Field(exclude=True).
     """
+    model_config = RESPONSE_CONFIG
+
     ok: bool = True
-    targetId: int
+    target_id: int
     renamed: bool = Field(exclude=True)
 
 
 class AuthorOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/authors."""
+    model_config = RESPONSE_CONFIG
+
     authors: list[FilterOptionRow]
 
 
 class TagOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/tags."""
+    model_config = RESPONSE_CONFIG
+
     tags: list[FilterOptionRow]
 
 
 class SeriesOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/series."""
+    model_config = RESPONSE_CONFIG
+
     series: list[FilterOptionRow]
 
 
 class LanguageOptionsResponse(BaseModel):
     """Response for GET /api/filter-options/languages."""
+    model_config = RESPONSE_CONFIG
+
     languages: list[LanguageOptionRow]

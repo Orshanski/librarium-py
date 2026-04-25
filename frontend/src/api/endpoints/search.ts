@@ -1,23 +1,53 @@
 import { client } from "../client";
-import type { RawBook } from "@/types";
+import type { Book, AuthorRef, SeriesRef } from "@/types";
+
+export interface SearchBookHit {
+  id: number;
+  title: string;
+  coverPath: string | null;
+  authors: AuthorRef[];
+  series: SeriesRef | null;
+}
 
 export interface SearchAuthorResult {
   id: number;
   name: string;
-  book_count: number;
+  bookCount: number;
 }
 
 export interface SearchSeriesResult {
   id: number;
   name: string;
-  authors: string;
-  book_count: number;
+  authors: AuthorRef[];
+  bookCount: number;
 }
 
 export interface SearchResponse {
-  books: RawBook[];
+  books: SearchBookHit[];
   authors: SearchAuthorResult[];
   series: SearchSeriesResult[];
+}
+
+/** Convert a search hit to a Book-shaped object for BookCard rendering. */
+export function searchHitToBook(hit: SearchBookHit): Book {
+  return {
+    id: hit.id,
+    title: hit.title,
+    authors: hit.authors.map((a) => a.name),
+    series: hit.series?.name ?? null,
+    seriesId: hit.series?.id ?? null,
+    seriesNumber: null,
+    tags: [],
+    rating: null,
+    isRead: false,
+    language: "",
+    coverPath: `/api/covers/${hit.id}`,
+    description: null,
+    publisher: null,
+    pubDate: null,
+    formats: [],
+    isbn: null,
+  };
 }
 
 export interface SearchOptions {

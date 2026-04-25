@@ -8,7 +8,7 @@ from typing import cast
 from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
-    BookDetailResponse, BookFileLookup, BookListPage, BookListResponse, BookUpdateData, UpdateBookBody,
+    BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from . import cover_service, filters_service, thumb
@@ -56,6 +56,112 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
     return BookDetailResponse(book=book, files=files, identifiers=identifiers)
 
 
+def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, str]]:
+    """Резолвит tempId-ы в (tempId, src_path, fmt, ext). Кидает ошибки до side effects."""
+    if len(set(add_formats)) != len(add_formats):
+        raise ConflictError("Duplicate tempId in addFormats")
+    resolved: list[tuple[str, str, str, str]] = []
+    for tid in add_formats:
+        basename = find_temp_file(tid)
+        if basename is None:
+            raise BadInputError(f"Temp file not found: {tid}")
+        ext = basename.rsplit(".", 1)[-1].lower()
+        fmt = ext.upper()
+        src_path = str(UPLOADS_DIR / basename)
+        resolved.append((tid, src_path, fmt, ext))
+    added_fmts = [r[2] for r in resolved]
+    if len(set(added_fmts)) != len(added_fmts):
+        raise ConflictError("Duplicate format in addFormats")
+    return resolved
+
+
+def _check_format_collision(
+    db: sqlite3.Connection,
+    book_id: int,
+    resolved_adds: list[tuple[str, str, str, str]],
+    delete_formats: list[str],
+) -> None:
+    """Конфликт: финальный набор форматов не должен содержать дубликатов."""
+    existing_fmts = {f["format"] for f in dal.get_book_files(db, book_id)}
+    added_set = {r[2] for r in resolved_adds}
+    deleted_set = set(delete_formats)
+    conflict = added_set & (existing_fmts - deleted_set)
+    if conflict:
+        raise ConflictError(f"Format {sorted(conflict)[0]} already present")
+
+
+def _resolve_delete_formats(
+    db: sqlite3.Connection, book_id: int, delete_formats: list[str],
+) -> list[tuple[str, BookFileLookup]]:
+    """Идемпотентный резолв: пропускает форматы, которых нет (с info-логом)."""
+    resolved: list[tuple[str, BookFileLookup]] = []
+    for fmt_code in delete_formats:
+        row = dal.get_book_file(db, book_id, fmt_code)
+        if row is None:
+            log.info(
+                "idempotent delete skipped: book=%d format=%s not present",
+                book_id, fmt_code,
+            )
+            continue
+        resolved.append((fmt_code, row))
+    return resolved
+
+
+def _apply_delete_formats(
+    db: sqlite3.Connection,
+    book_id: int,
+    resolved_deletes: list[tuple[str, BookFileLookup]],
+) -> list[tuple[str, str]]:
+    """Backup-then-delete: FS-файлы → .bak (для возможного restore), DB-row удаляется.
+
+    Возвращает список (original_path, bak_path) для последующего restore/finalize.
+    """
+    backed_up: list[tuple[str, str]] = []
+    for fmt_code, row in resolved_deletes:
+        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
+        if os.path.isfile(file_path):
+            bak_path = file_path + ".bak"
+            os.rename(file_path, bak_path)
+            backed_up.append((file_path, bak_path))
+        dal.delete_book_file(db, row["id"])
+    return backed_up
+
+
+def _apply_add_formats(
+    db: sqlite3.Connection,
+    book_id: int,
+    resolved_adds: list[tuple[str, str, str, str]],
+    backed_up_paths: list[tuple[str, str]],
+) -> None:
+    """Copy + register + linearize. При сбое — чистит частично записанные dst и
+    восстанавливает .bak из backed_up_paths."""
+    copied_dsts: list[str] = []
+    try:
+        for (_tid, src, fmt, ext) in resolved_adds:
+            dst = prepare_book_format_path(db, book_id, fmt, ext)
+            copied_dsts.append(dst)
+            shutil.copyfile(src, dst)
+            register_and_linearize(db, book_id, dst, ext)
+    except Exception:
+        for d in copied_dsts:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(d)
+        for orig_path, bak_path in backed_up_paths:
+            with contextlib.suppress(FileNotFoundError):
+                os.rename(bak_path, orig_path)
+        raise
+
+
+def _resolve_metadata_refs(db: sqlite3.Connection, data: BookUpdateData) -> None:
+    """Резолвит author_ids/tag_ids/series_id в БД-id'ы (in-place)."""
+    if "author_ids" in data:
+        data["author_ids"] = resolve_authors(db, data["author_ids"])
+    if "tag_ids" in data:
+        data["tag_ids"] = resolve_tags(db, data["tag_ids"])
+    if "series_id" in data:
+        data["series_id"] = resolve_series(db, data["series_id"])
+
+
 def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:
     """Apply full desired state to a book: metadata + files + cover commit.
 
@@ -68,118 +174,42 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
         BookUpdateData,
         body.model_dump(
             exclude_unset=True,
-            exclude={"addFormats", "deleteFormats", "commitCover"},
+            exclude={"add_formats", "delete_formats", "commit_cover"},
         ),
     )
+    add_formats = body.add_formats or []
+    delete_formats = body.delete_formats or []
 
-    add_formats = body.addFormats or []
-    delete_formats = body.deleteFormats or []
-
-    # Шаг 0: no-op guard
-    if not data and not add_formats and not delete_formats and not body.commitCover:
+    # Шаг 0: no-op guard.
+    if not data and not add_formats and not delete_formats and not body.commit_cover:
         return
 
-    # Шаг 1: валидация (rollback-дешёвая, до side effects)
-
-    # 1a. Duplicate tempId → 409.
-    if len(set(add_formats)) != len(add_formats):
-        raise ConflictError("Duplicate tempId in addFormats")
-
-    # 1b. Резолв tempId → (src_path, fmt, ext).
-    resolved_adds: list[tuple[str, str, str, str]] = []  # (tempId, src_path, fmt, ext)
-    for tid in add_formats:
-        basename = find_temp_file(tid)
-        if basename is None:
-            raise BadInputError(f"Temp file not found: {tid}")
-        ext = basename.rsplit(".", 1)[-1].lower()
-        fmt = ext.upper()
-        src_path = str(UPLOADS_DIR / basename)
-        resolved_adds.append((tid, src_path, fmt, ext))
-
-    # 1c. Duplicate format в addFormats после резолва → 409.
-    added_fmts = [r[2] for r in resolved_adds]
-    if len(set(added_fmts)) != len(added_fmts):
-        raise ConflictError("Duplicate format in addFormats")
-
-    # 1d. Early conflict check: итоговый набор форматов не должен иметь дубликатов.
-    existing_fmts = {f["format"] for f in dal.get_book_files(db, book_id)}
-    deleted_set = set(delete_formats)
-    added_set = set(added_fmts)
-    conflict = added_set & (existing_fmts - deleted_set)
-    if conflict:
-        raise ConflictError(f"Format {sorted(conflict)[0]} already present")
-
-    # 1e. commitCover pending-check.
-    if body.commitCover and cover_service._find_temp_cover(book_id) is None:
+    # Шаг 1: валидация и резолвы — до любых side effects.
+    resolved_adds = _resolve_add_formats(add_formats)
+    _check_format_collision(db, book_id, resolved_adds, delete_formats)
+    if body.commit_cover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
+    resolved_deletes = _resolve_delete_formats(db, book_id, delete_formats)
 
-    # 1f. Резолв deleteFormats → идемпотентный список (format, row) + skipped.
-    resolved_deletes: list[tuple[str, BookFileLookup]] = []  # (format, row)
-    for fmt_code in delete_formats:
-        row = dal.get_book_file(db, book_id, fmt_code)
-        if row is None:
-            log.info(
-                "idempotent delete skipped: book=%d format=%s not present",
-                book_id, fmt_code,
-            )
-            continue
-        resolved_deletes.append((fmt_code, row))
+    # Шаг 2-3: delete (backup-then-delete) → add (copy/register/linearize).
+    # При сбое add — restore .bak из шага 2.
+    backed_up_paths = _apply_delete_formats(db, book_id, resolved_deletes)
+    _apply_add_formats(db, book_id, resolved_adds, backed_up_paths)
 
-    # Шаг 2: apply deleteFormats — backup-then-delete pattern.
-    # FS-файлы переименовываются в `.bak`, чтобы при сбое шага 3 их можно
-    # было восстановить. После успеха шага 5 — `.bak` удаляются финально.
-    # Симметрично cover_service._backup_existing/_restore_from_backup.
-    backed_up_paths: list[tuple[str, str]] = []  # (original_path, bak_path)
-    for fmt_code, row in resolved_deletes:
-        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
-        if os.path.isfile(file_path):
-            bak_path = file_path + ".bak"
-            os.rename(file_path, bak_path)
-            backed_up_paths.append((file_path, bak_path))
-        dal.delete_book_file(db, row["id"])
+    # Шаг 4: commitCover.
+    if body.commit_cover and not cover_service._commit(db, book_id):
+        # Pending-cover исчез между check и commit (race с cleanup_old_uploads —
+        # grace 3600 s, практически невозможно).
+        log.warning(
+            "commitCover: pending cover vanished between check and commit, book=%d",
+            book_id,
+        )
 
-    # Шаг 3: apply addFormats (copyfile + register + manual rollback).
-    # Note: `copied_dsts.append(dst)` идёт ДО `shutil.copyfile` — чтобы
-    # частично записанный dst при сбое copyfile тоже попал в cleanup.
-    copied_dsts: list[str] = []
-    try:
-        for (_tid, src, fmt, ext) in resolved_adds:
-            dst = prepare_book_format_path(db, book_id, fmt, ext)
-            copied_dsts.append(dst)
-            shutil.copyfile(src, dst)
-            register_and_linearize(db, book_id, dst, ext)
-    except Exception:
-        # Cleanup новых dst — частично/полностью скопированных.
-        for d in copied_dsts:
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(d)
-        # Restore — вернуть переименованные .bak обратно (replace-flow).
-        # DB-rollback восстановит book_files rows, файлы должны соответствовать.
-        for orig_path, bak_path in backed_up_paths:
-            with contextlib.suppress(FileNotFoundError):
-                os.rename(bak_path, orig_path)
-        raise
-
-    # Шаг 4: apply commitCover.
-    if body.commitCover:
-        if not cover_service._commit(db, book_id):
-            # Pending-cover был в шаге 1e, но исчез между check и commit (race с
-            # `cleanup_old_uploads` — grace 3600 s, практически невозможно).
-            log.warning(
-                "commitCover: pending cover vanished between check and commit, book=%d",
-                book_id,
-            )
-
-    # Шаг 5: apply metadata (всегда — updated_at bump при file-only тоже).
-    if "authorIds" in data:
-        data["authorIds"] = resolve_authors(db, data["authorIds"])
-    if "tagIds" in data:
-        data["tagIds"] = resolve_tags(db, data["tagIds"])
-    if "seriesId" in data:
-        data["seriesId"] = resolve_series(db, data["seriesId"])
+    # Шаг 5: metadata — всегда (updated_at bump при file-only тоже).
+    _resolve_metadata_refs(db, data)
     dal.update_book(db, book_id, data)
 
-    # Шаг 5b: финальное удаление backed-up `.bak` (replace-flow успешно завершён).
+    # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
     for _orig_path, bak_path in backed_up_paths:
         with contextlib.suppress(FileNotFoundError):
             os.remove(bak_path)
@@ -212,5 +242,14 @@ def list_books(
         series_ids=series_ids,
         language=language,
     )
-    page: BookListPage = dal.get_books(db, filters, sort, cursor, page_size)
-    return BookListResponse(books=page["books"], hasMore=page["hasMore"])
+    rows = dal.get_books(
+        db,
+        user_id=user_id,
+        sort=sort,
+        cursor=cursor,
+        page_size=page_size + 1,
+        filters=filters,
+    )
+    has_more = len(rows) > page_size
+    books = rows[:page_size] if has_more else rows
+    return BookListResponse(books=books, has_more=has_more)

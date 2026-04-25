@@ -10,3 +10,7 @@ class OkResponse(BaseModel):
 class IdResponse(BaseModel):
     """Common {"id": int} response for creation endpoints."""
     id: int
+
+
+from ._aliases import to_camel  # noqa: F401
+from ._refs import AuthorRef, TagRef, SeriesRef  # noqa: F401

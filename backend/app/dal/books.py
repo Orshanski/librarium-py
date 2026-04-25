@@ -1,6 +1,7 @@
 import re
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import aiosql
 from rapidfuzz import process
@@ -11,7 +12,6 @@ from ..dtos.books import (
     BookFileLookup,
     BookFileRow,
     BookIdentifierRow,
-    BookListPage,
     BookListRow,
     BookUpdateData,
     DuplicateHit,
@@ -24,42 +24,52 @@ from ..search import (
     search_preprocess,
     token_min_ratio,
 )
+from ._parsers import parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "books", "sqlite3")
 
 
-def get_books(db: sqlite3.Connection, filters: CatalogFilters, sort: str = "addedDesc", cursor=0, page_size=50) -> BookListPage:
-    if sort in ("ratingDesc", "ratingAsc") and not filters.get("userId"):
-        raise ValueError(f"{sort} requires userId in filters")
+def get_books(
+    db: sqlite3.Connection,
+    user_id: int | None = None,
+    sort: str = "addedDesc",
+    cursor: int = 0,
+    page_size: int = 50,
+    filters: CatalogFilters | None = None,
+) -> list[BookListRow]:
+    if sort in ("ratingDesc", "ratingAsc") and user_id is None:
+        raise ValueError(f"{sort} requires userId")
 
-    where, params = build_book_where(filters)
-    uid = filters.get("userId")
-    # uid всегда в params: None валиден для JOIN через NULL-three-valued logic.
-    params.update(lim=page_size + 1, off=cursor, uid=uid)
+    effective_filters: CatalogFilters = filters if filters is not None else {}  # type: ignore[typeddict-item]
+    where, params = build_book_where(effective_filters)
+    # uid always in params: None is valid for the LEFT JOIN via three-valued logic.
+    params.update(lim=page_size, off=cursor, uid=user_id)
 
-    # SQL-safe: {where_clause} and {order_clause} from whitelist-sources.
+    # SQL-safe: {where_clause} and {order_clause} from whitelist-sources only.
     order_clause = resolve_order_clause(sort)
     final_sql = (
         queries.get_books.sql
         .replace("{where_clause}", where)
         .replace("{order_clause}", order_clause)
     )
-    rows = db.execute(final_sql, params).fetchall()
+    raw_rows = db.execute(final_sql, params).fetchall()
 
-    books = dicts_from_rows(rows)
-    has_more = len(books) > page_size
-    if has_more:
-        books = books[:page_size]
-
-    return {"books": books, "hasMore": has_more}
+    rows = [dict(r) for r in raw_rows]
+    for row in rows:
+        parse_book_row_aggregates(row)
+    return cast(list[BookListRow], rows)
 
 
 def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = None) -> BookListRow | None:
-    # uid всегда передаётся — None валиден через NULL-three-valued logic в JOIN.
+    # uid always passed — None is valid via three-valued logic in LEFT JOIN.
     row = queries.get_book_by_id(db, id=book_id, uid=user_id)
-    return dict_from_row(row)
+    if row is None:
+        return None
+    result = dict(row)
+    parse_book_row_aggregates(result)
+    return cast(BookListRow, result)
 
 
 def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:
@@ -99,34 +109,38 @@ def create_book(db: sqlite3.Connection, data: BookCreateData) -> int:
     return book_id
 
 
+SCALAR_UPDATE_FIELDS = (
+    "title", "description", "language",
+    "publisher", "pub_date", "series_id",
+    "series_number", "cover_path",
+)
+"""Скалярные поля books, обновляемые через update_book.
+Порядок не важен — каждое поле включается только если присутствует в data."""
+
+
 def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> None:
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
 
-    field_map = {
-        "title": "title", "description": "description", "language": "language",
-        "publisher": "publisher", "pubDate": "pub_date", "seriesId": "series_id",
-        "seriesNumber": "series_number", "coverPath": "cover_path",
-    }
-    for key, col in field_map.items():
+    for key in SCALAR_UPDATE_FIELDS:
         if key in data:
-            sets.append(f"{col} = :{key}")
+            sets.append(f"{key} = :{key}")
             params[key] = data[key]
 
     if "title" in data:
-        sets.append("sort_title = :sortTitle")
-        params["sortTitle"] = data.get("sortTitle") or _sort_title(data["title"])
+        sets.append("sort_title = :sort_title")
+        params["sort_title"] = data.get("sort_title") or _sort_title(data["title"])
 
     db.execute(f"UPDATE books SET {', '.join(sets)} WHERE id = :id", params)
 
-    if "authorIds" in data:
+    if "author_ids" in data:
         queries.delete_book_authors(db, book_id=book_id)
-        for aid in data["authorIds"]:
+        for aid in data["author_ids"]:
             queries.insert_book_author(db, book_id=book_id, author_id=aid)
 
-    if "tagIds" in data:
+    if "tag_ids" in data:
         queries.delete_book_tags(db, book_id=book_id)
-        for tid in data["tagIds"]:
+        for tid in data["tag_ids"]:
             queries.insert_book_tag(db, book_id=book_id, tag_id=tid)
 
     if "isbn" in data:
@@ -172,15 +186,16 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
         "score_cutoff": SEARCH_SCORE_CUTOFF,
     }
 
-    # Books: full outer fetch, fuzzy-rank against title + authors + series_name.
-    # GROUP_CONCAT uses SQLite's default comma separator. That's fine
-    # here because search_preprocess turns the comma into a space
-    # before scoring. If search_preprocess ever stops normalising
-    # punctuation, this concat will silently break — see also the
-    # series query below, same caveat.
+    # Books: full outer fetch, fuzzy-rank against title + authors + series.
     book_rows = dicts_from_rows(queries.search_books_books(db))
+    for r in book_rows:
+        parse_book_row_aggregates(r)
     book_choices = {
-        r["id"]: f"{r['title'] or ''} {r['authors'] or ''} {r['series_name'] or ''}"
+        r["id"]: (
+            f"{r['title'] or ''}"
+            f" {' '.join(a.name for a in r['authors'])}"
+            f" {r['series'].name if r['series'] else ''}"
+        )
         for r in book_rows
     }
     book_matches = process.extract(q, book_choices, limit=limit, **extract_kwargs)
@@ -196,10 +211,13 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     author_by_id = {r["id"]: r for r in author_rows}
     authors = [author_by_id[aid] for _, _, aid in author_matches]
 
-    # Series: fuzzy-rank against name + concatenated authors.
+    # Series: fuzzy-rank against name + authors.
     series_rows = dicts_from_rows(queries.search_books_series(db))
+    for r in series_rows:
+        parse_book_row_aggregates(r)
     series_choices = {
-        r["id"]: f"{r['name'] or ''} {r['authors'] or ''}" for r in series_rows
+        r["id"]: f"{r['name'] or ''} {' '.join(a.name for a in r['authors'])}"
+        for r in series_rows
     }
     series_matches = process.extract(
         q, series_choices, limit=AUTHORS_SERIES_LIMIT, **extract_kwargs
@@ -246,4 +264,7 @@ def find_duplicates_by_title(db: sqlite3.Connection, title: str) -> list[Duplica
     # search_preprocess из app.search запланирована отдельно.
     escaped = title.lower().replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped}%"
-    return dicts_from_rows(queries.find_duplicates_by_title(db, pattern=pattern))
+    rows = dicts_from_rows(queries.find_duplicates_by_title(db, pattern=pattern))
+    for r in rows:
+        parse_book_row_aggregates(r)
+    return cast(list[DuplicateHit], rows)

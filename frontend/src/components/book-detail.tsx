@@ -51,7 +51,7 @@ export default function BookDetail({
         return Promise.all(
           allFiles.map(async (f) => {
             const fileBlob = await apiDownloadBook(book.id, f.format);
-            return { format: f.format, fileBlob, fileSize: f.file_size };
+            return { format: f.format, fileBlob, fileSize: f.fileSize ?? 0 };
           }),
         );
       },
@@ -99,7 +99,7 @@ export default function BookDetail({
       listShelves(book.id)
         .then((data) => {
           setShelfList(data.shelves);
-          const onShelves = (data.bookShelves || []).filter((s) => s.has_book).map((s) => s.id);
+          const onShelves = (data.bookShelves || []).filter((s) => s.hasBook).map((s) => s.id);
           setBookShelfIds(new Set(onShelves));
         })
         .catch((err) => console.warn("Failed to load shelf list:", err));

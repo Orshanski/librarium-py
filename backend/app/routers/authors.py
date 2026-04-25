@@ -18,13 +18,13 @@ router = APIRouter(prefix="/api/authors", tags=["authors"])
 def list_authors(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
-    tagIds: Annotated[list[int] | None, Query()] = None,
+    tag_ids: Annotated[list[int] | None, Query(alias="tagIds")] = None,
     language: Annotated[list[str] | None, Query()] = None,
 ):
     return authors_service.list_authors(
         db,
         user_id=user.user_id,
-        tag_ids=tagIds,
+        tag_ids=tag_ids,
         language=language,
     )
 

@@ -12,8 +12,8 @@ describe("SidebarContent — shelves list", () => {
       http.get("/api/shelves", () =>
         HttpResponse.json({
           shelves: [
-            { id: 1, name: "Read", is_system: true, system_code: "reading_now" },
-            { id: 2, name: "TBR", is_system: false },
+            { id: 1, name: "Read", isSystem: true, systemCode: "reading_now" },
+            { id: 2, name: "TBR", isSystem: false },
           ],
         })
       )

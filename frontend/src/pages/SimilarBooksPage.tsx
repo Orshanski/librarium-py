@@ -102,8 +102,8 @@ export default function SimilarBooksPage() {
               <Link to={`/book/${id}`} style={{ color: colors.text, textDecoration: "none", fontWeight: 500 }}>
                 {book.title}
               </Link>
-              {book.authors && (
-                <span> — {book.authors}</span>
+              {book.authors && book.authors.length > 0 && (
+                <span> — {book.authors.map((a) => a.name).join(", ")}</span>
               )}
             </div>
             <div style={{ fontSize: isMobile ? 11 : 14, color: colors.textDim, lineHeight: 1.5 }}>

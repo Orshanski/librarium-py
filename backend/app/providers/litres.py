@@ -128,11 +128,11 @@ def _build_result(item: dict, detailed: dict | None) -> MetadataResult | None:
         authors=", ".join(_extract_authors(item.get("persons") or [])),
         description=_extract_description(item, detailed),
         publisher=item.get("publisher") or "",
-        pubDate=_extract_pub_date(item),
+        pub_date=_extract_pub_date(item),
         isbn=_extract_isbn(item) or _extract_isbn(detailed or {}),
         tags=", ".join(_extract_tags(detailed)),
         source="Litres",
-        coverUrl=_extract_cover_url(item),
+        cover_url=_extract_cover_url(item),
     )
 
 
@@ -197,10 +197,10 @@ def fetch_similar(litres_id: int) -> list[SimilarCandidate]:
         results.append({
             "title": item.get("title", ""),
             "authors": authors,
-            "coverUrl": cover_url,
-            "litresUrl": f"{META_URL}{item.get('url', '')}",
+            "cover_url": cover_url,
+            "litres_url": f"{META_URL}{item.get('url', '')}",
             "rating": round(rating_avg, 1),
-            "ratingCount": rating_count,
+            "rating_count": rating_count,
         })
 
     # Sort by rating desc, no limit — show all that passed filters

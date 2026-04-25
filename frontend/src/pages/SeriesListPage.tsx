@@ -111,12 +111,14 @@ export default function SeriesListPage() {
                 <div style={{ fontSize: 15, color: colors.text, marginBottom: 2 }}>
                   {s.name}
                 </div>
-                <div style={{ fontSize: 12, color: colors.textDim }}>
-                  {s.authors}
-                </div>
+                {s.authors && s.authors.length > 0 && (
+                  <div style={{ fontSize: 12, color: colors.textDim }}>
+                    {s.authors.map((a) => a.name).join(", ")}
+                  </div>
+                )}
               </div>
               <div style={{ fontSize: 13, color: colors.textDim, whiteSpace: "nowrap", marginLeft: 16 }}>
-                {pluralizeBooks(s.book_count)}
+                {pluralizeBooks(s.bookCount)}
               </div>
             </div>
           </Link>

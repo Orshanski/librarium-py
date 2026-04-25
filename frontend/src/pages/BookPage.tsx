@@ -7,7 +7,7 @@ import type { ListOrigin } from "../components/breadcrumb-origin";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
-import { getBook, listBooks, type FileInfo, type BookIdentifier } from "@/api/endpoints/books";
+import { getBook, listBooks, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
 
 const FALLBACK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
@@ -38,7 +38,7 @@ export default function BookPage() {
   const { id } = useParams();
   const location = useLocation();
   const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [files, setFiles] = useState<BookFileInfo[]>([]);
   const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
   const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,15 +67,15 @@ export default function BookPage() {
         setFiles(data.files || []);
         setIdentifiers(data.identifiers || []);
 
-        if (data.book.series_id) {
+        if (data.book.series?.id) {
           listBooks(
-            { seriesIds: [String(data.book.series_id)], pageSize: 50, sort: "addedDesc" },
+            { seriesIds: [String(data.book.series.id)], pageSize: 50, sort: "addedDesc" },
             controller.signal,
           )
             .then((seriesData) => {
               const sorted = (seriesData.books || []).sort(
                 (a: RawBook, b: RawBook) =>
-                  (a.series_number ?? 0) - (b.series_number ?? 0),
+                  (a.seriesNumber ?? 0) - (b.seriesNumber ?? 0),
               );
               setSeriesBooks(sorted);
             })
@@ -108,12 +108,13 @@ export default function BookPage() {
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
   const bookData: Book = {
     ...toBook(book, { fullCover: true, isbn }),
-    formats: files.map((f) => ({
-      format: f.format,
-      size: f.file_size > 1048576
-        ? `${(f.file_size / 1048576).toFixed(1)} MB`
-        : `${Math.round(f.file_size / 1024)} KB`,
-    })),
+    formats: files.map((f) => {
+      const sz = f.fileSize ?? 0;
+      return {
+        format: f.format,
+        size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
+      };
+    }),
   };
 
   const seriesBooksData: Book[] = seriesBooks.map((b) => toBook(b));

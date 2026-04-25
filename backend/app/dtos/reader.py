@@ -3,8 +3,12 @@ from typing import Annotated, Any, Literal, NotRequired, TypedDict, Union
 
 from pydantic import BaseModel, Field
 
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
+
 
 class ReaderSettingsBody(BaseModel):
+    model_config = BODY_CONFIG
+
     settings: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -14,6 +18,8 @@ class ReaderSettingsGetResponse(BaseModel):
 
 
 class ReadingProgressBody(BaseModel):
+    model_config = BODY_CONFIG
+
     position: str
     last_device: str = ""
     last_format: str = ""
@@ -66,9 +72,11 @@ class ProgressSaveResult(TypedDict):
 class ReadingProgressResponse(BaseModel):
     """Response for GET /api/reader/progress/{book_id}.
 
-    Wire format: {position, last_device, last_format, fraction, last_read_at, version}
+    Wire: {position, lastDevice, lastFormat, fraction, lastReadAt, version}.
     All fields except version can be None (no-row branch returns zeroed row).
     """
+    model_config = RESPONSE_CONFIG
+
     position: str | None = None
     last_device: str | None = None
     last_format: str | None = None
@@ -80,8 +88,10 @@ class ReadingProgressResponse(BaseModel):
 class ProgressAcceptedResponse(BaseModel):
     """Accepted branch of PUT /api/reader/progress/{book_id}.
 
-    Wire format: {"accepted": true, "version": N, "rebased": false}
+    Wire: {"accepted": true, "version": N, "rebased": false}.
     """
+    model_config = RESPONSE_CONFIG
+
     accepted: Literal[True]
     version: int
     rebased: bool = False
@@ -90,17 +100,19 @@ class ProgressAcceptedResponse(BaseModel):
 class ProgressRejectedResponse(BaseModel):
     """Rejected branch of PUT /api/reader/progress/{book_id}.
 
-    Covers both the conflict case (current is a ReadingProgressRow dict) and
+    Covers the conflict case (current is a ReadingProgressRow dict) and
     the retry-exhausted case (current is None).
 
-    Wire format (conflict):        {"accepted": false, "current": {...}, "retry_exhausted": false}
-    Wire format (retry-exhausted): {"accepted": false, "current": null, "retry_exhausted": true}
+    Wire (conflict):        {"accepted": false, "current": {...}, "retryExhausted": false}
+    Wire (retry-exhausted): {"accepted": false, "current": null, "retryExhausted": true}
     """
+    model_config = RESPONSE_CONFIG
+
     accepted: Literal[False]
     current: ReadingProgressRow | None  # always present — None for retry_exhausted
     # DAL emits retry_exhausted=True only on the retry-exhausted branch
     # (all 3 race-retries failed). On conflict-rewind reject the flag
-    # is absent and this default activates to False — that's by design.
+    # is absent and this default activates to False — that is by design.
     retry_exhausted: bool = False
 
 

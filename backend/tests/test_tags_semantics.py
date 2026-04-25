@@ -13,8 +13,8 @@ def test_tag_cloud_has_book_counts(reader_client):
     data = assert_ok(reader_client.get("/api/tags/cloud"))
     assert len(data["tags"]) > 0
     for t in data["tags"]:
-        assert "book_count" in t
-        assert t["book_count"] >= 1
+        assert "bookCount" in t
+        assert t["bookCount"] >= 1
 
 
 def test_filter_books_by_tag(reader_client):

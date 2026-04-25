@@ -17,9 +17,9 @@ describe("TagsPage", () => {
       http.get("/api/tags/cloud", () =>
         HttpResponse.json({
           tags: [
-            { id: 1, name: "Fiction", book_count: 10 },
-            { id: 2, name: "Science Fiction", book_count: 8 },
-            { id: 3, name: "Fantasy", book_count: 5 },
+            { id: 1, name: "Fiction", bookCount: 10 },
+            { id: 2, name: "Science Fiction", bookCount: 8 },
+            { id: 3, name: "Fantasy", bookCount: 5 },
           ],
         })
       ),
@@ -52,8 +52,8 @@ describe("TagsPage", () => {
       http.get("/api/tags/cloud", () =>
         HttpResponse.json({
           tags: [
-            { id: 1, name: "Fiction", book_count: 10 },
-            { id: 2, name: "Mystery", book_count: 6 },
+            { id: 1, name: "Fiction", bookCount: 10 },
+            { id: 2, name: "Mystery", bookCount: 6 },
           ],
         })
       ),

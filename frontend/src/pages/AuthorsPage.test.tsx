@@ -16,8 +16,8 @@ describe("AuthorsPage", () => {
       http.get("/api/authors", () =>
         HttpResponse.json({
           authors: [
-            { id: 1, name: "Frank Herbert", sort_name: "Herbert, Frank", book_count: 6, tags: null },
-            { id: 2, name: "Isaac Asimov", sort_name: "Asimov, Isaac", book_count: 15, tags: "sci-fi" },
+            { id: 1, name: "Frank Herbert", sortName: "Herbert, Frank", bookCount: 6, tags: [] },
+            { id: 2, name: "Isaac Asimov", sortName: "Asimov, Isaac", bookCount: 15, tags: [{ id: 1, name: "sci-fi" }] },
           ],
           tags: [],
           languages: [],

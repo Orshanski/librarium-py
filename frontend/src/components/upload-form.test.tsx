@@ -181,7 +181,7 @@ describe("UploadForm", () => {
   it("duplicate warning: upload returns duplicate → UI shows duplicate book info", async () => {
     server.use(
       makeUploadHandler({
-        duplicate: { id: 42, title: "Existing Book", authors: "Some Author" },
+        duplicate: { id: 42, title: "Existing Book", authors: [{ id: 1, name: "Some Author" }] },
       })
     );
 

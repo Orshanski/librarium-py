@@ -7,7 +7,7 @@ service-функции без HTTP — поэтому эффективно unit-
 import pytest
 
 from app.dtos.books import UpdateBookBody
-from app.dtos.upload import CreateBookMetadata
+from app.dtos.upload import CreateBookMetadataIn
 from app.exceptions import BadInputError, NotFoundError
 from app.services import (
     authors_service,
@@ -214,12 +214,12 @@ class TestUploadServiceRaises:
     def test_create_book_missing_title_raises_bad_input(self, db):
         from app.services import upload_service
         with pytest.raises(BadInputError, match="Title required"):
-            upload_service.create_book(db, temp_id="nonexistent", metadata=CreateBookMetadata(title=""))
+            upload_service.create_book(db, temp_id="nonexistent", metadata=CreateBookMetadataIn(title=""))
 
     def test_create_book_missing_temp_raises_bad_input(self, db):
         from app.services import upload_service
         with pytest.raises(BadInputError, match="Temp file not found"):
-            upload_service.create_book(db, temp_id="doesnotexist", metadata=CreateBookMetadata(title="X"))
+            upload_service.create_book(db, temp_id="doesnotexist", metadata=CreateBookMetadataIn(title="X"))
 
     def test_add_format_missing_temp_raises_bad_input(self, db):
         from app.services import upload_service

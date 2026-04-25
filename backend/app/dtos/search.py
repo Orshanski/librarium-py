@@ -3,13 +3,16 @@ from typing import TypedDict
 
 from pydantic import BaseModel
 
+from ._aliases import RESPONSE_CONFIG
+from ._refs import AuthorRef, SeriesRef
+
 
 class SearchBookHit(TypedDict):
     id: int
     title: str
     cover_path: str | None
-    authors: str | None
-    series_name: str | None
+    authors: list[AuthorRef]
+    series: SeriesRef | None
 
 
 class SearchAuthorHit(TypedDict):
@@ -22,7 +25,7 @@ class SearchSeriesHit(TypedDict):
     id: int
     name: str
     book_count: int
-    authors: str | None
+    authors: list[AuthorRef]
 
 
 class SearchResults(TypedDict):
@@ -39,10 +42,12 @@ class SearchResults(TypedDict):
 class SearchResponse(BaseModel):
     """Response for GET /api/search.
 
-    Wire format: {"books": [...], "authors": [...], "series": [...]}
-    Items are raw SearchBookHit / SearchAuthorHit / SearchSeriesHit dicts
-    (snake_case) — preserving pre-L4 wire format.
+    Wire: {"books": [...], "authors": [...], "series": [...]}.
+    Items serialize snake-keyed TypedDict fields to camelCase via alias_generator:
+    cover_path → coverPath, book_count → bookCount.
     """
+    model_config = RESPONSE_CONFIG
+
     books: list[SearchBookHit]
     authors: list[SearchAuthorHit]
     series: list[SearchSeriesHit]
