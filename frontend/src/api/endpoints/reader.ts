@@ -8,21 +8,22 @@ export interface ReaderOkResponse {
   ok: true;
 }
 
+// /api/reader wire is snake_case — endpoint not migrated by pbz2.
 export interface ReadingProgressState {
   position: string | null;
   fraction: number | null;
-  lastDevice: string | null;
-  lastFormat: string | null;
+  last_device: string | null;
+  last_format: string | null;
   version: number;
-  lastReadAt?: string | null;
+  last_read_at?: string | null;
 }
 
 export interface SaveProgressBody {
   position: string;
-  lastDevice: string;
-  lastFormat: string;
+  last_device: string;
+  last_format: string;
   fraction: number;
-  expectedVersion: number;
+  expected_version: number;
 }
 
 export interface SaveProgressAcceptResponse {
