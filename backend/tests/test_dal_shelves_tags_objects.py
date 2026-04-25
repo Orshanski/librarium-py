@@ -37,9 +37,12 @@ def _reading_now_shelf_id(db) -> int:
 class TestShelfBestBooksObjects:
     """get_shelf_by_id with system_code='best' must return books with object aggregates."""
 
-    def test_authors_field_is_list_of_author_refs(self, db):
+    @pytest.fixture
+    def result(self, db):
+        return dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
+
+    def test_authors_field_is_list_of_author_refs(self, result):
         """books[].authors must be list[AuthorRef], not a CSV string."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0, "best shelf must have at least one book (book 1 rated 5)"
@@ -47,9 +50,8 @@ class TestShelfBestBooksObjects:
             assert isinstance(book["authors"], list), "authors must be a list"
             assert all(isinstance(a, AuthorRef) for a in book["authors"])
 
-    def test_tags_field_is_list_of_tag_refs(self, db):
+    def test_tags_field_is_list_of_tag_refs(self, result):
         """books[].tags must be list[TagRef], not a CSV string."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -57,9 +59,8 @@ class TestShelfBestBooksObjects:
             assert isinstance(book["tags"], list), "tags must be a list"
             assert all(isinstance(t, TagRef) for t in book["tags"])
 
-    def test_series_field_is_series_ref_or_none(self, db):
+    def test_series_field_is_series_ref_or_none(self, result):
         """books[].series must be SeriesRef or None, not flat series_name column."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -69,54 +70,8 @@ class TestShelfBestBooksObjects:
                 f"series must be SeriesRef or None, got {type(series)}"
             )
 
-    def test_no_series_name_flat_key(self, db):
-        """series_name must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_name" not in book, "series_name must be removed; use series object"
-
-    def test_no_series_id_flat_key(self, db):
-        """series_id must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_id" not in book, "series_id must be removed; use series object"
-
-    def test_no_author_ids_flat_key(self, db):
-        """author_ids must not appear as a flat column after migration."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "author_ids" not in book, "author_ids must be removed; ids are inside AuthorRef.id"
-
-    def test_no_tag_ids_flat_key(self, db):
-        """tag_ids must not appear as a flat column after migration."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "tag_ids" not in book, "tag_ids must be removed; ids are inside TagRef.id"
-
-    def test_authors_not_csv_string(self, db):
-        """authors must never be a raw string."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert not isinstance(book["authors"], str), "authors must not be a CSV string"
-
-    def test_book1_in_series(self, db):
+    def test_book1_in_series(self, result):
         """Book 1 is in series 1 'Test Series' — series field must be SeriesRef."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         book1 = next((b for b in result["books"] if b["id"] == 1), None)
         assert book1 is not None, "book 1 must be on best shelf (rated 5)"
@@ -124,18 +79,16 @@ class TestShelfBestBooksObjects:
         assert book1["series"].id == 1
         assert book1["series"].name == "Test Series"
 
-    def test_rating_present(self, db):
+    def test_rating_present(self, result):
         """Best shelf rows must include rating."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
         for book in books:
             assert "rating" in book
 
-    def test_is_read_present(self, db):
+    def test_is_read_present(self, result):
         """Best shelf rows must include is_read."""
-        result = dal_shelves.get_shelf_by_id(db, _best_shelf_id(db), 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -196,17 +149,6 @@ class TestShelfReadingNowBooksObjects:
             series = book["series"]
             assert series is None or isinstance(series, SeriesRef)
 
-    def test_no_series_name_flat_key(self, db_with_progress):
-        """series_name must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(
-            db_with_progress, _reading_now_shelf_id(db_with_progress), 2, sort="addedDesc"
-        )
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_name" not in book
-
     def test_progress_fields_present(self, db_with_progress):
         """reading_now rows must include fraction, last_format, last_read_at."""
         result = dal_shelves.get_shelf_by_id(
@@ -236,9 +178,12 @@ class TestShelfRegularBooksObjects:
         db.commit()
         return shelf_id
 
-    def test_authors_field_is_list_of_author_refs(self, db, shelf_with_book):
+    @pytest.fixture
+    def result(self, db, shelf_with_book):
+        return dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
+
+    def test_authors_field_is_list_of_author_refs(self, result):
         """books[].authors must be list[AuthorRef]."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -246,9 +191,8 @@ class TestShelfRegularBooksObjects:
             assert isinstance(book["authors"], list)
             assert all(isinstance(a, AuthorRef) for a in book["authors"])
 
-    def test_tags_field_is_list_of_tag_refs(self, db, shelf_with_book):
+    def test_tags_field_is_list_of_tag_refs(self, result):
         """books[].tags must be list[TagRef]."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -256,9 +200,8 @@ class TestShelfRegularBooksObjects:
             assert isinstance(book["tags"], list)
             assert all(isinstance(t, TagRef) for t in book["tags"])
 
-    def test_series_field_is_series_ref_or_none(self, db, shelf_with_book):
+    def test_series_field_is_series_ref_or_none(self, result):
         """books[].series must be SeriesRef or None."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -266,45 +209,8 @@ class TestShelfRegularBooksObjects:
             series = book["series"]
             assert series is None or isinstance(series, SeriesRef)
 
-    def test_no_series_name_flat_key(self, db, shelf_with_book):
-        """series_name must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_name" not in book
-
-    def test_no_series_id_flat_key(self, db, shelf_with_book):
-        """series_id must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_id" not in book
-
-    def test_no_author_ids_flat_key(self, db, shelf_with_book):
-        """author_ids must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "author_ids" not in book
-
-    def test_no_tag_ids_flat_key(self, db, shelf_with_book):
-        """tag_ids must not appear as a flat column."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "tag_ids" not in book
-
-    def test_book1_in_series(self, db, shelf_with_book):
+    def test_book1_in_series(self, result):
         """Book 1 is in series 1 — series object must be present."""
-        result = dal_shelves.get_shelf_by_id(db, shelf_with_book, 2, sort="addedDesc")
         assert result is not None
         book1 = next((b for b in result["books"] if b["id"] == 1), None)
         assert book1 is not None
@@ -391,9 +297,12 @@ class TestShelfMultiAuthorAlphabetical:
 class TestTagDetailBooksObjects:
     """get_tag_by_id books must return list[TagDetailBookRow] with object aggregates."""
 
-    def test_authors_field_is_list_of_author_refs(self, db):
+    @pytest.fixture
+    def result(self, db):
+        return dal_tags.get_tag_by_id(db, 1, user_id=2)
+
+    def test_authors_field_is_list_of_author_refs(self, result):
         """books[].authors must be list[AuthorRef], not a CSV string."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         assert len(books) > 0, "tag 1 (Фэнтези) must have at least one book"
@@ -401,9 +310,8 @@ class TestTagDetailBooksObjects:
             assert isinstance(book["authors"], list), "authors must be a list"
             assert all(isinstance(a, AuthorRef) for a in book["authors"])
 
-    def test_tags_field_is_list_of_tag_refs(self, db):
+    def test_tags_field_is_list_of_tag_refs(self, result):
         """books[].tags must be list[TagRef], not a CSV string."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -411,9 +319,8 @@ class TestTagDetailBooksObjects:
             assert isinstance(book["tags"], list), "tags must be a list"
             assert all(isinstance(t, TagRef) for t in book["tags"])
 
-    def test_series_field_is_series_ref_or_none(self, db):
+    def test_series_field_is_series_ref_or_none(self, result):
         """books[].series must be SeriesRef or None, not flat series_name column."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -423,63 +330,8 @@ class TestTagDetailBooksObjects:
                 f"series must be SeriesRef or None, got {type(series)}"
             )
 
-    def test_no_series_name_flat_key(self, db):
-        """series_name must not appear as a flat column."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_name" not in book, "series_name must be removed; use series object"
-
-    def test_no_series_id_flat_key(self, db):
-        """series_id must not appear as a flat column."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "series_id" not in book, "series_id must be removed; use series object"
-
-    def test_no_author_ids_flat_key(self, db):
-        """author_ids must not appear as a flat column."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "author_ids" not in book, "author_ids must be removed"
-
-    def test_no_tag_ids_flat_key(self, db):
-        """tag_ids must not appear as a flat column."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert "tag_ids" not in book, "tag_ids must be removed"
-
-    def test_authors_not_csv_string(self, db):
-        """authors must never be a raw string."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert not isinstance(book["authors"], str), "authors must not be a CSV string"
-
-    def test_tags_not_csv_string(self, db):
-        """tags must never be a raw string."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
-        assert result is not None
-        books = result["books"]
-        assert len(books) > 0
-        for book in books:
-            assert not isinstance(book["tags"], str), "tags must not be a CSV string"
-
-    def test_book_in_series_has_series_ref(self, db):
+    def test_book_in_series_has_series_ref(self, result):
         """Book 1 has series 1 'Test Series' — series field must be SeriesRef."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book1 = next((b for b in result["books"] if b["id"] == 1), None)
         assert book1 is not None, "book 1 must be in tag 1 (Фэнтези)"
@@ -487,26 +339,23 @@ class TestTagDetailBooksObjects:
         assert book1["series"].id == 1
         assert book1["series"].name == "Test Series"
 
-    def test_book_without_series_has_none(self, db):
+    def test_book_without_series_has_none(self, result):
         """Book 5 has no series — series field must be None."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book5 = next((b for b in result["books"] if b["id"] == 5), None)
         assert book5 is not None, "book 5 must be in tag 1 (Фэнтези)"
         assert book5["series"] is None
 
-    def test_rating_present_in_tag_books(self, db):
+    def test_rating_present_in_tag_books(self, result):
         """Tag books must include rating (user_books join)."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         assert len(books) > 0
         for book in books:
             assert "rating" in book
 
-    def test_is_read_present_in_tag_books(self, db):
+    def test_is_read_present_in_tag_books(self, result):
         """Tag books must include is_read (user_books join)."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         books = result["books"]
         assert len(books) > 0
@@ -534,9 +383,8 @@ class TestTagDetailBooksObjects:
         assert names == sorted(names), f"Authors not alphabetically sorted: {names}"
         assert names == ["Balzac", "Zweig"]
 
-    def test_multi_tag_alphabetical_order(self, db):
+    def test_multi_tag_alphabetical_order(self, result):
         """Book with multiple tags: tags alphabetically sorted."""
-        result = dal_tags.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book5 = next((b for b in result["books"] if b["id"] == 5), None)
         assert book5 is not None, "book 5 must have 2 tags"

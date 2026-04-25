@@ -7,12 +7,12 @@ SELECT b.id, b.title, b.sort_title, b.description, b.language,
     b.series_number,
     CASE WHEN s.id IS NULL THEN NULL
          ELSE json_object('id', s.id, 'name', s.name) END AS series,
-    (SELECT json_group_array(json_object('id', a2.id, 'name', a2.name) ORDER BY a2.name)
-     FROM book_authors ba2 JOIN authors a2 ON ba2.author_id = a2.id
-     WHERE ba2.book_id = b.id) AS authors,
-    (SELECT json_group_array(json_object('id', t2.id, 'name', t2.name) ORDER BY t2.name)
-     FROM book_tags bt2 JOIN tags t2 ON bt2.tag_id = t2.id
-     WHERE bt2.book_id = b.id) AS tags,
+    (SELECT json_group_array(json_object('id', a_sub.id, 'name', a_sub.name) ORDER BY a_sub.name)
+     FROM book_authors ba_sub JOIN authors a_sub ON ba_sub.author_id = a_sub.id
+     WHERE ba_sub.book_id = b.id) AS authors,
+    (SELECT json_group_array(json_object('id', t_sub.id, 'name', t_sub.name) ORDER BY t_sub.name)
+     FROM book_tags bt_sub JOIN tags t_sub ON bt_sub.tag_id = t_sub.id
+     WHERE bt_sub.book_id = b.id) AS tags,
     ub.rating, ub.is_read
 FROM books b
 LEFT JOIN series s ON b.series_id = s.id

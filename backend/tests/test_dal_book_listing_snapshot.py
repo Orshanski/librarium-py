@@ -19,6 +19,7 @@ from app.dal import series as series_dal
 from app.dal import tags as tags_dal
 from app.dal import shelves as shelves_dal
 from app.dal import books as books_dal
+from app.dtos._refs import AuthorRef
 
 
 @pytest.fixture
@@ -69,22 +70,20 @@ EXPECTED_ENTITY_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS
 # books.get_books / get_book_by_id: JSON-object shape + user-specific columns.
 EXPECTED_GET_BOOKS_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
 
-# Tag-detail (get_tag_by_id): JSON-object shape + user-specific columns.
+# Tag-detail (get_tag_by_id) and shelf branches: JSON-object shape + user-specific columns.
+# Used as the base for all shelf branch column sets and the tag-detail snapshot.
 EXPECTED_BOOKS_FULL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
 
-# Shelf base (all three branches): JSON-object shape + user-specific columns.
-EXPECTED_SHELF_BASE_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
-
 # "best" shelf branch: same as base.
-EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
+EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_BOOKS_FULL_COLUMNS
 
 # "reading_now" shelf branch: base + reading_progress fields.
-EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS | {
+EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_BOOKS_FULL_COLUMNS | {
     "fraction", "last_format", "last_read_at",
 }
 
 # "default" (regular) shelf: same as base.
-EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
+EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_BOOKS_FULL_COLUMNS
 
 
 class TestAuthorDetailSnapshot:
@@ -184,7 +183,6 @@ class TestShelfDetailSnapshot:
 
     def test_shelf_best_multi_author_alphabetical(self, db_with_multi_author):
         """Best shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
-        from app.dtos._refs import AuthorRef
         db_with_multi_author.execute(
             "INSERT INTO user_books (user_id, book_id, rating) VALUES (2, 100, 5)"
         )
@@ -202,7 +200,6 @@ class TestShelfDetailSnapshot:
 
     def test_shelf_reading_now_multi_author_alphabetical(self, db_with_multi_author):
         """Reading-now shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
-        from app.dtos._refs import AuthorRef
         # No user_books row for user 2 / book 100 — covers the `ub.is_read IS NULL`
         # branch of the reading_now WHERE filter (new reader, never marked read).
         db_with_multi_author.execute(
@@ -223,7 +220,6 @@ class TestShelfDetailSnapshot:
 
     def test_shelf_default_multi_author_alphabetical(self, db_with_multi_author):
         """Regular shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
-        from app.dtos._refs import AuthorRef
         shelf_id = shelves_dal.create_shelf(db_with_multi_author, 2, "Test Shelf")
         shelves_dal.add_book_to_shelf(db_with_multi_author, shelf_id, 100)
         db_with_multi_author.commit()
