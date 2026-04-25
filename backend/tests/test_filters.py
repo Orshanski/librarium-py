@@ -58,7 +58,7 @@ class TestBuildBookWhere:
 
     def test_user_hidden_filter(self):
         from app.dal.filters import build_book_where
-        where, params = build_book_where({"userId": 5})
+        where, params = build_book_where({}, user_id=5)
         assert "is_hidden" in where
         assert params["uid"] == 5
 
@@ -124,12 +124,11 @@ class TestBuildBookWhere:
     def test_clause_order_in_where(self):
         from app.dal.filters import build_book_where
         where, _ = build_book_where({
-            "userId": 1,
             "authorIds": [2],
             "tagIds": [3],
             "seriesIds": [4],
             "language": ["ru"],
-        })
+        }, user_id=1)
         i_uid = where.index("user_books")
         i_auth = where.index("book_authors")
         i_tag = where.index("book_tags")

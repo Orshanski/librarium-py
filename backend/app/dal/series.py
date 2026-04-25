@@ -14,16 +14,16 @@ from ._parsers import parse_book_row_aggregates
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "series", "sqlite3")
 
 
-def list_series_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
+def list_series_options(db: sqlite3.Connection, *, user_id: int, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Series options for filter bar, scoped by other filters."""
-    where, params = build_book_where(filters, exclude="seriesIds")
+    where, params = build_book_where(filters, user_id=user_id, exclude="seriesIds")
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.list_series_options.sql.replace("{where_clause}", where)
     return dicts_from_rows(db.execute(final_sql, params).fetchall())
 
 
 def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: list[str] | None = None) -> SeriesList:
-    filters: CatalogFilters = {"userId": user_id}
+    filters: CatalogFilters = {}
     if author_ids:
         filters["authorIds"] = author_ids
     if tag_ids:
@@ -31,7 +31,7 @@ def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | 
     if language:
         filters["language"] = language
 
-    where, params = build_book_where(filters)
+    where, params = build_book_where(filters, user_id=user_id)
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.get_series.sql.replace("{where_clause}", where)
     rows = dicts_from_rows(db.execute(final_sql, params).fetchall())

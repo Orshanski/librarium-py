@@ -60,7 +60,7 @@ def book_without_series(db):
 
 
 def test_get_books_returns_authors_as_list_of_refs(db, sample_book_with_two_authors):
-    filters: CatalogFilters = {"userId": 1}
+    filters: CatalogFilters = {}
     rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     assert len(rows) >= 1
     book = next(r for r in rows if r["id"] == 201)
@@ -72,14 +72,14 @@ def test_get_books_returns_authors_as_list_of_refs(db, sample_book_with_two_auth
 
 
 def test_get_books_returns_empty_authors_for_book_without_authors(db, book_without_authors):
-    filters: CatalogFilters = {"userId": 1}
+    filters: CatalogFilters = {}
     rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     target = next(r for r in rows if r["id"] == 202)
     assert target["authors"] == []
 
 
 def test_get_books_returns_series_as_ref_or_none(db, book_with_series, book_without_series):
-    filters: CatalogFilters = {"userId": 1}
+    filters: CatalogFilters = {}
     rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     by_id = {r["id"]: r for r in rows}
     assert isinstance(by_id[book_with_series.id]["series"], SeriesRef)
@@ -87,7 +87,7 @@ def test_get_books_returns_series_as_ref_or_none(db, book_with_series, book_with
 
 
 def test_get_books_no_author_ids_or_tag_ids_in_row(db, sample_book_with_two_authors):
-    filters: CatalogFilters = {"userId": 1}
+    filters: CatalogFilters = {}
     rows = dal.get_books(db, user_id=1, sort="addedDesc", cursor=0, page_size=10, filters=filters)
     book = next(r for r in rows if r["id"] == 201)
     assert "author_ids" not in book

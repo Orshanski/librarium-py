@@ -15,13 +15,13 @@ queries = aiosql.from_path(Path(__file__).parent / "queries" / "authors", "sqlit
 
 
 def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | None = None, language: list[str] | None = None) -> AuthorsList:
-    filters: CatalogFilters = {"userId": user_id}
+    filters: CatalogFilters = {}
     if tag_ids:
         filters["tagIds"] = tag_ids
     if language:
         filters["language"] = language
 
-    where, params = build_book_where(filters)
+    where, params = build_book_where(filters, user_id=user_id)
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.get_authors.sql.replace("{where_clause}", where)
     rows = dicts_from_rows(db.execute(final_sql, params).fetchall())
@@ -31,9 +31,9 @@ def get_authors(db: sqlite3.Connection, *, user_id: int, tag_ids: list[int] | No
     return {"authors": cast(list[AuthorRow], rows)}
 
 
-def list_author_options(db: sqlite3.Connection, filters: CatalogFilters) -> list[FilterOptionRow]:
+def list_author_options(db: sqlite3.Connection, *, user_id: int, filters: CatalogFilters) -> list[FilterOptionRow]:
     """Author options for filter bar, scoped by other filters."""
-    where, params = build_book_where(filters, exclude="authorIds")
+    where, params = build_book_where(filters, user_id=user_id, exclude="authorIds")
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.list_author_options.sql.replace("{where_clause}", where)
     return dicts_from_rows(db.execute(final_sql, params).fetchall())
