@@ -7,6 +7,7 @@ import aiosql
 from ..config.sort import SORT_CONFIG
 from ..database import dict_from_row, dicts_from_rows
 from ..dtos.shelves import ShelfBaseRow, ShelfDetailRow, ShelfRow
+from ._parsers import parse_book_row_aggregates
 from .sort import resolve_order_clause
 
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "shelves", "sqlite3")
@@ -53,6 +54,8 @@ def get_shelf_by_id(
         rows = db.execute(sql, {"id": shelf_id, "uid": user_id}).fetchall()
 
     books = dicts_from_rows(rows)
+    for r in books:
+        parse_book_row_aggregates(r)
     return cast(ShelfDetailRow, {"shelf": cast(ShelfBaseRow, shelf), "books": books})
 
 

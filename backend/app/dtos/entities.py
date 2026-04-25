@@ -113,10 +113,39 @@ class TagSummary(BaseModel):
     code: str | None = None
 
 
+class TagDetailBookRow(TypedDict):
+    """Book row inside dal.tags.get_tag_by_id books list.
+
+    Extends the EntityBookRow shape with rating and is_read from the
+    user_books JOIN present in get_tag_books.sql. Option A (separate TypedDict)
+    is chosen over reusing ShelfBookRow to avoid cross-coupling between the
+    shelves and tags modules — they share the same SQL pattern but belong to
+    different domain boundaries.
+
+    Authors and tags are parsed JSON arrays (list[AuthorRef] / list[TagRef]).
+    Series is a parsed JSON object (SeriesRef) or None."""
+    id: int
+    title: str
+    sort_title: str | None
+    description: str | None
+    language: str | None
+    publisher: str | None
+    pub_date: str | None
+    series_number: float | None
+    cover_path: str | None
+    added_at: str
+    updated_at: str
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    rating: int | None
+    is_read: int | None
+
+
 class TagDetailRow(TypedDict):
     """Return shape of dal.tags.get_tag_by_id."""
     tag: TagSummaryRow
-    books: list["EntityBookRow"]
+    books: list[TagDetailBookRow]
 
 
 class TagCloudEntry(TypedDict):

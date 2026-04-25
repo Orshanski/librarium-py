@@ -3,6 +3,7 @@ from typing import NotRequired, TypedDict
 
 from pydantic import BaseModel
 
+from ._refs import AuthorRef, SeriesRef, TagRef
 from .books import BookItem
 
 
@@ -59,14 +60,18 @@ class ShelfRow(TypedDict):
 
 class ShelfBookRow(TypedDict):
     """Book row inside dal.shelves.get_shelf_by_id books list.
-    Base columns come from BOOK_LIST_AGGREGATE_COLUMNS (b.*, series_name,
-    authors aggregate, tags aggregate).  Extra columns depend on system_code
-    branch and are NotRequired because they are absent for regular shelves:
-    - rating    present for system_code='best' branch
-    - fraction, last_format, last_read_at  present for system_code='reading_now'
-    All three are absent for regular (non-system) shelves.
-    R-A: one TypedDict with NotRequired extras is correct here — the function
-    has one return site (ShelfDetailRow.books), callers receive all variants."""
+
+    All three shelf branches (best, reading_now, regular) share explicit
+    column set — no b.*, no flat series_name/series_id/author_ids/tag_ids.
+    Authors and tags are parsed JSON arrays (list[AuthorRef] / list[TagRef]).
+    Series is a parsed JSON object (SeriesRef) or None.
+
+    Extra columns present only in specific branches (NotRequired):
+    - rating, is_read  — best and regular shelves (via LEFT JOIN user_books).
+    - fraction, last_format, last_read_at  — reading_now shelf only.
+
+    R-A: one TypedDict with NotRequired extras is correct — single return site
+    (ShelfDetailRow.books), callers receive all variants through the same path."""
     id: int
     title: str
     sort_title: str | None
@@ -74,16 +79,17 @@ class ShelfBookRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    tags: str | None
-    # system shelf extras
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
+    # user-specific (present in all three branches; None when no user_books row)
     rating: NotRequired[int | None]
+    is_read: NotRequired[int | None]
+    # reading_now extras
     fraction: NotRequired[float | None]
     last_format: NotRequired[str | None]
     last_read_at: NotRequired[str | None]

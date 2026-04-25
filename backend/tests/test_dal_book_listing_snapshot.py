@@ -5,14 +5,10 @@ Purpose: lock the row shape (column set) and ordering contract of
 get_author_by_id / get_series_by_id / get_tag_by_id / get_shelf_by_id /
 get_books / get_book_by_id so accidental SELECT drift fails loudly.
 
-Three row-shape contracts coexist:
-- get_books / get_book_by_id: JSON-array shape (authors/tags as list of refs,
-  series as ref-or-None) — migrated in pbz2 Tasks 2/3.
-- get_author_by_id / get_series_by_id: JSON-array shape (same contract as above,
-  no flat series_id/series_name) — migrated in pbz2 Task 7.
-- tag/shelf detail queries: legacy flat GROUP_CONCAT shape
-  (authors/tags as comma-separated names, *_ids as comma-separated ids) —
-  not yet migrated; will migrate in a later pbz2 task.
+All queries now use the JSON-object shape (pbz2 Tasks 2/3/7/9):
+- authors/tags as list[Ref] (parsed from json_group_array)
+- series as SeriesRef | None (parsed from json_object CASE expression)
+- No flat series_id / series_name / author_ids / tag_ids columns
 
 Extra fixture: a multi-author book (book_id=100) with authors inserted in
 non-alphabetical order pins down the alphabetical ORDER BY contract.
@@ -58,31 +54,28 @@ def db_with_multi_author(db):
 # NOTE: `isbn` is NOT in b.* — it lives in `book_identifiers` (separate table)
 # and is attached at the router/DTO layer, not the DAL.
 
-# Entity-detail pages (get_author_by_id / get_series_by_id).
-# Both queries use json_object/json_group_array aggregates: series/authors/tags
-# are objects, not flat id/name columns.
-EXPECTED_ENTITY_DETAIL_COLUMNS = {
+# JSON-object shape — shared by all book-listing queries after pbz2 Tasks 2/3/7/9.
+# series/authors/tags are parsed objects (SeriesRef / list[AuthorRef] / list[TagRef]).
+# No flat series_id / series_name / author_ids / tag_ids columns.
+_JSON_OBJECT_BASE_COLUMNS = {
     "id", "title", "sort_title", "description", "language", "publisher",
     "pub_date", "series_number", "cover_path", "added_at", "updated_at",
     "series", "authors", "tags",
 }
 
-# Flat GROUP_CONCAT shape — shared by tag-detail and shelf queries.
-# These queries still use b.*, series_name, GROUP_CONCAT(authors), GROUP_CONCAT(tags);
-# they will migrate to json_group_array in a later pbz2 task.
-_FLAT_BOOK_COLUMNS = {
-    "id", "title", "sort_title", "description", "language", "publisher",
-    "pub_date", "series_id", "series_number", "cover_path", "added_at", "updated_at",
-    "series_name", "authors", "tags",
-}
+# Entity-detail pages (get_author_by_id / get_series_by_id).
+EXPECTED_ENTITY_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS
 
-# Shelf queries include author_ids, tag_ids, rating, is_read in all branches
-# (via GROUP_CONCAT and LEFT JOIN user_books). Not yet on json_group_array shape.
-EXPECTED_SHELF_BASE_COLUMNS = _FLAT_BOOK_COLUMNS | {
-    "author_ids", "tag_ids", "rating", "is_read",
-}
+# books.get_books / get_book_by_id: JSON-object shape + user-specific columns.
+EXPECTED_GET_BOOKS_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
 
-# "best" shelf branch: base + rating (already in base, alias kept for clarity).
+# Tag-detail (get_tag_by_id): JSON-object shape + user-specific columns.
+EXPECTED_BOOKS_FULL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
+
+# Shelf base (all three branches): JSON-object shape + user-specific columns.
+EXPECTED_SHELF_BASE_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
+
+# "best" shelf branch: same as base.
 EXPECTED_SHELF_BEST_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
 
 # "reading_now" shelf branch: base + reading_progress fields.
@@ -92,20 +85,6 @@ EXPECTED_SHELF_READING_NOW_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS | {
 
 # "default" (regular) shelf: same as base.
 EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_SHELF_BASE_COLUMNS
-
-# books.get_books: JSON-array contract — series/authors/tags as objects, no flat id columns.
-EXPECTED_GET_BOOKS_COLUMNS = {
-    "id", "title", "sort_title", "description", "language", "publisher",
-    "pub_date", "series", "series_number", "cover_path", "added_at", "updated_at",
-    "authors", "tags",
-    "rating", "is_read",
-}
-
-# Flat GROUP_CONCAT row shape — used by tag/shelf detail queries
-# (not yet migrated to JSON arrays; will migrate in a later pbz2 task).
-EXPECTED_BOOKS_FULL_COLUMNS = _FLAT_BOOK_COLUMNS | {
-    "author_ids", "tag_ids", "rating", "is_read",
-}
 
 
 class TestAuthorDetailSnapshot:
@@ -160,17 +139,20 @@ class TestTagDetailSnapshot:
         books = result["books"]
         # Tag 1 (Фэнтези) is on books 1, 3, 5. Order: b.added_at DESC -> 5, 3, 1
         assert [b["id"] for b in books] == [5, 3, 1]
-        # Tag query now includes author_ids, tag_ids, rating, is_read
+        # Tag query returns JSON-object shape + rating, is_read (pbz2 Task 9)
         assert set(books[0].keys()) == EXPECTED_BOOKS_FULL_COLUMNS
 
     def test_book_5_multi_tag_membership_via_tag_1(self, db):
         # Book 5 has tags 1 ("Фэнтези") and 2 ("Классический детектив").
-        # After Task 5 migration: shared BOOK_LIST_AGGREGATE_COLUMNS orders by
-        # tag name; "К" (U+041A) < "Ф" (U+0424), so "Классический детектив" first.
+        # json_group_array orders by tag name; "К" (U+041A) < "Ф" (U+0424),
+        # so "Классический детектив" first.
+        from app.dtos._refs import TagRef
         result = tags_dal.get_tag_by_id(db, 1, user_id=2)
         assert result is not None
         book5 = next(b for b in result["books"] if b["id"] == 5)
-        assert book5["tags"] == "Классический детектив,Фэнтези"
+        assert isinstance(book5["tags"], list)
+        tag_names = [t.name for t in book5["tags"]]
+        assert tag_names == ["Классический детектив", "Фэнтези"]
 
 
 class TestShelfDetailSnapshot:
@@ -182,7 +164,7 @@ class TestShelfDetailSnapshot:
         assert result is not None
         books = result["books"]
         assert [b["id"] for b in books] == [1]
-        # Exact column set — shelf base (includes author_ids, tag_ids, rating, is_read)
+        # Exact column set — JSON-object shape + rating, is_read (pbz2 Task 9)
         assert set(books[0].keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert books[0]["rating"] == 5
 
@@ -201,8 +183,9 @@ class TestShelfDetailSnapshot:
         assert result is not None
         assert result["books"] == []
 
-    def test_shelf_best_multi_author_exact_string(self, db_with_multi_author):
-        # Put book 100 onto user 2's "best" shelf by rating it >= 4
+    def test_shelf_best_multi_author_alphabetical(self, db_with_multi_author):
+        """Best shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
+        from app.dtos._refs import AuthorRef
         db_with_multi_author.execute(
             "INSERT INTO user_books (user_id, book_id, rating) VALUES (2, 100, 5)"
         )
@@ -211,12 +194,16 @@ class TestShelfDetailSnapshot:
         best = next(s for s in shelves if s["system_code"] == "best")
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, best["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        assert multi_book["authors"] == "Brown,Smith"
-        # Exact column set for the "best" branch (includes author_ids, tag_ids, rating, is_read).
+        assert isinstance(multi_book["authors"], list)
+        assert all(isinstance(a, AuthorRef) for a in multi_book["authors"])
+        assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
+        # Exact column set for the "best" branch (JSON-object shape + rating, is_read).
         assert set(multi_book.keys()) == EXPECTED_SHELF_BEST_COLUMNS
         assert multi_book["rating"] == 5
 
-    def test_shelf_reading_now_multi_author_exact_string(self, db_with_multi_author):
+    def test_shelf_reading_now_multi_author_alphabetical(self, db_with_multi_author):
+        """Reading-now shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
+        from app.dtos._refs import AuthorRef
         # No user_books row for user 2 / book 100 — covers the `ub.is_read IS NULL`
         # branch of the reading_now WHERE filter (new reader, never marked read).
         db_with_multi_author.execute(
@@ -228,19 +215,25 @@ class TestShelfDetailSnapshot:
         rn = next(s for s in shelves if s["system_code"] == "reading_now")
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, rn["id"], 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        assert multi_book["authors"] == "Brown,Smith"
+        assert isinstance(multi_book["authors"], list)
+        assert all(isinstance(a, AuthorRef) for a in multi_book["authors"])
+        assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
         # Exact column set for the "reading_now" branch (base + fraction/last_format/last_read_at).
         assert set(multi_book.keys()) == EXPECTED_SHELF_READING_NOW_COLUMNS
         assert multi_book["fraction"] == 0.5
 
-    def test_shelf_default_multi_author_exact_string(self, db_with_multi_author):
+    def test_shelf_default_multi_author_alphabetical(self, db_with_multi_author):
+        """Regular shelf multi-author book: authors alphabetically sorted as list[AuthorRef]."""
+        from app.dtos._refs import AuthorRef
         shelf_id = shelves_dal.create_shelf(db_with_multi_author, 2, "Test Shelf")
         shelves_dal.add_book_to_shelf(db_with_multi_author, shelf_id, 100)
         db_with_multi_author.commit()
         result = shelves_dal.get_shelf_by_id(db_with_multi_author, shelf_id, 2, sort="addedDesc")
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        assert multi_book["authors"] == "Brown,Smith"
-        # Default shelf: base columns (author_ids, tag_ids, rating, is_read included).
+        assert isinstance(multi_book["authors"], list)
+        assert all(isinstance(a, AuthorRef) for a in multi_book["authors"])
+        assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
+        # Default shelf: JSON-object shape + rating, is_read.
         assert set(multi_book.keys()) == EXPECTED_SHELF_DEFAULT_COLUMNS
 
 
