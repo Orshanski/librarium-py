@@ -353,6 +353,62 @@ class TestSearchBooksObjectsContract:
         assert s["book_count"] == 2
 
 
+# ── S-3: Ordering regression for search_books_series ──
+
+_SERIES_ORDER = 30
+_BOOK_ORDER_A = 30
+_BOOK_ORDER_B = 31
+_AUTHOR_ZEBRA = 30   # name starts with 'Z' — inserted first
+_AUTHOR_ANNA = 31    # name starts with 'A' — inserted second
+
+
+@pytest.fixture
+def series_with_authors_inserted_non_alphabetically():
+    """Series 30 has two books by two authors inserted in reverse alphabetical order
+    (Zebra Author before Anna Author). Verifies ORDER BY a.name in the derived table.
+    """
+    from app.database import _get_db
+    db = _get_db()
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_ZEBRA, "Zebra Author", "Zebra, Author"))
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+               (_AUTHOR_ANNA, "Anna Author", "Author, Anna"))
+    db.execute("INSERT INTO series (id, name) VALUES (?, ?)",
+               (_SERIES_ORDER, "Order Regression Series"))
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'en', ?, '2025-08-01 00:00:00')",
+        (_BOOK_ORDER_A, "Order Series Book A", "Order Series Book A", _SERIES_ORDER),
+    )
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, added_at) "
+        "VALUES (?, ?, ?, 'en', ?, '2025-08-02 00:00:00')",
+        (_BOOK_ORDER_B, "Order Series Book B", "Order Series Book B", _SERIES_ORDER),
+    )
+    # Deliberately insert Zebra (non-alphabetically first) before Anna
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_ORDER_A, _AUTHOR_ZEBRA))
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+               (_BOOK_ORDER_B, _AUTHOR_ANNA))
+    db.commit()
+    yield
+
+
+def test_search_series_authors_sorted_alphabetically(
+    series_with_authors_inserted_non_alphabetically,
+):
+    """Regression: authors array on a returned series row must be sorted alphabetically
+    by name. Exercises ORDER BY a.name inside the derived table in search_books_series.sql.
+    """
+    from app.dal.books import search_books
+    res = search_books(_get_db(), "Order Regression", limit=10)
+    s = next((se for se in res["series"] if se["id"] == _SERIES_ORDER), None)
+    assert s is not None, "Series not found in search results"
+    author_names = [a.name for a in s["authors"]]
+    assert len(author_names) == 2
+    assert author_names == sorted(author_names), f"Authors not alphabetically sorted: {author_names}"
+
+
 # ── Morphology aspirational ──
 #
 # WRatio may or may not handle Russian grammatical cases. We don't

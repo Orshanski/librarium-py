@@ -1,4 +1,11 @@
 -- name: get_authors()
+--
+-- Паттерн «производная таблица + DISTINCT + json_group_array»:
+-- DISTINCT нужен, потому что у автора может быть несколько книг с одним тегом —
+-- без него json_group_array создаёт дубли. Конструкция json_group_array(... DISTINCT ...)
+-- не поддерживается SQLite, поэтому дедупликация выносится в производную таблицу (подзапрос).
+-- ORDER BY внутри производной таблицы сохраняется внешним json_group_array как
+-- деталь реализации SQLite; поведение покрыто регрессионными тестами в test_dal_get_authors.py.
 SELECT a.id, a.name, a.sort_name,
     COUNT(DISTINCT b.id) as book_count,
     (SELECT json_group_array(json_object('id', id, 'name', name))

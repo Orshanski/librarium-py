@@ -64,3 +64,42 @@ def test_get_authors_no_duplicate_tags(db, author_with_tagged_books):
     a = next(a for a in authors if a["id"] == author_with_tagged_books.id)
     tag_ids = [t.id for t in a["tags"]]
     assert len(tag_ids) == len(set(tag_ids)), "Duplicate tags returned"
+
+
+@pytest.fixture
+def author_with_multiple_tags_inserted_non_alphabetically(db):
+    """Author 50 has two books with two different tags inserted in reverse alphabetical order.
+
+    Tags: id=50 'Приключения', id=51 'Антиутопия'. 'Приключения' > 'Антиутопия' alphabetically,
+    so insertion order does not match sorted order — verifies ORDER BY t.name in the SQL.
+    """
+    db.execute("INSERT INTO authors (id, name, sort_name) VALUES (50, 'Order Author', 'Author, Order')")
+    db.execute("INSERT INTO tags (id, name) VALUES (50, 'Приключения')")
+    db.execute("INSERT INTO tags (id, name) VALUES (51, 'Антиутопия')")
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, added_at) "
+        "VALUES (50, 'Book Fanfic', 'Book Fanfic', 'ru', '2025-07-01 00:00:00')"
+    )
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, added_at) "
+        "VALUES (51, 'Book Detective', 'Book Detective', 'ru', '2025-07-02 00:00:00')"
+    )
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (50, 50)")
+    db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (51, 50)")
+    # Insert tag 50 (Фэнтези) before tag 51 (Детектив) on book 50
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (50, 50)")
+    db.execute("INSERT INTO book_tags (book_id, tag_id) VALUES (51, 51)")
+    db.commit()
+    return _AuthorStub(id=50)
+
+
+def test_get_authors_tags_sorted_alphabetically(db, author_with_multiple_tags_inserted_non_alphabetically):
+    """Regression: tags array on a returned author must be sorted alphabetically by name.
+
+    This exercises the ORDER BY t.name inside the derived table in get_authors.sql.
+    """
+    authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]
+    a = next(a for a in authors if a["id"] == author_with_multiple_tags_inserted_non_alphabetically.id)
+    tag_names = [t.name for t in a["tags"]]
+    assert len(tag_names) == 2
+    assert tag_names == sorted(tag_names), f"Tags not alphabetically sorted: {tag_names}"
