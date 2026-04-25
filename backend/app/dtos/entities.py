@@ -3,7 +3,7 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._refs import TagRef
+from ._refs import AuthorRef, SeriesRef, TagRef
 from .books import BookItem
 from .catalog import LanguageOptionRow
 
@@ -135,10 +135,10 @@ class TagMapResult(TypedDict):
 # --- shared entity-detail book row ---
 
 class EntityBookRow(TypedDict):
-    """Book row used by all three entity-detail DAL functions (get_author_by_id,
-    get_series_by_id, get_tag_by_id) — all select the same BOOK_LIST_AGGREGATE_COLUMNS:
-    b.*, s.name AS series_name, GROUP_CONCAT(authors), GROUP_CONCAT(tags).
-    Single TypedDict justified by R-A: identical SELECT shape across all three."""
+    """Book row used by author-detail and series-detail DAL functions
+    (get_author_by_id, get_series_by_id). Both queries select identical columns:
+    explicit b.* fields, series as json_object, authors/tags as json_group_array.
+    Single TypedDict justified by R-A: identical SELECT shape across both queries."""
     id: int
     title: str
     sort_title: str | None
@@ -146,14 +146,13 @@ class EntityBookRow(TypedDict):
     language: str | None
     publisher: str | None
     pub_date: str | None
-    series_id: int | None
     series_number: float | None
     cover_path: str | None
     added_at: str
     updated_at: str
-    series_name: str | None
-    authors: str | None
-    tags: str | None
+    series: SeriesRef | None
+    authors: list[AuthorRef]
+    tags: list[TagRef]
 
 
 # ---------------------------------------------------------------------------

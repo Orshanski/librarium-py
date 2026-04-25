@@ -5,16 +5,17 @@ Purpose: lock the row shape (column set) and ordering contract of
 get_author_by_id / get_series_by_id / get_tag_by_id / get_shelf_by_id /
 get_books / get_book_by_id so accidental SELECT drift fails loudly.
 
-Two row-shape contracts coexist:
+Three row-shape contracts coexist:
 - get_books / get_book_by_id: JSON-array shape (authors/tags as list of refs,
-  series as ref-or-None) — migrated in pbz2 Task 2.
-- author/series/tag/shelf detail queries: legacy flat GROUP_CONCAT shape
+  series as ref-or-None) — migrated in pbz2 Tasks 2/3.
+- get_author_by_id / get_series_by_id: JSON-array shape (same contract as above,
+  no flat series_id/series_name) — migrated in pbz2 Task 7.
+- tag/shelf detail queries: legacy flat GROUP_CONCAT shape
   (authors/tags as comma-separated names, *_ids as comma-separated ids) —
-  not yet migrated.
+  not yet migrated; will migrate in a later pbz2 task.
 
 Extra fixture: a multi-author book (book_id=100) with authors inserted in
-non-alphabetical order pins down the alphabetical ORDER BY contract for both
-shapes.
+non-alphabetical order pins down the alphabetical ORDER BY contract.
 """
 import pytest
 from app.dal import authors as authors_dal
@@ -57,18 +58,27 @@ def db_with_multi_author(db):
 # NOTE: `isbn` is NOT in b.* — it lives in `book_identifiers` (separate table)
 # and is attached at the router/DTO layer, not the DAL.
 
-# Entity-detail pages (get_author_by_id / get_series_by_id / get_tag_by_id).
-# Uses BOOK_LIST_AGGREGATE_COLUMNS only (no user-specific extras).
+# Entity-detail pages (get_author_by_id / get_series_by_id).
+# Both queries use json_object/json_group_array aggregates: series/authors/tags
+# are objects, not flat id/name columns.
 EXPECTED_ENTITY_DETAIL_COLUMNS = {
     "id", "title", "sort_title", "description", "language", "publisher",
-    "pub_date", "series_id", "series_number", "cover_path", "added_at",
-    "updated_at",
+    "pub_date", "series_number", "cover_path", "added_at", "updated_at",
+    "series", "authors", "tags",
+}
+
+# Flat GROUP_CONCAT shape — shared by tag-detail and shelf queries.
+# These queries still use b.*, series_name, GROUP_CONCAT(authors), GROUP_CONCAT(tags);
+# they will migrate to json_group_array in a later pbz2 task.
+_FLAT_BOOK_COLUMNS = {
+    "id", "title", "sort_title", "description", "language", "publisher",
+    "pub_date", "series_id", "series_number", "cover_path", "added_at", "updated_at",
     "series_name", "authors", "tags",
 }
 
-# Shelf queries now include author_ids, tag_ids, rating, is_read in all branches
-# (the SQL SELECTs them via GROUP_CONCAT and LEFT JOIN user_books).
-EXPECTED_SHELF_BASE_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+# Shelf queries include author_ids, tag_ids, rating, is_read in all branches
+# (via GROUP_CONCAT and LEFT JOIN user_books). Not yet on json_group_array shape.
+EXPECTED_SHELF_BASE_COLUMNS = _FLAT_BOOK_COLUMNS | {
     "author_ids", "tag_ids", "rating", "is_read",
 }
 
@@ -92,8 +102,8 @@ EXPECTED_GET_BOOKS_COLUMNS = {
 }
 
 # Flat GROUP_CONCAT row shape — used by tag/shelf detail queries
-# (not yet migrated to JSON arrays in pbz2 Task 2; will migrate in Task 9).
-EXPECTED_BOOKS_FULL_COLUMNS = EXPECTED_ENTITY_DETAIL_COLUMNS | {
+# (not yet migrated to JSON arrays; will migrate in a later pbz2 task).
+EXPECTED_BOOKS_FULL_COLUMNS = _FLAT_BOOK_COLUMNS | {
     "author_ids", "tag_ids", "rating", "is_read",
 }
 
@@ -113,13 +123,12 @@ class TestAuthorDetailSnapshot:
 
     def test_author_100_multi_author_book(self, db_with_multi_author):
         # Author 101 (Smith) — their page should show the multi-author book.
-        # get_author_by_id still uses the flat GROUP_CONCAT row shape (not yet
-        # migrated to JSON arrays), so authors arrive as a comma-separated string
-        # ordered alphabetically by name → "Brown,Smith".
+        # get_author_by_id uses json_group_array: authors arrive as list[AuthorRef]
+        # ordered alphabetically by name → [Brown, Smith].
         result = authors_dal.get_author_by_id(db_with_multi_author, 101)
         assert result is not None
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        assert multi_book["authors"] == "Brown,Smith"
+        assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
 
 
 class TestSeriesDetailSnapshot:
@@ -131,18 +140,17 @@ class TestSeriesDetailSnapshot:
         assert [b["id"] for b in books] == [1, 3]  # ORDER BY b.series_number
         assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
 
-    def test_series_1_book_authors_exact_string(self, db_with_multi_author):
-        """Series detail page — authors of each book must be alphabetically sorted
-        by name (contract preserved by shared BOOK_LIST_AGGREGATE_COLUMNS).
+    def test_series_1_book_authors_alphabetical(self, db_with_multi_author):
+        """Series detail page — authors of each book must be alphabetically sorted.
         Book 100 (series_number=10) is inserted with authors Smith then Brown;
-        after migration the shared fragment enforces ORDER BY a.name → 'Brown,Smith'."""
+        json_group_array enforces ORDER BY a.name → [Brown, Smith]."""
         result = series_dal.get_series_by_id(db_with_multi_author, 1)
         assert result is not None
         # series 1 now has books 1 (num 1), 3 (num 2), 100 (num 10) — ordered by series_number
         book_ids = [b["id"] for b in result["books"]]
         assert book_ids == [1, 3, 100]
         multi_book = next(b for b in result["books"] if b["id"] == 100)
-        assert multi_book["authors"] == "Brown,Smith"
+        assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
 
 
 class TestTagDetailSnapshot:

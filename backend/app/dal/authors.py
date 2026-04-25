@@ -6,7 +6,7 @@ import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
-from ..dtos.entities import AuthorDetailRow, AuthorRow, AuthorsList, FilterOptionRow
+from ..dtos.entities import AuthorDetailRow, AuthorRow, AuthorsList, EntityBookRow, FilterOptionRow
 from ..exceptions import BadInputError, NotFoundError
 from .filters import build_book_where
 from ._parsers import parse_book_row_aggregates
@@ -44,9 +44,11 @@ def get_author_by_id(db: sqlite3.Connection, author_id: int) -> AuthorDetailRow 
     if not author:
         return None
 
-    books = dicts_from_rows(queries.get_author_books(db, id=author_id))
+    rows = dicts_from_rows(queries.get_author_books(db, id=author_id))
+    for r in rows:
+        parse_book_row_aggregates(r)
 
-    return {"author": author, "books": books}
+    return {"author": author, "books": cast(list[EntityBookRow], rows)}
 
 
 def _generate_sort_name(name: str) -> str:
