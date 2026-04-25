@@ -18,6 +18,26 @@ def test_to_camel_already_camel_unchanged():
     assert to_camel("isRead") == "isRead"
 
 
+def test_to_camel_leading_underscores():
+    assert to_camel("__foo") == "foo"
+
+
+def test_to_camel_trailing_underscore():
+    assert to_camel("foo_") == "foo"
+
+
+def test_to_camel_consecutive_underscores():
+    assert to_camel("foo__bar") == "fooBar"
+
+
+def test_to_camel_empty_string():
+    assert to_camel("") == ""
+
+
+def test_to_camel_all_underscores():
+    assert to_camel("___") == ""
+
+
 def test_author_ref_basic():
     a = AuthorRef(id=1, name="Толстой")
     assert a.id == 1
