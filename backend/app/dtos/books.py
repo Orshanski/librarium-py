@@ -117,18 +117,6 @@ class DuplicateHit(TypedDict):
     authors: list[AuthorRef]
 
 
-class BookListPage(TypedDict):
-    """Paginated response shape from `dal.books.get_books`.
-
-    The `books` list is at most `page_size` long. `hasMore` is derived
-    from a `page_size + 1` peek at the DAL level: if the underlying query
-    returned one extra row, `hasMore=True` and the row is trimmed before
-    return.
-    """
-    books: list[BookListRow]
-    hasMore: bool
-
-
 # ---------------------------------------------------------------------------
 # Response DTOs (L4) — Pydantic, service→router boundary only. R-B: never
 # used as DAL row type; construction happens in service layer only.
@@ -151,7 +139,8 @@ class BookListResponse(BaseModel):
     """Response for GET /api/books (paginated catalog).
 
     Wire format: {"books": [...], "hasMore": bool}
-    Same as BookListPage TypedDict but as Pydantic for response_model.
+    `books` contains at most `page_size` rows; `hasMore` signals that more
+    rows exist beyond the current cursor.
     """
     books: list[BookListRow]
     hasMore: bool
