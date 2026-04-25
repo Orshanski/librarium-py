@@ -27,7 +27,7 @@ export default function TagPage() {
 
   const [tag, setTag] = useState<TagSummary | null>(null);
   const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
-  const books: Book[] = rawBooks.map((b) => toBook(b));
+  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);

@@ -24,7 +24,7 @@ export default function ShelfPage() {
 
   const [shelf, setShelf] = useState<ShelfSummary | null>(null);
   const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
-  const books: Book[] = rawBooks.map((b) => toBook(b));
+  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
