@@ -164,9 +164,10 @@ class EntityBookRow(TypedDict):
 class AuthorDetailResponse(BaseModel):
     """Response for GET /api/authors/{id}.
 
-    Wire format: {"author": {...}, "books": [...]}
-    The nested dicts are raw TypedDicts (AuthorSummary, EntityBookRow) with
-    snake_case keys — preserving pre-L4 passthrough.
+    Wire format: {"author": {...}, "books": [...]}.
+    `author`: AuthorSummary TypedDict — snake_case scalar keys.
+    `books[]`: EntityBookRow TypedDict — snake_case scalars plus nested
+    Pydantic refs (`series`, `authors`, `tags`) that serialise as JSON objects.
     """
     author: AuthorSummary
     books: list[EntityBookRow]

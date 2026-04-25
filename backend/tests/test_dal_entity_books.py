@@ -8,11 +8,46 @@ Covers:
 - Multiple authors are alphabetically sorted
 - Multiple tags are alphabetically sorted
 """
-import pytest
-
 from app.dtos._refs import AuthorRef, SeriesRef, TagRef
 from app.dal import authors as dal_authors
 from app.dal import series as dal_series
+
+
+def _insert_author(db, author_id: int, name: str, sort_name: str | None = None) -> None:
+    db.execute(
+        "INSERT INTO authors (id, name, sort_name) VALUES (?, ?, ?)",
+        (author_id, name, sort_name or name),
+    )
+
+
+def _insert_book(
+    db,
+    book_id: int,
+    title: str,
+    *,
+    series_id: int | None = None,
+    series_number: float | None = None,
+    added_at: str = "2026-01-01 00:00:00",
+) -> None:
+    if series_id is not None:
+        db.execute(
+            "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at) "
+            "VALUES (?, ?, ?, 'en', ?, ?, ?)",
+            (book_id, title, title, series_id, series_number, added_at),
+        )
+    else:
+        db.execute(
+            "INSERT INTO books (id, title, sort_title, language, added_at) "
+            "VALUES (?, ?, ?, 'en', ?)",
+            (book_id, title, title, added_at),
+        )
+
+
+def _link_author_book(db, book_id: int, author_id: int) -> None:
+    db.execute(
+        "INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+        (book_id, author_id),
+    )
 
 
 class TestGetAuthorBooksObjects:
@@ -20,6 +55,7 @@ class TestGetAuthorBooksObjects:
         """books[].authors must be list[AuthorRef], not a CSV string."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert isinstance(book["authors"], list), "authors must be a list"
             assert all(isinstance(a, AuthorRef) for a in book["authors"])
@@ -28,6 +64,7 @@ class TestGetAuthorBooksObjects:
         """books[].tags must be list[TagRef], not a CSV string."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert isinstance(book["tags"], list), "tags must be a list"
             assert all(isinstance(t, TagRef) for t in book["tags"])
@@ -36,6 +73,7 @@ class TestGetAuthorBooksObjects:
         """books[].series must be SeriesRef or None, not a flat series_name column."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         # Author 1 has book 1 (series 1) and book 3 (series 1)
         for book in result["books"]:
             series = book["series"]
@@ -47,6 +85,7 @@ class TestGetAuthorBooksObjects:
         """series_name must no longer appear as a flat column in EntityBookRow."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert "series_name" not in book, "series_name must be removed; use series object"
 
@@ -54,6 +93,7 @@ class TestGetAuthorBooksObjects:
         """series_id must no longer appear as a flat column in EntityBookRow."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert "series_id" not in book, "series_id must be removed; use series object"
 
@@ -61,6 +101,7 @@ class TestGetAuthorBooksObjects:
         """authors must never be a raw string."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert not isinstance(book["authors"], str), "authors must not be a CSV string"
 
@@ -68,6 +109,7 @@ class TestGetAuthorBooksObjects:
         """tags must never be a raw string."""
         result = dal_authors.get_author_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert not isinstance(book["tags"], str), "tags must not be a CSV string"
 
@@ -82,14 +124,11 @@ class TestGetAuthorBooksObjects:
 
     def test_multi_author_alphabetical_order(self, db):
         """Authors for a multi-author book must appear alphabetically by name."""
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (201, 'Smith', 'Smith')")
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (202, 'Brown', 'Brown')")
-        db.execute(
-            "INSERT INTO books (id, title, sort_title, language, added_at) "
-            "VALUES (201, 'Multi-Author Book', 'Multi-Author Book', 'en', '2026-01-01 00:00:00')"
-        )
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (201, 201)")
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (201, 202)")
+        _insert_author(db, 201, "Smith")
+        _insert_author(db, 202, "Brown")
+        _insert_book(db, 201, "Multi-Author Book")
+        _link_author_book(db, 201, 201)
+        _link_author_book(db, 201, 202)
         db.commit()
 
         result = dal_authors.get_author_by_id(db, 201)
@@ -101,12 +140,9 @@ class TestGetAuthorBooksObjects:
 
     def test_book_without_tags_has_empty_list(self, db):
         """Book with no tags must return tags == []."""
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (210, 'Tagless Author', 'Author, Tagless')")
-        db.execute(
-            "INSERT INTO books (id, title, sort_title, language, added_at) "
-            "VALUES (210, 'Tagless Book', 'Tagless Book', 'en', '2026-01-10 00:00:00')"
-        )
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (210, 210)")
+        _insert_author(db, 210, "Tagless Author", sort_name="Author, Tagless")
+        _insert_book(db, 210, "Tagless Book", added_at="2026-01-10 00:00:00")
+        _link_author_book(db, 210, 210)
         db.commit()
 
         result = dal_authors.get_author_by_id(db, 210)
@@ -116,12 +152,9 @@ class TestGetAuthorBooksObjects:
 
     def test_book_without_series_has_none(self, db):
         """Book not in any series must return series == None."""
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (211, 'Standalone Author', 'Author, Standalone')")
-        db.execute(
-            "INSERT INTO books (id, title, sort_title, language, added_at) "
-            "VALUES (211, 'Standalone Book', 'Standalone Book', 'en', '2026-01-11 00:00:00')"
-        )
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (211, 211)")
+        _insert_author(db, 211, "Standalone Author", sort_name="Author, Standalone")
+        _insert_book(db, 211, "Standalone Book", added_at="2026-01-11 00:00:00")
+        _link_author_book(db, 211, 211)
         db.commit()
 
         result = dal_authors.get_author_by_id(db, 211)
@@ -135,6 +168,7 @@ class TestGetSeriesBooksObjects:
         """books[].authors must be list[AuthorRef], not a CSV string."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert isinstance(book["authors"], list), "authors must be a list"
             assert all(isinstance(a, AuthorRef) for a in book["authors"])
@@ -143,6 +177,7 @@ class TestGetSeriesBooksObjects:
         """books[].tags must be list[TagRef], not a CSV string."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert isinstance(book["tags"], list), "tags must be a list"
             assert all(isinstance(t, TagRef) for t in book["tags"])
@@ -151,6 +186,7 @@ class TestGetSeriesBooksObjects:
         """books[].series must be SeriesRef for books in a series."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             # All books in series 1 belong to that series
             assert isinstance(book["series"], SeriesRef)
@@ -160,6 +196,7 @@ class TestGetSeriesBooksObjects:
         """series_name must no longer appear as a flat column."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert "series_name" not in book, "series_name must be removed; use series object"
 
@@ -167,6 +204,7 @@ class TestGetSeriesBooksObjects:
         """series_id must no longer appear as a flat column."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert "series_id" not in book, "series_id must be removed; use series object"
 
@@ -174,6 +212,7 @@ class TestGetSeriesBooksObjects:
         """authors must never be a raw string."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert not isinstance(book["authors"], str), "authors must not be a CSV string"
 
@@ -181,19 +220,17 @@ class TestGetSeriesBooksObjects:
         """tags must never be a raw string."""
         result = dal_series.get_series_by_id(db, 1)
         assert result is not None
+        assert len(result["books"]) > 0
         for book in result["books"]:
             assert not isinstance(book["tags"], str), "tags must not be a CSV string"
 
     def test_multi_author_alphabetical_order(self, db):
         """Multi-author books in a series have authors alphabetically sorted."""
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (301, 'Zola', 'Zola')")
-        db.execute("INSERT INTO authors (id, name, sort_name) VALUES (302, 'Aragon', 'Aragon')")
-        db.execute(
-            "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at) "
-            "VALUES (301, 'Series Multi-Author', 'Series Multi-Author', 'en', 1, 99, '2026-01-20 00:00:00')"
-        )
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (301, 301)")
-        db.execute("INSERT INTO book_authors (book_id, author_id) VALUES (301, 302)")
+        _insert_author(db, 301, "Zola")
+        _insert_author(db, 302, "Aragon")
+        _insert_book(db, 301, "Series Multi-Author", series_id=1, series_number=99, added_at="2026-01-20 00:00:00")
+        _link_author_book(db, 301, 301)
+        _link_author_book(db, 301, 302)
         db.commit()
 
         result = dal_series.get_series_by_id(db, 1)
