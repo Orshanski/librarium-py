@@ -52,7 +52,7 @@ describe("BookPage", () => {
     });
   });
 
-  it("happy with series: loads series books when book has series_id", async () => {
+  it("happy with series: loads series books when book has series.id", async () => {
     const bookWithSeries = { ...mockRawBook, series: { id: 5, name: "Серия" } };
 
     server.use(

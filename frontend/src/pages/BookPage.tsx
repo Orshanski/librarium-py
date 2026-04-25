@@ -108,12 +108,13 @@ export default function BookPage() {
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
   const bookData: Book = {
     ...toBook(book, { fullCover: true, isbn }),
-    formats: files.map((f) => ({
-      format: f.format,
-      size: (f.fileSize ?? 0) > 1048576
-        ? `${((f.fileSize ?? 0) / 1048576).toFixed(1)} MB`
-        : `${Math.round((f.fileSize ?? 0) / 1024)} KB`,
-    })),
+    formats: files.map((f) => {
+      const sz = f.fileSize ?? 0;
+      return {
+        format: f.format,
+        size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
+      };
+    }),
   };
 
   const seriesBooksData: Book[] = seriesBooks.map((b) => toBook(b));
