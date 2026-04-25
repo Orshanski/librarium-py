@@ -15,7 +15,7 @@ log = logging.getLogger("librarium.shelves")
 router = APIRouter(prefix="/api/shelves", tags=["shelves"])
 
 
-@router.get("", response_model=ShelvesListResponse, response_model_exclude_none=True)
+@router.get("", response_model=ShelvesListResponse, response_model_exclude_none=True)  # exclude_none: book_shelves is None when bookId absent
 def list_shelves(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
@@ -31,7 +31,7 @@ def create_shelf(body: ShelfBody, user: Annotated[CurrentUser, Depends(get_curre
     return IdResponse(id=shelf_id)
 
 
-@router.get("/{shelf_id}", response_model=ShelfDetailResponse, response_model_exclude_none=True)
+@router.get("/{shelf_id}", response_model=ShelfDetailResponse, response_model_exclude_none=True)  # exclude_none: optional fields are endpoint-specific extras (rating, fraction, ...) absent for some shelf branches
 def get_shelf(
     shelf_id: int,
     user: Annotated[CurrentUser, Depends(get_current_user)],

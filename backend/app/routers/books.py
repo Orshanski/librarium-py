@@ -16,7 +16,7 @@ log = logging.getLogger("librarium.books")
 router = APIRouter(prefix="/api/books", tags=["books"])
 
 
-@router.get("", response_model=BookListResponse)
+@router.get("", response_model=BookListResponse)  # no exclude_none: optional fields are nullable DB columns always present in rows
 def list_books(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
@@ -41,7 +41,7 @@ def list_books(
     )
 
 
-@router.get("/{book_id}", response_model=BookDetailResponse)
+@router.get("/{book_id}", response_model=BookDetailResponse)  # no exclude_none: optional fields are nullable DB columns always present in rows
 def get_book(book_id: int, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     return book_service.get_book(db, book_id, user.user_id)
 

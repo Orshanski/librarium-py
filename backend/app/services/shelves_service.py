@@ -39,8 +39,8 @@ def get_shelf(
         shelf=ShelfSummary(
             id=shelf_row["id"],
             name=shelf_row["name"],
-            isSystem=bool(shelf_row["is_system"]),
-            systemCode=shelf_row["system_code"],
+            is_system=bool(shelf_row["is_system"]),
+            system_code=shelf_row["system_code"],
         ),
         books=[row_to_book_item(r) for r in result["books"]],
     )

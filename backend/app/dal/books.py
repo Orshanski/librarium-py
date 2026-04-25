@@ -109,18 +109,22 @@ def create_book(db: sqlite3.Connection, data: BookCreateData) -> int:
     return book_id
 
 
+SCALAR_UPDATE_FIELDS = (
+    "title", "description", "language",
+    "publisher", "pub_date", "series_id",
+    "series_number", "cover_path",
+)
+"""Скалярные поля books, обновляемые через update_book.
+Порядок не важен — каждое поле включается только если присутствует в data."""
+
+
 def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> None:
     sets = ["updated_at = CURRENT_TIMESTAMP"]
     params = {"id": book_id}
 
-    field_map = {
-        "title": "title", "description": "description", "language": "language",
-        "publisher": "publisher", "pub_date": "pub_date", "series_id": "series_id",
-        "series_number": "series_number", "cover_path": "cover_path",
-    }
-    for key, col in field_map.items():
+    for key in SCALAR_UPDATE_FIELDS:
         if key in data:
-            sets.append(f"{col} = :{key}")
+            sets.append(f"{key} = :{key}")
             params[key] = data[key]
 
     if "title" in data:

@@ -1,30 +1,30 @@
 """Shelves request DTOs and Response DTOs."""
 from typing import NotRequired, TypedDict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-from ._aliases import to_camel
+from ._aliases import BODY_CONFIG
 from ._refs import AuthorRef, SeriesRef, TagRef
 from .books import BookItem, RESPONSE_CONFIG
-
-_BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra="forbid")
 
 
 class ShelfSummary(BaseModel):
     """Заголовок полки на wire в camelCase — поле shelf в ответе /api/shelves/{id}."""
+    model_config = RESPONSE_CONFIG
+
     id: int
     name: str
-    isSystem: bool
-    systemCode: str | None = None
+    is_system: bool
+    system_code: str | None = None
 
 
 class ShelfBody(BaseModel):
-    model_config = _BODY_CONFIG
+    model_config = BODY_CONFIG
     name: str
 
 
 class ShelfBookBody(BaseModel):
-    model_config = _BODY_CONFIG
+    model_config = BODY_CONFIG
     book_id: int
 
 
@@ -64,20 +64,20 @@ class ShelfRow(TypedDict):
 
 
 class ShelfBookRow(TypedDict):
-    """Book row inside dal.shelves.get_shelf_by_id books list.
+    """Строка книги в dal.shelves.get_shelf_by_id, список books.
 
-    All three shelf branches (best, reading_now, regular) share explicit
-    column set — no b.*, no flat series_name/series_id/author_ids/tag_ids.
-    Authors and tags are parsed JSON arrays (list[AuthorRef] / list[TagRef]).
-    Series is a parsed JSON object (SeriesRef) or None.
+    Все три ветки полок (best, reading_now, regular) используют явный набор
+    колонок — без b.*, без плоских series_name/series_id/author_ids/tag_ids.
+    Поля authors и tags — разобранные JSON-массивы (list[AuthorRef] / list[TagRef]).
+    Поле series — разобранный JSON-объект (SeriesRef) или None.
 
-    User-state columns rating и is_read селектируются всеми тремя ветками
-    через LEFT JOIN user_books — ключи всегда присутствуют, значение None при
-    отсутствии user_books-ряда. NotRequired остаётся только у reading_now-only
-    полей: fraction, last_format, last_read_at.
+    Колонки rating и is_read выбираются всеми тремя ветками через LEFT JOIN
+    user_books — ключи всегда присутствуют, значение None при отсутствии
+    user_books-ряда. NotRequired — только у полей reading_now: fraction,
+    last_format, last_read_at.
 
-    R-A: одна TypedDict с NotRequired-extras для reading_now — single return
-    site (ShelfDetailRow.books); callers получают все варианты одинаковой формы."""
+    R-A: одна TypedDict с NotRequired-extras для reading_now — единственная
+    точка возврата (ShelfDetailRow.books); все вызывающие получают одну форму."""
     id: int
     title: str
     sort_title: str | None

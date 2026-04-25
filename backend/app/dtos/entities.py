@@ -3,31 +3,33 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._aliases import to_camel
+from ._aliases import BODY_CONFIG, to_camel
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import BookItem, RESPONSE_CONFIG
+from .books import RESPONSE_CONFIG
 from .catalog import LanguageOptionRow
-
-_BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra="forbid")
 
 
 class RenameBody(BaseModel):
-    model_config = _BODY_CONFIG
+    model_config = BODY_CONFIG
     name: str
 
 
 class MergeBody(BaseModel):
-    model_config = _BODY_CONFIG
+    model_config = BODY_CONFIG
     source_id: int
 
 
+MAP_BODY_CONFIG = ConfigDict(
+    str_strip_whitespace=True,
+    populate_by_name=False,
+    alias_generator=to_camel,
+    extra="forbid",
+)
+"""BODY_CONFIG + str_strip_whitespace=True для MapBody."""
+
+
 class MapBody(BaseModel):
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        populate_by_name=False,
-        alias_generator=to_camel,
-        extra="forbid",
-    )
+    model_config = MAP_BODY_CONFIG
     name: str = Field(..., min_length=1)
 
 
@@ -110,7 +112,7 @@ class SeriesDetailRow(TypedDict):
 # --- tag ---
 
 class TagSummaryRow(TypedDict):
-    """DAL-level форма тега, raw row из SELECT * FROM tags. Snake keys."""
+    """DAL-уровень: тип тега из SELECT * FROM tags, ключи snake_case."""
     id: int
     name: str
     code: str | None
@@ -118,6 +120,8 @@ class TagSummaryRow(TypedDict):
 
 class TagSummary(BaseModel):
     """Заголовок тега на wire в camelCase — поле tag в ответе /api/tags/{id}."""
+    model_config = RESPONSE_CONFIG
+
     id: int
     name: str
     code: str | None = None

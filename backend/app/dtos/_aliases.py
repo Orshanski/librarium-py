@@ -1,4 +1,5 @@
-"""Snake_case → camelCase alias generator for Pydantic models."""
+"""Snake_case → camelCase alias generator и общие ConfigDict-пресеты для Pydantic-моделей."""
+from pydantic import ConfigDict
 
 
 def to_camel(s: str) -> str:
@@ -11,3 +12,9 @@ def to_camel(s: str) -> str:
     if not parts:
         return ""
     return parts[0] + "".join(p.title() for p in parts[1:])
+
+
+BODY_CONFIG = ConfigDict(populate_by_name=False, alias_generator=to_camel, extra="forbid")
+"""Пресет для input body-моделей: strict camel wire (alias_generator), snake Python,
+no unknown fields (extra=forbid). Используется в UpdateBookBody, RenameBody, MergeBody,
+MapBody (с дополнительным str_strip_whitespace), ShelfBody, ShelfBookBody."""

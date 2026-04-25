@@ -3,17 +3,13 @@ from typing import Annotated, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._aliases import to_camel
+from ._aliases import BODY_CONFIG, to_camel
 from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
 
 
 class UpdateBookBody(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=False,
-        alias_generator=to_camel,
-        extra="forbid",
-    )
+    model_config = BODY_CONFIG
 
     title: str | None = None
     description: str | None = None
@@ -212,52 +208,60 @@ class BookListResponse(BaseModel):
 
 
 class BookFormatItem(BaseModel):
-    """Формат книги (файл) — элемент `BookItem.formats`. Заготовка
-    на будущее (BookDetail endpoint): в jmdc для shelves/tags не
-    заполняется."""
+    """Формат книги (файл) — элемент `BookItem.formats`. Snake-поля, camel-wire
+    через alias_generator. Заготовка на будущее (BookDetail endpoint): в jmdc
+    для shelves/tags не заполняется."""
+    model_config = RESPONSE_CONFIG
+
     format: str
     size: int
 
 
 class BookItem(BaseModel):
-    """Pydantic response DTO для книги (camelCase wire). Используется в
-    ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
-    services.book_item_builder.row_to_book_item().
+    """Pydantic response DTO для книги в составе ShelfDetailResponse.
 
-    `authors`/`tags`/`series` хранят ref-объекты (AuthorRef, TagRef, SeriesRef)
-    напрямую — id и name доступны через атрибут, отдельные authorIds/tagIds/
-    seriesId-поля не нужны.
+    Единственный потребитель — ShelfDetailResponse (shelves.py).
+    Собирается через services.book_item_builder.row_to_book_item().
 
-    Поля, отсутствующие в конкретном endpoint (rating/isRead только в best;
-    fraction/lastFormat/lastReadAt только в reading_now), остаются None и
-    вырезаются через response_model_exclude_none=True на router-уровне.
+    Snake-поля Python, camelCase wire через alias_generator=to_camel.
+
+    Опциональные поля endpoint-специфичны:
+    - rating / is_read — только для полки «лучшее»;
+    - fraction / last_format / last_read_at — только для «читаю сейчас».
+    Отсутствующие поля остаются None и вырезаются через
+    response_model_exclude_none=True на уровне роутера.
+
+    formats / isbn — всегда None, зарезервированы для будущего
+    BookDetail-via-shelves сценария.
     """
+    model_config = RESPONSE_CONFIG
+
     # Core — всегда присутствуют
     id: int
     title: str
-    coverPath: str                      # composed: /api/covers/{id}?t={updated_at}
+    cover_path: str
     authors: list[AuthorRef]
     tags: list[TagRef]
-    addedAt: str
-    updatedAt: str
+    added_at: str
+    updated_at: str
 
     # Optional — могут отсутствовать в конкретных полях SQL
-    sortTitle: str | None = None
+    sort_title: str | None = None
     description: str | None = None
     language: str | None = None
     publisher: str | None = None
-    pubDate: str | None = None
+    pub_date: str | None = None
     series: SeriesRef | None = None
-    seriesNumber: float | None = None
+    series_number: float | None = None
 
     # User-specific (JOIN user_books)
     rating: int | None = None
-    isRead: bool | None = None
+    is_read: bool | None = None
 
     # Reading progress (только reading_now)
     fraction: float | None = None
-    lastFormat: str | None = None
-    lastReadAt: str | None = None
+    last_format: str | None = None
+    last_read_at: str | None = None
 
     # BookDetail-only (в jmdc не заполняется, на будущее)
     formats: list[BookFormatItem] | None = None

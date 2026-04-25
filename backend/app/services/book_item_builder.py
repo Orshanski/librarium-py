@@ -1,25 +1,25 @@
-"""Builder: converts snake_case DAL row to camelCase BookItem.
+"""Builder: конвертирует snake_case DAL-ряд в BookItem.
 
-Used in shelves_service and tags_service when building the response.
-One central builder guarantees consistent field mapping.
+Используется в shelves_service при сборке ответа.
+Единая точка сборки гарантирует согласованный маппинг полей.
 
-Rows arriving here have already been processed by parse_book_row_aggregates:
-- authors: list[AuthorRef]   (not a CSV string)
-- tags: list[TagRef]         (not a CSV string)
-- series: SeriesRef | None   (not flat series_name + series_id columns)
+Ряды приходят после обработки parse_book_row_aggregates:
+- authors: list[AuthorRef]   (не CSV-строка)
+- tags: list[TagRef]         (не CSV-строка)
+- series: SeriesRef | None   (не плоские series_name + series_id)
 """
 from ..dtos.books import BookItem
 
 
 def row_to_book_item(row: dict) -> BookItem:
-    """Маппинг row из DAL (snake_case) в BookItem (camelCase wire).
+    """Маппинг row из DAL (snake_case) в BookItem.
 
     Контракт row на входе (гарантируется parse_book_row_aggregates):
     - row['authors'] — list[AuthorRef], отсутствует или пустой список для
       запросов без author-агрегата;
     - row['tags'] — list[TagRef], аналогично;
     - row['series'] — SeriesRef | None.
-    Поэтому ref-поля проходят насквозь без распаковки.
+    Ref-поля проходят насквозь без распаковки.
     """
     book_id = row["id"]
     updated_at = row["updated_at"]
@@ -27,21 +27,21 @@ def row_to_book_item(row: dict) -> BookItem:
     return BookItem(
         id=book_id,
         title=row["title"],
-        coverPath=f"/api/covers/{book_id}?t={updated_at}",
+        cover_path=f"/api/covers/{book_id}?t={updated_at}",
         authors=row.get("authors") or [],
         tags=row.get("tags") or [],
         series=row.get("series"),
-        seriesNumber=row.get("series_number"),
-        addedAt=row["added_at"],
-        updatedAt=updated_at,
-        sortTitle=row.get("sort_title"),
+        series_number=row.get("series_number"),
+        added_at=row["added_at"],
+        updated_at=updated_at,
+        sort_title=row.get("sort_title"),
         description=row.get("description"),
         language=row.get("language"),
         publisher=row.get("publisher"),
-        pubDate=row.get("pub_date"),
+        pub_date=row.get("pub_date"),
         rating=row.get("rating"),
-        isRead=bool(row["is_read"]) if row.get("is_read") is not None else None,
+        is_read=bool(row["is_read"]) if row.get("is_read") is not None else None,
         fraction=row.get("fraction"),
-        lastFormat=row.get("last_format"),
-        lastReadAt=row.get("last_read_at"),
+        last_format=row.get("last_format"),
+        last_read_at=row.get("last_read_at"),
     )
