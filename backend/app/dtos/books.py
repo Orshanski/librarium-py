@@ -159,6 +159,9 @@ class BookItem(BaseModel):
     ShelfDetailResponse и TagDetailResponse. Собирается в service-слое через
     services.book_item_builder.row_to_book_item().
 
+    После pbz2 Task 10: authors/tags/series хранят ref-объекты (AuthorRef,
+    TagRef, SeriesRef) напрямую — flat-поля authorIds/tagIds/seriesId удалены.
+
     Поля, отсутствующие в конкретном endpoint (rating/isRead только в best;
     fraction/lastFormat/lastReadAt только в reading_now), остаются None и
     вырезаются через response_model_exclude_none=True на router-уровне.
@@ -167,10 +170,8 @@ class BookItem(BaseModel):
     id: int
     title: str
     coverPath: str                      # composed: /api/covers/{id}?t={updated_at}
-    authors: list[str]
-    authorIds: list[int]
-    tags: list[str]
-    tagIds: list[int]
+    authors: list[AuthorRef]
+    tags: list[TagRef]
     addedAt: str
     updatedAt: str
 
@@ -180,8 +181,7 @@ class BookItem(BaseModel):
     language: str | None = None
     publisher: str | None = None
     pubDate: str | None = None
-    series: str | None = None
-    seriesId: int | None = None
+    series: SeriesRef | None = None
     seriesNumber: float | None = None
 
     # User-specific (JOIN user_books)
