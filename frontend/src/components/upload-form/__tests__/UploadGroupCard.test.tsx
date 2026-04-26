@@ -50,17 +50,16 @@ describe("UploadGroupCard", () => {
     expect(screen.getByText(/Похожая книга/)).toBeInTheDocument();
   });
 
-  it("isMergeTarget=true → wrapper has role='button' and tabIndex=0; click → onPickAsTarget", async () => {
+  it("isMergeTarget=true → wrapper is a native <button>; click → onPickAsTarget", async () => {
     const onPickAsTarget = vi.fn();
     render(<UploadGroupCard group={makeGroup()} isMergeSource={false} isMergeTarget={true} showMergeButton={false} {...handlers} onPickAsTarget={onPickAsTarget} />);
     const card = screen.getByTestId("upload-group");
-    expect(card).toHaveAttribute("role", "button");
-    expect(card).toHaveAttribute("tabindex", "0");
+    expect(card.tagName).toBe("BUTTON");
     await userEvent.click(card);
     expect(onPickAsTarget).toHaveBeenCalledTimes(1);
   });
 
-  it("isMergeTarget=true + Enter key → onPickAsTarget", async () => {
+  it("isMergeTarget=true + Enter key on focused button → onPickAsTarget", async () => {
     const onPickAsTarget = vi.fn();
     render(<UploadGroupCard group={makeGroup()} isMergeSource={false} isMergeTarget={true} showMergeButton={false} {...handlers} onPickAsTarget={onPickAsTarget} />);
     const card = screen.getByTestId("upload-group");
@@ -69,11 +68,27 @@ describe("UploadGroupCard", () => {
     expect(onPickAsTarget).toHaveBeenCalledTimes(1);
   });
 
-  it("isMergeTarget=false → wrapper has no role/tabIndex (not interactive)", () => {
+  it("isMergeTarget=false → wrapper is plain <div>", () => {
     render(<UploadGroupCard group={makeGroup()} isMergeSource={false} isMergeTarget={false} showMergeButton={false} {...handlers} />);
     const card = screen.getByTestId("upload-group");
-    expect(card).not.toHaveAttribute("role");
-    expect(card).not.toHaveAttribute("tabindex");
+    expect(card.tagName).toBe("DIV");
+  });
+
+  it("isMergeTarget=true → file ✕ buttons hidden (no nested buttons inside button)", () => {
+    const g = makeGroup({
+      files: [
+        { id: "f1", tempId: "t1", name: "1.fb2", size: "1 KB", format: "FB2", progress: 100, status: "ready" },
+        { id: "f2", tempId: "t2", name: "2.epub", size: "2 KB", format: "EPUB", progress: 100, status: "ready" },
+      ],
+    });
+    render(<UploadGroupCard group={g} isMergeSource={false} isMergeTarget={true} showMergeButton={false} {...handlers} />);
+    expect(screen.queryByRole("button", { name: "✕" })).not.toBeInTheDocument();
+  });
+
+  it("isMergeTarget=true + duplicate present → DuplicateActionPicker hidden", () => {
+    const g = makeGroup({ duplicate: { id: 42, title: "Existing", authors: [{ id: 1, name: "X" }] } });
+    render(<UploadGroupCard group={g} isMergeSource={false} isMergeTarget={true} showMergeButton={false} {...handlers} />);
+    expect(screen.queryByText(/Похожая книга/)).not.toBeInTheDocument();
   });
 
   it("renders one file badge per file", () => {

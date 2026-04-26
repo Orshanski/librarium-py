@@ -47,20 +47,11 @@ export default function UploadGroupCard({
   onStartMerge, onCancelMerge, onPickAsTarget,
   onRemoveGroup, onRemoveFile, onSetDuplicateAction,
 }: Readonly<Props>) {
-  return (
-    <div
-      data-testid="upload-group"
-      role={isMergeTarget ? "button" : undefined}
-      tabIndex={isMergeTarget ? 0 : undefined}
-      onClick={isMergeTarget ? onPickAsTarget : undefined}
-      onKeyDown={isMergeTarget ? (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onPickAsTarget();
-        }
-      } : undefined}
-      style={cardStyle(group, isMergeSource, isMergeTarget)}
-    >
+  // In merge-target mode the whole card is a single big button — no nested
+  // buttons allowed (HTML forbids button-in-button), so file ✕ and the
+  // duplicate-action picker are hidden until the user finishes merge selection.
+  const cardChildren = (
+    <>
       <UploadGroupHeader
         isMergeSource={isMergeSource}
         isMergeTarget={isMergeTarget}
@@ -87,7 +78,7 @@ export default function UploadGroupCard({
           <UploadFileBadge
             key={f.id}
             file={f}
-            showRemove={group.files.length > 1}
+            showRemove={!isMergeTarget && group.files.length > 1}
             onRemove={() => onRemoveFile(f.id)}
           />
         ))}
@@ -105,8 +96,8 @@ export default function UploadGroupCard({
         </div>
       )}
 
-      {/* DB duplicate — user chooses action */}
-      {group.duplicate && (
+      {/* DB duplicate — user chooses action (hidden in merge-target mode) */}
+      {!isMergeTarget && group.duplicate && (
         <DuplicateActionPicker
           duplicate={group.duplicate}
           duplicateAction={group.duplicateAction}
@@ -118,6 +109,30 @@ export default function UploadGroupCard({
       {group.metadata && group.files.some((f) => f.status === "ready") && (
         <UploadGroupMetadata metadata={group.metadata} />
       )}
+    </>
+  );
+
+  if (isMergeTarget) {
+    return (
+      <button
+        type="button"
+        data-testid="upload-group"
+        onClick={onPickAsTarget}
+        style={{
+          ...cardStyle(group, isMergeSource, isMergeTarget),
+          // Reset native <button> defaults so the card looks identical to <div>:
+          font: "inherit", color: "inherit", textAlign: "left",
+          width: "100%", display: "block",
+        }}
+      >
+        {cardChildren}
+      </button>
+    );
+  }
+
+  return (
+    <div data-testid="upload-group" style={cardStyle(group, isMergeSource, isMergeTarget)}>
+      {cardChildren}
     </div>
   );
 }

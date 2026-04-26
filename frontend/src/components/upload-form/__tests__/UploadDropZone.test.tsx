@@ -17,39 +17,13 @@ describe("UploadDropZone", () => {
     expect(screen.getByText("Перетащите файлы сюда")).toBeInTheDocument();
   });
 
-  it("click on dropzone → opens file picker", async () => {
+  it("dropzone is a <label> wrapping hidden file input", () => {
     const { container } = render(<UploadDropZone groupsCount={0} onFiles={() => {}} />);
+    const label = screen.getByTestId("upload-dropzone");
+    expect(label.tagName).toBe("LABEL");
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const clickSpy = vi.spyOn(input, "click").mockImplementation(() => {});
-
-    const dropzone = screen.getByRole("button");
-    await userEvent.click(dropzone);
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-    clickSpy.mockRestore();
-  });
-
-  it("Enter key on dropzone → opens picker", async () => {
-    const { container } = render(<UploadDropZone groupsCount={0} onFiles={() => {}} />);
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const clickSpy = vi.spyOn(input, "click").mockImplementation(() => {});
-
-    const dropzone = screen.getByRole("button");
-    dropzone.focus();
-    await userEvent.keyboard("{Enter}");
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-    clickSpy.mockRestore();
-  });
-
-  it("Space key on dropzone → opens picker", async () => {
-    const { container } = render(<UploadDropZone groupsCount={0} onFiles={() => {}} />);
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const clickSpy = vi.spyOn(input, "click").mockImplementation(() => {});
-
-    const dropzone = screen.getByRole("button");
-    dropzone.focus();
-    await userEvent.keyboard(" ");
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-    clickSpy.mockRestore();
+    expect(input).not.toBeNull();
+    expect(label.contains(input)).toBe(true);
   });
 
   it("file <input> change → onFiles called and input reset", async () => {
@@ -62,9 +36,15 @@ describe("UploadDropZone", () => {
     expect(input.value).toBe("");
   });
 
-  it("dropzone has role='button' and tabIndex=0 (a11y)", () => {
-    render(<UploadDropZone groupsCount={0} onFiles={() => {}} />);
-    const dropzone = screen.getByRole("button");
-    expect(dropzone).toHaveAttribute("tabindex", "0");
+  it("drop event fires onFiles with dropped files", () => {
+    const onFiles = vi.fn();
+    render(<UploadDropZone groupsCount={0} onFiles={onFiles} />);
+    const label = screen.getByTestId("upload-dropzone");
+    const file = new File(["x"], "x.fb2", { type: "application/x-fictionbook" });
+    const dataTransfer = { files: [file] } as unknown as DataTransfer;
+    const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, "dataTransfer", { value: dataTransfer });
+    label.dispatchEvent(dropEvent);
+    expect(onFiles).toHaveBeenCalledTimes(1);
   });
 });
