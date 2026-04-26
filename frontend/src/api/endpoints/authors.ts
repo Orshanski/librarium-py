@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 import type { RawBook, TagRef } from "@/types";
 
 export interface Author {
@@ -9,7 +9,7 @@ export interface Author {
   bookCount: number;
 }
 
-export interface AuthorListParams {
+export interface AuthorListParams extends ClientQuery {
   tagIds?: number[] | string[];
   language?: string[];
 }

@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 import type { RawBook } from "@/types";
 
 export interface Shelf {
@@ -44,7 +44,7 @@ export function listShelves(
   bookId?: number,
   signal?: AbortSignal,
 ): Promise<ShelvesListResponse> {
-  const query: Record<string, unknown> = {};
+  const query: ClientQuery = {};
   if (bookId !== undefined) query.bookId = bookId;
   return client<ShelvesListResponse>("GET", "/api/shelves", { query, signal });
 }
@@ -58,7 +58,7 @@ export function getShelf(
   opts: { sort?: string } = {},
   signal?: AbortSignal,
 ): Promise<ShelfDetail> {
-  const query: Record<string, unknown> = {};
+  const query: ClientQuery = {};
   if (opts.sort) query.sort = opts.sort;
   return client<ShelfDetail>("GET", `/api/shelves/${id}`, { query, signal });
 }

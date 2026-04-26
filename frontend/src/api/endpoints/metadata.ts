@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 
 export interface MetadataResult {
   title: string;
@@ -21,7 +21,7 @@ export function searchMetadata(
   providers?: string[],
   signal?: AbortSignal,
 ): Promise<MetadataSearchResponse> {
-  const query: Record<string, unknown> = { q };
+  const query: ClientQuery = { q };
   if (providers && providers.length > 0) query.providers = providers.join(",");
   return client<MetadataSearchResponse>("GET", "/api/metadata/search", {
     query,

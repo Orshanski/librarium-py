@@ -71,6 +71,18 @@ describe("client — happy path", () => {
     expect(requestedUrl).toContain("limit=10");
     expect(requestedUrl).not.toContain("skip=");
   });
+
+  it("does NOT set X-Requested-With on GET (CSRF header is mutating-only)", async () => {
+    let captured: Record<string, string> = {};
+    server.use(
+      http.get("/api/thing", ({ request }) => {
+        captured = Object.fromEntries(request.headers.entries());
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    await client("GET", "/api/thing");
+    expect(captured["x-requested-with"]).toBeUndefined();
+  });
 });
 
 describe("client — error mapping", () => {
@@ -115,6 +127,24 @@ describe("client — error mapping", () => {
       expect((err as ApiError).detail).toBe("HTTP 500");
     }
   });
+
+  it("malformed JSON error body still maps to HTTP N (json parse fallback)", async () => {
+    server.use(
+      http.get("/api/err", () =>
+        new HttpResponse("<<not json>>", {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    try {
+      await client("GET", "/api/err");
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(ServerError);
+      expect((err as ApiError).detail).toBe("HTTP 503");
+    }
+  });
 });
 
 describe("client — AbortError passthrough", () => {
@@ -145,6 +175,97 @@ describe("client — OfflineError on network failure", () => {
       await expect(client("GET", "/api/unreachable")).rejects.toBeInstanceOf(
         OfflineError,
       );
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+});
+
+describe("client — 204 No Content", () => {
+  it("returns undefined for 204 responses (no body to parse)", async () => {
+    server.use(http.delete("/api/thing/1", () => new HttpResponse(null, { status: 204 })));
+    const result = await client("DELETE", "/api/thing/1");
+    expect(result).toBeUndefined();
+  });
+});
+
+describe("client — blob download", () => {
+  it("returns Blob when blob:true without progress callback", async () => {
+    server.use(
+      http.get("/api/file", () =>
+        HttpResponse.arrayBuffer(new Uint8Array([1, 2, 3]).buffer, {
+          headers: { "Content-Type": "application/octet-stream" },
+        }),
+      ),
+    );
+    const result = await client<Blob>("GET", "/api/file", { blob: true });
+    expect(result).toBeInstanceOf(Blob);
+    expect(result.size).toBe(3);
+  });
+
+  it("invokes onProgress with percent when Content-Length is known", async () => {
+    const events: Array<[number, number]> = [];
+    server.use(
+      http.get("/api/file", () => {
+        return new HttpResponse(new Uint8Array([1, 2, 3, 4]).buffer, {
+          status: 200,
+          headers: { "Content-Length": "4", "Content-Type": "application/octet-stream" },
+        });
+      }),
+    );
+    await client<Blob>("GET", "/api/file", {
+      blob: true,
+      onProgress: (percent, bytes) => events.push([percent, bytes]),
+    });
+    expect(events.length).toBeGreaterThan(0);
+    const last = events[events.length - 1];
+    expect(last[0]).toBe(100);
+    expect(last[1]).toBe(4);
+  });
+
+  it("emits percent=-1 when Content-Length is missing", async () => {
+    const events: Array<[number, number]> = [];
+    server.use(
+      http.get("/api/file", () => {
+        return new HttpResponse(new Uint8Array([7, 8, 9]).buffer, {
+          status: 200,
+          headers: { "Content-Type": "application/octet-stream" },
+          // no Content-Length
+        });
+      }),
+    );
+    await client<Blob>("GET", "/api/file", {
+      blob: true,
+      onProgress: (percent, bytes) => events.push([percent, bytes]),
+    });
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every(([p]) => p === -1)).toBe(true);
+  });
+
+  it("falls back to res.blob() when body stream is unavailable (no onProgress events)", async () => {
+    // Some runtimes / fakes return a Response without a readable body — verify
+    // the fallback path returns a Blob and never invokes onProgress.
+    // Build a minimal Response-shaped object instead of a real Response, since
+    // a Response with body=null can't be constructed with `new Response()` and
+    // proxying around private slots fails at runtime.
+    const orig = globalThis.fetch;
+    const events: Array<[number, number]> = [];
+    const fakeBlob = new Blob([new Uint8Array([10, 20, 30])]);
+    const fakeRes = {
+      ok: true,
+      status: 200,
+      body: null,
+      headers: new Headers(),
+      blob: () => Promise.resolve(fakeBlob),
+    } as unknown as Response;
+    globalThis.fetch = () => Promise.resolve(fakeRes);
+    try {
+      const result = await client<Blob>("GET", "/api/file", {
+        blob: true,
+        onProgress: (percent, bytes) => events.push([percent, bytes]),
+      });
+      expect(result).toBe(fakeBlob);
+      expect(events.length).toBe(0);
     } finally {
       globalThis.fetch = orig;
     }

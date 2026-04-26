@@ -1,6 +1,7 @@
 import type { SelectedFilters } from "../components/smart-filter-bar";
+import type { ClientQuery } from "./client";
 
-export interface ApiFilterParams {
+export interface ApiFilterParams extends ClientQuery {
   authorIds?: number[] | string[];
   seriesIds?: number[] | string[];
   tagIds?: number[] | string[];

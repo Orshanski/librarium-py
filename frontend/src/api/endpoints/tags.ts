@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 import type { RawBook } from "@/types";
 
 export interface CloudTag {
@@ -36,7 +36,7 @@ export interface MapTagResponse {
   targetId: number;
 }
 
-export interface TagQuery {
+export interface TagQuery extends ClientQuery {
   authorIds?: number[] | string[];
   seriesIds?: number[] | string[];
   language?: string[];
@@ -49,7 +49,7 @@ export interface TagCloudOptions {
 }
 
 export function getTagCloud(opts: TagCloudOptions = {}): Promise<TagCloudResponse> {
-  const query: Record<string, unknown> = {};
+  const query: ClientQuery = {};
   if (opts.top !== undefined) query.top = opts.top;
   return client<TagCloudResponse>("GET", "/api/tags/cloud", {
     query,
