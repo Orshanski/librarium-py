@@ -34,6 +34,21 @@ function ignoreAbortAndWarn(label: string) {
   };
 }
 
+/**
+ * Fetch books in the same series, sorted by seriesNumber ascending.
+ * Pulled out of the BookPage useEffect chain so the sort callback isn't
+ * nested 5 levels deep (S2004).
+ */
+async function fetchSeriesBooks(seriesId: number, signal: AbortSignal): Promise<RawBook[]> {
+  const data = await listBooks(
+    { seriesIds: [String(seriesId)], pageSize: 50, sort: "addedDesc" },
+    signal,
+  );
+  return (data.books || []).sort(
+    (a: RawBook, b: RawBook) => (a.seriesNumber ?? 0) - (b.seriesNumber ?? 0),
+  );
+}
+
 export default function BookPage() {
   const { id } = useParams();
   const location = useLocation();
@@ -68,17 +83,8 @@ export default function BookPage() {
         setIdentifiers(data.identifiers || []);
 
         if (data.book.series?.id) {
-          listBooks(
-            { seriesIds: [String(data.book.series.id)], pageSize: 50, sort: "addedDesc" },
-            controller.signal,
-          )
-            .then((seriesData) => {
-              const sorted = (seriesData.books || []).sort(
-                (a: RawBook, b: RawBook) =>
-                  (a.seriesNumber ?? 0) - (b.seriesNumber ?? 0),
-              );
-              setSeriesBooks(sorted);
-            })
+          fetchSeriesBooks(data.book.series.id, controller.signal)
+            .then(setSeriesBooks)
             .catch(ignoreAbortAndWarn("Failed to load series books:"));
         }
 
