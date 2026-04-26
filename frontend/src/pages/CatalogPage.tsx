@@ -39,11 +39,35 @@ function readCatalogCache(url: string): CatalogCacheEntry | null {
     if (!raw) return null;
     const map: Record<string, CatalogCacheEntry> = JSON.parse(raw);
     const entry = map[url];
-    if (!entry || entry.version !== getScrollCounter()) return null;
+    if (entry?.version !== getScrollCounter()) return null;
     return entry;
   } catch {
     return null;
   }
+}
+
+/**
+ * Merge a freshly-loaded page of books into the prev state, deduplicating by id
+ * and preserving order. Skips the merge if the URL has changed under us
+ * (mid-flight nav). Pulled out of the loadMore .then closure so its body isn't
+ * nested 5 levels deep.
+ */
+function mergeNextPage(
+  prev: CatalogState,
+  newBooks: RawBook[],
+  hasMore: boolean,
+  urlKey: string,
+): CatalogState {
+  if (prev.urlKey !== urlKey) return prev;
+  const ids = new Set(prev.books.map((b) => b.id));
+  const merged = [...prev.books, ...newBooks.filter((b) => !ids.has(b.id))];
+  return {
+    urlKey: prev.urlKey,
+    books: merged,
+    hasMore,
+    cursor: merged.length,
+    loading: false,
+  };
 }
 
 function writeCatalogCache(url: string, entry: CatalogCacheEntry): void {
@@ -167,18 +191,8 @@ export default function CatalogPage() {
     listBooks(buildApiParams(cursor))
       .then((data) => {
         const newBooks = data.books || [];
-        setState((prev) => {
-          if (prev.urlKey !== urlKey) return prev;
-          const ids = new Set(prev.books.map((b) => b.id));
-          const merged = [...prev.books, ...newBooks.filter((b) => !ids.has(b.id))];
-          return {
-            urlKey: prev.urlKey,
-            books: merged,
-            hasMore: data.hasMore || false,
-            cursor: merged.length,
-            loading: false,
-          };
-        });
+        const hasMoreNext = data.hasMore || false;
+        setState((prev) => mergeNextPage(prev, newBooks, hasMoreNext, urlKey));
         setLoadingMore(false);
       })
       .catch((err: unknown) => {
