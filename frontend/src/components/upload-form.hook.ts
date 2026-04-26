@@ -21,7 +21,7 @@ export function useUploadGroups() {
       return ["fb2", "epub", "pdf", "zip"].includes(ext || "");
     });
     for (const file of accepted) {
-      const id = Math.random().toString(36).slice(2);
+      const id = crypto.randomUUID();
       const ext = file.name.split(".").pop()?.toUpperCase() || "???";
       const entry: UploadEntry = {
         id, tempId: "", name: file.name, size: formatSize(file.size),
