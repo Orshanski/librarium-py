@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import UploadForm from "./upload-form";
+import { mergeMeta } from "./upload-form.helpers";
 import type { UploadResponse } from "@/api/endpoints/upload";
 
 const FULL_METADATA: UploadResponse["metadata"] = {
@@ -48,6 +49,56 @@ async function uploadFile(
   await user.upload(input, file);
   return { user, file };
 }
+
+describe("mergeMeta", () => {
+  const empty: UploadResponse["metadata"] = {
+    title: "", authors: "", series: "", seriesNumber: "",
+    description: "", language: "", tags: "", publisher: "",
+    pubDate: "", isbn: "", coverUrl: null,
+  };
+
+  it("prefers non-empty for pick fields", () => {
+    const a = { ...empty, language: "ru", isbn: "" };
+    const b = { ...empty, language: "", isbn: "978-1" };
+    const m = mergeMeta(a, b);
+    expect(m.language).toBe("ru");
+    expect(m.isbn).toBe("978-1");
+  });
+
+  it("prefers longer title (string-length, not word-count)", () => {
+    const a = { ...empty, title: "Short" };
+    const b = { ...empty, title: "Much longer title" };
+    expect(mergeMeta(a, b).title).toBe("Much longer title");
+  });
+
+  it("prefers longer description by string-length", () => {
+    const a = { ...empty, description: "abc" };
+    const b = { ...empty, description: "abcd" };
+    expect(mergeMeta(a, b).description).toBe("abcd");
+  });
+
+  it("prefers longer tags by string-length, NOT split-by-comma count", () => {
+    const a = { ...empty, tags: "fiction,drama" };       // 2 tags, 13 chars
+    const b = { ...empty, tags: "supercalifragilistic" }; // 1 tag, 20 chars
+    expect(mergeMeta(a, b).tags).toBe("supercalifragilistic");
+  });
+
+  it("coverUrl: null in a falls back to b", () => {
+    const a = { ...empty, coverUrl: null };
+    const b = { ...empty, coverUrl: "/c.jpg" };
+    expect(mergeMeta(a, b).coverUrl).toBe("/c.jpg");
+  });
+
+  it("coverUrl: both null returns null", () => {
+    expect(mergeMeta({ ...empty, coverUrl: null }, { ...empty, coverUrl: null }).coverUrl).toBeNull();
+  });
+
+  it("target wins on tie (length-equal title)", () => {
+    const a = { ...empty, title: "Same" };
+    const b = { ...empty, title: "Boba" };
+    expect(mergeMeta(a, b).title).toBe("Same");
+  });
+});
 
 describe("UploadForm", () => {
   beforeEach(() => {

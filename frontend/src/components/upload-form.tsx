@@ -8,15 +8,10 @@ import {
 } from "@/api/endpoints/upload";
 import { addFormat } from "@/api/endpoints/books";
 import type { UploadEntry, BookGroup } from "./upload-form.types";
-
-function formatSize(bytes: number): string {
-  if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + " MB";
-  return Math.round(bytes / 1024) + " KB";
-}
-
-function groupKey(title: string, authors: string): string {
-  return (title.trim() + "|||" + authors.trim()).toLowerCase();
-}
+import {
+  formatSize, groupKey, mergeMeta,
+  updateFileInGroups, groupHasReadyFormat, groupsShareReadyFormat,
+} from "./upload-form.helpers";
 
 export default function UploadForm() {
   const [groups, setGroups] = useState<BookGroup[]>([]);
@@ -56,10 +51,7 @@ export default function UploadForm() {
     try {
       const result = await uploadTempFile(file, {
         onProgress: (pct) => {
-          setGroups((prev) => prev.map((g) => ({
-            ...g,
-            files: g.files.map((f) => f.id === id ? { ...f, progress: pct } : f),
-          })));
+          setGroups((prev) => updateFileInGroups(prev, id, (f) => ({ ...f, progress: pct })));
         },
       });
 
@@ -81,7 +73,7 @@ export default function UploadForm() {
 
         if (existing) {
           // Merge into existing group
-          const hasDupeFmt = existing.files.some((f) => f.format === fmt && f.status === "ready");
+          const hasDupeFmt = groupHasReadyFormat(existing, fmt);
           return without.map((g) => g.key === key ? {
             ...g,
             files: [...g.files, updatedEntry],
@@ -103,9 +95,8 @@ export default function UploadForm() {
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      setGroups((prev) => prev.map((g) => ({
-        ...g,
-        files: g.files.map((f) => f.id === id ? { ...f, status: "error" as const, error: msg, progress: 0 } : f),
+      setGroups((prev) => updateFileInGroups(prev, id, (f) => ({
+        ...f, status: "error" as const, error: msg, progress: 0,
       })));
     }
   }
@@ -184,24 +175,6 @@ export default function UploadForm() {
     setSaved(true);
   }
 
-  function mergeMeta(a: BookGroup["metadata"], b: BookGroup["metadata"]): BookGroup["metadata"] {
-    // For each field, prefer non-empty value. Target (a) wins on ties.
-    const pick = (va: string, vb: string) => va || vb;
-    return {
-      title: a.title.length >= b.title.length ? a.title : b.title, // prefer longer title
-      authors: pick(a.authors, b.authors),
-      series: pick(a.series, b.series),
-      seriesNumber: pick(a.seriesNumber, b.seriesNumber),
-      description: (a.description || "").length >= (b.description || "").length ? a.description : b.description,
-      language: pick(a.language, b.language),
-      tags: (a.tags || "").length >= (b.tags || "").length ? a.tags : b.tags,
-      publisher: pick(a.publisher, b.publisher),
-      pubDate: pick(a.pubDate, b.pubDate),
-      isbn: pick(a.isbn, b.isbn),
-      coverUrl: a.coverUrl || b.coverUrl,
-    };
-  }
-
   function mergeInto(targetKey: string) {
     if (!mergeSource || mergeSource === targetKey) { setMergeSource(null); return; }
     setGroups((prev) => {
@@ -212,8 +185,7 @@ export default function UploadForm() {
       const merged: BookGroup = {
         ...target,
         files: [...target.files, ...source.files],
-        hasDuplicateFormat: target.hasDuplicateFormat ||
-          target.files.some((tf) => source.files.some((sf) => tf.format === sf.format && tf.status === "ready" && sf.status === "ready")),
+        hasDuplicateFormat: target.hasDuplicateFormat || groupsShareReadyFormat(target, source),
         metadata: mergeMeta(target.metadata, source.metadata),
       };
       return prev.filter((g) => g.key !== mergeSource).map((g) => g.key === targetKey ? merged : g);
