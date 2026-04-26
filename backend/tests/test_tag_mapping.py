@@ -9,14 +9,20 @@ class TestResolveRawTag:
         tag_id = resolve_raw_tag(db, "sf_fantasy")
         assert tag_id == 1
 
-    def test_unknown_creates_tag_and_mapping(self, admin_client, db):
-        """Неизвестный raw_tag создаёт тег и маппинг на себя."""
+    def test_unknown_creates_tag_with_capitalized_name(self, admin_client, db):
+        """Неизвестный raw_tag создаёт тег с Capitalized name (write-инвариант tags.name)."""
         from app.dal.tags import resolve_raw_tag
         tag_id = resolve_raw_tag(db, "brand_new_genre")
-        assert tag_id is not None
         tag = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
-        assert tag["name"] == "brand_new_genre"
-        mapping = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = ?", ("brand_new_genre",)).fetchone()
+        assert tag["name"] == "Brand_new_genre"
+
+    def test_unknown_creates_self_mapping_with_raw_lowercase(self, admin_client, db):
+        """Self-mapping сохраняет raw_tag дословно (lowercase FB2-код), не нормализует —
+        семантика raw_tag = «как пришло от парсера»; lookup идёт через NOCASE."""
+        from app.dal.tags import resolve_raw_tag
+        tag_id = resolve_raw_tag(db, "brand_new_genre")
+        mapping = db.execute("SELECT raw_tag, tag_id FROM tag_mappings WHERE tag_id = ?", (tag_id,)).fetchone()
+        assert mapping["raw_tag"] == "brand_new_genre"
         assert mapping["tag_id"] == tag_id
 
     def test_case_insensitive(self, admin_client, db):
@@ -63,6 +69,46 @@ class TestResolveTagNames:
         assert names == ["Фэнтези"]
 
 
+class TestGetOrCreateTagWriteCapitalization:
+    """Write-path invariant: tag names always start with uppercase in `tags`,
+    regardless of the caller (FB2/EPUB raw code, edit form, custom string)."""
+
+    def test_lowercase_input_is_capitalized(self, admin_client, db):
+        from app.dal.tags import get_or_create_tag
+        tag_id = get_or_create_tag(db, "иные миры")
+        row = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        assert row["name"] == "Иные миры"
+
+    def test_lowercase_input_finds_existing_capitalized(self, admin_client, db):
+        from app.dal.tags import get_or_create_tag
+        first_id = get_or_create_tag(db, "Иные миры")
+        second_id = get_or_create_tag(db, "иные миры")
+        assert first_id == second_id
+        row = db.execute("SELECT name FROM tags WHERE id = ?", (first_id,)).fetchone()
+        assert row["name"] == "Иные миры"
+        # No lowercase duplicate slipped through.
+        dup = db.execute("SELECT id FROM tags WHERE name = ?", ("иные миры",)).fetchone()
+        assert dup is None
+
+    def test_already_capitalized_unchanged(self, admin_client, db):
+        from app.dal.tags import get_or_create_tag
+        tag_id = get_or_create_tag(db, "Эпическое фэнтези")
+        row = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        assert row["name"] == "Эпическое фэнтези"
+
+    def test_long_all_caps_lowercased_after_first(self, admin_client, db):
+        from app.dal.tags import get_or_create_tag
+        tag_id = get_or_create_tag(db, "SCIENCE FICTION")
+        row = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        assert row["name"] == "Science fiction"
+
+    def test_short_acronym_preserved(self, admin_client, db):
+        from app.dal.tags import get_or_create_tag
+        tag_id = get_or_create_tag(db, "AI")
+        row = db.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        assert row["name"] == "AI"
+
+
 class TestMapTag:
     def test_rename_to_new_name(self, admin_client, db):
         """Сопоставление с новым именем -> переименование."""
@@ -93,6 +139,26 @@ class TestMapTag:
         result = map_tag(db, tag_id=1, target_name="Фэнтези")
         assert result["renamed"] is True
         assert result["target_id"] == 1
+
+    def test_rename_lowercase_target_capitalizes(self, admin_client, db):
+        """Rename с lowercase именем нормализуется через _capitalize_tag —
+        write-инвариант (tags.name всегда Capitalized) держится и на rename-path."""
+        from app.dal.tags import map_tag
+        result = map_tag(db, tag_id=1, target_name="новое фэнтези")
+        assert result["renamed"] is True
+        assert result["target_id"] == 1
+        tag = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
+        assert tag["name"] == "Новое фэнтези"
+
+    def test_rename_lowercase_collides_with_capitalized_via_nocase(self, admin_client, db):
+        """Rename "классический детектив" должен распознать коллизию
+        с #2 "Классический детектив" (NOCASE) и пойти merge-веткой,
+        а не simple rename — иначе UNIQUE-индекс или write-инвариант сломались бы."""
+        from app.dal.tags import map_tag
+        result = map_tag(db, tag_id=1, target_name="классический детектив")
+        assert result["renamed"] is False
+        assert result["target_id"] == 2
+        assert db.execute("SELECT id FROM tags WHERE id = 1").fetchone() is None
 
 
 class TestMapTagEndpoint:
