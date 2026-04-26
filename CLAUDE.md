@@ -90,6 +90,20 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 - **TDD:** tests first, then implementation.
 - CI/CD triggers only on push to `main` on GitHub. Local branch work does not deploy.
 
+## SonarCloud (local scan)
+
+Repo is private — SonarCloud branch automation does not run. Local scans only.
+
+**Always use the wrapper:**
+
+```bash
+./scripts/sonar-scan.sh
+```
+
+It sources `~/.zshrc` for `SONAR_TOKEN` and runs from repo root. A naive `sonar-scanner -Dsonar.token=$SONAR_TOKEN` from a non-interactive shell sends an **empty** token and uploads garbage analysis. Do not run the bare command.
+
+To read existing findings without re-scan: use `mcp__sonarqube__search_sonar_issues_in_projects`. SonarCloud has the latest data from the last successful scan.
+
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
