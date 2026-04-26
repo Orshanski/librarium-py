@@ -130,47 +130,52 @@ export default function UploadForm() {
     });
   }
 
-  async function saveAll() {
-    const ready = groups.filter((g) => g.files.some((f) => f.status === "ready"));
-    if (ready.length === 0) return;
-    setSaving(true);
+  async function saveAsAddFormat(g: BookGroup): Promise<void> {
+    if (!g.duplicate) return;
+    const readyFiles = g.files.filter((f) => f.status === "ready");
+    for (const f of readyFiles) {
+      try {
+        await addFormat(g.duplicate.id, f.tempId);
+      } catch (err) {
+        console.warn("Failed to add format:", err);
+        alert("Не удалось добавить формат");
+      }
+    }
+  }
 
-    for (const g of ready) {
-      const readyFiles = g.files.filter((f) => f.status === "ready");
-      if (readyFiles.length === 0) continue;
-
-      if (g.duplicate && g.duplicateAction === "add-format") {
-        // User confirmed: add as format to existing book
-        for (const f of readyFiles) {
+  async function saveAsNewBook(g: BookGroup): Promise<void> {
+    const readyFiles = g.files.filter((f) => f.status === "ready");
+    if (readyFiles.length === 0) return;
+    const first = readyFiles[0];
+    try {
+      const created = await createBookFromUpload(first.tempId, g.metadata);
+      if (created) {
+        for (const f of readyFiles.slice(1)) {
           try {
-            await addFormat(g.duplicate.id, f.tempId);
+            await addFormat(created.bookId, f.tempId);
           } catch (err) {
             console.warn("Failed to add format:", err);
             alert("Не удалось добавить формат");
           }
         }
+      }
+    } catch (err) {
+      console.warn("Failed to create book:", err);
+      alert("Не удалось создать книгу");
+    }
+  }
+
+  async function saveAll() {
+    const ready = groups.filter((g) => g.files.some((f) => f.status === "ready"));
+    if (ready.length === 0) return;
+    setSaving(true);
+    for (const g of ready) {
+      if (g.duplicate && g.duplicateAction === "add-format") {
+        await saveAsAddFormat(g);
       } else {
-        // First file creates book, rest add as format
-        const first = readyFiles[0];
-        try {
-          const created = await createBookFromUpload(first.tempId, g.metadata);
-          if (created) {
-            for (const f of readyFiles.slice(1)) {
-              try {
-                await addFormat(created.bookId, f.tempId);
-              } catch (err) {
-                console.warn("Failed to add format:", err);
-                alert("Не удалось добавить формат");
-              }
-            }
-          }
-        } catch (err) {
-          console.warn("Failed to create book:", err);
-          alert("Не удалось создать книгу");
-        }
+        await saveAsNewBook(g);
       }
     }
-
     setSaving(false);
     setSaved(true);
   }
