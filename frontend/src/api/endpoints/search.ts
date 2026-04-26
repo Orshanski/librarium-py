@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 import type { Book, AuthorRef, SeriesRef } from "@/types";
 
 export interface SearchBookHit {
@@ -65,7 +65,7 @@ export function searchAll(
     signalOrOptions instanceof AbortSignal
       ? { signal: signalOrOptions }
       : signalOrOptions ?? {};
-  const query: Record<string, unknown> = { q };
+  const query: ClientQuery = { q };
   if (options.limit !== undefined) query.limit = options.limit;
   return client<SearchResponse>("GET", "/api/search", {
     query,

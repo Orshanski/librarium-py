@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 
 export interface CoverUploadResponse {
   ok: true;
@@ -10,7 +10,7 @@ export interface CoverOkResponse {
 }
 
 export function getCover(id: number, full?: boolean, signal?: AbortSignal): Promise<Blob> {
-  const query: Record<string, unknown> = {};
+  const query: ClientQuery = {};
   if (full) query.full = 1;
   return client<Blob>("GET", `/api/covers/${id}`, { query, blob: true, signal });
 }

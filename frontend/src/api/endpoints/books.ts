@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 import type { RawBook } from "@/types";
 
 export interface BookFileInfo {
@@ -18,7 +18,7 @@ export interface BookDetailResponse {
   identifiers: BookIdentifier[];
 }
 
-export interface BookListParams {
+export interface BookListParams extends ClientQuery {
   sort?: string;
   cursor?: number;
   pageSize?: number;

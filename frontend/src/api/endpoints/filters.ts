@@ -1,4 +1,4 @@
-import { client } from "../client";
+import { client, type ClientQuery } from "../client";
 
 export interface FilterAuthor {
   id: number;
@@ -32,7 +32,7 @@ export type FilterOptionsResponse =
   | { tags: FilterTag[] }
   | { languages: FilterLanguage[] };
 
-export interface FilterOptionsParams {
+export interface FilterOptionsParams extends ClientQuery {
   authorIds?: number[] | string[];
   seriesIds?: number[] | string[];
   tagIds?: number[] | string[];
