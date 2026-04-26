@@ -70,7 +70,7 @@ User management, app settings, SMTP configuration for email notifications.
 
 ### Built-in reader
 
-Read EPUB, FB2, MOBI, CBZ, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device — pick up where you left off on any device. Footnotes appear as inline popups without leaving the page. Configurable tap zones: split the page into a 3×2 grid and map each zone to prev/next (or zoom in/out for PDFs).
+Read EPUB, FB2, and PDF directly in the browser. Powered by [foliate-js](https://github.com/johnfactotum/foliate-js) (the engine technically also supports MOBI/CBZ — Librarium's upload pipeline does not). Customizable theme (dark/warm/light), font family, size, line spacing, hyphenation, and text justification. Reading progress and settings are saved per user, per device — pick up where you left off on any device. Footnotes appear as inline popups without leaving the page. Configurable tap zones: split the page into a 3×2 grid and map each zone to prev/next (or zoom in/out for PDFs).
 
 **PDF reader.** Separate reader for PDFs with a bottom navigation bar — drag the slider or type a page number to jump anywhere in a 500-page book. All PDFs are linearized (Fast Web View) at upload time via pikepdf, so PDF.js can start rendering the first page before the whole file is fetched — critical for large scanned books over a network.
 
@@ -104,7 +104,8 @@ The entire UI adapts to phones and tablets. Bottom tab bar for navigation, swipe
 
 ### Security
 
-- JWT authentication with HTTP-only cookies
+- JWT authentication with HTTP-only cookies (168h rolling refresh)
+- CSRF protection — every non-GET `/api/*` request must carry `X-Requested-With: XMLHttpRequest` (browser fetch wrapper sends it automatically; cross-origin form posts cannot)
 - CSP, HSTS, TLS 1.2+
 - All auth events and data mutations are logged
 - SPA route whitelist — unknown paths return 404
@@ -136,12 +137,12 @@ add_header Content-Security-Policy "
 | Book parsing | lxml (FB2/EPUB), PyMuPDF (PDF cover render), pikepdf (PDF linearize), Pillow (covers) |
 | Metadata | Litres.ru, Google Books API, Anthropic Claude (PDF via web search) |
 | Frontend | React 19, TypeScript, React Router 7 |
-| Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, MOBI, CBZ, PDF) |
+| Reader | [foliate-js](https://github.com/johnfactotum/foliate-js) (EPUB, FB2, PDF) |
 | Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
-| Tests | pytest (326 tests), Vitest (43 tests) |
+| Tests | pytest (1054 tests), Vitest (354 tests), SonarCloud quality gate |
 | CI/CD | GitHub Actions |
 
 ## Getting started
@@ -212,29 +213,34 @@ librarium-py/
 │   ├── schema.sql          # DB schema
 │   ├── requirements.txt
 │   ├── app/
-│   │   ├── main.py         # FastAPI app, SPA fallback
-│   │   ├── config.py       # Paths, JWT settings, limits
+│   │   ├── main.py         # FastAPI app, SPA fallback, CSRF middleware
+│   │   ├── config/         # Paths, JWT (168h TTL, 84h refresh), limits, sort manifest
 │   │   ├── database.py     # SQLite connection pool
 │   │   ├── auth.py         # JWT + bcrypt
-│   │   ├── routers/        # API endpoints (16 modules)
-│   │   ├── dal/            # Data access layer (11 modules)
-│   │   ├── parsers/        # FB2, EPUB, PDF (incl. LLM metadata, PyMuPDF cover render)
+│   │   ├── routers/        # API endpoints (17 modules)
+│   │   ├── services/       # Business logic (22 modules)
+│   │   ├── dal/            # Data access layer (12 modules + queries/ — 102 .sql files via aiosql)
+│   │   ├── dtos/           # Pydantic v2 DTOs with camelCase wire aliases (14 domain + 4 helpers)
+│   │   ├── parsers/        # FB2, EPUB
+│   │   ├── enrichers/      # PDF: Anthropic LLM metadata, PyMuPDF cover render, cover-fetcher
 │   │   ├── providers/      # Litres, Google Books lookup
 │   │   ├── pdf_linearize.py # pikepdf linearize for Fast Web View
 │   │   └── cover_embedder.py # Embed cover into FB2/EPUB for exported files
-│   ├── scripts/            # One-off migrations (seed_tag_mappings, normalize_tag_names)
-│   └── tests/              # pytest suite (326 tests)
+│   ├── scripts/            # One-off scripts (create_admin, seed_tag_mappings, normalize_tag_names, linearize_existing_pdfs)
+│   ├── migrations/         # Manual schema migrations on top of schema.sql (001_user_cascade, 002_drop_fts5)
+│   └── tests/              # pytest suite (1054 tests across 93 files)
 ├── frontend/
 │   ├── public/sw.js            # Service Worker (precache template)
 │   ├── scripts/                # Build scripts (SW asset injection)
 │   ├── src/
-│   │   ├── pages/              # Page components
-│   │   ├── components/         # Shared components (incl. OfflineShell)
-│   │   ├── components/desktop/ # Desktop layout
-│   │   ├── components/mobile/  # Mobile layout
-│   │   ├── hooks/              # Custom hooks (offline, PWA, cache)
-│   │   ├── utils/              # Utilities (offline-storage, sanitize, etc.)
-│   │   └── responsive.ts       # Breakpoint provider
+│   │   ├── pages/              # 21 page components (incl. desktop/, mobile/ reader pages)
+│   │   ├── components/         # 35 shared components (incl. OfflineShell, EbookReader, PdfReader)
+│   │   ├── components/desktop/ # 10 desktop layout components
+│   │   ├── components/mobile/  # 13 mobile layout components
+│   │   ├── hooks/              # 15 custom hooks (book loaders, reader lifecycle, offline status, PWA)
+│   │   ├── utils/              # 15 utilities (offline-storage IDB, book-download, sanitize-html, …)
+│   │   ├── vendor/foliate-js/  # Forked reader (owned code, no upstream sync)
+│   │   └── responsive.ts       # Breakpoint provider (820px)
 │   └── vite.config.ts
 ├── docs/
 │   ├── spec.md                 # Technical specification

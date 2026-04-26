@@ -7,33 +7,39 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.12, FastAPI, Uvicorn |
-| Database | SQLite 3 (WAL) |
-| Auth | JWT (bcrypt + PyJWT), HTTP-only cookies |
-| Book parsing | lxml (FB2/EPUB), Pillow, PyMuPDF (PDF), pikepdf (PDF linearize) |
-| PDF metadata | Anthropic Claude API (Sonnet 4.6) with web search + PyMuPDF cover render |
+| Database | SQLite 3.44+ (WAL); `json_group_array(... ORDER BY ...)` for read-model aggregates |
+| Auth | JWT (bcrypt + PyJWT), HTTP-only cookies, rolling refresh |
+| Book parsing | lxml (FB2/EPUB), Pillow, PyMuPDF (PDF cover render), pikepdf (PDF linearize) |
+| PDF metadata | Anthropic Claude API (`claude-sonnet-4-6`) with web search + PyMuPDF cover render |
 | Metadata search | Litres.ru, Google Books API |
+| Wire DTO | Pydantic v2 with `alias_generator=to_camel`: snake-case Python ↔ camelCase wire |
+| SQL access | aiosql (`.sql` files in `dal/queries/`) |
 | In-app reader | foliate-js (EPUB/FB2 paginator, PDF via PDF.js fixed-layout) |
 | Frontend | React 19, TypeScript, React Router 7 |
 | Build | Vite 6 |
 | Styling | Inline CSS, theme in `theme.ts`, no framework |
 | Responsive | Desktop/Mobile layout (breakpoint 820px) |
 | Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
-| Tests | pytest (backend), Vitest (frontend) |
+| Tests | pytest (1054 tests), Vitest (354 tests) |
+| Quality gate | SonarCloud (coverage tracked from `coverage.xml` / `lcov.info`; current values live on SonarCloud) |
 | CI/CD | GitHub Actions → SSH deploy |
 
 ## Architecture
 
 ```
 Browser → React SPA (:5173 dev / static prod)
-           ↓ fetch /api/*
+           ↓ fetch /api/*  (camelCase wire)
          FastAPI (:8000)
-           ├── Routers (16 modules)
-           ├── DAL (11 modules)
-           ├── Parsers (FB2, EPUB, PDF, PDF-LLM, PDF-render, cover-fetcher)
+           ├── Routers (17 modules)
+           ├── Services (22 modules)
+           ├── DAL (12 modules + _parsers.py + queries/ — 102 .sql files)
+           ├── DTOs (14 domain + 4 helpers — Pydantic v2, alias_generator)
+           ├── Parsers (FB2, EPUB)
+           ├── Enrichers (PDF, PDF-LLM, PDF-render, cover-fetcher)
            ├── Providers (Litres, Google Books)
-           └── Utils (cover-embedder, pdf-linearize)
+           └── Utils (cover-embedder, pdf-linearize, ssrf)
            ↓ SQL
-         SQLite (WAL)
+         SQLite (WAL, FK on)
            ↓ fs
          data/ (library files, thumbs, uploads)
 ```
@@ -42,8 +48,9 @@ Browser → React SPA (:5173 dev / static prod)
 
 - Frontend — client-only React SPA, fetches all data from `/api/*`
 - Backend — FastAPI app, serves API + static frontend build (SPA fallback)
-- Auth — JWT in HTTP-only cookie `librarium_token`, 72h TTL
+- Auth — JWT in HTTP-only cookie `librarium_token`, 168h (7-day) TTL with rolling refresh after 84h
 - Roles: `admin` (full access), `reader` (view, rate, shelves, download, in-app reader)
+- CSRF — every non-GET/HEAD/OPTIONS request to `/api/*` must carry `X-Requested-With: XMLHttpRequest` (middleware in `main.py`)
 
 ### File Storage
 
@@ -79,8 +86,6 @@ data/
 
 **settings** — key, value (app_name, smtp_*)
 
-**password_reset_tokens** — id, user_id, token, expires_at, created_at
-
 ### Junction Tables
 
 **book_authors** — book_id, author_id
@@ -97,9 +102,9 @@ data/
 
 ### Reader Tables
 
-**reader_settings** — user_id, device_type, settings (JSON) — PK (user_id, device_type). Stores font, theme, tap zones, hyphenation, justify, PDF tap zones per device.
+**reader_settings** — user_id, device_type, settings (JSON) — PK (user_id, device_type). Despite the historical column name `device_type`, the value stored is a per-browser-instance UUID issued via the `device_id` cookie (see `get_or_create_device_id` in `reader_service.py`), not a device class. Settings JSON: font, theme, tap zones, hyphenation, justify, PDF tap zones.
 
-**reading_progress** — user_id, book_id, position (JSON: `{kind: "cfi"|"page", value: ...}`), last_device, last_format, fraction (0..1), last_read_at — PK (user_id, book_id). Indexed on book_id.
+**reading_progress** — user_id, book_id, position (JSON: `{kind: "cfi"|"page", value: ...}`), last_device, last_format, fraction (0..1), last_read_at, version (CAS counter for conflict resolution) — PK (user_id, book_id). Indexed on book_id.
 
 ### Search
 
@@ -107,7 +112,11 @@ LIKE-based substring search on title, author name, series name. No FTS5.
 
 ### Indexes
 
-On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(tag_id), tag_mappings(tag_id), book_files(book_id), book_identifiers(book_id, type+value), shelf_books(book_id), user_books(book_id), reading_progress(book_id), authors(sort_name), series(sort_name).
+On: books(series_id, added_at DESC, sort_title), book_authors(author_id), book_tags(tag_id), tag_mappings(tag_id), book_files(book_id), book_identifiers(book_id, type+value), shelf_books(book_id), user_books(book_id), reading_progress(book_id), authors(sort_name), series(sort_name), shelves(user_id, system_code) — UNIQUE partial index where system_code IS NOT NULL (single-system-shelf-per-user invariant).
+
+### Read-model JSON shape
+
+Read-side SQL returns nested objects directly — `authors`/`tags` as JSON arrays of `{id, name}` via `json_group_array(json_object('id', id, 'name', name) ORDER BY name)`, `series` as `json_object` or NULL via `CASE WHEN s.id IS NULL THEN NULL ELSE json_object(...) END`. `ORDER BY` inside the aggregate is the formal SQLite 3.44+ guarantee. The `_parsers.py` module wraps Pydantic `TypeAdapter` to deserialize these into typed `AuthorRef`/`TagRef`/`SeriesRef` objects.
 
 ## API Endpoints
 
@@ -123,24 +132,27 @@ On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(t
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/books | yes | List with filters (author, series, tag, language), sort, cursor pagination |
-| GET | /api/books/{id} | yes | Detail (metadata, files, identifiers) |
-| PUT | /api/books/{id} | admin | Update metadata |
+| GET | /api/books | reader | List — query: `sort`, `cursor`, `pageSize`, `authorIds`, `tagIds`, `seriesIds`, `language` (camelCase aliases via `Query(alias=...)`) |
+| GET | /api/books/{id} | reader | Detail (metadata, files, identifiers) |
+| PUT | /api/books/{id} | admin | Update metadata + manage formats (`addFormats`/`deleteFormats`/`commitCover` in body) |
 | DELETE | /api/books/{id} | admin | Delete book + files |
-| POST | /api/books/{id}/files | admin | Upload format (direct to existing book) |
-| DELETE | /api/books/{id}/files?format= | admin | Delete format |
-| GET | /api/books/{id}/similar | yes | Similar books by shared authors/tags/series |
-| GET | /api/books/{id}/download?format= | yes | Download file |
+| GET | /api/books/{id}/similar | reader | Litres-backed similar books |
+| GET | /api/books/{id}/download | reader | Download file (`format` query) |
+
+There are two entry points for adding a format, by flow:
+- **Edit form (existing book)** — `PUT /api/books/{id}` with `addFormats` / `deleteFormats` / `commitCover` in body. Unified body covers metadata edit + format edit + cover commit (see `book-format-staging-design` epic).
+- **Upload duplicate-action** — `POST /api/books/{id}/add-format` from the upload flow when the user picks "Add format" on a duplicate-detected upload (no metadata changes, only attaches new file from temp storage).
+
+Cover replace goes through `POST /api/books/{id}/cover` (temp upload) + `PUT /api/books/{id}` with `commitCover: true`. There are no `/files` endpoints.
 
 ### Covers
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/covers/{id} | — | Thumbnail (300px); `?full=1` original; `?t=` cache bust |
-| POST | /api/books/{id}/cover | admin | Upload cover |
-| PUT | /api/books/{id}/cover | admin | Replace cover |
-| DELETE | /api/books/{id}/cover | admin | Remove cover |
-| GET | /api/uploads/cover/{temp_id} | admin | Temp cover preview during upload |
+| GET | /api/covers/{id} | reader | Thumbnail (300px); `?full=1` original; `?t=` cache bust |
+| POST | /api/books/{id}/cover | admin | Upload **temp** cover (commit via `PUT /api/books/{id}` with `commitCover: true`) |
+| DELETE | /api/books/{id}/cover | admin | Discard pending temp cover |
+| GET | /api/uploads/cover/{temp_id} | reader | Serve temp cover preview during edit |
 
 ### User–Book Interaction
 
@@ -155,10 +167,10 @@ On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(t
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/reader/settings | yes | Get reader settings (font, theme, tap zones) per device |
-| PUT | /api/reader/settings | yes | Save reader settings |
-| GET | /api/reader/progress/{book_id} | yes | Get reading position (JSON `{kind, value}` + fraction) |
-| PUT | /api/reader/progress/{book_id} | yes | Save position, device, format, fraction |
+| GET | /api/reader/settings | reader | Get reader settings (font, theme, tap zones) per device. Issues `device_id` cookie if absent. |
+| PUT | /api/reader/settings | reader | Save reader settings |
+| GET | /api/reader/progress/{book_id} | reader | Get reading position — `{position, lastDevice, lastFormat, fraction, lastReadAt, version}` (no-row branch returns zeroed row with `version=0`) |
+| PUT | /api/reader/progress/{book_id} | reader | Save position with CAS — body `{position, lastDevice="" , lastFormat="" , fraction=0 (0..1), expectedVersion=0}` (only `position` truly required; rest have safe defaults). Always HTTP 200, signal in body: **accepted** `{accepted: true, version, rebased}`; **conflict-rewind reject** `{accepted: false, current: <up-to-date row>, retryExhausted: false}` for client-side merge; **retry-exhausted** `{accepted: false, current: null, retryExhausted: true}` after 3 in-DAL race retries fail |
 
 ### Authors / Series / Tags
 
@@ -182,7 +194,7 @@ On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(t
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/shelves | yes | User shelves (+ system "Лучшее" for 4-5★) |
+| GET | /api/shelves | yes | User shelves + two system shelves: «Лучшее» (`system_code=best`, 4-5★) and «Читаю сейчас» (`system_code=reading_now`, books with progress; sort overridden to `lastReadDesc`) |
 | POST | /api/shelves | yes | Create shelf |
 | GET | /api/shelves/{id} | yes | Shelf + books |
 | PUT | /api/shelves/{id} | yes | Rename |
@@ -214,39 +226,60 @@ On: books(series_id, added_at, sort_title), book_authors(author_id), book_tags(t
 | PUT | /api/admin/settings | admin | Update settings |
 | POST | /api/admin/smtp-test | admin | Send test email |
 
+### Filter options
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /api/filter-options/authors | reader | Author options scoped by `tagIds`, `seriesIds`, `language` |
+| GET | /api/filter-options/tags | reader | Tag options scoped by `authorIds`, `seriesIds`, `language` |
+| GET | /api/filter-options/series | reader | Series options scoped by `authorIds`, `tagIds`, `language` |
+| GET | /api/filter-options/languages | reader | Language options scoped by `authorIds`, `tagIds`, `seriesIds` |
+
+Each endpoint excludes its own dimension from the WHERE clause (so the multi-select dropdown shows the *full* set of values for that dim, narrowed by the *other* dimensions). `user_id` is threaded as a separate scope parameter (not a filter dimension) — see [bv0e](#wire-format--dto-conventions).
+
 ### Other
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/options | yes | All authors, series, tags, languages, publishers |
-| GET | /api/health | — | Health check |
+| GET | /api/publishers | reader | Distinct publisher list (for Edit form autocomplete) |
+| GET | /api/health | — | Health check `{"ok": true}` |
 
 ## Backend Structure
 
 ```
 backend/
 ├── run.py              # Uvicorn entry (--dev for reload)
-├── requirements.txt
+├── requirements.txt    # FastAPI, Uvicorn, lxml, Pillow, pymupdf, pikepdf, anthropic, aiosql, ...
 ├── schema.sql
-├── scripts/            # One-off migrations
-│   ├── seed_tag_mappings.py
-│   └── normalize_tag_names.py
+├── scripts/            # One-off scripts (run manually)
+│   ├── create_admin.py             # Initial admin bootstrap
+│   ├── seed_tag_mappings.py        # FB2 genre codes → tags
+│   ├── normalize_tag_names.py      # Capitalization sweep
+│   └── linearize_existing_pdfs.py  # Backfill linearized PDFs
+├── migrations/         # Manual schema migrations applied on top of schema.sql
+│   ├── 001_user_cascade.sql        # ON DELETE CASCADE for shelves.user_id / user_books.user_id
+│   └── 002_drop_fts5.sql           # Drop FTS5 tables (search uses LIKE)
 └── app/
-    ├── main.py         # FastAPI app, SPA fallback, CORS
-    ├── config.py       # Paths, JWT, limits, env loading (.env via python-dotenv)
-    ├── database.py     # SQLite pool (thread-local)
-    ├── auth.py         # JWT create/verify, bcrypt, get_current_user, require_admin
-    ├── cover_embedder.py # Embed cover into FB2/EPUB for exported files
-    ├── pdf_linearize.py  # pikepdf linearize in place (Fast Web View)
-    ├── routers/        # 16 route modules
-    ├── dal/            # 11 data access modules
-    ├── parsers/        # Book format parsers
-    │   ├── fb2.py
-    │   ├── epub.py
-    │   ├── pdf.py          # Main PDF parser (delegates to LLM)
-    │   ├── pdf_llm.py      # Claude API metadata extraction
-    │   ├── pdf_render.py   # PyMuPDF first-page → cover JPEG
-    │   └── cover_fetcher.py # External cover URL → bytes (validated)
+    ├── main.py         # FastAPI app, SPA fallback, CSRF middleware (X-Requested-With)
+    ├── config/         # Paths, JWT (168h TTL, 84h refresh), limits, env (.env via python-dotenv)
+    │   ├── __init__.py
+    │   ├── sort.py     # Sort config + JSON manifest
+    │   └── sort.json
+    ├── database.py     # SQLite pool (thread-local), WAL, FK on
+    ├── auth.py         # JWT create/verify, bcrypt, get_current_user, require_admin, CurrentUser
+    ├── error_handlers.py / exceptions.py / fs_utils.py / logging_utils.py / search.py / ssrf.py
+    ├── cover_embedder.py        # Embed cover into FB2/EPUB on export
+    ├── pdf_linearize.py         # pikepdf linearize in place (Fast Web View)
+    ├── routers/        # 17 route modules + `_entity_crud.py` (CRUD factory) + `_validators.py` (shared validators / `TempIdStr`)
+    ├── services/       # 22 service modules — business logic between routers and DAL
+    ├── dal/            # 12 domain modules + `_parsers.py` (TypeAdapter for JSON aggregates, pbz2) + queries/ (102 .sql via aiosql)
+    ├── dtos/           # 14 domain DTO modules + 4 helpers (`_aliases.py`, `_refs.py`, `_types.py`, `__init__.py`); Pydantic v2, alias_generator (see Wire format below)
+    ├── parsers/        # Book format parsers (FB2, EPUB)
+    ├── enrichers/      # PDF enrichment pipeline
+    │   ├── pdf.py             # Main PDF orchestrator (filename → LLM → cover fetch → fallback render)
+    │   ├── pdf_llm.py         # Claude API metadata extraction
+    │   ├── pdf_render.py      # PyMuPDF first-page → cover JPEG (color-checked)
+    │   └── cover_fetcher.py   # External cover URL → bytes (10MB cap, SSRF-safe)
     ├── providers/      # Litres, Google Books → MetadataResult
     └── templates/      # Email templates (SMTP test)
 ```
@@ -255,7 +288,24 @@ backend/
 
 - **FB2**: XML parsing via lxml — title, authors, series, genres, description, language, cover (base64). Parser returns raw genre codes; mapping to human-readable names happens in upload flow via `tag_mappings` table (~270 codes seeded from FB2 spec)
 - **EPUB**: ZIP → META-INF/container.xml → OPF → metadata + cover image
-- **PDF**: Metadata extracted via Anthropic Claude API (Sonnet 4.6) with web search grounding, using the first few pages as context + original filename as hint. Cover rendered from first page via PyMuPDF. File is linearized (pikepdf) on upload for Fast Web View streaming.
+- **PDF (in `enrichers/`, not `parsers/`)**: Metadata via Anthropic Claude API (`claude-sonnet-4-6`) with web search grounding, using filename as primary hint + first pages as context. Cover preferred from publisher CDN (whitelisted domains, SSRF-validated, 10MB cap, max 5 redirects); fallback — PyMuPDF first-page render with color-content check (skips blank/single-color pages, tries up to 3 pages). File is linearized (pikepdf qpdf backend) on upload for Fast Web View streaming.
+
+### Wire format / DTO conventions
+
+After `pbz2` epic the read/write contract is unified through Pydantic v2 alias_generator:
+
+- **`BODY_CONFIG`** (in `dtos/_aliases.py`): `populate_by_name=False, alias_generator=to_camel, extra="forbid"`. Used on input body models — Python fields snake_case, wire camelCase, unknown fields → 422.
+- **`RESPONSE_CONFIG`**: `populate_by_name=True, alias_generator=to_camel`. Used on response models — Python snake, wire camel, accepts snake on construction (for service-layer dict passing from DAL TypedDicts).
+- **`AuthorRef` / `TagRef` / `SeriesRef`** in `dtos/_refs.py` — `{id, name}` BaseModel; nested in every read shape replacing CSV strings.
+- **DAL JSON aggregates** parsed via `dal/_parsers.py` (`TypeAdapter[list[AuthorRef]]` etc.) — typed structures available immediately after `cur.fetchall()`.
+
+A handful of DTO modules (`auth.py`, parts of `admin.py`, `user_books.py`, `covers.py`) keep camelCase Python field names directly (no alias_generator) — those are pre-pbz2 holdouts; behavior identical, follow-up cleanup tracked separately. `publishers.py` also has no `model_config`, but its only field is single-word (`publishers: list[str]`) and there is nothing to alias. `catalog.py` is TypedDict-only (DAL contract, not Pydantic), so alias_generator does not apply there.
+
+### Internal architectural invariants
+
+- **`user_id` scope vs. dimension filters** (bv0e): `CatalogFilters` TypedDict carries only dimension filters (`authorIds`, `tagIds`, `seriesIds`, `language`). User identity is threaded as an explicit `user_id` parameter through `build_book_where`, `dal.get_books`, and all `list_*_options` functions — never embedded in the filter dict.
+- **Aggregate ordering** (6cww): `json_group_array(... ORDER BY name)` is used inside the aggregate (formal SQLite 3.44+ guarantee) rather than relying on subquery ORDER BY propagation. `DISTINCT` deduplication still happens in a derived table where needed (json_group_array doesn't support DISTINCT).
+- **CSRF**: middleware in `main.py` requires `X-Requested-With: XMLHttpRequest` on all non-GET/HEAD/OPTIONS `/api/*` requests; fetch wrapper sends it automatically.
 
 ### PDF Linearization
 
@@ -278,20 +328,33 @@ frontend/
     ├── main.tsx            # React root, BrowserRouter, AuthProvider, SW registration
     ├── App.tsx             # Routes (all behind ProtectedRoute), offline shell routing
     ├── auth.tsx            # AuthContext, useAuth(), ProtectedRoute, offline auth cache
-    ├── api.ts              # Fetch wrapper (credentials, JSON)
+    ├── api/                # API client package (see "API client layer" below)
     ├── types.ts            # TypeScript interfaces
-    ├── theme.ts            # Color palette + layout constants (breakpoint 820)
+    ├── theme.ts            # Color palette + layout constants (mobileBreakpoint 820)
     ├── responsive.ts       # ResponsiveProvider, useIsMobile()
-    ├── vendor/foliate-js/  # Local patched copy of foliate-js reader
-    ├── hooks/              # Custom hooks (offline storage, PWA detection, cache status)
-    ├── utils/offline-storage.ts # IndexedDB wrapper (book cache, progress, settings)
-    ├── pages/              # 18 page components (desktop/, mobile/ subdirs)
-    ├── components/         # 29 shared components (logic + types, incl. OfflineShell, CloudBadge)
+    ├── vendor/foliate-js/  # Forked copy of foliate-js — owned code, not upstream vendor
+    ├── hooks/              # 15 custom hooks (book loaders, reader lifecycle/page/footer/settings/position, offline status, online/PWA detection, scroll restore, update banner, session flag)
+    ├── utils/              # 15 utility modules (offline-storage IndexedDB wrapper, book-download, device-info, reader-input/footnotes/footnote-handler, pluralize, sanitize-html …)
+    ├── pages/              # 21 page components (18 root + DesktopReaderPage / DesktopPdfReaderPage / MobileReaderPage)
+    ├── components/         # 35 shared components (logic + types, incl. OfflineShell, CloudBadge, EbookReader, PdfReader, MetadataSearch, …)
     ├── components/desktop/ # 10 desktop layout components
     └── components/mobile/  # 13 mobile layout components
 ```
 
 Public `frontend/public/pdfjs/` — PDF.js distribution (cmaps, fonts, worker). Loaded via `<script type=module>` tag to bypass Vite dev server's .mjs transform that breaks PDF.js workers.
+
+### API client layer
+
+`frontend/src/api/` is a typed package, not a single fetch wrapper:
+
+- `client.ts` — fetch wrapper (credentials, JSON, error normalization)
+- `credentials.ts` — auto-attaches `X-Requested-With: XMLHttpRequest` (CSRF) and cookie credentials
+- `errors.ts` — error class hierarchy + parsing
+- `filter-params.ts` — `URLSearchParams` builder for catalog filters (camelCase aliases)
+- `non-bumping-paths.ts` — endpoint patterns that should NOT bump the scroll counter (k96o block B)
+- `types.ts` — shared types
+- `index.ts` — barrel re-exports
+- `endpoints/` — 14 typed endpoint modules: `admin`, `auth`, `authors`, `books`, `covers`, `filters`, `metadata`, `reader`, `search`, `series`, `shelves`, `similar`, `tags`, `upload`
 
 ### Responsive Architecture
 
@@ -366,7 +429,7 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 - Mark as read/unread
 - Hide books from library view
 - Create custom shelves
-- System shelf "Лучшее" (auto: 4-5★ books)
+- System shelves «Лучшее» (auto: 4-5★ books) and «Читаю сейчас» (books with reading progress)
 - Download books (FB2/EPUB/PDF)
 - Similar books recommendations
 - In-app reading (FB2/EPUB flow + PDF fixed-layout)
@@ -392,11 +455,11 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 
 Test harness: `conftest.py` (temp DB, admin/reader clients), `seed.py` (factory builder), fixture books (FB2, EPUB, PDF).
 
-21 test files covering: auth, upload flow (create/rollback/duplicate), book delete, book update, add format, merge entities (authors/series), admin users, parsers (FB2/EPUB/PDF/PDF-LLM), cover embedder/fetcher/download, PDF render, PDF linearize, catalog filters, tag mapping, reader (settings + progress), similar books, user-book interaction, SPA fallback.
+93 test files / 1054 tests covering: auth + JWT refresh + CSRF middleware, upload flow (create/rollback/duplicate, format add via PUT and via POST `/add-format`), book detail/list/update/delete, merge entities (authors/series), tag mapping, admin users + settings, parsers (FB2/EPUB), enrichers (PDF-LLM, PDF render, cover-fetcher, PDF linearize), cover embedder + cover proxy + cover commit/discard, catalog filters + filter-options scoping (bv0e), reader settings + progress CAS (accept/conflict/retry-exhausted), similar books, user-book interaction (rating/read/hidden), publishers, SPA fallback, DTO alias roundtrips. Coverage exported via `coverage.xml` for SonarCloud.
 
 ### Frontend (Vitest)
 
-Unit tests for sanitize-html utility and offline-storage module (IndexedDB: cache, progress, settings, eviction — 43 tests).
+60 test files / 354 tests covering: smart-filter-bar query construction, book-detail/edit-form, metadata search, mobile filter bar, reader (settings, lifecycle, position, session flag, footnote handler, footnotes, input parsing), PWA detection, online status, update banner, sidebar, ErrorBoundary, FootnotePopup, entity/tag admin panels, sanitize-html, offline-storage IndexedDB (cache, progress, settings, eviction), book-download, device-info, scroll-counter + non-bumping-paths (k96o block B), useScrollRestore. Coverage exported via `lcov.info` for SonarCloud.
 
 ## Offline PWA
 
@@ -405,8 +468,8 @@ Available only in installed PWA mode (`display-mode: standalone`). In regular br
 ### Architecture
 
 - **Service Worker** (`public/sw.js`) — precaches all build assets at install. Network-first for navigation, cache-first for static assets. Cache name includes content hash for automatic invalidation on deploy. Post-build script (`scripts/inject-sw-precache.js`) injects asset list into SW.
-- **IndexedDB** (`idb` library, database `librarium-offline`) — stores cached books (all formats + cover), reading progress, reader settings. Three object stores: `cached_books`, `reading_progress`, `reader_settings`.
-- **Local-first reader** (`useReaderStorage` hook) — progress and settings are saved to IndexedDB first, then synced to server in background. On open: local data applied instantly, server data fetched and merged by timestamp (last-write-wins). Book blob loaded from IndexedDB cache if available, otherwise from network.
+- **IndexedDB** (`idb` library, database `librarium-offline`) — stores cached books (all formats + cover), reading progress, reader settings. Three object stores: `offline_books`, `reading_progress`, `reader_settings`. (Legacy `cached_books` store renamed to `offline_books` in v3→v4 native rename migration.)
+- **Local-first reader** — progress is owned by `useReaderPosition` (debounced 3s save to IDB + flush on unmount/beforeunload, server sync on `online`); settings by `useReaderSettings`; lifecycle (load/init/cleanup) by `useReaderLifecycle`. Book blob loaded from IndexedDB cache if available, otherwise from network. CAS conflict resolution with `version` counter (see `PUT /api/reader/progress/{book_id}`).
 
 ### Book Caching
 
@@ -423,7 +486,7 @@ When PWA is offline (except during active reading), `OfflineShell` replaces the 
 
 ### Auth in Offline
 
-User object cached in localStorage on successful login. When offline, `AuthProvider` uses cached user instead of failing on `/api/auth/me`. JWT expiry (72h) checked on reconnect.
+User object cached in localStorage on successful login. When offline, `AuthProvider` uses cached user instead of failing on `/api/auth/me`. JWT expiry (168h) checked on reconnect.
 
 ### Sync on Reconnect
 
@@ -437,10 +500,14 @@ When a new SW activates (deploy), a banner "Доступно обновлени�
 
 | Variable | Source | Default |
 |----------|--------|---------|
-| SECRET_KEY | env or data/.secret_key | auto-generated |
-| SECURE_COOKIE | env | false |
+| SECRET_KEY | env or data/.secret_key | auto-generated (32 bytes hex) |
+| SECURE_COOKIE | env | false (set true behind HTTPS) |
 | ANTHROPIC_API_KEY | env (backend/.env) | — (required for PDF LLM metadata) |
 | ANTHROPIC_MODEL | env | claude-sonnet-4-6 |
-| JWT_EXPIRE_HOURS | config.py | 72 |
-| MAX_BOOK_SIZE | config.py | 100 MB |
-| MAX_COVER_SIZE | config.py | 10 MB |
+| ANTHROPIC_TIMEOUT_SEC | env | 60 |
+| JWT_EXPIRE_HOURS | config/__init__.py | 168 (7 days) |
+| JWT_REFRESH_AFTER_HOURS | config/__init__.py | 84 (rolling refresh after half-TTL) |
+| MAX_BOOK_SIZE | config/__init__.py | 100 MB |
+| MAX_COVER_SIZE | config/__init__.py | 10 MB |
+| Sort manifest | config/sort.json | catalog sort options + order |
+| DB_PATH_PREFIX | config/__init__.py | `data/library` (relative path stored in DB) |
