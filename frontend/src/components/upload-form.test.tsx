@@ -350,7 +350,7 @@ describe("UploadForm", () => {
     server.use(
       http.post("/api/upload", () =>
         HttpResponse.json({
-          tempId: Math.random().toString(36).slice(2),
+          tempId: crypto.randomUUID(),
           format: "FB2",
           metadata: FULL_METADATA,
           duplicate: null,

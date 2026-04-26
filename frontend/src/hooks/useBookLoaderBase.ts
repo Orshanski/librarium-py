@@ -53,6 +53,72 @@ export type PostLoadHook = (ctx: {
   fromOffline: boolean;
 }) => void;
 
+/** Step 1: parallel-load local progress + per-device reader settings. */
+export async function loadLocalData(
+  bookId: number,
+  deviceName: string,
+): Promise<{ localProgress: LocalProgress | null; localSettings: LocalSettings | null }> {
+  const [localProgress, localSettings] = await Promise.all([
+    getProgress(bookId),
+    getLocalSettings(deviceName),
+  ]);
+  return { localProgress, localSettings };
+}
+
+/**
+ * Step 3: fetch book metadata when online. Returns final title plus bookData.
+ * If `fromOffline` is true and `getBook` fails, the error is swallowed and
+ * the strategy-provided `blobTitle` is preserved (offline survives a network blip).
+ * If `fromOffline` is false and `getBook` fails, the error propagates.
+ */
+export async function fetchBookMetadata(
+  id: string,
+  fromOffline: boolean,
+  blobTitle: string,
+): Promise<{ title: string; bookData: BookDetailResponse | null }> {
+  if (!navigator.onLine) {
+    return { title: blobTitle, bookData: null };
+  }
+  try {
+    const bookData = await getBook(Number(id));
+    const title = fromOffline ? blobTitle : (bookData.book?.title || "");
+    return { title, bookData };
+  } catch (err: unknown) {
+    if (!fromOffline) {
+      throw new Error(err instanceof Error ? err.message : "Failed to fetch book data");
+    }
+    return { title: blobTitle, bookData: null };
+  }
+}
+
+/**
+ * Step 5: fire-and-forget reset of `isRead` once the user has opened the book again.
+ * Always attaches `.catch` to avoid an unhandled promise rejection if the network call fails.
+ */
+export function markUnreadInBackground(id: string, bookData: BookDetailResponse | null): void {
+  if (!navigator.onLine || !bookData?.book?.isRead) return;
+  apiSetRead(Number(id), false).catch((err) =>
+    console.warn("Failed to clear isRead:", err),
+  );
+}
+
+/**
+ * Step 2: download closure used by `BlobStrategy`. Pulled out so that the
+ * progress callback isn't nested 5 levels deep inside `useEffect`.
+ */
+function makeDownloadCallback(
+  id: string,
+  format: string,
+  setLoadProgress: (p: LoadProgress) => void,
+): () => Promise<File> {
+  return async () => {
+    const { downloadBook } = await import("../utils/book-download");
+    return downloadBook(id, format, (percent, bytes) =>
+      setLoadProgress({ percent, bytes }),
+    );
+  };
+}
+
 export function useBookLoaderBase(
   options: BookLoaderOptions,
   blobStrategy: BlobStrategy,
@@ -80,7 +146,6 @@ export function useBookLoaderBase(
     const bookId = Number(id);
     let cancelled = false;
 
-    // Reset transient state when id/format changes
     setBookBlob(null);
     setBookTitle("");
     setLoading(true);
@@ -89,42 +154,16 @@ export function useBookLoaderBase(
 
     (async () => {
       try {
-        // 1. Local progress + settings (instant)
-        const [localProgress, localSettings] = await Promise.all([
-          getProgress(bookId),
-          getLocalSettings(deviceName),
-        ]);
+        const { localProgress, localSettings } = await loadLocalData(bookId, deviceName);
         onLocalDataLoadedRef.current(localProgress, localSettings);
 
-        // 2. Acquire blob via strategy
         const { blob, title: blobTitle, fromOffline } = await blobStrategyRef.current({
           bookId, id, format,
-          download: async () => {
-            const { downloadBook } = await import("../utils/book-download");
-            return downloadBook(id, format, (percent, bytes) =>
-              setLoadProgress({ percent, bytes }),
-            );
-          },
+          download: makeDownloadCallback(id, format, setLoadProgress),
         });
 
-        // 3. Fetch metadata (online only)
-        let title = blobTitle;
-        let bookData: BookDetailResponse | null = null;
-        if (navigator.onLine) {
-          try {
-            const data = await getBook(Number(id));
-            bookData = data;
-            if (!fromOffline) title = bookData.book?.title || "";
-          } catch (err: unknown) {
-            if (!fromOffline) {
-              throw new Error(
-                err instanceof Error ? err.message : "Failed to fetch book data",
-              );
-            }
-          }
-        }
+        const { title, bookData } = await fetchBookMetadata(id, fromOffline, blobTitle);
 
-        // 4. Sync progress/settings with server BEFORE mounting reader
         if (navigator.onLine) {
           await onSyncNeededRef.current(bookId, localProgress, localSettings);
         }
@@ -134,12 +173,7 @@ export function useBookLoaderBase(
         setBookBlob(blob);
         setLoading(false);
 
-        // 5. Background: clear isRead + post-load hook
-        if (navigator.onLine && bookData?.book?.isRead) {
-          apiSetRead(Number(id), false).catch((err) =>
-            console.warn("Failed to clear isRead:", err),
-          );
-        }
+        markUnreadInBackground(id, bookData);
         postLoadHookRef.current?.({ bookId, id, format, blob, bookData, fromOffline });
       } catch (err: unknown) {
         if (!cancelled) {
