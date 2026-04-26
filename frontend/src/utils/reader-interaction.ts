@@ -1,5 +1,4 @@
 import type { ReaderSettings } from "../types/reader-settings";
-import { DEFAULT_DESKTOP_TAP_ZONES } from "../constants/reader-defaults";
 import { resolveDesktopZone, addCustomEventListener } from "./reader-input";
 import type { NormalizedReaderInput, ReaderAction } from "./reader-input";
 import type { ReaderTapDetail } from "../types/reader-events";
@@ -17,6 +16,47 @@ interface InteractionCallbacks {
   getSettings: () => ReaderSettings;
 }
 
+/** Pure mapping from a keyboard event key to a reader action. */
+export function resolveKeyboardAction(key: string): ReaderAction {
+  if (key === "ArrowLeft") return { type: "goLeft" };
+  if (key === "ArrowRight") return { type: "goRight" };
+  if (key === "ArrowUp" || key === "PageUp") return { type: "prev" };
+  if (key === "ArrowDown" || key === "PageDown") return { type: "next" };
+  return { type: "noop" };
+}
+
+interface TapResolutionInput {
+  tap: Extract<NormalizedReaderInput, { kind: "tap" }>;
+  containerRect: DOMRect;
+  isMobile: boolean;
+  settings: ReaderSettings;
+  footnoteOpen: boolean;
+}
+
+/**
+ * Pure mapping from a tap (with surrounding context) to a reader action.
+ * Order: link-target → footnote-dismiss → mobile zone → desktop tap-zone setting.
+ */
+export function resolveTapAction({ tap, containerRect, isMobile, settings, footnoteOpen }: TapResolutionInput): ReaderAction {
+  const isLinkTarget = Boolean(tap.target?.closest("a[href]"));
+  if (footnoteOpen && !isLinkTarget) return { type: "dismissFootnote" };
+  if (isLinkTarget) return { type: "followLink" };
+
+  const xFrac = (tap.x - containerRect.left) / containerRect.width;
+  const yFrac = (tap.y - containerRect.top) / containerRect.height;
+
+  if (isMobile) {
+    if (xFrac < 0.33) return { type: "prev" };
+    if (xFrac > 0.67) return { type: "next" };
+    return { type: "toggleToolbar" };
+  }
+
+  const zoneAction = resolveDesktopZone(xFrac, yFrac, settings.desktopTapZones);
+  if (zoneAction === "prev") return { type: "prev" };
+  if (zoneAction === "next") return { type: "next" };
+  return { type: "toggleToolbar" };
+}
+
 /**
  * Creates interaction handlers for the reader and attaches event listeners.
  * Returns a cleanup function.
@@ -29,32 +69,14 @@ export function attachReaderInteraction(
   callbacks: InteractionCallbacks,
 ): () => void {
   const resolveReaderAction = (input: NormalizedReaderInput): ReaderAction => {
-    if (input.kind === "keyboard") {
-      if (input.key === "ArrowLeft") return { type: "goLeft" };
-      if (input.key === "ArrowRight") return { type: "goRight" };
-      if (input.key === "ArrowUp" || input.key === "PageUp") return { type: "prev" };
-      if (input.key === "ArrowDown" || input.key === "PageDown") return { type: "next" };
-      return { type: "noop" };
-    }
-
-    const isLinkTarget = Boolean(input.target?.closest("a[href]"));
-    if (callbacks.isFootnoteOpen() && !isLinkTarget) return { type: "dismissFootnote" };
-    if (isLinkTarget) return { type: "followLink" };
-
-    const rect = container.getBoundingClientRect();
-    const xFrac = (input.x - rect.left) / rect.width;
-    const yFrac = (input.y - rect.top) / rect.height;
-    if (config.current.isMobile) {
-      if (xFrac < 0.33) return { type: "prev" };
-      if (xFrac > 0.67) return { type: "next" };
-      return { type: "toggleToolbar" };
-    }
-
-    const zones = callbacks.getSettings().desktopTapZones ?? DEFAULT_DESKTOP_TAP_ZONES;
-    const action = resolveDesktopZone(xFrac, yFrac, zones);
-    if (action === "prev") return { type: "prev" };
-    if (action === "next") return { type: "next" };
-    return { type: "toggleToolbar" };
+    if (input.kind === "keyboard") return resolveKeyboardAction(input.key);
+    return resolveTapAction({
+      tap: input,
+      containerRect: container.getBoundingClientRect(),
+      isMobile: config.current.isMobile,
+      settings: callbacks.getSettings(),
+      footnoteOpen: callbacks.isFootnoteOpen(),
+    });
   };
 
   const performReaderAction = (action: ReaderAction): Promise<void> => {
