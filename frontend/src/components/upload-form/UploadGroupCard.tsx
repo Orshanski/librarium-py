@@ -3,6 +3,31 @@ import type { BookGroup, UploadDuplicateAction } from "../upload-form.types";
 import UploadFileBadge from "./UploadFileBadge";
 import DuplicateActionPicker from "./DuplicateActionPicker";
 import UploadGroupMetadata from "./UploadGroupMetadata";
+import UploadGroupHeader from "./UploadGroupHeader";
+
+function cardStyle(group: BookGroup, isMergeSource: boolean, isMergeTarget: boolean): React.CSSProperties {
+  const accentSoft = "rgba(249, 190, 3, 0.4)";
+  let borderColor: string;
+  if (isMergeSource) borderColor = "rgba(249, 190, 3, 0.6)";
+  else if (isMergeTarget) borderColor = accentSoft;
+  else if (group.duplicate) borderColor = accentSoft;
+  else if (group.hasDuplicateFormat) borderColor = "rgba(239, 68, 68, 0.4)";
+  else borderColor = colors.border;
+
+  let backgroundColor: string;
+  if (isMergeSource) backgroundColor = "rgba(249, 190, 3, 0.04)";
+  else if (isMergeTarget) backgroundColor = "rgba(249, 190, 3, 0.02)";
+  else backgroundColor = "rgba(255, 255, 255, 0.02)";
+
+  return {
+    border: `1px solid ${borderColor}`,
+    borderRadius: 8, padding: 16,
+    backgroundColor,
+    borderStyle: isMergeTarget ? "dashed" : "solid",
+    cursor: isMergeTarget ? "pointer" : "default",
+    transition: "all 0.15s",
+  };
+}
 
 interface Props {
   group: BookGroup;
@@ -21,68 +46,29 @@ export default function UploadGroupCard({
   group, isMergeSource, isMergeTarget, showMergeButton,
   onStartMerge, onCancelMerge, onPickAsTarget,
   onRemoveGroup, onRemoveFile, onSetDuplicateAction,
-}: Props) {
+}: Readonly<Props>) {
   return (
     <div
       data-testid="upload-group"
-      onClick={() => isMergeTarget ? onPickAsTarget() : undefined}
-      style={{
-        border: `1px solid ${isMergeSource ? "rgba(249, 190, 3, 0.6)"
-          : isMergeTarget ? "rgba(249, 190, 3, 0.4)"
-          : group.duplicate ? "rgba(249, 190, 3, 0.4)"
-          : group.hasDuplicateFormat ? "rgba(239, 68, 68, 0.4)" : colors.border}`,
-        borderRadius: 8, padding: 16,
-        backgroundColor: isMergeSource ? "rgba(249, 190, 3, 0.04)"
-          : isMergeTarget ? "rgba(249, 190, 3, 0.02)"
-          : "rgba(255, 255, 255, 0.02)",
-        borderStyle: isMergeTarget ? "dashed" : "solid",
-        cursor: isMergeTarget ? "pointer" : "default",
-        transition: "all 0.15s",
-      }}
+      role={isMergeTarget ? "button" : undefined}
+      tabIndex={isMergeTarget ? 0 : undefined}
+      onClick={isMergeTarget ? onPickAsTarget : undefined}
+      onKeyDown={isMergeTarget ? (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onPickAsTarget();
+        }
+      } : undefined}
+      style={cardStyle(group, isMergeSource, isMergeTarget)}
     >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 4 }}>
-        {isMergeSource ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onCancelMerge(); }}
-            style={{
-              padding: "3px 10px", fontSize: 12, fontFamily: "inherit", borderRadius: 4,
-              border: `1px solid rgba(255,255,255,0.15)`,
-              background: "rgba(255,255,255,0.05)",
-              color: colors.textSecondary, cursor: "pointer",
-            }}
-          >
-            Отмена
-          </button>
-        ) : isMergeTarget ? (
-          <span style={{ fontSize: 12, color: colors.accent }}>Нажмите для объединения</span>
-        ) : (
-          <>
-            {showMergeButton && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onStartMerge(); }}
-                style={{
-                  padding: "3px 10px", fontSize: 12, fontFamily: "inherit", borderRadius: 4,
-                  border: `1px solid rgba(249, 190, 3, 0.3)`,
-                  background: "rgba(249, 190, 3, 0.08)",
-                  color: colors.accent, cursor: "pointer",
-                }}
-              >
-                ⊕ Объединить
-              </button>
-            )}
-            <button
-              onClick={onRemoveGroup}
-              style={{
-                background: "none", border: "none", color: colors.textDim,
-                cursor: "pointer", fontSize: 16, padding: 4,
-              }}
-            >
-              ✕
-            </button>
-          </>
-        )}
-      </div>
+      <UploadGroupHeader
+        isMergeSource={isMergeSource}
+        isMergeTarget={isMergeTarget}
+        showMergeButton={showMergeButton}
+        onStartMerge={onStartMerge}
+        onCancelMerge={onCancelMerge}
+        onRemoveGroup={onRemoveGroup}
+      />
 
       {isMergeSource && (
         <div style={{

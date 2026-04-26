@@ -5,7 +5,7 @@ interface Props {
   metadata: UploadMetadata;
 }
 
-export default function UploadGroupMetadata({ metadata }: Props) {
+export default function UploadGroupMetadata({ metadata }: Readonly<Props>) {
   return (
     <div style={{ display: "flex", gap: 16 }}>
       {metadata.coverUrl && (

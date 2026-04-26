@@ -43,12 +43,14 @@ export function useUploadGroups() {
     }
   }
 
+  function bumpProgress(id: string, pct: number) {
+    setGroups((prev) => updateFileInGroups(prev, id, (f) => ({ ...f, progress: pct })));
+  }
+
   async function uploadFile(id: string, file: File) {
     try {
       const result = await uploadTempFile(file, {
-        onProgress: (pct) => {
-          setGroups((prev) => updateFileInGroups(prev, id, (f) => ({ ...f, progress: pct })));
-        },
+        onProgress: (pct) => bumpProgress(id, pct),
       });
 
       const meta = result.metadata;
