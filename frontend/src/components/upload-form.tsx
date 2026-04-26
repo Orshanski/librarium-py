@@ -5,30 +5,9 @@ import {
   uploadTempFile,
   deleteTempUpload,
   createBookFromUpload,
-  type UploadMetadata,
-  type UploadDuplicate,
 } from "@/api/endpoints/upload";
 import { addFormat } from "@/api/endpoints/books";
-
-interface UploadEntry {
-  id: string;
-  tempId: string;
-  name: string;
-  size: string;
-  format: string;
-  progress: number;
-  status: "uploading" | "ready" | "error";
-  error?: string;
-}
-
-interface BookGroup {
-  key: string; // lowercase title+authors
-  metadata: UploadMetadata;
-  files: UploadEntry[];
-  duplicate: UploadDuplicate | null; // from DB
-  duplicateAction: "add-format" | "new-book" | null;
-  hasDuplicateFormat: boolean;
-}
+import type { UploadEntry, BookGroup } from "./upload-form.types";
 
 function formatSize(bytes: number): string {
   if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + " MB";
