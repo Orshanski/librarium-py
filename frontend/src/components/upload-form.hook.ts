@@ -21,7 +21,7 @@ export function useUploadGroups() {
       return ["fb2", "epub", "pdf", "zip"].includes(ext || "");
     });
     for (const file of accepted) {
-      const id = Math.random().toString(36).slice(2);
+      const id = crypto.randomUUID();
       const ext = file.name.split(".").pop()?.toUpperCase() || "???";
       const entry: UploadEntry = {
         id, tempId: "", name: file.name, size: formatSize(file.size),
@@ -43,12 +43,14 @@ export function useUploadGroups() {
     }
   }
 
+  function bumpProgress(id: string, pct: number) {
+    setGroups((prev) => updateFileInGroups(prev, id, (f) => ({ ...f, progress: pct })));
+  }
+
   async function uploadFile(id: string, file: File) {
     try {
       const result = await uploadTempFile(file, {
-        onProgress: (pct) => {
-          setGroups((prev) => updateFileInGroups(prev, id, (f) => ({ ...f, progress: pct })));
-        },
+        onProgress: (pct) => bumpProgress(id, pct),
       });
 
       const meta = result.metadata;

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { colors } from "../../theme";
 
 interface Props {
@@ -6,11 +6,11 @@ interface Props {
   onFiles: (files: FileList) => void;
 }
 
-export default function UploadDropZone({ groupsCount, onFiles }: Props) {
+export default function UploadDropZone({ groupsCount, onFiles }: Readonly<Props>) {
   const [dragOver, setDragOver] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   return (
-    <div
+    <label
+      data-testid="upload-dropzone"
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
@@ -18,8 +18,8 @@ export default function UploadDropZone({ groupsCount, onFiles }: Props) {
         setDragOver(false);
         if (e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
       }}
-      onClick={() => inputRef.current?.click()}
       style={{
+        display: "block",
         border: `2px dashed ${dragOver ? colors.accent : colors.border}`,
         borderRadius: 12,
         padding: groupsCount > 0 ? "24px 32px" : "48px 32px",
@@ -34,8 +34,16 @@ export default function UploadDropZone({ groupsCount, onFiles }: Props) {
         Перетащите файлы сюда
       </div>
       {groupsCount === 0 && <div style={{ fontSize: 13, color: colors.textDim }}>FB2, EPUB, PDF или ZIP-архив</div>}
-      <input ref={inputRef} type="file" multiple accept=".fb2,.epub,.pdf,.zip" style={{ display: "none" }}
-        onChange={(e) => { if (e.target.files?.length) onFiles(e.target.files); e.target.value = ""; }} />
-    </div>
+      <input
+        type="file"
+        multiple
+        accept=".fb2,.epub,.pdf,.zip"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          if (e.target.files?.length) onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }

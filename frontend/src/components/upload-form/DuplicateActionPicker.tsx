@@ -8,7 +8,7 @@ interface Props {
   onAction: (action: UploadDuplicateAction) => void;
 }
 
-export default function DuplicateActionPicker({ duplicate, duplicateAction, onAction }: Props) {
+export default function DuplicateActionPicker({ duplicate, duplicateAction, onAction }: Readonly<Props>) {
   const buttonStyle = (active: boolean) => ({
     padding: "4px 10px", fontSize: 12, borderRadius: 4,
     border: "1px solid " + colors.accent,

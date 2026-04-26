@@ -7,7 +7,7 @@ interface Props {
   onRemove: () => void;
 }
 
-export default function UploadFileBadge({ file, showRemove, onRemove }: Props) {
+export default function UploadFileBadge({ file, showRemove, onRemove }: Readonly<Props>) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 4, backgroundColor: "rgba(255, 255, 255, 0.06)" }}>
       <span style={{ fontSize: 11, fontWeight: 600, color: colors.accent }}>{file.format}</span>
@@ -24,7 +24,7 @@ export default function UploadFileBadge({ file, showRemove, onRemove }: Props) {
               display: "inline-block",
               animation: "spin 0.8s linear infinite",
             }} />
-            обработка…
+            {" "}обработка…
           </span>
         ) : (
           <span style={{ fontSize: 11, color: colors.textDim }}>{file.progress}%</span>

@@ -511,7 +511,7 @@ describe("UploadForm", () => {
   });
 
   it("error in addFormat: console.warn + alert + saving cleared", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const alertSpy = vi.spyOn(globalThis, "alert").mockImplementation(() => {});
     server.use(
       makeUploadHandler({
         duplicate: { id: 42, title: "Existing", authors: [{ id: 1, name: "X" }] },

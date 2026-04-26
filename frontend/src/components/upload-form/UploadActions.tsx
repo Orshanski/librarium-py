@@ -15,7 +15,7 @@ interface Props {
 export default function UploadActions({
   saved, saving, uploading, readyCount, saveDisabledExtra,
   onSave, onCancel, onResetSaved,
-}: Props) {
+}: Readonly<Props>) {
   const navigate = useNavigate();
   const secondaryButtonStyle = {
     padding: "8px 20px", fontSize: 13, fontFamily: "inherit", borderRadius: 6,
