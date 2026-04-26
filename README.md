@@ -38,7 +38,14 @@ Admins can edit everything — title, authors, series, description, genres, lang
 
 ### Search
 
-Searches across book titles, authors, and series names. Results are grouped by type.
+Fuzzy search across book titles, authors, and series — tolerant to typos, missing letters, word endings, and Russian ё/е. Type a prefix or a misspelling and the right book usually shows up:
+
+- «достоевск» → «Достоевский»
+- «сандерсн» → «Сандерсон»
+- «короли» → «Королей» (declined form)
+- «прошивка» → «Прошивки»
+
+Results are grouped by type (books / authors / series).
 
 ![Search](docs/screenshots/07-search.png)
 

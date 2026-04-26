@@ -12,6 +12,7 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 | Book parsing | lxml (FB2/EPUB), Pillow, PyMuPDF (PDF cover render), pikepdf (PDF linearize) |
 | PDF metadata | Anthropic Claude API (`claude-sonnet-4-6`) with web search + PyMuPDF cover render |
 | Metadata search | Litres.ru, Google Books API |
+| Catalog search | Fuzzy in-process via rapidfuzz, custom `token_min_ratio` scorer (LCS coverage + Levenshtein) |
 | Wire DTO | Pydantic v2 with `alias_generator=to_camel`: snake-case Python ↔ camelCase wire |
 | SQL access | aiosql (`.sql` files in `dal/queries/`) |
 | In-app reader | foliate-js (EPUB/FB2 paginator, PDF via PDF.js fixed-layout) |
@@ -108,7 +109,11 @@ data/
 
 ### Search
 
-LIKE-based substring search on title, author name, series name. No FTS5.
+UI catalog search is **fuzzy**, not LIKE — see «Catalog search» under Backend Structure for the scorer and parameters. SQL side just SELECTs all rows (`search_books_books.sql` / `_authors.sql` / `_series.sql`) and ranking happens in Python via rapidfuzz. There is no FTS5 (dropped in `migrations/002_drop_fts5.sql`).
+
+Two narrow callsites still use LIKE — they are intentionally separate from the UI search and not fuzzy:
+- `find_duplicates_by_title` — upload-time duplicate detection.
+- Litres / Google Books provider matching — when reconciling external metadata to existing books.
 
 ### Indexes
 
@@ -206,7 +211,7 @@ Cover replace goes through `POST /api/books/{id}/cover` (temp upload) + `PUT /ap
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/search?q= | yes | LIKE search (title, author, series) |
+| GET | /api/search?q= | yes | Fuzzy search (rapidfuzz, see «Catalog search» under Backend Structure). Returns `{books, authors, series}`; `limit` (1-100, default 50) caps books, authors/series capped at 10 hardcoded. Empty/whitespace `q` → empty result |
 | POST | /api/upload | admin | Upload book file (FB2/EPUB/PDF/ZIP) → parse metadata → temp storage |
 | POST | /api/books/create | admin | Create book from temp upload (with edited metadata) |
 | POST | /api/books/{id}/add-format | admin | Add format to existing book from temp upload |
@@ -258,7 +263,7 @@ backend/
 │   └── linearize_existing_pdfs.py  # Backfill linearized PDFs
 ├── migrations/         # Manual schema migrations applied on top of schema.sql
 │   ├── 001_user_cascade.sql        # ON DELETE CASCADE for shelves.user_id / user_books.user_id
-│   └── 002_drop_fts5.sql           # Drop FTS5 tables (search uses LIKE)
+│   └── 002_drop_fts5.sql           # Drop FTS5 tables (search now in-process via rapidfuzz)
 └── app/
     ├── main.py         # FastAPI app, SPA fallback, CSRF middleware (X-Requested-With)
     ├── config/         # Paths, JWT (168h TTL, 84h refresh), limits, env (.env via python-dotenv)
@@ -267,7 +272,8 @@ backend/
     │   └── sort.json
     ├── database.py     # SQLite pool (thread-local), WAL, FK on
     ├── auth.py         # JWT create/verify, bcrypt, get_current_user, require_admin, CurrentUser
-    ├── error_handlers.py / exceptions.py / fs_utils.py / logging_utils.py / search.py / ssrf.py
+    ├── error_handlers.py / exceptions.py / fs_utils.py / logging_utils.py / ssrf.py
+    ├── search.py       # Fuzzy search toolkit — see «Catalog search» below
     ├── cover_embedder.py        # Embed cover into FB2/EPUB on export
     ├── pdf_linearize.py         # pikepdf linearize in place (Fast Web View)
     ├── routers/        # 17 route modules + `_entity_crud.py` (CRUD factory) + `_validators.py` (shared validators / `TempIdStr`)
@@ -306,6 +312,38 @@ A handful of DTO modules (`auth.py`, parts of `admin.py`, `user_books.py`, `cove
 - **`user_id` scope vs. dimension filters** (bv0e): `CatalogFilters` TypedDict carries only dimension filters (`authorIds`, `tagIds`, `seriesIds`, `language`). User identity is threaded as an explicit `user_id` parameter through `build_book_where`, `dal.get_books`, and all `list_*_options` functions — never embedded in the filter dict.
 - **Aggregate ordering** (6cww): `json_group_array(... ORDER BY name)` is used inside the aggregate (formal SQLite 3.44+ guarantee) rather than relying on subquery ORDER BY propagation. `DISTINCT` deduplication still happens in a derived table where needed (json_group_array doesn't support DISTINCT).
 - **CSRF**: middleware in `main.py` requires `X-Requested-With: XMLHttpRequest` on all non-GET/HEAD/OPTIONS `/api/*` requests; fetch wrapper sends it automatically.
+
+### Catalog search
+
+UI search at `GET /api/search?q=` is fuzzy and runs entirely in Python — no FTS5, no DB-side ranking. SQL just SELECTs all rows for each entity (`search_books_books.sql` / `_authors.sql` / `_series.sql`) and the scoring happens in-process via [rapidfuzz](https://github.com/maxbachmann/RapidFuzz). At the current scale (a few thousand books) full-table-per-query is fine; performance follow-up (pre-tokenise, early-exit) is tracked as a separate bead.
+
+**Toolkit lives in `app/search.py`:**
+
+- **`search_preprocess(s)`** — applied to both query and haystack values before scoring:
+  - lowercase + non-alphanumeric → space (rapidfuzz `default_process`)
+  - `ё → е`, `Ё → Е` (rapidfuzz doesn't cover this)
+  - whitespace collapse
+- **`_token_match_score(q_token, c_token)`** — score one query token against one choice token, on a 0-100 scale. Takes the **min** of two metrics:
+  - **LCS coverage from query side** — how much of `q_token` appears in-order inside `c_token`. Catches prefixes / typos: «достоевск» → «Достоевский» = 100, «короли» → «Кори» = 67.
+  - **Symmetric Levenshtein ratio** — overall edit-distance similarity. Forces overall closeness so LCS doesn't get too permissive. «короли» vs «космобиолухи» has LCS 83 but ratio 55, so the min (55) correctly rejects.
+- **`token_min_ratio(query, choice)`** — for each token in `query`, find its best `_token_match_score` across choice tokens; return the **min across query tokens**. Every word in the query must find an in-order supersequence in some word of the choice; the weakest match drags the score down. Replaces an earlier `fuzz.WRatio` approach that was too loose on short queries against long concatenated haystacks.
+
+**Parameters:**
+
+- **`SEARCH_SCORE_CUTOFF = 75.0`** — empirical threshold sitting in the gap between noise (~66 and below) and real matches (80-100 for single-word, 85-90 for prefixes). Tune via manual tests on live data.
+- **`AUTHORS_SERIES_LIMIT = 10`** — hardcoded cap for authors/series in search response (wire-compat with SearchPage). Books `limit` is the router parameter (1-100, default 50).
+
+**Per-entity ranking targets** (in `dal.books.search_books`):
+
+- **Books**: scored against concatenated `title + authors + series.name`.
+- **Authors**: scored against `name` only.
+- **Series**: scored against concatenated `name + authors`.
+
+Each entity is scored independently against its own field-set — no cross-entity score dilution from long concatenated haystacks.
+
+**Known limitation** — short prefix against a much longer word fails the ratio floor: «толк» (4 chars) vs «толкиен» (7 chars) has LCS-coverage 100 but ratio ~73, so the min is below the 75 cutoff and the match is dropped. Users need ≥5 chars of a prefix for it to survive against 7+ char words. Cutoff intentionally not lowered to 70 — that would let noise back through (e.g. «мария» → «Марк»).
+
+**Out of scope** — fuzzy is **only** for UI catalog search. Two narrow callsites still use simple LIKE: `find_duplicates_by_title` (upload duplicate detection) and Litres / Google Books provider matching. Migration of those is tracked separately.
 
 ### PDF Linearization
 
