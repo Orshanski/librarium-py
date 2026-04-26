@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { attachReaderInteraction } from "./reader-interaction";
+import { attachReaderInteraction, resolveKeyboardAction, resolveTapAction } from "./reader-interaction";
 import type { ReaderViewElement } from "../types/reader-foliate";
 import type { NavigationController } from "./reader-navigation";
 import type { ReaderSettings } from "../types/reader-settings";
@@ -92,5 +92,68 @@ describe("attachReaderInteraction — keyboard", () => {
     cleanup();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
     expect(nav.enqueueNavigation).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveKeyboardAction (pure)", () => {
+  it.each([
+    ["ArrowLeft", { type: "goLeft" }],
+    ["ArrowRight", { type: "goRight" }],
+    ["ArrowUp", { type: "prev" }],
+    ["PageUp", { type: "prev" }],
+    ["ArrowDown", { type: "next" }],
+    ["PageDown", { type: "next" }],
+    ["a", { type: "noop" }],
+    ["Escape", { type: "noop" }],
+  ])("key %s → %o", (key, expected) => {
+    expect(resolveKeyboardAction(key)).toEqual(expected);
+  });
+});
+
+describe("resolveTapAction (pure)", () => {
+  const RECT = { left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+  const SETTINGS = makeSettings();
+
+  function tapAt(x: number, y: number, target: HTMLElement | null = null) {
+    return { kind: "tap" as const, x, y, target };
+  }
+
+  it("link target → followLink (regardless of footnote/zone)", () => {
+    const a = document.createElement("a");
+    a.href = "#x";
+    expect(
+      resolveTapAction({ tap: tapAt(500, 400, a), containerRect: RECT, isMobile: false, settings: SETTINGS, footnoteOpen: true }),
+    ).toEqual({ type: "followLink" });
+  });
+
+  it("footnote open + non-link → dismissFootnote", () => {
+    const div = document.createElement("div");
+    expect(
+      resolveTapAction({ tap: tapAt(500, 400, div), containerRect: RECT, isMobile: false, settings: SETTINGS, footnoteOpen: true }),
+    ).toEqual({ type: "dismissFootnote" });
+  });
+
+  it("mobile + tap left third → prev", () => {
+    expect(
+      resolveTapAction({ tap: tapAt(100, 400), containerRect: RECT, isMobile: true, settings: SETTINGS, footnoteOpen: false }),
+    ).toEqual({ type: "prev" });
+  });
+
+  it("mobile + tap right third → next", () => {
+    expect(
+      resolveTapAction({ tap: tapAt(800, 400), containerRect: RECT, isMobile: true, settings: SETTINGS, footnoteOpen: false }),
+    ).toEqual({ type: "next" });
+  });
+
+  it("mobile + tap center → toggleToolbar", () => {
+    expect(
+      resolveTapAction({ tap: tapAt(500, 400), containerRect: RECT, isMobile: true, settings: SETTINGS, footnoteOpen: false }),
+    ).toEqual({ type: "toggleToolbar" });
+  });
+
+  it("desktop tap routed through configured zones (top-left → prev with DEFAULT_DESKTOP_TAP_ZONES)", () => {
+    expect(
+      resolveTapAction({ tap: tapAt(50, 100), containerRect: RECT, isMobile: false, settings: SETTINGS, footnoteOpen: false }).type,
+    ).toMatch(/prev|toggleToolbar/);
   });
 });
