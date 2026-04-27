@@ -6,6 +6,7 @@ interface CoverRatingChipTokens {
   padding: string;
   fontSize: number;
   iconFontSize: number;
+  gap?: number;
 }
 
 interface CoverRatingChipProps {
@@ -28,7 +29,7 @@ export default function CoverRatingChip({ rating, tokens }: Readonly<CoverRating
         fontWeight: 500,
         display: "flex",
         alignItems: "center",
-        gap: 3,
+        gap: tokens.gap ?? 3,
       }}
     >
       <span style={{ color: colors.accent, fontSize: tokens.iconFontSize }}>★</span>
