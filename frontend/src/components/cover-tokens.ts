@@ -8,7 +8,7 @@ export const DESKTOP_COVER_FRAME: CoverFrameTokens = {
 };
 
 const MOBILE_FRAME_BASE: Omit<CoverFrameTokens, "radius"> = {
-  sizing: { kind: "aspect", aspectRatio: "2 / 3", objectFit: "cover" },
+  sizing: { kind: "aspect", aspectRatio: "2 / 3", objectFit: "contain" },
   border: "1px solid rgba(255, 255, 255, 0.12)",
   marginBottom: 6,
   backgroundColor: "rgba(255,255,255,0.03)",

@@ -32,7 +32,7 @@ describe("MobileBookCard (composition)", () => {
     const { container } = renderWithRouter(<MobileBookCard book={baseBook} />);
     const img = container.querySelector("img")!;
     expect(img.style.aspectRatio).toMatch(/2\s*\/\s*3/);
-    expect(img.style.objectFit).toBe("cover");
+    expect(img.style.objectFit).toBe("contain");
   });
 
   it("title and authors rendered, series omitted when null", () => {
