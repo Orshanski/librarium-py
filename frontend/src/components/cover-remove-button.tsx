@@ -15,6 +15,14 @@ interface CoverRemoveButtonProps {
   tokens: CoverRemoveButtonTokens;
 }
 
+function handleMouseEnter(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.opacity = "1";
+}
+
+function handleMouseLeave(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.opacity = "0.7";
+}
+
 export default function CoverRemoveButton({ onClick, tokens }: Readonly<CoverRemoveButtonProps>) {
   const startingOpacity = tokens.withHoverFade ? 0.7 : 1;
   const style: CSSProperties = {
@@ -41,14 +49,6 @@ export default function CoverRemoveButton({ onClick, tokens }: Readonly<CoverRem
     e.preventDefault();
     e.stopPropagation();
     onClick();
-  }
-
-  function handleMouseEnter(e: React.MouseEvent<HTMLButtonElement>) {
-    e.currentTarget.style.opacity = "1";
-  }
-
-  function handleMouseLeave(e: React.MouseEvent<HTMLButtonElement>) {
-    e.currentTarget.style.opacity = "0.7";
   }
 
   const hoverProps = tokens.withHoverFade

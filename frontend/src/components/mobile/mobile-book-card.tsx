@@ -10,7 +10,7 @@ import CardTitleMeta from "../card-title-meta";
 export default function MobileBookCard({
   book, onRemove, href, onClick, progressPercent, hasOffline, linkState,
 }: Readonly<BookCardProps>) {
-  const offlineBottom = progressPercent != null ? 7 : 4;
+  const offlineBottom = progressPercent == null ? 4 : 7;
 
   return (
     <Link

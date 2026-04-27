@@ -10,7 +10,7 @@ import CardTitleMeta from "../card-title-meta";
 export default function DesktopBookCard({
   book, onRemove, href, onClick, progressPercent, hasOffline, linkState,
 }: Readonly<BookCardProps>) {
-  const offlineBottom = progressPercent != null ? 7 : 6;
+  const offlineBottom = progressPercent == null ? 6 : 7;
 
   return (
     <Link
