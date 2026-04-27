@@ -1,9 +1,18 @@
 import { Link } from "react-router-dom";
-import { colors } from "../../theme";
 import { BookCardProps } from "../book-card.types";
-import CloudBadge from "../cloud-badge";
+import CoverFrame from "../cover-frame";
+import CoverProgressBar from "../cover-progress-bar";
+import CoverRemoveButton from "../cover-remove-button";
+import CoverRatingStars from "../cover-rating-stars";
+import CoverOfflineBadge from "../cover-offline-badge";
+import CardTitleMeta from "../card-title-meta";
+import { MOBILE_BOOK_CARD_COVER_FRAME, offlineBottomFor } from "../cover-tokens";
 
-export default function MobileBookCard({ book, onRemove, href, onClick, progressPercent, hasOffline, linkState }: Readonly<BookCardProps>) {
+export default function MobileBookCard({
+  book, onRemove, href, onClick, progressPercent, hasOffline, linkState,
+}: Readonly<BookCardProps>) {
+  const offlineBottom = offlineBottomFor(4, progressPercent != null);
+
   return (
     <Link
       to={href ?? `/book/${book.id}`}
@@ -12,121 +21,48 @@ export default function MobileBookCard({ book, onRemove, href, onClick, progress
       style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
       <div style={{ cursor: "pointer", minWidth: 0 }}>
-        <div
-          style={{
-            position: "relative",
-            borderRadius: 6,
-            overflow: "hidden",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            marginBottom: 6,
-            backgroundColor: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <img
-            src={book.coverPath}
-            alt={book.title}
-            loading="lazy"
-            style={{
-              width: "100%",
-              aspectRatio: "2 / 3",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-          {progressPercent != null && (
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, backgroundColor: "rgba(0,0,0,0.4)" }}>
-              <div style={{ height: "100%", width: `${progressPercent}%`, backgroundColor: colors.accent, transition: "width 0.2s" }} />
-            </div>
-          )}
+        <CoverFrame src={book.coverPath} alt={book.title} tokens={MOBILE_BOOK_CARD_COVER_FRAME}>
+          {progressPercent != null && <CoverProgressBar progressPercent={progressPercent} />}
           {onRemove && (
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
-              style={{
-                position: "absolute", top: 0, left: 0, width: 44, height: 44,
-                borderRadius: "50%", border: "none",
-                backgroundColor: "rgba(0,0,0,0.65)", color: "#fff",
-                fontSize: 14, cursor: "pointer", display: "flex",
-                alignItems: "center", justifyContent: "center",
+            <CoverRemoveButton
+              onClick={onRemove}
+              tokens={{
+                size: 44,
+                top: 0,
+                left: 0,
+                fontSize: 14,
+                withHoverFade: false,
+                background: "rgba(0,0,0,0.65)",
                 transform: "translate(-6px, -6px)",
               }}
-            >✕</button>
+            />
           )}
           {book.rating && (
-            <div
-              style={{
-                position: "absolute",
-                top: 4,
-                right: 4,
-                color: colors.accent,
-                fontSize: 7,
-                letterSpacing: 0.3,
-              }}
-            >
-              {"★".repeat(book.rating)}
-            </div>
+            <CoverRatingStars
+              rating={book.rating}
+              tokens={{ top: 4, right: 4, fontSize: 7, letterSpacing: 0.3 }}
+            />
           )}
           {hasOffline && (
-            <div style={{
-              position: "absolute",
-              bottom: progressPercent != null ? 7 : 4,
-              right: 4,
-              width: 24,
-              height: 24,
-              borderRadius: "50%",
-              background: "rgba(249, 190, 3, 0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}>
-              <CloudBadge hasOffline size={14} />
-            </div>
+            <CoverOfflineBadge
+              tokens={{ outerSize: 24, innerSize: 14, bottom: offlineBottom, right: 4 }}
+            />
           )}
-        </div>
+        </CoverFrame>
 
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            color: colors.text,
-            lineHeight: 1.25,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            marginBottom: 2,
+        <CardTitleMeta
+          title={book.title}
+          authors={book.authors}
+          series={book.series ?? undefined}
+          seriesNumber={book.seriesNumber}
+          tokens={{
+            titleSize: 12,
+            titleLineHeight: 1.25,
+            authorsSize: 11,
+            seriesSize: 10,
+            seriesEllipsis: true,
           }}
-        >
-          {book.title}
-        </div>
-
-        <div
-          style={{
-            fontSize: 11,
-            color: colors.textDim,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {book.authors.join(", ")}
-        </div>
-
-        {book.series && (
-          <div
-            style={{
-              fontSize: 10,
-              color: colors.textDim,
-              marginTop: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {book.series}
-            {book.seriesNumber ? ` (${book.seriesNumber})` : ""}
-          </div>
-        )}
+        />
       </div>
     </Link>
   );

@@ -1,13 +1,25 @@
+import type { ReactNode } from "react";
 import { useIsMobile } from "../responsive";
-import DesktopBookGrid from "./desktop/desktop-book-grid";
-import MobileBookGrid from "./mobile/mobile-book-grid";
+import { BookGridTokens, DESKTOP_BOOK_GRID, MOBILE_BOOK_GRID } from "./book-layout-tokens";
 
-export default function BookGrid({ children }: Readonly<{ children: React.ReactNode }>) {
-  const isMobile = useIsMobile();
+function pickGridTokens(isMobile: boolean): BookGridTokens {
+  if (isMobile) return MOBILE_BOOK_GRID;
+  return DESKTOP_BOOK_GRID;
+}
 
-  if (isMobile) {
-    return <MobileBookGrid>{children}</MobileBookGrid>;
-  }
+export default function BookGrid({ children }: Readonly<{ children: ReactNode }>) {
+  const tokens = pickGridTokens(useIsMobile());
 
-  return <DesktopBookGrid>{children}</DesktopBookGrid>;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: tokens.columns,
+        gap: tokens.gap,
+        alignItems: tokens.alignItems,
+      }}
+    >
+      {children}
+    </div>
+  );
 }

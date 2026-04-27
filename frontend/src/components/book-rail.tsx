@@ -1,13 +1,28 @@
+import type { ReactNode } from "react";
 import { useIsMobile } from "../responsive";
-import DesktopBookRail from "./desktop/desktop-book-rail";
-import MobileBookRail from "./mobile/mobile-book-rail";
+import { BookRailTokens, DESKTOP_BOOK_RAIL, MOBILE_BOOK_RAIL } from "./book-layout-tokens";
 
-export default function BookRail({ children }: Readonly<{ children: React.ReactNode }>) {
-  const isMobile = useIsMobile();
+function pickRailTokens(isMobile: boolean): BookRailTokens {
+  if (isMobile) return MOBILE_BOOK_RAIL;
+  return DESKTOP_BOOK_RAIL;
+}
 
-  if (isMobile) {
-    return <MobileBookRail>{children}</MobileBookRail>;
-  }
+export default function BookRail({ children }: Readonly<{ children: ReactNode }>) {
+  const tokens = pickRailTokens(useIsMobile());
 
-  return <DesktopBookRail>{children}</DesktopBookRail>;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridAutoFlow: "column",
+        gridAutoColumns: tokens.itemWidth,
+        gap: tokens.gap,
+        overflowX: "auto",
+        paddingBottom: 8,
+        justifyContent: "start",
+      }}
+    >
+      {children}
+    </div>
+  );
 }
