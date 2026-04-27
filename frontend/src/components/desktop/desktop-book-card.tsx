@@ -6,11 +6,12 @@ import CoverRemoveButton from "../cover-remove-button";
 import CoverRatingStars from "../cover-rating-stars";
 import CoverOfflineBadge from "../cover-offline-badge";
 import CardTitleMeta from "../card-title-meta";
+import { DESKTOP_COVER_FRAME, offlineBottomFor } from "../cover-tokens";
 
 export default function DesktopBookCard({
   book, onRemove, href, onClick, progressPercent, hasOffline, linkState,
 }: Readonly<BookCardProps>) {
-  const offlineBottom = progressPercent == null ? 6 : 7;
+  const offlineBottom = offlineBottomFor(6, progressPercent != null);
 
   return (
     <Link
@@ -20,16 +21,7 @@ export default function DesktopBookCard({
       style={{ textDecoration: "none", color: "inherit" }}
     >
       <div style={{ cursor: "pointer" }}>
-        <CoverFrame
-          src={book.coverPath}
-          alt={book.title}
-          tokens={{
-            sizing: { kind: "fixed", height: 230, width: "auto", maxWidth: "100%" },
-            radius: 4,
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            marginBottom: 8,
-          }}
-        >
+        <CoverFrame src={book.coverPath} alt={book.title} tokens={DESKTOP_COVER_FRAME}>
           {progressPercent != null && <CoverProgressBar progressPercent={progressPercent} />}
           {onRemove && (
             <CoverRemoveButton
@@ -38,10 +30,7 @@ export default function DesktopBookCard({
             />
           )}
           {book.rating && (
-            <CoverRatingStars
-              rating={book.rating}
-              tokens={{ top: 4, right: 4, fontSize: 8 }}
-            />
+            <CoverRatingStars rating={book.rating} tokens={{ top: 4, right: 4, fontSize: 8 }} />
           )}
           {hasOffline && (
             <CoverOfflineBadge
@@ -55,13 +44,7 @@ export default function DesktopBookCard({
           authors={book.authors}
           series={book.series ?? undefined}
           seriesNumber={book.seriesNumber}
-          tokens={{
-            titleSize: 13,
-            titleLineHeight: 1.3,
-            authorsSize: 12,
-            seriesSize: 11,
-            seriesEllipsis: false,
-          }}
+          tokens={{ titleSize: 13, titleLineHeight: 1.3, authorsSize: 12, seriesSize: 11 }}
         />
       </div>
     </Link>

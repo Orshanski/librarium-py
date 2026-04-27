@@ -1,15 +1,17 @@
 import type { CSSProperties, ReactNode } from "react";
 
+export type AspectRatio = `${number} / ${number}`;
+
 export type CoverSizing =
   | { kind: "fixed"; height: number; width?: number | "auto"; maxWidth?: string }
-  | { kind: "aspect"; aspectRatio: string; objectFit: "cover" | "contain" };
+  | { kind: "aspect"; aspectRatio: AspectRatio; objectFit: "cover" | "contain" };
 
 export interface CoverFrameTokens {
   sizing: CoverSizing;
   radius: number;
   border: string;
   marginBottom: number;
-  background?: string;
+  backgroundColor?: string;
 }
 
 interface CoverFrameProps {
@@ -45,7 +47,7 @@ export default function CoverFrame({ src, alt, tokens, children }: Readonly<Cove
         overflow: "hidden",
         border: tokens.border,
         marginBottom: tokens.marginBottom,
-        backgroundColor: tokens.background,
+        backgroundColor: tokens.backgroundColor,
       }}
     >
       <img src={src} alt={alt} loading="lazy" style={imgStyleFromSizing(tokens.sizing)} />

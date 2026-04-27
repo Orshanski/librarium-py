@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 
 interface CoverRemoveButtonTokens {
   size: number;
-  top: number;
-  left: number;
+  top: number | string;
+  left: number | string;
   fontSize: number;
   withHoverFade: boolean;
   transform?: string;
@@ -15,16 +15,33 @@ interface CoverRemoveButtonProps {
   tokens: CoverRemoveButtonTokens;
 }
 
-function handleMouseEnter(e: React.MouseEvent<HTMLButtonElement>) {
+function handleMouseEnter(e: MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.opacity = "1";
 }
 
-function handleMouseLeave(e: React.MouseEvent<HTMLButtonElement>) {
+function handleMouseLeave(e: MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.opacity = "0.7";
 }
 
+interface HoverStyling {
+  startingOpacity: number;
+  transition?: string;
+  hoverProps: { onMouseEnter?: typeof handleMouseEnter; onMouseLeave?: typeof handleMouseLeave };
+}
+
+function getHoverStyling(withFade: boolean): HoverStyling {
+  if (withFade) {
+    return {
+      startingOpacity: 0.7,
+      transition: "opacity 0.15s",
+      hoverProps: { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave },
+    };
+  }
+  return { startingOpacity: 1, hoverProps: {} };
+}
+
 export default function CoverRemoveButton({ onClick, tokens }: Readonly<CoverRemoveButtonProps>) {
-  const startingOpacity = tokens.withHoverFade ? 0.7 : 1;
+  const hoverStyling = getHoverStyling(tokens.withHoverFade);
   const style: CSSProperties = {
     position: "absolute",
     top: tokens.top,
@@ -40,23 +57,19 @@ export default function CoverRemoveButton({ onClick, tokens }: Readonly<CoverRem
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    opacity: startingOpacity,
-    transition: tokens.withHoverFade ? "opacity 0.15s" : undefined,
+    opacity: hoverStyling.startingOpacity,
+    transition: hoverStyling.transition,
     transform: tokens.transform,
   };
 
-  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+  function handleClick(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
     onClick();
   }
 
-  const hoverProps = tokens.withHoverFade
-    ? { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave }
-    : {};
-
   return (
-    <button type="button" onClick={handleClick} style={style} {...hoverProps}>
+    <button type="button" onClick={handleClick} style={style} {...hoverStyling.hoverProps}>
       ✕
     </button>
   );

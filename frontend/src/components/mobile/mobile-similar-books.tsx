@@ -2,6 +2,7 @@ import { SimilarBooksViewProps } from "../similar-books.types";
 import CoverFrame from "../cover-frame";
 import CoverRatingChip from "../cover-rating-chip";
 import CardTitleMeta from "../card-title-meta";
+import { MOBILE_SIMILAR_COVER_FRAME } from "../cover-tokens";
 
 const externalIcon = (
   <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2">
@@ -26,17 +27,7 @@ export default function MobileSimilarBooks({ books }: Readonly<SimilarBooksViewP
           rel="noopener noreferrer"
           style={{ textDecoration: "none", color: "inherit", display: "block" }}
         >
-          <CoverFrame
-            src={book.coverUrl}
-            alt={book.title}
-            tokens={{
-              sizing: { kind: "aspect", aspectRatio: "2 / 3", objectFit: "cover" },
-              radius: 4,
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              marginBottom: 6,
-              background: "rgba(255,255,255,0.03)",
-            }}
-          >
+          <CoverFrame src={book.coverUrl} alt={book.title} tokens={MOBILE_SIMILAR_COVER_FRAME}>
             <CoverRatingChip
               rating={book.rating}
               tokens={{ top: 4, right: 4, padding: "2px 5px", fontSize: 10, iconFontSize: 9, gap: 2 }}

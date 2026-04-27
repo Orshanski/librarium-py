@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import { useIsMobile } from "../responsive";
-import { DESKTOP_BOOK_GRID, MOBILE_BOOK_GRID } from "./book-layout-tokens";
+import { BookGridTokens, DESKTOP_BOOK_GRID, MOBILE_BOOK_GRID } from "./book-layout-tokens";
+
+function pickGridTokens(isMobile: boolean): BookGridTokens {
+  if (isMobile) return MOBILE_BOOK_GRID;
+  return DESKTOP_BOOK_GRID;
+}
 
 export default function BookGrid({ children }: Readonly<{ children: ReactNode }>) {
-  const isMobile = useIsMobile();
-  const tokens = isMobile ? MOBILE_BOOK_GRID : DESKTOP_BOOK_GRID;
+  const tokens = pickGridTokens(useIsMobile());
 
   return (
     <div

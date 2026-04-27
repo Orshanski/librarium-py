@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import { useIsMobile } from "../responsive";
-import { DESKTOP_BOOK_RAIL, MOBILE_BOOK_RAIL } from "./book-layout-tokens";
+import { BookRailTokens, DESKTOP_BOOK_RAIL, MOBILE_BOOK_RAIL } from "./book-layout-tokens";
+
+function pickRailTokens(isMobile: boolean): BookRailTokens {
+  if (isMobile) return MOBILE_BOOK_RAIL;
+  return DESKTOP_BOOK_RAIL;
+}
 
 export default function BookRail({ children }: Readonly<{ children: ReactNode }>) {
-  const isMobile = useIsMobile();
-  const tokens = isMobile ? MOBILE_BOOK_RAIL : DESKTOP_BOOK_RAIL;
+  const tokens = pickRailTokens(useIsMobile());
 
   return (
     <div

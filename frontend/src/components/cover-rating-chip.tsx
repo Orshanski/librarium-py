@@ -1,8 +1,8 @@
 import { colors } from "../theme";
 
 interface CoverRatingChipTokens {
-  top: number;
-  right: number;
+  top: number | string;
+  right: number | string;
   padding: string;
   fontSize: number;
   iconFontSize: number;

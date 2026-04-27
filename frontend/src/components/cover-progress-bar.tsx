@@ -5,6 +5,7 @@ interface CoverProgressBarProps {
 }
 
 export default function CoverProgressBar({ progressPercent }: Readonly<CoverProgressBarProps>) {
+  const clamped = Math.max(0, Math.min(100, progressPercent));
   return (
     <div
       style={{
@@ -19,7 +20,7 @@ export default function CoverProgressBar({ progressPercent }: Readonly<CoverProg
       <div
         style={{
           height: "100%",
-          width: `${progressPercent}%`,
+          width: `${clamped}%`,
           backgroundColor: colors.accent,
           transition: "width 0.2s",
         }}

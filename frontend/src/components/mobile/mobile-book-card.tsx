@@ -6,11 +6,12 @@ import CoverRemoveButton from "../cover-remove-button";
 import CoverRatingStars from "../cover-rating-stars";
 import CoverOfflineBadge from "../cover-offline-badge";
 import CardTitleMeta from "../card-title-meta";
+import { MOBILE_BOOK_CARD_COVER_FRAME, offlineBottomFor } from "../cover-tokens";
 
 export default function MobileBookCard({
   book, onRemove, href, onClick, progressPercent, hasOffline, linkState,
 }: Readonly<BookCardProps>) {
-  const offlineBottom = progressPercent == null ? 4 : 7;
+  const offlineBottom = offlineBottomFor(4, progressPercent != null);
 
   return (
     <Link
@@ -20,17 +21,7 @@ export default function MobileBookCard({
       style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
       <div style={{ cursor: "pointer", minWidth: 0 }}>
-        <CoverFrame
-          src={book.coverPath}
-          alt={book.title}
-          tokens={{
-            sizing: { kind: "aspect", aspectRatio: "2 / 3", objectFit: "cover" },
-            radius: 6,
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            marginBottom: 6,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
+        <CoverFrame src={book.coverPath} alt={book.title} tokens={MOBILE_BOOK_CARD_COVER_FRAME}>
           {progressPercent != null && <CoverProgressBar progressPercent={progressPercent} />}
           {onRemove && (
             <CoverRemoveButton

@@ -1,8 +1,8 @@
 import { colors } from "../theme";
 
 interface CoverRatingStarsTokens {
-  top: number;
-  right: number;
+  top: number | string;
+  right: number | string;
   fontSize: number;
   letterSpacing?: number;
 }
@@ -13,6 +13,7 @@ interface CoverRatingStarsProps {
 }
 
 export default function CoverRatingStars({ rating, tokens }: Readonly<CoverRatingStarsProps>) {
+  const safeRating = Math.max(0, Math.floor(rating));
   return (
     <div
       style={{
@@ -24,7 +25,7 @@ export default function CoverRatingStars({ rating, tokens }: Readonly<CoverRatin
         letterSpacing: tokens.letterSpacing,
       }}
     >
-      {"★".repeat(rating)}
+      {"★".repeat(safeRating)}
     </div>
   );
 }

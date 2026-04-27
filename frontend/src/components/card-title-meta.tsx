@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { colors } from "../theme";
 
 interface CardTitleMetaTokens {
@@ -6,6 +7,9 @@ interface CardTitleMetaTokens {
   authorsSize: number;
   seriesSize?: number;
   seriesEllipsis?: boolean;
+  titleClamp?: number;
+  titleFontWeight?: number;
+  titleMarginBottom?: number;
 }
 
 interface CardTitleMetaProps {
@@ -16,6 +20,16 @@ interface CardTitleMetaProps {
   tokens: CardTitleMetaTokens;
 }
 
+function ellipsisStyle(enabled?: boolean): CSSProperties {
+  if (enabled) return { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  return {};
+}
+
+function formatSeriesSuffix(seriesNumber: number | null | undefined): string {
+  if (!seriesNumber) return "";
+  return ` (${seriesNumber})`;
+}
+
 export default function CardTitleMeta({
   title,
   authors,
@@ -23,48 +37,41 @@ export default function CardTitleMeta({
   seriesNumber,
   tokens,
 }: Readonly<CardTitleMetaProps>) {
+  const titleStyle: CSSProperties = {
+    fontSize: tokens.titleSize,
+    fontWeight: tokens.titleFontWeight ?? 500,
+    color: colors.text,
+    lineHeight: tokens.titleLineHeight,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: tokens.titleClamp ?? 2,
+    WebkitBoxOrient: "vertical",
+    marginBottom: tokens.titleMarginBottom ?? 2,
+  };
+
+  const authorsStyle: CSSProperties = {
+    fontSize: tokens.authorsSize,
+    color: colors.textDim,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
+
+  const seriesBaseStyle: CSSProperties = {
+    fontSize: tokens.seriesSize ?? tokens.authorsSize,
+    color: colors.textDim,
+    marginTop: 1,
+  };
+
   return (
     <>
-      <div
-        style={{
-          fontSize: tokens.titleSize,
-          fontWeight: 500,
-          color: colors.text,
-          lineHeight: tokens.titleLineHeight,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          marginBottom: 2,
-        }}
-      >
-        {title}
-      </div>
-      <div
-        style={{
-          fontSize: tokens.authorsSize,
-          color: colors.textDim,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {authors.join(", ")}
-      </div>
+      <div style={titleStyle}>{title}</div>
+      <div style={authorsStyle}>{authors.join(", ")}</div>
       {series && (
-        <div
-          style={{
-            fontSize: tokens.seriesSize,
-            color: colors.textDim,
-            marginTop: 1,
-            overflow: tokens.seriesEllipsis ? "hidden" : undefined,
-            textOverflow: tokens.seriesEllipsis ? "ellipsis" : undefined,
-            whiteSpace: tokens.seriesEllipsis ? "nowrap" : undefined,
-          }}
-        >
+        <div style={{ ...seriesBaseStyle, ...ellipsisStyle(tokens.seriesEllipsis) }}>
           {series}
-          {seriesNumber ? ` (${seriesNumber})` : ""}
+          {formatSeriesSuffix(seriesNumber)}
         </div>
       )}
     </>

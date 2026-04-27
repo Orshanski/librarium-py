@@ -3,8 +3,8 @@ import CloudBadge from "./cloud-badge";
 interface CoverOfflineBadgeTokens {
   outerSize: number;
   innerSize: number;
-  bottom: number;
-  right: number;
+  bottom: number | string;
+  right: number | string;
 }
 
 interface CoverOfflineBadgeProps {
