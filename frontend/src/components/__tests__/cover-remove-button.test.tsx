@@ -8,18 +8,21 @@ describe("CoverRemoveButton", () => {
 
   it("calls onClick with preventDefault and stopPropagation", () => {
     const onClick = vi.fn();
-    const onParentClick = vi.fn();
-    const { container } = render(
-      <div onClick={onParentClick}>
-        <CoverRemoveButton onClick={onClick} tokens={{ ...baseTokens, withHoverFade: true }} />
-      </div>,
-    );
-    const btn = container.querySelector("button")!;
-    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
-    btn.dispatchEvent(event);
-    expect(onClick).toHaveBeenCalledTimes(1);
-    expect(onParentClick).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(true);
+    const onBodyClick = vi.fn();
+    document.body.addEventListener("click", onBodyClick);
+    try {
+      const { container } = render(
+        <CoverRemoveButton onClick={onClick} tokens={{ ...baseTokens, withHoverFade: true }} />,
+      );
+      const btn = container.querySelector("button")!;
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      btn.dispatchEvent(event);
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onBodyClick).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(true);
+    } finally {
+      document.body.removeEventListener("click", onBodyClick);
+    }
   });
 
   it("withHoverFade=true → starting opacity 0.7; withHoverFade=false → opacity 1", () => {

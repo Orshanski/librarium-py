@@ -46,7 +46,7 @@ describe("MobileBookCard (composition)", () => {
       <MobileBookCard book={baseBook} hasOffline progressPercent={50} />,
     );
     expect(container.querySelector("svg")).not.toBeNull();
-    const offlineDiv = getByTestId("cover-offline-badge") as HTMLElement;
+    const offlineDiv = getByTestId("cover-offline-badge");
     expect(offlineDiv.style.bottom).toBe("7px");
   });
 
