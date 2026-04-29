@@ -14,10 +14,6 @@ daemon.*
 # Interactions log (runtime, not versioned)
 interactions.jsonl
 
-# Issues log — beads sync'ится через dolt (bd dolt pull/push),
-# jsonl трогается каждой beads-командой и постоянно висит dirty в git status.
-issues.jsonl
-
 # Push state (runtime, per-machine)
 push-state.json
 
