@@ -3,11 +3,29 @@ import { colors, fonts } from "../../theme";
 import { sanitizeHtml } from "../../utils/sanitize-html";
 import { setReadingFlag } from "../../utils/readerFlag";
 import BookCard from "../book-card";
-import BookRail from "../book-rail";
 import BookStarRating from "../book-star-rating";
 import CloudBadge from "../cloud-badge";
 import { BookDetailViewProps } from "../book-detail.types";
 import ShelfDropdownMenu from "../shelf-dropdown-menu";
+import {
+  bookToBookCardCommonProps,
+  SERIES_RAIL_BORDER_ACCENT,
+  SERIES_RAIL_BORDER_PLACEHOLDER,
+  SERIES_RAIL_COVER_WIDTH,
+  SERIES_RAIL_GAP_PX,
+  SERIES_RAIL_OPACITY_ACTIVE,
+  SERIES_RAIL_OPACITY_INACTIVE,
+} from "../book-card-tokens";
+
+function pickOpacity(isCurrent: boolean): number {
+  if (isCurrent) return SERIES_RAIL_OPACITY_ACTIVE;
+  return SERIES_RAIL_OPACITY_INACTIVE;
+}
+
+function pickBorder(isCurrent: boolean): string {
+  if (isCurrent) return SERIES_RAIL_BORDER_ACCENT;
+  return SERIES_RAIL_BORDER_PLACEHOLDER;
+}
 
 const primaryButtonStyle: React.CSSProperties = {
   display: "flex",
@@ -44,7 +62,6 @@ export default function MobileBookDetail({
   onToggleOffline,
   showOfflineToggle,
 }: BookDetailViewProps) {
-  const otherSeriesBooks = seriesBooks.filter((item) => item.id !== book.id);
   const bookContext = {
     origin: {
       type: "book" as const,
@@ -332,7 +349,7 @@ export default function MobileBookDetail({
         )}
       </div>
 
-      {otherSeriesBooks.length > 0 && (
+      {seriesBooks.length > 1 && (
         <div style={{ marginTop: 24 }}>
           <h3
             style={{
@@ -345,15 +362,18 @@ export default function MobileBookDetail({
           >
             Другие книги серии «{book.series}»
           </h3>
-          <BookRail>
-            {otherSeriesBooks.map((seriesBook) => (
+          <div style={{ display: "flex", gap: SERIES_RAIL_GAP_PX, overflowX: "auto", paddingBottom: 8 }}>
+            {seriesBooks.map((seriesBook) => (
               <BookCard
                 key={seriesBook.id}
-                book={seriesBook}
+                {...bookToBookCardCommonProps(seriesBook)}
+                width={SERIES_RAIL_COVER_WIDTH}
+                opacity={pickOpacity(seriesBook.id === book.id)}
+                border={pickBorder(seriesBook.id === book.id)}
                 linkState={{ origin: bookOrigin }}
               />
             ))}
-          </BookRail>
+          </div>
         </div>
       )}
     </div>
