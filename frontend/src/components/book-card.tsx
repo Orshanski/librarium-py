@@ -34,7 +34,7 @@ import {
 const LINK_WRAPPER_STYLE: CSSProperties = {
   textDecoration: "none",
   color: "inherit",
-  display: "block",
+  display: "inline-block",
 };
 
 const INNER_DIV_STYLE: CSSProperties = {

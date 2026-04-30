@@ -364,14 +364,15 @@ export default function MobileBookDetail({
           </h3>
           <div style={{ display: "flex", gap: SERIES_RAIL_GAP_PX, overflowX: "auto", paddingBottom: 8 }}>
             {seriesBooks.map((seriesBook) => (
-              <BookCard
-                key={seriesBook.id}
-                {...bookToBookCardCommonProps(seriesBook)}
-                width={SERIES_RAIL_COVER_WIDTH}
-                opacity={pickOpacity(seriesBook.id === book.id)}
-                border={pickBorder(seriesBook.id === book.id)}
-                linkState={{ origin: bookOrigin }}
-              />
+              <div key={seriesBook.id} style={{ width: SERIES_RAIL_COVER_WIDTH, flexShrink: 0 }}>
+                <BookCard
+                  {...bookToBookCardCommonProps(seriesBook)}
+                  width={SERIES_RAIL_COVER_WIDTH}
+                  opacity={pickOpacity(seriesBook.id === book.id)}
+                  border={pickBorder(seriesBook.id === book.id)}
+                  linkState={{ origin: bookOrigin }}
+                />
+              </div>
             ))}
           </div>
         </div>

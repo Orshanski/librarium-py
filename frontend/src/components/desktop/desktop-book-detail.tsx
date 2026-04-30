@@ -350,14 +350,15 @@ export default function DesktopBookDetail({
           </h3>
           <div style={{ display: "flex", gap: SERIES_RAIL_GAP_PX, overflowX: "auto", paddingBottom: 8 }}>
             {seriesBooks.map((sb) => (
-              <BookCard
-                key={sb.id}
-                {...bookToBookCardCommonProps(sb)}
-                width={SERIES_RAIL_COVER_WIDTH}
-                opacity={pickOpacity(sb.id === book.id)}
-                border={pickBorder(sb.id === book.id)}
-                linkState={{ origin: bookOrigin }}
-              />
+              <div key={sb.id} style={{ width: SERIES_RAIL_COVER_WIDTH, flexShrink: 0 }}>
+                <BookCard
+                  {...bookToBookCardCommonProps(sb)}
+                  width={SERIES_RAIL_COVER_WIDTH}
+                  opacity={pickOpacity(sb.id === book.id)}
+                  border={pickBorder(sb.id === book.id)}
+                  linkState={{ origin: bookOrigin }}
+                />
+              </div>
             ))}
           </div>
         </div>

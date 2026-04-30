@@ -4,7 +4,7 @@ exports[`BookCard — golden baseline > desktop catalog card: rating + progress 
 <a
   data-discover="true"
   href="/book/7"
-  style="text-decoration: none; color: inherit; display: block;"
+  style="text-decoration: none; color: inherit; display: inline-block;"
 >
   <div
     style="cursor: pointer; min-width: 0px;"
