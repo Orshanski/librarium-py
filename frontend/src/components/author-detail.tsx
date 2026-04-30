@@ -1,7 +1,9 @@
 import { Book } from "../types";
 import { colors, fonts } from "../theme";
 import BookCard from "./book-card";
-import BookRail from "./book-rail";
+import BookGrid from "./book-grid";
+import { bookToBookCardCommonProps } from "./book-card-tokens";
+import { useBookCardWidth } from "./use-book-card-width";
 import type { ListOrigin } from "./breadcrumb-origin";
 
 export default function AuthorDetail({
@@ -13,6 +15,8 @@ export default function AuthorDetail({
   books: Book[];
   bookLinkState: { origin: ListOrigin };
 }>) {
+  const cardWidth = useBookCardWidth();
+
   // Group books by series
   const seriesMap = new Map<string, Book[]>();
   const standalone: Book[] = [];
@@ -48,11 +52,16 @@ export default function AuthorDetail({
           >
             {seriesName}
           </h3>
-          <BookRail>
+          <BookGrid>
             {seriesBooks.map((book) => (
-              <BookCard key={book.id} book={book} linkState={bookLinkState} />
+              <BookCard
+                key={book.id}
+                {...bookToBookCardCommonProps(book)}
+                width={cardWidth}
+                linkState={bookLinkState}
+              />
             ))}
-          </BookRail>
+          </BookGrid>
         </div>
       ))}
 
@@ -70,11 +79,16 @@ export default function AuthorDetail({
           >
             Вне серий
           </h3>
-          <BookRail>
+          <BookGrid>
             {standalone.map((book) => (
-              <BookCard key={book.id} book={book} linkState={bookLinkState} />
+              <BookCard
+                key={book.id}
+                {...bookToBookCardCommonProps(book)}
+                width={cardWidth}
+                linkState={bookLinkState}
+              />
             ))}
-          </BookRail>
+          </BookGrid>
         </div>
       )}
     </div>
