@@ -31,7 +31,7 @@ describe("useOfflineBooks", () => {
     expect(result.current.books.map((b) => b.bookId)).toEqual([2, 1]);
   });
 
-  it("rounds fraction>0 progress to percent and skips books with no/zero progress", async () => {
+  it("rounds progress to percent; books with zero progress kept (signal 'opened'); skips only when getProgress returns null", async () => {
     mockedGetOfflineBooks.mockResolvedValue([
       { bookId: 1, title: "Read 30%", lastAccessedAt: 0 },
       { bookId: 2, title: "Untouched", lastAccessedAt: 0 },
@@ -47,7 +47,9 @@ describe("useOfflineBooks", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.progressMap.get(1)).toBe(31);
     expect(result.current.progressMap.has(2)).toBe(false);
-    expect(result.current.progressMap.has(3)).toBe(false);
+    // Решение E (design-doc 2026-04-30-bookcard-extraction): прогресс=0 включается в map
+    // как сигнал «книга открывалась», тонкая полоска нулевой ширины рисуется на карточке.
+    expect(result.current.progressMap.get(3)).toBe(0);
   });
 
   it("survives a getProgress rejection per book — silently skips that entry", async () => {
