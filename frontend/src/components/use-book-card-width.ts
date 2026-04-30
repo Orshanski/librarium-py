@@ -17,18 +17,18 @@ import { DESKTOP_BOOK_GRID_COLUMN_WIDTH_PX } from "./book-layout-tokens";
 export function useBookCardWidth(): number {
   const isMobile = useIsMobile();
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    return window.innerWidth;
+    if (typeof globalThis.window === "undefined") return 0;
+    return globalThis.window.innerWidth;
   });
 
   useEffect(() => {
     if (!isMobile) return;
-    setViewportWidth(window.innerWidth);
+    setViewportWidth(globalThis.window.innerWidth);
     function onResize() {
-      setViewportWidth(window.innerWidth);
+      setViewportWidth(globalThis.window.innerWidth);
     }
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    globalThis.window.addEventListener("resize", onResize);
+    return () => globalThis.window.removeEventListener("resize", onResize);
   }, [isMobile]);
 
   if (isMobile) return computeMobileBookCardWidth(viewportWidth);

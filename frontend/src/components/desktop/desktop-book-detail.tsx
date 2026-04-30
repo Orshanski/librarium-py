@@ -62,7 +62,7 @@ export default function DesktopBookDetail({
   offlineLoading,
   onToggleOffline,
   showOfflineToggle,
-}: BookDetailViewProps) {
+}: Readonly<BookDetailViewProps>) {
   const bookContext = {
     origin: {
       type: "book" as const,
