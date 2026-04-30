@@ -66,4 +66,15 @@ describe("DesktopBookCard (composition)", () => {
     const { container } = renderWithRouter(<DesktopBookCard book={noRating} />);
     expect(container.textContent).not.toContain("★");
   });
+
+  // Golden baseline для последующего рефакторинга в единый BookCard.
+  // Снимок фиксирует текущий DOM каталожной карточки на десктопе; после переписывания
+  // BookCard и миграции всех каллеров рендер должен совпадать (с поправками
+  // на единые механические свойства layout — display:block на Link, minWidth:0 на inner div).
+  it("golden baseline snapshot — full props (rating, progress, hasOffline)", () => {
+    const { container } = renderWithRouter(
+      <DesktopBookCard book={baseBook} progressPercent={42} hasOffline />,
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
 });
