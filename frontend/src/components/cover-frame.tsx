@@ -1,17 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
-
-export type AspectRatio = `${number} / ${number}`;
-
-export type CoverSizing =
-  | { kind: "fixed"; height: number; width?: number | "auto"; maxWidth?: string }
-  | { kind: "aspect"; aspectRatio: AspectRatio; objectFit: "cover" | "contain" };
+import { COVER_FRAME_ASPECT_RATIO } from "./book-card-tokens";
 
 export interface CoverFrameTokens {
-  sizing: CoverSizing;
+  width: number;
   radius: number;
   border: string;
   marginBottom: number;
-  backgroundColor?: string;
+  opacity?: number;
 }
 
 interface CoverFrameProps {
@@ -21,36 +16,29 @@ interface CoverFrameProps {
   children?: ReactNode;
 }
 
-function imgStyleFromSizing(sizing: CoverSizing): CSSProperties {
-  if (sizing.kind === "fixed") {
-    return {
-      width: sizing.width ?? "auto",
-      height: sizing.height,
-      maxWidth: sizing.maxWidth,
-      display: "block",
-    };
-  }
-  return {
-    width: "100%",
-    aspectRatio: sizing.aspectRatio,
-    objectFit: sizing.objectFit,
-    display: "block",
-  };
-}
+const IMG_STYLE: CSSProperties = {
+  width: "auto",
+  height: "100%",
+  maxWidth: "100%",
+  display: "block",
+};
 
 export default function CoverFrame({ src, alt, tokens, children }: Readonly<CoverFrameProps>) {
+  const frameStyle: CSSProperties = {
+    position: "relative",
+    boxSizing: "border-box",
+    width: tokens.width,
+    aspectRatio: COVER_FRAME_ASPECT_RATIO,
+    borderRadius: tokens.radius,
+    overflow: "hidden",
+    border: tokens.border,
+    marginBottom: tokens.marginBottom,
+    opacity: tokens.opacity,
+  };
+
   return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: tokens.radius,
-        overflow: "hidden",
-        border: tokens.border,
-        marginBottom: tokens.marginBottom,
-        backgroundColor: tokens.backgroundColor,
-      }}
-    >
-      <img src={src} alt={alt} loading="lazy" style={imgStyleFromSizing(tokens.sizing)} />
+    <div style={frameStyle}>
+      <img src={src} alt={alt} loading="lazy" style={IMG_STYLE} />
       {children}
     </div>
   );

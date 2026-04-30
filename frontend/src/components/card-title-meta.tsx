@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { colors } from "../theme";
 
-interface CardTitleMetaTokens {
+export interface CardTitleMetaTokens {
   titleSize: number;
   titleLineHeight: number;
   authorsSize: number;
