@@ -3,6 +3,8 @@ import { useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import { bookToBookCardCommonProps } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { useScrollRestore } from "../hooks/useScrollRestore";
@@ -65,6 +67,7 @@ function SearchResults() {
   const { books = [], authors = [], series = [] } = results || {};
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
+  const cardWidth = useBookCardWidth();
 
   if (!q.trim()) {
     return <div style={{ fontSize: 14, color: colors.textDim, padding: 24 }}>Введите запрос в поле поиска</div>;
@@ -162,14 +165,18 @@ function SearchResults() {
         <div>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Книги</h3>
           <BookGrid>
-            {books.map((b) => (
-              <BookCard
-                key={b.id}
-                book={searchHitToBook(b)}
-                hasOffline={offlineBookIds.has(b.id)}
-                linkState={searchLinkState}
-              />
-            ))}
+            {books.map((b) => {
+              const book = searchHitToBook(b);
+              return (
+                <BookCard
+                  key={book.id}
+                  {...bookToBookCardCommonProps(book)}
+                  width={cardWidth}
+                  hasOffline={offlineBookIds.has(book.id)}
+                  linkState={searchLinkState}
+                />
+              );
+            })}
           </BookGrid>
         </div>
       )}

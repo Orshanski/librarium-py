@@ -5,6 +5,8 @@ import ConfirmDialog from "../components/confirm-dialog";
 import PageHeader from "../components/page-header";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import BookCard from "../components/book-card";
+import { bookToBookCardCommonProps } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
@@ -52,6 +54,7 @@ export default function ShelfPage() {
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
+  const cardWidth = useBookCardWidth();
 
   async function handleDelete() {
     try {
@@ -132,8 +135,9 @@ export default function ShelfPage() {
           return (
             <BookCard
               key={b.id}
-              book={b}
-              href={readerHref}
+              {...bookToBookCardCommonProps(b)}
+              width={cardWidth}
+              href={readerHref || `/book/${b.id}`}
               onClick={readerHref ? setReadingFlag : undefined}
               progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
               hasOffline={offlineBookIds.has(b.id)}

@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import SimilarBooksGrid from "../components/similar-books-grid";
+import BookCard from "../components/book-card";
+import BookGrid from "../components/book-grid";
 import { SimilarBook } from "../components/similar-books.types";
+import { toChipRating } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import type { BookContextOrigin } from "../components/breadcrumb-origin";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors, fonts } from "../theme";
@@ -13,10 +16,13 @@ import { getSimilar } from "../api/endpoints/similar";
 import { NotFoundError } from "@/api/errors";
 import type { RawBook } from "../types";
 
+const EXTERNAL_SOURCE_LABEL_LITRES = "litres.ru";
+
 export default function SimilarBooksPage() {
   const { id } = useParams();
   const location = useLocation();
   const isMobile = useIsMobile();
+  const cardWidth = useBookCardWidth();
   const [book, setBook] = useState<RawBook | null>(null);
   const [similar, setSimilar] = useState<SimilarBook[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,7 +170,24 @@ export default function SimilarBooksPage() {
         </div>
       )}
 
-      {!loading && !error && similar.length > 0 && <SimilarBooksGrid books={similar} />}
+      {!loading && !error && similar.length > 0 && (
+        <BookGrid>
+          {similar.map((b) => (
+            <BookCard
+              key={b.litresUrl}
+              src={b.coverUrl}
+              alt={b.title}
+              width={cardWidth}
+              title={b.title}
+              authors={[b.authors]}
+              rating={toChipRating(b.rating)}
+              externalSourceLabel={EXTERNAL_SOURCE_LABEL_LITRES}
+              href={b.litresUrl}
+              external
+            />
+          ))}
+        </BookGrid>
+      )}
     </>
   );
 }

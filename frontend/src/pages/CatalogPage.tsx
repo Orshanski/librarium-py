@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import PageHeader from "../components/page-header";
 import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
+import { bookToBookCardCommonProps } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { toBook, RawBook } from "../types";
@@ -249,6 +251,7 @@ export default function CatalogPage() {
 
   const bookIds = useMemo(() => books.map((b: RawBook) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
+  const cardWidth = useBookCardWidth();
 
   return (
     <>
@@ -269,14 +272,18 @@ export default function CatalogPage() {
       )}
 
       <BookGrid>
-        {books.map((b: RawBook) => (
-          <BookCard
-            key={b.id}
-            book={toBook(b)}
-            hasOffline={offlineBookIds.has(b.id)}
-            linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
-          />
-        ))}
+        {books.map((b: RawBook) => {
+          const book = toBook(b);
+          return (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
+            />
+          );
+        })}
       </BookGrid>
 
       {hasMore && (

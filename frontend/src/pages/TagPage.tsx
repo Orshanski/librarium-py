@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams, useLocation } from "react-rout
 
 import PageHeader from "../components/page-header";
 import BookCard from "../components/book-card";
+import { bookToBookCardCommonProps } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterKey, SelectedFilters, readSelectedFromSearchParams } from "../components/smart-filter-bar";
@@ -92,6 +94,7 @@ export default function TagPage() {
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
+  const cardWidth = useBookCardWidth();
 
   const bookLinkState = useMemo(
     () =>
@@ -177,7 +180,8 @@ export default function TagPage() {
         {books.map((book) => (
           <BookCard
             key={book.id}
-            book={book}
+            {...bookToBookCardCommonProps(book)}
+            width={cardWidth}
             hasOffline={offlineBookIds.has(book.id)}
             linkState={bookLinkState}
           />

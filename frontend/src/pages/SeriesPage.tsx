@@ -5,6 +5,8 @@ import PageHeader from "../components/page-header";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import BookCard from "../components/book-card";
+import { bookToBookCardCommonProps } from "../components/book-card-tokens";
+import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
@@ -67,6 +69,7 @@ export default function SeriesPage() {
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
+  const cardWidth = useBookCardWidth();
 
   if (notFoundState) {
     return (
@@ -137,23 +140,27 @@ export default function SeriesPage() {
       )}
 
       <BookGrid>
-        {books.map((b: RawBook) => (
-          <BookCard
-            key={b.id}
-            book={toBook(b)}
-            hasOffline={offlineBookIds.has(b.id)}
-            linkState={{
-              origin: {
-                type: "series",
-                url: location.pathname + location.search,
-                label: series.name,
-                ...(stateOrigin && stateOrigin.type !== "book"
-                  ? { parentOrigin: stateOrigin }
-                  : {}),
-              },
-            }}
-          />
-        ))}
+        {books.map((b: RawBook) => {
+          const book = toBook(b);
+          return (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={{
+                origin: {
+                  type: "series",
+                  url: location.pathname + location.search,
+                  label: series.name,
+                  ...(stateOrigin && stateOrigin.type !== "book"
+                    ? { parentOrigin: stateOrigin }
+                    : {}),
+                },
+              }}
+            />
+          );
+        })}
       </BookGrid>
     </>
   );
