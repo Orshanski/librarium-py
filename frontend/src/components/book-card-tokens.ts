@@ -24,11 +24,12 @@ export const COVER_FRAME_BORDER =
   `${COVER_FRAME_BORDER_DEFAULT_WIDTH_PX}px solid ${COVER_FRAME_BORDER_DEFAULT_COLOR}`;
 
 export const SERIES_RAIL_BORDER_WIDTH_PX = 2;
-export const SERIES_RAIL_BORDER_PLACEHOLDER_COLOR = "transparent";
 export const SERIES_RAIL_BORDER_ACCENT =
   `${SERIES_RAIL_BORDER_WIDTH_PX}px solid ${colors.accent}`;
+// Не-current items сохраняют ту же тонкую обводку, что и в каталоге (видимый цвет),
+// но с шириной 2px ради layout-стабильности с current accent border.
 export const SERIES_RAIL_BORDER_PLACEHOLDER =
-  `${SERIES_RAIL_BORDER_WIDTH_PX}px solid ${SERIES_RAIL_BORDER_PLACEHOLDER_COLOR}`;
+  `${SERIES_RAIL_BORDER_WIDTH_PX}px solid ${COVER_FRAME_BORDER_DEFAULT_COLOR}`;
 
 export const SERIES_RAIL_OPACITY_INACTIVE = 0.6;
 export const SERIES_RAIL_OPACITY_ACTIVE = 1;
