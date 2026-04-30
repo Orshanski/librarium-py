@@ -1,9 +1,19 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { colors, fonts } from "../theme";
 import { getOfflineBooks, getProgress, type OfflineBook } from "../utils/offline-storage";
 import { setReadingFlag } from "../utils/readerFlag";
 import { useIsMobile } from "../responsive";
+import BookCard from "./book-card";
+import BookGrid from "./book-grid";
+import { useBookCardWidth } from "./use-book-card-width";
+
+const DEFAULT_READER_FORMAT = "epub";
+
+function pickReaderFormat(book: OfflineBook): string {
+  const first = book.formats[0]?.format;
+  if (first) return first.toLowerCase();
+  return DEFAULT_READER_FORMAT;
+}
 
 interface OfflineBooksData {
   books: OfflineBook[];
@@ -46,7 +56,9 @@ async function loadProgressMap(books: OfflineBook[]): Promise<Map<number, number
   const map = new Map<number, number>();
   for (const book of books) {
     const p = await getProgress(book.bookId).catch(() => null);
-    if (p && p.fraction > 0) {
+    if (p) {
+      // Спека (решение E): прогресс рисуется при любом значении, включая 0
+      // (тонкая полоска как сигнал «книга открывалась»). Унифицировано с catalog desktop.
       map.set(book.bookId, Math.round(p.fraction * 100));
     }
   }
@@ -133,6 +145,7 @@ interface BooksGridProps {
 }
 
 function BooksGrid({ books, progressMap, isMobile }: Readonly<BooksGridProps>) {
+  const cardWidth = useBookCardWidth();
   return (
     <>
       <div style={{
@@ -144,84 +157,50 @@ function BooksGrid({ books, progressMap, isMobile }: Readonly<BooksGridProps>) {
       }}>
         Читаю сейчас
       </div>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fill, 150px)",
-        gap: isMobile ? 12 : 24,
-        padding: isMobile ? "12px 16px 16px" : "16px 24px 24px",
-      }}>
-        {books.map((book) => (
-          <OfflineBookCard key={book.bookId} book={book} isMobile={isMobile} progressPercent={progressMap.get(book.bookId)} />
-        ))}
+      <div style={{ padding: isMobile ? "12px 16px 16px" : "16px 24px 24px" }}>
+        <BookGrid>
+          {books.map((book) => (
+            <OfflineBookGridItem
+              key={book.bookId}
+              book={book}
+              progressPercent={progressMap.get(book.bookId)}
+              cardWidth={cardWidth}
+            />
+          ))}
+        </BookGrid>
       </div>
     </>
   );
 }
 
-function OfflineBookCard({ book, isMobile, progressPercent }: Readonly<{ book: OfflineBook; isMobile: boolean; progressPercent?: number }>) {
+interface OfflineBookGridItemProps {
+  book: OfflineBook;
+  progressPercent: number | undefined;
+  cardWidth: number;
+}
+
+function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<OfflineBookGridItemProps>) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (book.coverBlob) {
-      const url = URL.createObjectURL(book.coverBlob);
-      setCoverUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
+    const url = URL.createObjectURL(book.coverBlob);
+    setCoverUrl(url);
+    return () => URL.revokeObjectURL(url);
   }, [book.coverBlob]);
 
-  const fmt = book.formats[0]?.format?.toLowerCase() || "epub";
+  if (coverUrl == null) return null;
 
   return (
-    <Link
-      to={`/book/${book.bookId}/read/${fmt}`}
+    <BookCard
+      src={coverUrl}
+      alt={book.title}
+      width={cardWidth}
+      title={book.title}
+      authors={book.authors}
+      progressPercent={progressPercent}
+      hasOffline
+      href={`/book/${book.bookId}/read/${pickReaderFormat(book)}`}
       onClick={setReadingFlag}
-      style={{ textDecoration: "none", color: "inherit" }}
-    >
-      <div style={{
-        position: "relative",
-        width: "100%",
-        aspectRatio: "2 / 3",
-        borderRadius: isMobile ? 6 : 4,
-        overflow: "hidden",
-        border: "1px solid rgba(255, 255, 255, 0.15)",
-        backgroundColor: colors.card,
-        marginBottom: isMobile ? 6 : 8,
-      }}>
-        {coverUrl && (
-          <img
-            src={coverUrl}
-            alt={book.title}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        )}
-        {progressPercent != null && progressPercent > 0 && (
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, backgroundColor: "rgba(0,0,0,0.4)" }}>
-            <div style={{ height: "100%", width: `${progressPercent}%`, backgroundColor: colors.accent, transition: "width 0.2s" }} />
-          </div>
-        )}
-      </div>
-      <div style={{
-        fontSize: isMobile ? 12 : 13,
-        fontWeight: 500,
-        color: colors.text,
-        lineHeight: 1.3,
-        display: "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
-        marginBottom: 2,
-      }}>
-        {book.title}
-      </div>
-      <div style={{
-        fontSize: isMobile ? 11 : 12,
-        color: colors.textDim,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-      }}>
-        {book.authors.join(", ")}
-      </div>
-    </Link>
+    />
   );
 }
