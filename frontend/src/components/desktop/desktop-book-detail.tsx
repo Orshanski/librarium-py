@@ -6,6 +6,26 @@ import BookStarRating from "../book-star-rating";
 import CloudBadge from "../cloud-badge";
 import { BookDetailViewProps } from "../book-detail.types";
 import ShelfDropdownMenu from "../shelf-dropdown-menu";
+import BookCard from "../book-card";
+import {
+  bookToBookCardCommonProps,
+  SERIES_RAIL_BORDER_ACCENT,
+  SERIES_RAIL_BORDER_PLACEHOLDER,
+  SERIES_RAIL_COVER_WIDTH,
+  SERIES_RAIL_GAP_PX,
+  SERIES_RAIL_OPACITY_ACTIVE,
+  SERIES_RAIL_OPACITY_INACTIVE,
+} from "../book-card-tokens";
+
+function pickOpacity(isCurrent: boolean): number {
+  if (isCurrent) return SERIES_RAIL_OPACITY_ACTIVE;
+  return SERIES_RAIL_OPACITY_INACTIVE;
+}
+
+function pickBorder(isCurrent: boolean): string {
+  if (isCurrent) return SERIES_RAIL_BORDER_ACCENT;
+  return SERIES_RAIL_BORDER_PLACEHOLDER;
+}
 
 const actionButtonStyle: React.CSSProperties = {
   background: "none",
@@ -328,44 +348,16 @@ export default function DesktopBookDetail({
           >
             Другие книги серии «{book.series}»
           </h3>
-          <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+          <div style={{ display: "flex", gap: SERIES_RAIL_GAP_PX, overflowX: "auto", paddingBottom: 8 }}>
             {seriesBooks.map((sb) => (
-              <Link
+              <BookCard
                 key={sb.id}
-                to={`/book/${sb.id}`}
-                state={{ origin: bookOrigin }}
-                style={{ textDecoration: "none", flexShrink: 0 }}
-              >
-                <div
-                  style={{
-                    opacity: sb.id === book.id ? 1 : 0.6,
-                    transition: "opacity 0.15s",
-                    border: sb.id === book.id ? `2px solid ${colors.accent}` : "2px solid transparent",
-                    borderRadius: 4,
-                    overflow: "hidden",
-                  }}
-                >
-                  <img
-                    src={sb.coverPath}
-                    alt={sb.title}
-                    style={{ height: 160, width: "auto", display: "block" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: sb.id === book.id ? colors.accent : colors.textDim,
-                    marginTop: 4,
-                    maxWidth: 100,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {sb.seriesNumber ? `${sb.seriesNumber}. ` : ""}
-                  {sb.title}
-                </div>
-              </Link>
+                {...bookToBookCardCommonProps(sb)}
+                width={SERIES_RAIL_COVER_WIDTH}
+                opacity={pickOpacity(sb.id === book.id)}
+                border={pickBorder(sb.id === book.id)}
+                linkState={{ origin: bookOrigin }}
+              />
             ))}
           </div>
         </div>
