@@ -1,7 +1,8 @@
 import { colors, layout } from "../theme";
 import type { CardTitleMetaTokens } from "./card-title-meta";
-import type { BookCardRating } from "./book-card.types";
+import type { BookCardProps, BookCardRating } from "./book-card.types";
 import type { CoverFrameTokens } from "./cover-frame";
+import type { Book } from "../types";
 import { MOBILE_BOOK_GRID_COLUMNS, MOBILE_BOOK_GRID_GAP_PX } from "./book-layout-tokens";
 
 // === Catalog desktop baseline (golden source) ===
@@ -142,6 +143,28 @@ export function buildCoverFrameTokens(input: BuildCoverFrameTokensInput): CoverF
     border: input.border ?? COVER_FRAME_BORDER,
     marginBottom: COVER_FRAME_MARGIN_BOTTOM,
     opacity: input.opacity,
+  };
+}
+
+/**
+ * Маппинг доменной модели книги библиотеки в параметры BookCard.
+ * Используется в catalog/listings/series-rail/shelf/search/author/offline callsite'ах.
+ * Caller добавляет к результату специфичные для callsite'а поля
+ * (`width`, `hasOffline`, `linkState`, `onClick`, `progressPercent`, `onRemove`).
+ */
+export function bookToBookCardCommonProps(book: Book): Pick<
+  BookCardProps,
+  "src" | "alt" | "title" | "authors" | "series" | "seriesNumber" | "rating" | "href"
+> {
+  return {
+    src: book.coverPath,
+    alt: book.title,
+    title: book.title,
+    authors: book.authors,
+    series: book.series ?? undefined,
+    seriesNumber: book.seriesNumber ?? undefined,
+    rating: toStarRating(book.rating),
+    href: `/book/${book.id}`,
   };
 }
 
