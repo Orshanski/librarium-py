@@ -45,14 +45,26 @@ type ChangeListener = (event: { matches: boolean }) => void;
 let currentMatches = false;
 const registeredListeners = new Set<ChangeListener>();
 
-const originalMatchMedia: typeof globalThis.matchMedia | undefined = globalThis.matchMedia;
+function captureOriginalMatchMedia(): typeof globalThis.matchMedia {
+  const m = globalThis.matchMedia;
+  if (!m) {
+    throw new Error(
+      "mobile-viewport helper imported in node-env: globalThis.matchMedia is undefined. " +
+        "Use it only in tests with `// @vitest-environment jsdom`.",
+    );
+  }
+  return m;
+}
+
+const originalMatchMedia = captureOriginalMatchMedia();
 const originalInnerWidth: number = globalThis.innerWidth;
 
-if (!originalMatchMedia) {
-  throw new Error(
-    "mobile-viewport helper imported in node-env: globalThis.matchMedia is undefined. " +
-      "Use it only in tests with `// @vitest-environment jsdom`.",
-  );
+function setInnerWidth(width: number) {
+  Object.defineProperty(globalThis, "innerWidth", {
+    value: width,
+    configurable: true,
+    writable: true,
+  });
 }
 
 function makeMql(query: string): MediaQueryList {
@@ -79,11 +91,7 @@ function makeMql(query: string): MediaQueryList {
 
 function applyViewport(matches: boolean, width: number) {
   currentMatches = matches;
-  Object.defineProperty(globalThis, "innerWidth", {
-    value: width,
-    configurable: true,
-    writable: true,
-  });
+  setInnerWidth(width);
   globalThis.matchMedia = vi.fn().mockImplementation(makeMql);
 }
 
@@ -110,11 +118,7 @@ export function setupMobileViewport() {
  */
 export function triggerMatchMediaChangeToMobile() {
   currentMatches = true;
-  Object.defineProperty(globalThis, "innerWidth", {
-    value: 400,
-    configurable: true,
-    writable: true,
-  });
+  setInnerWidth(400);
   if (registeredListeners.size > 0) {
     const listeners = Array.from(registeredListeners);
     act(() => {
@@ -127,15 +131,9 @@ export function triggerMatchMediaChangeToMobile() {
 
 export function teardownViewport() {
   currentMatches = false;
-  Object.defineProperty(globalThis, "innerWidth", {
-    value: originalInnerWidth,
-    configurable: true,
-    writable: true,
-  });
+  setInnerWidth(originalInnerWidth);
   registeredListeners.clear();
-  if (originalMatchMedia) {
-    globalThis.matchMedia = originalMatchMedia;
-  }
+  globalThis.matchMedia = originalMatchMedia;
   // Регрессионный strap: если в будущем `setup-jsdom.ts` начнёт ставить
   // matchMedia через `vi.stubGlobal`, `vi.unstubAllGlobals()` в setup-common
   // afterEach снесёт его до нашего teardown — следующий тест получит
