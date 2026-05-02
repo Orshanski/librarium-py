@@ -23,10 +23,10 @@
  *   throw'ом (см. ниже), чтобы случайное использование не молчало.
  * - `triggerMatchMediaChangeToMobile()` — однонаправленный (desktop→mobile).
  *   Обратный переход не реализован, потому что в текущих тестах не нужен.
- * - Один `registeredListener` хранится в module-level переменной — то есть
- *   одновременно поддерживается только один `MediaQueryList`-listener.
- *   Если тест mount'ит два независимых `ResponsiveProvider` (что в текущих
- *   тестах не случается), trigger дёрнет только последнего.
+ * - Listener'ы хранятся в Set'е, mock-add/remove работают по identity.
+ *   При StrictMode-double-invoke и нескольких ResponsiveProvider в одном
+ *   дереве trigger корректно дёрнет всех зарегистрированных и не дёрнет
+ *   уже снятых.
  *
  * Сторонние side-effects (которые мы НЕ обслуживаем здесь):
  * - `MobilePageHeader` через `useEffect` ставит CSS-переменную
@@ -43,9 +43,10 @@ import { act } from "react";
 type ChangeListener = (event: { matches: boolean }) => void;
 
 let currentMatches = false;
-let registeredListener: ChangeListener | null = null;
+const registeredListeners = new Set<ChangeListener>();
 
 const originalMatchMedia: typeof globalThis.matchMedia | undefined = globalThis.matchMedia;
+const originalInnerWidth: number = globalThis.innerWidth;
 
 if (!originalMatchMedia) {
   throw new Error(
@@ -54,50 +55,54 @@ if (!originalMatchMedia) {
   );
 }
 
-function makeMql(query: string) {
+function makeMql(query: string): MediaQueryList {
   const mql = {
     media: query,
-    onchange: null as null | ChangeListener,
-    addEventListener: vi.fn((_evt: string, listener: ChangeListener) => {
-      registeredListener = listener;
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn((evt: string, listener: ChangeListener) => {
+      if (evt === "change") {
+        registeredListeners.add(listener);
+      }
     }),
-    removeEventListener: vi.fn(() => {
-      registeredListener = null;
+    removeEventListener: vi.fn((evt: string, listener: ChangeListener) => {
+      if (evt === "change") {
+        registeredListeners.delete(listener);
+      }
     }),
-    dispatchEvent: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
   };
   Object.defineProperty(mql, "matches", { get: () => currentMatches });
-  return mql;
+  return mql as unknown as MediaQueryList;
+}
+
+function applyViewport(matches: boolean, width: number) {
+  currentMatches = matches;
+  Object.defineProperty(globalThis, "innerWidth", {
+    value: width,
+    configurable: true,
+    writable: true,
+  });
+  globalThis.matchMedia = vi.fn().mockImplementation(makeMql);
 }
 
 export function setupDesktopViewport() {
-  currentMatches = false;
-  Object.defineProperty(globalThis, "innerWidth", {
-    value: 1024,
-    configurable: true,
-    writable: true,
-  });
-  globalThis.matchMedia = vi.fn().mockImplementation(makeMql) as unknown as typeof globalThis.matchMedia;
+  applyViewport(false, 1024);
 }
 
 export function setupMobileViewport() {
-  currentMatches = true;
-  Object.defineProperty(globalThis, "innerWidth", {
-    value: 400,
-    configurable: true,
-    writable: true,
-  });
-  globalThis.matchMedia = vi.fn().mockImplementation(makeMql) as unknown as typeof globalThis.matchMedia;
+  applyViewport(true, 400);
 }
 
 /**
  * Имитирует переход viewport'а в mobile-режим во время теста.
  * Используется для покрытия Acceptance #3 спеки (resize desktop→mobile).
- * Меняет currentMatches=true и зовёт listener, зарегистрированный
- * ResponsiveProvider'ом при mount — на том же `matchMedia`-stub'е,
- * что был в момент render (предполагается setupDesktopViewport() ДО mount).
+ * Меняет currentMatches=true и зовёт всех listener'ов, зарегистрированных
+ * ResponsiveProvider'ами при mount — на том же `matchMedia`-stub'е, что был
+ * в момент render (предполагается setupDesktopViewport() ДО mount).
  *
- * Вызов listener'а триггерит setState в ResponsiveProvider, поэтому
+ * Вызовы listener'ов триггерят setState в ResponsiveProvider, поэтому
  * оборачиваем в act() — иначе React 19 / RTL выдаст warning «update
  * inside a test was not wrapped in act(...)». act() здесь обязанность
  * helper'а, не вызывающего теста — тесты не должны знать про этот
@@ -110,9 +115,12 @@ export function triggerMatchMediaChangeToMobile() {
     configurable: true,
     writable: true,
   });
-  if (registeredListener) {
+  if (registeredListeners.size > 0) {
+    const listeners = Array.from(registeredListeners);
     act(() => {
-      registeredListener!({ matches: true });
+      for (const listener of listeners) {
+        listener({ matches: true });
+      }
     });
   }
 }
@@ -120,11 +128,11 @@ export function triggerMatchMediaChangeToMobile() {
 export function teardownViewport() {
   currentMatches = false;
   Object.defineProperty(globalThis, "innerWidth", {
-    value: 1024,
+    value: originalInnerWidth,
     configurable: true,
     writable: true,
   });
-  registeredListener = null;
+  registeredListeners.clear();
   if (originalMatchMedia) {
     globalThis.matchMedia = originalMatchMedia;
   }

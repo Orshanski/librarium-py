@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
+import { createElement } from "react";
+import { render } from "@testing-library/react";
 import {
   setupDesktopViewport,
   setupMobileViewport,
   triggerMatchMediaChangeToMobile,
   teardownViewport,
 } from "./mobile-viewport";
+import { ResponsiveProvider, useIsMobile } from "../responsive";
 
 describe("mobile-viewport helper", () => {
   afterEach(() => teardownViewport());
@@ -50,7 +53,23 @@ describe("mobile-viewport helper", () => {
     expect(globalThis.matchMedia("(any)").matches).toBe(true);
     teardownViewport();
 
-    // matchMedia вернулся к jsdom-default (setup-jsdom.ts ставит matches:false).
+    // matchMedia вернулся к polyfill'у из setup-jsdom (matches:false).
     expect(globalThis.matchMedia("(any)").matches).toBe(false);
+  });
+
+  it("trigger через ResponsiveProvider: useIsMobile флипается false→true после re-render", () => {
+    setupDesktopViewport();
+
+    let observed: boolean | null = null;
+    function Spy(): null {
+      observed = useIsMobile();
+      return null;
+    }
+
+    render(createElement(ResponsiveProvider, null, createElement(Spy)));
+
+    expect(observed).toBe(false);
+    triggerMatchMediaChangeToMobile();
+    expect(observed).toBe(true);
   });
 });
