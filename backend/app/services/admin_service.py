@@ -1,7 +1,10 @@
 """Admin service — users CRUD + settings (no mail/SMTP)."""
 import logging
 import sqlite3
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ..auth import CurrentUser
 
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
@@ -10,9 +13,6 @@ from ..dtos.admin import (
     UpdateUserBody, UpdateSettingsBody, UserUpdateData,
 )
 from ..exceptions import BadInputError
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from ..auth import CurrentUser
 
 log = logging.getLogger("librarium.services.admin")
 
