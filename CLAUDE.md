@@ -64,10 +64,10 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 
 **Правило: после любого артефакта — ревью.** Артефакт = спека, план, код. Код-ревью дополнительно запускается после коммита (проверка кода относительно спеки + findings).
 
-1. **Спека.** Написать design-doc в `docs/specs/YYYY-MM-DD-<topic>-design.md`.
+1. **Спека.** Написать design-doc в `project_documentation/specs/YYYY-MM-DD-<topic>-design.md` (директория в gitignore — не коммитится).
 2. **Ревью спеки.** Запустить ревьюера, показать Alexey ВСЕ findings.
 3. **Фикс спеки.** Исправить по findings + утверждение Alexey.
-4. **План.** `superpowers:writing-plans` — детальный, поэтапный, TDD.
+4. **План.** `superpowers:writing-plans` — детальный, поэтапный, TDD. Файл: `project_documentation/plans/YYYY-MM-DD-<topic>.md`.
 5. **Ревью плана.** Запустить ревьюера, показать Alexey ВСЕ findings.
 6. **Фикс плана.** Исправить + утверждение Alexey.
 7. **Ветка.** Создать feature branch от main.

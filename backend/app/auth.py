@@ -1,13 +1,15 @@
 import logging
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import bcrypt
 import jwt
-from fastapi import Request
+from fastapi import Depends, Request
 
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
+from .database import db_session
 from .exceptions import AuthError, ForbiddenError
 
 log = logging.getLogger("librarium.auth")
@@ -96,7 +98,10 @@ def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
 
-def get_current_user(request: Request) -> CurrentUser:
+def get_current_user(
+    request: Request,
+    db: Annotated[sqlite3.Connection, Depends(db_session)],
+) -> CurrentUser:
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise AuthError("Not authenticated")
@@ -106,20 +111,28 @@ def get_current_user(request: Request) -> CurrentUser:
         log.warning("JWT decode failed: expired signature")
         raise AuthError("Token expired")
     except jwt.InvalidTokenError as exc:
-        # I-1 (round 4 review): log the decode-failure class so every
-        # invalid-token path is observable in `librarium.auth`, matching
-        # the from_payload log coverage.
         log.warning("JWT decode failed: %s", type(exc).__name__)
         raise AuthError(_INVALID_TOKEN)
 
-    # Validate shape BEFORE touching payload[...] in refresh branch — turns
-    # malformed tokens into AuthError (401), not KeyError (500).
     user = CurrentUser.from_payload(payload)
 
-    if token_needs_refresh(payload):
+    # Deferred import to avoid circular: dal.users imports hash_password from auth.
+    from .dal import users as users_dal
+    row = users_dal.get_user_by_id(db, user.user_id)
+    if row is None:
+        log.warning("Auth: user_id=%s in valid token no longer exists", user.user_id)
+        raise AuthError(_INVALID_TOKEN)
+    db_role: str = row["role"]
+
+    if db_role != user.role:
+        log.info("Auth: role mismatch user_id=%s payload=%s db=%s — refreshing token",
+                 user.user_id, user.role, db_role)
+        user = CurrentUser(user_id=user.user_id, role=db_role)  # type: ignore[arg-type]
         request.state._refresh_token = True
-        # Source from the validated CurrentUser — not payload[...] again.
-        # Spec §115 forward-looking note from Layer 1.
+        request.state._refresh_user_id = user.user_id
+        request.state._refresh_role = db_role
+    elif token_needs_refresh(payload):
+        request.state._refresh_token = True
         request.state._refresh_user_id = user.user_id
         request.state._refresh_role = user.role
     return user
@@ -144,8 +157,7 @@ def get_client_ip(request: Request) -> str:
     )
 
 
-def require_admin(request: Request) -> CurrentUser:
-    user = get_current_user(request)
+def require_admin(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
     if user.role != "admin":
         raise ForbiddenError("Admin access required")
     return user

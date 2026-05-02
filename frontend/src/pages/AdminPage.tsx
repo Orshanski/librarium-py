@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import ConfirmDialog from "../components/confirm-dialog";
-
+import { useAuth } from "../auth";
 import PageHeader from "../components/page-header";
 import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
@@ -69,6 +69,19 @@ const btnSmAccentStyle: React.CSSProperties = { ...btnSmStyle, background: color
 const btnDangerStyle: React.CSSProperties = { ...btnSmStyle, borderColor: "rgba(239,68,68,0.3)", color: colors.danger };
 const btnOutlineAccentStyle: React.CSSProperties = { ...btnStyle, borderColor: "rgba(249,190,3,0.3)", color: colors.accent };
 
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  appearance: "none",
+  WebkitAppearance: "none",
+  paddingRight: 32,
+  cursor: "pointer",
+  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+};
+
+const selectOptionStyle: React.CSSProperties = { background: "#16162a", color: "#ccc" };
+
 // ─── Password match indicator ────────────────────────
 function PasswordMatch({ pass, confirm }: Readonly<{ pass: string; confirm: string }>) {
   if (!pass && !confirm) return <div style={{ height: 14 }} />;
@@ -84,19 +97,24 @@ function PasswordMatch({ pass, confirm }: Readonly<{ pass: string; confirm: stri
 // ─── User Card ──────────────────────────────────────
 function UserCard({
   user,
+  currentUserId,
   onSaveName,
   onSavePassword,
+  onSaveRole,
   onDelete,
 }: Readonly<{
   user: AdminUser;
+  currentUserId: number;
   onSaveName: (id: number, name: string) => Promise<void>;
   onSavePassword: (id: number, pass: string) => Promise<void>;
+  onSaveRole: (id: number, role: "admin" | "reader") => Promise<void>;
   onDelete: (id: number) => void;
 }>) {
-  const [editMode, setEditMode] = useState<"name" | "password" | null>(null);
+  const [editMode, setEditMode] = useState<"name" | "password" | "role" | null>(null);
   const [nameValue, setNameValue] = useState(user.display_name || user.username);
   const [passValue, setPassValue] = useState("");
   const [passConfirm, setPassConfirm] = useState("");
+  const [roleValue, setRoleValue] = useState<"admin" | "reader">(user.role);
   const [saving, setSaving] = useState(false);
   const isMobile = useIsMobile();
 
@@ -104,6 +122,7 @@ function UserCard({
     setEditMode(null);
     setPassValue("");
     setPassConfirm("");
+    setRoleValue(user.role);
   }
 
   return (
@@ -168,7 +187,10 @@ function UserCard({
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "name" ? null : "name")}>Имя</button>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "password" ? null : "password")}>Пароль</button>
-          {user.role !== "admin" && (
+          {user.id !== currentUserId && (
+            <button style={btnSmStyle} onClick={() => setEditMode(editMode === "role" ? null : "role")}>Роль</button>
+          )}
+          {user.id !== currentUserId && (
             <button style={btnDangerStyle} onClick={() => onDelete(user.id)}>Удалить</button>
           )}
         </div>
@@ -240,6 +262,43 @@ function UserCard({
           </div>
         </div>
       )}
+
+      {/* Inline edit: role */}
+      {editMode === "role" && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+          <div style={{ marginBottom: 16, maxWidth: 200 }}>
+            <label style={labelStyle}>Роль</label>
+            <select
+              autoFocus
+              style={selectStyle}
+              value={roleValue}
+              onChange={(e) => setRoleValue(e.target.value as "admin" | "reader")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { onSaveRole(user.id, roleValue); closeEdit(); }
+                if (e.key === "Escape") closeEdit();
+              }}
+            >
+              <option value="reader" style={selectOptionStyle}>reader</option>
+              <option value="admin" style={selectOptionStyle}>admin</option>
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={btnSmAccentStyle}
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                await onSaveRole(user.id, roleValue);
+                setSaving(false);
+                closeEdit();
+              }}
+            >
+              Сохранить
+            </button>
+            <button style={btnSmStyle} onClick={closeEdit}>Отмена</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -256,6 +315,7 @@ interface NewUserState {
 
 // ─── Main Page ──────────────────────────────────────
 export default function AdminPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<AdminSettings>({});
   const [loading, setLoading] = useState(true);
@@ -299,6 +359,15 @@ export default function AdminPage() {
       await updateUser(id, { password: pass });
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Ошибка смены пароля");
+    }
+  }
+
+  async function saveRole(id: number, role: "admin" | "reader") {
+    try {
+      await updateUser(id, { role });
+      setUsers(users.map((u) => u.id === id ? { ...u, role } : u));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка смены роли");
     }
   }
 
@@ -355,7 +424,7 @@ export default function AdminPage() {
     }
   }
 
-  if (loading) {
+  if (loading || !currentUser) {
     return (
       <><PageHeader title="Настройки" />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
@@ -374,7 +443,7 @@ export default function AdminPage() {
           <h2 style={sectionTitleStyle}>Пользователи</h2>
 
           {users.map((u) => (
-            <UserCard key={u.id} user={u} onSaveName={saveName} onSavePassword={savePassword} onDelete={deleteUser} />
+            <UserCard key={u.id} user={u} currentUserId={currentUser.id} onSaveName={saveName} onSavePassword={savePassword} onSaveRole={saveRole} onDelete={deleteUser} />
           ))}
 
           {showNewUser ? (
@@ -416,12 +485,12 @@ export default function AdminPage() {
                 <div style={{ flex: "1 1 100px", minWidth: 100 }}>
                   <label style={labelStyle}>Роль</label>
                   <select
-                    style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none", paddingRight: 32, cursor: "pointer", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+                    style={selectStyle}
                     value={newUser.role}
                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
                   >
-                    <option value="reader" style={{ background: "#16162a", color: "#ccc" }}>reader</option>
-                    <option value="admin" style={{ background: "#16162a", color: "#ccc" }}>admin</option>
+                    <option value="reader" style={selectOptionStyle}>reader</option>
+                    <option value="admin" style={selectOptionStyle}>admin</option>
                   </select>
                 </div>
               </div>

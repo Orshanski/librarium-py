@@ -5,7 +5,7 @@ import sqlite3
 
 from fastapi import APIRouter, Request, Response, Depends
 
-from ..auth import CurrentUser, get_current_user, get_client_ip, COOKIE_NAME
+from ..auth import CurrentUser, get_current_user, get_client_ip, decode_token, COOKIE_NAME
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
 from ..dtos.auth import AuthUserResponse, AuthLoginResponse, AuthLogoutResponse, LoginRequest
@@ -44,10 +44,13 @@ def me(user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sq
 
 @router.post("/logout")
 def logout(request: Request, response: Response) -> AuthLogoutResponse:
-    try:
-        user = get_current_user(request)
-        log.info("Logout user_id=%s", user.user_id)
-    except Exception:
-        pass
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        try:
+            payload = decode_token(token)
+            user_id = payload.get("userId")
+            log.info("Logout user_id=%s", user_id)
+        except Exception:
+            pass
     response.delete_cookie(COOKIE_NAME, path="/")
     return AuthLogoutResponse()

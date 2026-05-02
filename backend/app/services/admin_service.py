@@ -1,7 +1,10 @@
 """Admin service — users CRUD + settings (no mail/SMTP)."""
 import logging
 import sqlite3
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ..auth import CurrentUser
 
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
@@ -31,12 +34,14 @@ def create_user(db: sqlite3.Connection, username: str, password: str, role: str,
     return uid
 
 
-def update_user(db: sqlite3.Connection, user_id: int, body: UpdateUserBody, actor_id: int) -> None:
+def update_user(db: sqlite3.Connection, user_id: int, body: UpdateUserBody, actor: "CurrentUser") -> None:
     data: UserUpdateData = cast(UserUpdateData, body.model_dump(exclude_none=True))
+    if actor.user_id == user_id and data.get("role") not in (None, actor.role):
+        raise BadInputError("Нельзя менять свою роль")
     if data.get("role") == "reader" and users_dal.is_last_admin(db, user_id):
         raise BadInputError("Нельзя понизить последнего админа")
     users_dal.update_user(db, user_id, data)
-    log.info("Updated user_id=%d by user_id=%s", user_id, actor_id)
+    log.info("Updated user_id=%d by user_id=%s", user_id, actor.user_id)
 
 
 def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:

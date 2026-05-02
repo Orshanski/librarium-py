@@ -108,48 +108,7 @@ describe("AdminPage", () => {
     });
   });
 
-  describe("Delete user (self — 400 error)", () => {
-    it("shows alert when trying to delete self, keeps user in list", async () => {
-      // Simulate the session user being id=1. We render a list where id=1
-      // is a reader (so the delete button is visible), and DELETE /api/admin/users/1
-      // returns 400 "Нельзя удалить самого себя" — exactly what the backend
-      // does when the session user tries to remove their own account.
-      const SELF_USER = { id: 1, username: "admin", display_name: "Test Admin", email: "admin@test.local", role: "reader" as const };
-      server.use(
-        http.get("/api/admin/users", () =>
-          HttpResponse.json({ users: [SELF_USER] })
-        ),
-        http.get("/api/admin/settings", () =>
-          HttpResponse.json(DEFAULT_SETTINGS)
-        ),
-        http.delete("/api/admin/users/1", () =>
-          HttpResponse.json(
-            { detail: "Нельзя удалить самого себя" },
-            { status: 400 }
-          )
-        )
-      );
-
-      const user = userEvent.setup();
-      renderWithProviders(<AdminPage />);
-      await waitFor(() => screen.getByRole("button", { name: "Удалить" }));
-
-      // Click Delete on the self user (id=1)
-      await user.click(screen.getByRole("button", { name: "Удалить" }));
-
-      // Confirm dialog — click confirm
-      await waitFor(() => screen.getByText("Удалить пользователя?"));
-      await user.click(screen.getByTestId("confirm-dialog-submit"));
-
-      // Alert should have been called with error message
-      await waitFor(() => {
-        expect(globalThis.alert).toHaveBeenCalledWith("Нельзя удалить самого себя");
-      });
-
-      // User should still be in the list
-      expect(screen.getAllByText("Test Admin").length).toBeGreaterThan(0);
-    });
-
+  describe("Delete user", () => {
     it("removes user from list on successful delete", async () => {
       setupDefaultHandlers();
       const user = userEvent.setup();
@@ -170,6 +129,28 @@ describe("AdminPage", () => {
       await waitFor(() => {
         expect(screen.queryByText("Test Reader")).not.toBeInTheDocument();
       });
+    });
+
+    it("hides Удалить for self even when self is a reader (verifies new condition, not stale role-based one)", async () => {
+      // Сценарий, валидирующий именно смену условия с `role !== "admin"` на `id !== currentUserId`:
+      // self (id=1) имеет роль reader. Под старым условием — кнопка БЫЛА бы видна (это
+      // и был тот самый рассинхрон фронта и бэка). Под новым — должна быть скрыта.
+      const SELF_READER = { id: 1, username: "admin", display_name: "Test Admin", email: "admin@test.local", role: "reader" as const };
+      server.use(
+        http.get("/api/admin/users", () =>
+          HttpResponse.json({ users: [SELF_READER, READER_USER] })
+        ),
+        http.get("/api/admin/settings", () =>
+          HttpResponse.json(DEFAULT_SETTINGS)
+        )
+        // /api/auth/me — дефолтный мок из handlers.ts возвращает id: 1
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      const deleteButtons = screen.getAllByRole("button", { name: "Удалить" });
+      expect(deleteButtons).toHaveLength(1); // только у READER_USER (id=2), но не у self (id=1) с ролью reader
     });
   });
 
@@ -203,6 +184,147 @@ describe("AdminPage", () => {
 
       await waitFor(() => {
         expect(capturedBody).toEqual({ displayName: "New Name" });
+      });
+    });
+  });
+
+  describe("Change role", () => {
+    it("shows Роль button for non-self user with current role preselected", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      // Default currentUser.id = 1; READER_USER.id = 2 (non-self) — кнопка «Роль» видна.
+      const roleButtons = screen.getAllByRole("button", { name: "Роль" });
+      expect(roleButtons).toHaveLength(1);
+
+      await user.click(roleButtons[0]);
+      // В inline-блоке должен быть select со значением "reader"
+      await waitFor(() => screen.getByRole("combobox"));
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      expect(select.value).toBe("reader");
+    });
+
+    it("hides Роль button for self user", async () => {
+      setupDefaultHandlers();
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      // Default currentUser.id = 1; ADMIN_USER.id = 1 — у себя кнопки нет.
+      const roleButtons = screen.queryAllByRole("button", { name: "Роль" });
+      expect(roleButtons).toHaveLength(1); // только у READER_USER (id=2)
+    });
+
+    it("saves role change via PUT and updates badge", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let capturedBody: { role?: string } | null = null;
+
+      server.use(
+        http.put("/api/admin/users/2", async ({ request }) => {
+          capturedBody = await request.json() as { role?: string };
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual({ role: "admin" });
+      });
+
+      // Badge update: до клика exact-match "admin" встречается дважды
+      // (ADMIN_USER.username "admin" + ADMIN_USER role badge "admin").
+      // После saveRole(setUsers) — добавляется третий матч: READER_USER.badge стал "admin".
+      // Если в реализации забыли setUsers — счётчик останется 2 → тест падает.
+      await waitFor(() => {
+        expect(screen.getAllByText("admin").length).toBeGreaterThanOrEqual(3);
+      });
+    });
+
+    it("Enter saves role change", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let capturedBody: { role?: string } | null = null;
+
+      server.use(
+        http.put("/api/admin/users/2", async ({ request }) => {
+          capturedBody = await request.json() as { role?: string };
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+
+      // selectOptions фокусирует select, фокус остаётся на нём — Enter попадёт в onKeyDown.
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual({ role: "admin" });
+      });
+    });
+
+    it("Escape closes role edit without sending PUT", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let putCalled = false;
+
+      server.use(
+        http.put("/api/admin/users/:id", () => {
+          putCalled = true;
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+      // Явный focus на select перед Escape — autoFocus может слететь после клика по «Роль».
+      await user.click(screen.getByRole("combobox"));
+      await user.keyboard("{Escape}");
+
+      // Inline-блок закрылся (combobox исчез)
+      await waitFor(() => {
+        expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      });
+      expect(putCalled).toBe(false);
+    });
+
+    it("shows alert on PUT failure", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+
+      server.use(
+        http.put("/api/admin/users/2", () =>
+          HttpResponse.json({ detail: "Что-то пошло не так" }, { status: 400 })
+        )
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+      await waitFor(() => {
+        expect(globalThis.alert).toHaveBeenCalledWith("Что-то пошло не так");
       });
     });
   });
