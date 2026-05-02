@@ -12,6 +12,7 @@ import { selectedToApiParams } from "../api/filter-params";
 import type { Book, RawBook } from "../types";
 import { toBook } from "../types";
 import { useAuth } from "../auth";
+import { useIsMobile } from "../responsive";
 import { colors } from "../theme";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
@@ -26,6 +27,7 @@ export default function TagPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [tag, setTag] = useState<TagSummary | null>(null);
   const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
@@ -150,7 +152,6 @@ export default function TagPage() {
       <PageHeader
         title={tag.name}
         titleSlot={adminButton}
-        mobileActionSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
@@ -161,7 +162,7 @@ export default function TagPage() {
         onSortChange={handleSortChange}
       />
 
-      {showAdmin && tag && (
+      {!isMobile && showAdmin && tag && (
         <TagAdminPanel
           tagId={tag.id}
           currentName={tag.name}

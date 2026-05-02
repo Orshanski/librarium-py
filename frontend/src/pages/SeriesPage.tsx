@@ -11,6 +11,7 @@ import BookGrid from "../components/book-grid";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
+import { useIsMobile } from "../responsive";
 import { toBook, RawBook } from "../types";
 import { colors } from "../theme";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
@@ -23,6 +24,7 @@ export default function SeriesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [series, setSeries] = useState<Series | null>(null);
   const [books, setBooks] = useState<RawBook[]>([]);
@@ -122,12 +124,11 @@ export default function SeriesPage() {
       <PageHeader
         title={series.name}
         titleSlot={adminButton}
-        mobileActionSlot={adminButton}
         breadcrumb={crumb}
         infoSlot={infoSlot}
       />
 
-      {showAdmin && series && (
+      {!isMobile && showAdmin && series && (
         <EntityAdminPanel
           entityType="series"
           entityId={series.id}

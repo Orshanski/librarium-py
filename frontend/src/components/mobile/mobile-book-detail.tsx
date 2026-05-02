@@ -229,20 +229,6 @@ export default function MobileBookDetail({
 
       {isAdmin && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <Link
-            to={`/book/${book.id}/edit`}
-            state={bookContext}
-            style={{
-              ...primaryButtonStyle,
-              minHeight: 40,
-              backgroundColor: "transparent",
-              border: `1px solid ${colors.border}`,
-              color: colors.textDim,
-              flex: 1,
-            }}
-          >
-            Ред.
-          </Link>
           <button
             onClick={onShowDeleteConfirm}
             style={{
