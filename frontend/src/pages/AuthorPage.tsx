@@ -10,6 +10,7 @@ import { Book, toBook } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { useAuth } from "../auth";
+import { useIsMobile } from "../responsive";
 import { getAuthor } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { NotFoundError } from "@/api/errors";
@@ -28,6 +29,7 @@ export default function AuthorPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [author, setAuthor] = useState<AuthorData | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
@@ -132,11 +134,10 @@ export default function AuthorPage() {
       <PageHeader
         title={author.name}
         titleSlot={adminButton}
-        mobileActionSlot={adminButton}
         infoSlot={infoSlot}
         breadcrumb={crumb}
       />
-      {showAdmin && author && (
+      {!isMobile && showAdmin && author && (
         <EntityAdminPanel
           entityType="author"
           entityId={author.id}
