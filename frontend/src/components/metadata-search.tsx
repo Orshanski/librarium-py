@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useIsMobile } from "../responsive";
 import DesktopMetadataSearch from "./desktop/desktop-metadata-search";
-import MobileMetadataSearch from "./mobile/mobile-metadata-search";
 import { MetadataResult } from "./metadata-search.types";
 import { searchMetadata } from "../api/endpoints/metadata";
 
@@ -14,7 +12,6 @@ export default function MetadataSearch({
   onApply: (data: Partial<MetadataResult>) => void;
   onClose: () => void;
 }) {
-  const isMobile = useIsMobile();
   const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set(["litres"]));
   const [searchQuery, setSearchQuery] = useState(query);
   const [results, setResults] = useState<MetadataResult[] | null>(null);
@@ -74,5 +71,5 @@ export default function MetadataSearch({
     onApply,
   };
 
-  return isMobile ? <MobileMetadataSearch {...viewProps} /> : <DesktopMetadataSearch {...viewProps} />;
+  return <DesktopMetadataSearch {...viewProps} />;
 }
