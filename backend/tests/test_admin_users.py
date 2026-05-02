@@ -53,6 +53,40 @@ def test_cannot_delete_self(admin_client):
     assert_error(resp, 400)
 
 
+def test_admin_can_promote_user(admin_client):
+    """Promote reader (id=2 in seed) to admin."""
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "admin"}))
+    db = connect_test_db()
+    role = db.execute("SELECT role FROM users WHERE id = 2").fetchone()[0]
+    db.close()
+    assert role == "admin"
+
+
+def test_admin_can_demote_user(admin_client):
+    """Promote then demote reader (id=2)."""
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "admin"}))
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "reader"}))
+    db = connect_test_db()
+    role = db.execute("SELECT role FROM users WHERE id = 2").fetchone()[0]
+    db.close()
+    assert role == "reader"
+
+
+def test_role_no_op_for_self_is_accepted(admin_client):
+    """Admin sends own current role — accepted (no-op)."""
+    me = assert_ok(admin_client.get("/api/auth/me"))
+    assert_ok(admin_client.put(f"/api/admin/users/{me['id']}", json={"role": "admin"}))
+
+
+def test_update_self_with_role_null_is_accepted(admin_client):
+    """Self PUT with role=null + other field — passes (exclude_none filters role)."""
+    me = assert_ok(admin_client.get("/api/auth/me"))
+    assert_ok(admin_client.put(f"/api/admin/users/{me['id']}",
+                               json={"role": None, "displayName": "Renamed Admin"}))
+    settings_resp = assert_ok(admin_client.get("/api/auth/me"))
+    assert settings_resp["displayName"] == "Renamed Admin"
+
+
 # ── Admin settings ──
 
 def test_get_settings(admin_client):
