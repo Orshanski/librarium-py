@@ -215,6 +215,118 @@ describe("AdminPage", () => {
       const roleButtons = screen.queryAllByRole("button", { name: "Роль" });
       expect(roleButtons).toHaveLength(1); // только у READER_USER (id=2)
     });
+
+    it("saves role change via PUT and updates badge", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let capturedBody: { role?: string } | null = null;
+
+      server.use(
+        http.put("/api/admin/users/2", async ({ request }) => {
+          capturedBody = await request.json() as { role?: string };
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual({ role: "admin" });
+      });
+
+      // Badge update: до клика exact-match "admin" встречается дважды
+      // (ADMIN_USER.username "admin" + ADMIN_USER role badge "admin").
+      // После saveRole(setUsers) — добавляется третий матч: READER_USER.badge стал "admin".
+      // Если в реализации забыли setUsers — счётчик останется 2 → тест падает.
+      await waitFor(() => {
+        expect(screen.getAllByText("admin").length).toBeGreaterThanOrEqual(3);
+      });
+    });
+
+    it("Enter saves role change", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let capturedBody: { role?: string } | null = null;
+
+      server.use(
+        http.put("/api/admin/users/2", async ({ request }) => {
+          capturedBody = await request.json() as { role?: string };
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+
+      // selectOptions фокусирует select, фокус остаётся на нём — Enter попадёт в onKeyDown.
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual({ role: "admin" });
+      });
+    });
+
+    it("Escape closes role edit without sending PUT", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      let putCalled = false;
+
+      server.use(
+        http.put("/api/admin/users/:id", () => {
+          putCalled = true;
+          return HttpResponse.json({ ok: true });
+        })
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+      // Явный focus на select перед Escape — autoFocus может слететь после клика по «Роль».
+      await user.click(screen.getByRole("combobox"));
+      await user.keyboard("{Escape}");
+
+      // Inline-блок закрылся (combobox исчез)
+      await waitFor(() => {
+        expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      });
+      expect(putCalled).toBe(false);
+    });
+
+    it("shows alert on PUT failure", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+
+      server.use(
+        http.put("/api/admin/users/2", () =>
+          HttpResponse.json({ detail: "Что-то пошло не так" }, { status: 400 })
+        )
+      );
+
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Test Reader"));
+
+      await user.click(screen.getByRole("button", { name: "Роль" }));
+      await waitFor(() => screen.getByRole("combobox"));
+      await user.selectOptions(screen.getByRole("combobox"), "admin");
+      await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+      await waitFor(() => {
+        expect(globalThis.alert).toHaveBeenCalledWith("Что-то пошло не так");
+      });
+    });
   });
 
   describe("Settings save", () => {

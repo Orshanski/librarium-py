@@ -262,6 +262,43 @@ function UserCard({
           </div>
         </div>
       )}
+
+      {/* Inline edit: role */}
+      {editMode === "role" && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+          <div style={{ marginBottom: 16, maxWidth: 200 }}>
+            <label style={labelStyle}>Роль</label>
+            <select
+              autoFocus
+              style={selectStyle}
+              value={roleValue}
+              onChange={(e) => setRoleValue(e.target.value as "admin" | "reader")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { onSaveRole(user.id, roleValue); closeEdit(); }
+                if (e.key === "Escape") closeEdit();
+              }}
+            >
+              <option value="reader" style={selectOptionStyle}>reader</option>
+              <option value="admin" style={selectOptionStyle}>admin</option>
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={btnSmAccentStyle}
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                await onSaveRole(user.id, roleValue);
+                setSaving(false);
+                closeEdit();
+              }}
+            >
+              Сохранить
+            </button>
+            <button style={btnSmStyle} onClick={closeEdit}>Отмена</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
