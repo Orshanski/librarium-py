@@ -105,8 +105,8 @@ describe("AuthorPage — mobile", () => {
   afterEach(() => teardownViewport());
 
   it("шестерёнки управления автором нет в DOM, заголовок страницы есть", async () => {
-    // Explicit auth-signal через MSW: устанавливаем флаг, проверим waitFor'ом
-    // — гарантирует, что AuthProvider успел поставить user=admin до negative-assert.
+    // Подменяем /api/auth/me и поднимаем флаг — даёт сигнал, что
+    // AuthProvider успел поставить user=admin до негативной проверки.
     let authResolved = false;
     server.use(
       http.get("/api/auth/me", () => {
@@ -131,15 +131,15 @@ describe("AuthorPage — mobile", () => {
       { initialEntries: ["/authors/42"] }
     );
 
-    // Ждём конец loading и резолва auth.
+    // Ждём окончания загрузки и резолва auth.
     await waitFor(() => {
       expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
       expect(authResolved).toBe(true);
     });
 
-    // Позитивный sanity: страница отрисовалась через MobilePageHeader (h1).
+    // Позитивная проверка: страница отрисовалась через MobilePageHeader (h1).
     expect(screen.getByRole("heading", { level: 1, name: /Isaac Asimov/ })).toBeInTheDocument();
-    // Negative-assert ПОСЛЕ гарантированного auth-резолва.
+    // Негативная проверка ПОСЛЕ гарантированного резолва auth.
     expect(screen.queryByLabelText("Управление автором")).not.toBeInTheDocument();
   });
 });
@@ -147,7 +147,7 @@ describe("AuthorPage — mobile", () => {
 describe("AuthorPage — resize desktop→mobile с открытой админ-панелью", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    setupDesktopViewport();  // stub matchMedia ДО render — ResponsiveProvider зарегистрирует listener на нашем stub'е
+    setupDesktopViewport();  // Подменяем matchMedia ДО render — ResponsiveProvider зарегистрирует listener на нашем stub'е.
   });
   afterEach(() => teardownViewport());
 
@@ -183,7 +183,7 @@ describe("AuthorPage — resize desktop→mobile с открытой админ-
       expect(screen.getByText("Переименовать")).toBeInTheDocument();
     });
 
-    // 3) Эмитим переключение viewport'а в mobile через тот же stub.
+    // 3) Эмулируем переключение viewport в mobile через тот же stub.
     triggerMatchMediaChangeToMobile();
 
     // 4) Гард `!isMobile && showAdmin && <EntityAdminPanel/>` срабатывает —
