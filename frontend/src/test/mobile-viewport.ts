@@ -57,7 +57,11 @@ function captureOriginalMatchMedia(): typeof globalThis.matchMedia {
 }
 
 const originalMatchMedia = captureOriginalMatchMedia();
-const originalInnerWidth: number = globalThis.innerWidth;
+// Снимаем оригинальный descriptor целиком — JSDOM по умолчанию ставит
+// `innerWidth` non-writable. Наш `setInnerWidth` временно меняет descriptor
+// на writable+configurable; в `teardownViewport` восстанавливаем оригинал
+// дословно, чтобы descriptor-flags не текли в следующие тесты worker'а.
+const originalInnerWidthDescriptor = Object.getOwnPropertyDescriptor(globalThis, "innerWidth");
 
 function setInnerWidth(width: number) {
   Object.defineProperty(globalThis, "innerWidth", {
@@ -65,6 +69,12 @@ function setInnerWidth(width: number) {
     configurable: true,
     writable: true,
   });
+}
+
+function restoreInnerWidthDescriptor() {
+  if (originalInnerWidthDescriptor) {
+    Object.defineProperty(globalThis, "innerWidth", originalInnerWidthDescriptor);
+  }
 }
 
 function makeMql(query: string): MediaQueryList {
@@ -131,7 +141,7 @@ export function triggerMatchMediaChangeToMobile() {
 
 export function teardownViewport() {
   currentMatches = false;
-  setInnerWidth(originalInnerWidth);
+  restoreInnerWidthDescriptor();
   registeredListeners.clear();
   globalThis.matchMedia = originalMatchMedia;
   // Регрессионный strap: если в будущем `setup-jsdom.ts` начнёт ставить
