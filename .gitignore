@@ -30,3 +30,4 @@ backend/scripts/linearize_existing_pdfs.py
 frontend/coverage/
 backend/coverage.xml
 backend/.coverage
+project_documentation/
