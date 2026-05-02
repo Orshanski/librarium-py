@@ -25,12 +25,12 @@ def test_cannot_delete_self(admin_client):
     assert_error(resp, 400, message_matches="самого себя")
 
 
-def test_cannot_demote_last_admin(admin_client):
-    """Last remaining admin cannot be demoted to reader (business rule)."""
+def test_cannot_change_own_role(admin_client):
+    """Admin cannot change their own role (business rule)."""
     me = admin_client.get("/api/auth/me").json()
     resp = admin_client.put(f"/api/admin/users/{me['id']}",
                             json={"role": "reader"})
-    assert_error(resp, 400, message_matches="последнего")
+    assert_error(resp, 400, message_matches="свою роль")
 
 
 def test_create_user_invalid_username_is_422(admin_client):

@@ -36,7 +36,7 @@ def create_user(body: CreateUserBody, user: Annotated[CurrentUser, Depends(requi
 
 @router.put("/users/{user_id}", response_model=OkResponse)
 def update_user(user_id: int, body: UpdateUserBody, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
-    admin_service.update_user(db, user_id, body, actor_id=user.user_id)
+    admin_service.update_user(db, user_id, body, actor=user)
     return OkResponse()
 
 
