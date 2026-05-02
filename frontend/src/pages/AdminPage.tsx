@@ -97,19 +97,24 @@ function PasswordMatch({ pass, confirm }: Readonly<{ pass: string; confirm: stri
 // ─── User Card ──────────────────────────────────────
 function UserCard({
   user,
+  currentUserId,
   onSaveName,
   onSavePassword,
+  onSaveRole,
   onDelete,
 }: Readonly<{
   user: AdminUser;
+  currentUserId: number;
   onSaveName: (id: number, name: string) => Promise<void>;
   onSavePassword: (id: number, pass: string) => Promise<void>;
+  onSaveRole: (id: number, role: "admin" | "reader") => Promise<void>;
   onDelete: (id: number) => void;
 }>) {
-  const [editMode, setEditMode] = useState<"name" | "password" | null>(null);
+  const [editMode, setEditMode] = useState<"name" | "password" | "role" | null>(null);
   const [nameValue, setNameValue] = useState(user.display_name || user.username);
   const [passValue, setPassValue] = useState("");
   const [passConfirm, setPassConfirm] = useState("");
+  const [roleValue, setRoleValue] = useState<"admin" | "reader">(user.role);
   const [saving, setSaving] = useState(false);
   const isMobile = useIsMobile();
 
@@ -117,6 +122,7 @@ function UserCard({
     setEditMode(null);
     setPassValue("");
     setPassConfirm("");
+    setRoleValue(user.role);
   }
 
   return (
@@ -181,7 +187,10 @@ function UserCard({
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "name" ? null : "name")}>Имя</button>
           <button style={btnSmStyle} onClick={() => setEditMode(editMode === "password" ? null : "password")}>Пароль</button>
-          {user.role !== "admin" && (
+          {user.id !== currentUserId && (
+            <button style={btnSmStyle} onClick={() => setEditMode(editMode === "role" ? null : "role")}>Роль</button>
+          )}
+          {user.id !== currentUserId && (
             <button style={btnDangerStyle} onClick={() => onDelete(user.id)}>Удалить</button>
           )}
         </div>
@@ -316,6 +325,15 @@ export default function AdminPage() {
     }
   }
 
+  async function saveRole(id: number, role: "admin" | "reader") {
+    try {
+      await updateUser(id, { role });
+      setUsers(users.map((u) => u.id === id ? { ...u, role } : u));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Ошибка смены роли");
+    }
+  }
+
   async function deleteUser(id: number) {
     setDeleteUserId(id);
   }
@@ -388,7 +406,7 @@ export default function AdminPage() {
           <h2 style={sectionTitleStyle}>Пользователи</h2>
 
           {users.map((u) => (
-            <UserCard key={u.id} user={u} onSaveName={saveName} onSavePassword={savePassword} onDelete={deleteUser} />
+            <UserCard key={u.id} user={u} currentUserId={currentUser.id} onSaveName={saveName} onSavePassword={savePassword} onSaveRole={saveRole} onDelete={deleteUser} />
           ))}
 
           {showNewUser ? (
