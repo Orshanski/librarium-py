@@ -21,7 +21,6 @@ export default function MobilePageHeader({
   infoSlot,
   breadcrumb,
   actionSlot,
-  mobileActionSlot,
 }: PageHeaderProps) {
   const { toggleDrawer } = useMobileLayout();
   const navigate = useNavigate();
@@ -149,7 +148,6 @@ export default function MobilePageHeader({
                 )}
                 {title}
               </h1>
-              {mobileActionSlot}
             </div>
             {infoSlot && (
               <div style={{ marginTop: 6, fontSize: 12, color: colors.textDim }}>
