@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
+import { setupMobileViewport, teardownViewport } from "@/test/mobile-viewport";
 import { renderWithProviders } from "@/test/render";
 import BookDetail from "./book-detail";
 import type { Book } from "../types";
@@ -355,5 +356,28 @@ describe("book-detail — books", () => {
     await waitFor(() => {
       expect(document.body).toBeInTheDocument();
     });
+  });
+});
+
+// Контейнер `book-detail.tsx` ветвится на основе `useIsMobile()`:
+// `return isMobile ? <MobileBookDetail .../> : <DesktopBookDetail .../>;`.
+// Поэтому setupMobileViewport() в beforeEach гарантирует рендер
+// именно `MobileBookDetail`, и RED-фейл «есть ссылка «Ред.»» именно
+// о mobile-ветке, не desktop.
+describe("book-detail — mobile admin actions", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    setupMobileViewport();
+  });
+  afterEach(() => teardownViewport());
+
+  it("на mobile админ видит «Удалить», но не «Ред.»", async () => {
+    renderBookDetail();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("link", { name: "Ред." })).not.toBeInTheDocument();
   });
 });
