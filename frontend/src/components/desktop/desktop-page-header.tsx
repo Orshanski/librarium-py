@@ -155,7 +155,7 @@ export default function DesktopPageHeader({
           {sortOptions && sortValue !== undefined && onSortChange && (
             <SortSelect options={sortOptions} value={sortValue} onChange={onSortChange} />
           )}
-          {showUpload && (
+          {showUpload && user?.role === "admin" && (
             <Link
               to="/upload"
               style={{
