@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import ConfirmDialog from "../components/confirm-dialog";
-
+import { useAuth } from "../auth";
 import PageHeader from "../components/page-header";
 import { useIsMobile } from "../responsive";
 import { colors, fonts } from "../theme";
@@ -68,6 +68,19 @@ const btnAccentStyle: React.CSSProperties = { ...btnStyle, background: colors.ac
 const btnSmAccentStyle: React.CSSProperties = { ...btnSmStyle, background: colors.accent, color: colors.sidebar, borderColor: colors.accent, fontWeight: 600 };
 const btnDangerStyle: React.CSSProperties = { ...btnSmStyle, borderColor: "rgba(239,68,68,0.3)", color: colors.danger };
 const btnOutlineAccentStyle: React.CSSProperties = { ...btnStyle, borderColor: "rgba(249,190,3,0.3)", color: colors.accent };
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  appearance: "none",
+  WebkitAppearance: "none",
+  paddingRight: 32,
+  cursor: "pointer",
+  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+};
+
+const selectOptionStyle: React.CSSProperties = { background: "#16162a", color: "#ccc" };
 
 // ─── Password match indicator ────────────────────────
 function PasswordMatch({ pass, confirm }: Readonly<{ pass: string; confirm: string }>) {
@@ -256,6 +269,7 @@ interface NewUserState {
 
 // ─── Main Page ──────────────────────────────────────
 export default function AdminPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [settings, setSettings] = useState<AdminSettings>({});
   const [loading, setLoading] = useState(true);
@@ -355,7 +369,7 @@ export default function AdminPage() {
     }
   }
 
-  if (loading) {
+  if (loading || !currentUser) {
     return (
       <><PageHeader title="Настройки" />
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
@@ -416,12 +430,12 @@ export default function AdminPage() {
                 <div style={{ flex: "1 1 100px", minWidth: 100 }}>
                   <label style={labelStyle}>Роль</label>
                   <select
-                    style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none", paddingRight: 32, cursor: "pointer", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+                    style={selectStyle}
                     value={newUser.role}
                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
                   >
-                    <option value="reader" style={{ background: "#16162a", color: "#ccc" }}>reader</option>
-                    <option value="admin" style={{ background: "#16162a", color: "#ccc" }}>admin</option>
+                    <option value="reader" style={selectOptionStyle}>reader</option>
+                    <option value="admin" style={selectOptionStyle}>admin</option>
                   </select>
                 </div>
               </div>
