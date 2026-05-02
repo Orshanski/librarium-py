@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { Routes, Route } from "react-router-dom";
 import TagPage from "./TagPage";
-import { setupDesktopViewport, setupMobileViewport, triggerMatchMediaChangeToMobile, teardownViewport } from "@/test/mobile-viewport";
+import {
+  describeMobileGearAbsent,
+  describeAdminPanelVanishesOnResize,
+} from "@/test/entity-page-mobile";
 
 describe("TagPage", () => {
   beforeEach(() => {
@@ -179,90 +181,24 @@ describe("TagPage", () => {
   });
 });
 
-describe("TagPage — mobile", () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    setupMobileViewport();
-  });
-  afterEach(() => teardownViewport());
+const tagCase = {
+  label: "TagPage",
+  entityNoun: "жанром",
+  gearLabel: "Управление жанром",
+  panelComponent: "TagAdminPanel",
+  titleRegex: /Science Fiction/,
+  panelText: "Сопоставить с...",
+  detailPath: "/api/tags/:id",
+  listPath: "/api/tags",
+  detailResponse: {
+    tag: { id: 1, name: "Science Fiction", code: null },
+    books: [],
+  },
+  listResponse: { tags: [] },
+  routePath: "/tags/:id",
+  initialEntry: "/tags/1",
+  pageElement: <TagPage />,
+};
 
-  it("шестерёнки управления жанром нет в DOM, заголовок страницы есть", async () => {
-    let authResolved = false;
-    server.use(
-      http.get("/api/auth/me", () => {
-        authResolved = true;
-        return HttpResponse.json({
-          id: 1, username: "admin", displayName: "Test Admin",
-          email: "admin@test.local", role: "admin",
-        });
-      }),
-      http.get("/api/tags/:id", () =>
-        HttpResponse.json({
-          tag: { id: 1, name: "Science Fiction", code: null },
-          books: [],
-        })
-      )
-    );
-
-    renderWithProviders(
-      <Routes>
-        <Route path="/tags/:id" element={<TagPage />} />
-      </Routes>,
-      { initialEntries: ["/tags/1"] }
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
-      expect(authResolved).toBe(true);
-    });
-
-    expect(screen.getByRole("heading", { level: 1, name: /Science Fiction/ })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Управление жанром")).not.toBeInTheDocument();
-  });
-});
-
-describe("TagPage — resize desktop→mobile с открытой админ-панелью", () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    setupDesktopViewport();
-  });
-  afterEach(() => teardownViewport());
-
-  it("после переключения в mobile TagAdminPanel уходит из DOM", async () => {
-    const user = userEvent.setup();
-
-    server.use(
-      http.get("/api/tags/:id", () =>
-        HttpResponse.json({
-          tag: { id: 1, name: "Science Fiction", code: null },
-          books: [],
-        })
-      ),
-      http.get("/api/tags", () => HttpResponse.json({ tags: [] }))
-    );
-
-    renderWithProviders(
-      <Routes>
-        <Route path="/tags/:id" element={<TagPage />} />
-      </Routes>,
-      { initialEntries: ["/tags/1"] }
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
-    });
-
-    const gear = await screen.findByLabelText("Управление жанром");
-    await user.click(gear);
-
-    await waitFor(() => {
-      expect(screen.getByText("Сопоставить с...")).toBeInTheDocument();
-    });
-
-    triggerMatchMediaChangeToMobile();
-
-    await waitFor(() => {
-      expect(screen.queryByText("Сопоставить с...")).not.toBeInTheDocument();
-    });
-  });
-});
+describeMobileGearAbsent(tagCase);
+describeAdminPanelVanishesOnResize(tagCase);
