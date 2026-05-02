@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
-import MobileBookEditForm from "./mobile/mobile-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 import type { ListOrigin } from "./breadcrumb-origin";
 import { splitCsv } from "../types";
@@ -13,7 +11,6 @@ import { uploadTempFile, deleteTempUpload } from "@/api/endpoints/upload";
 import { ApiError, ServerError, ValidationError } from "@/api/errors";
 
 export default function BookEditForm({ book, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
-  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);
   const [authors, setAuthors] = useState(book.authors.join(", "));
@@ -242,7 +239,7 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
 
   return (
     <>
-      {isMobile ? <MobileBookEditForm {...viewProps} /> : <DesktopBookEditForm {...viewProps} />}
+      <DesktopBookEditForm {...viewProps} />
       {deleteFormatConfirm && (
         <ConfirmDialog
           message={`Удалить файл ${deleteFormatConfirm}?`}
