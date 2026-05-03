@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
+import { registerScrollInvalidationHandlers } from "@/scroll/list-scroll-validity";
 import type { SearchBookHit } from "../api/endpoints/search";
 import SearchPage from "./SearchPage";
 
@@ -58,5 +60,38 @@ describe("SearchPage — integration", () => {
     expect(
       screen.getByText(/введите запрос в поле поиска/i),
     ).toBeInTheDocument();
+  });
+
+  it("resets saved search scroll after structural book events", async () => {
+    domainEvents.clear();
+    const unsubscribe = registerScrollInvalidationHandlers(domainEvents);
+    const main = document.createElement("main");
+    document.body.appendChild(main);
+    server.use(
+      http.get("/api/search", () =>
+        HttpResponse.json({
+          books: [makeSearchHit({ title: "Dune" })],
+          authors: [],
+          series: [],
+        }),
+      ),
+    );
+
+    const first = renderWithProviders(<SearchPage />, { initialEntries: ["/search?q=dune"] });
+    await waitFor(() => expect(screen.getByText("Dune")).toBeInTheDocument());
+    main.scrollTop = 360;
+    fireEvent.click(main);
+    first.unmount();
+
+    domainEvents.publish("bookCreated", { bookId: 42, book: { id: 42, title: "New Dune" } });
+
+    renderWithProviders(<SearchPage />, {
+      initialEntries: [{ pathname: "/search", search: "?q=dune", state: { crumb: true } }],
+    });
+    await waitFor(() => expect(screen.getByText("Dune")).toBeInTheDocument());
+
+    expect(main.scrollTop).toBe(0);
+    unsubscribe();
+    document.body.removeChild(main);
   });
 });
