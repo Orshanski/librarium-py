@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 import aiosql
 
@@ -13,6 +13,13 @@ from .sort import resolve_order_clause
 queries = aiosql.from_path(Path(__file__).parent / "queries" / "shelves", "sqlite3")
 
 _ORDER_CLAUSE_PLACEHOLDER = "{order_clause}"
+
+
+class ShelfMetaRow(TypedDict):
+    id: int
+    name: str
+    is_system: int
+    system_code: str | None
 
 
 def get_shelves(db: sqlite3.Connection, user_id: int) -> list[ShelfRow]:
@@ -62,6 +69,11 @@ def get_shelf_by_id(
 def shelf_exists(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
     row = queries.shelf_exists(db, id=shelf_id, uid=user_id)
     return row is not None
+
+
+def get_shelf_meta(db: sqlite3.Connection, shelf_id: int, user_id: int) -> ShelfMetaRow | None:
+    row = queries.get_shelf_meta(db, id=shelf_id, uid=user_id)
+    return cast(ShelfMetaRow | None, dict_from_row(row))
 
 
 def create_shelf(db: sqlite3.Connection, user_id: int, name: str) -> int:
