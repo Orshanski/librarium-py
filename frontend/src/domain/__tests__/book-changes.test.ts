@@ -24,7 +24,7 @@ describe("deriveBookChangedFields", () => {
       tagIds: [4],
       language: "en",
       commitCover: true,
-      addFormats: [{ path: "/tmp/book.epub" }],
+      addFormats: [{ path: "/library/uploads/book.epub" }],
       deleteFormats: [9],
       isbn: "9780000000000",
     })).toEqual([
