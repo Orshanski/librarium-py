@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Routes, Route, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ProtectedRoute } from "./auth";
+import { ProtectedRoute, useAuth } from "./auth";
 import Shell from "./components/shell";
 import OfflineShell from "./components/OfflineShell";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useIsPwa } from "./hooks/useIsPwa";
+import { useServerEvents } from "./sse/useServerEvents";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isReadingFlag, clearReadingFlag } from "./utils/readerFlag";
 import { getLastReadBook } from "./utils/offline-storage";
@@ -34,6 +35,13 @@ function ShellLayout() {
       <Outlet />
     </Shell>
   );
+}
+
+function AuthenticatedEventStream({ online }: Readonly<{ online: boolean }>) {
+  const { user } = useAuth();
+  const authenticated = Boolean(user);
+  useServerEvents(authenticated && online, { resyncOnNextOpen: authenticated && !online });
+  return null;
 }
 
 export default function App() {
@@ -80,33 +88,36 @@ export default function App() {
     }
   }, [showOffline, online, navigate]);
 
-  if (showOffline) {
-    return <OfflineShell />;
-  }
-
   return (
-    <Suspense>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад" onBack={() => { clearReadingFlag(); globalThis.history.back(); }}><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
-        <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
-          <Route path="/" element={<CatalogPage />} />
-          <Route path="/book/:id" element={<BookPage />} />
-          <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
-          <Route path="/book/:id/similar" element={<SimilarBooksPage />} />
-          <Route path="/authors" element={<AuthorsPage />} />
-          <Route path="/authors/:id" element={<AuthorPage />} />
-          <Route path="/series" element={<SeriesListPage />} />
-          <Route path="/series/:id" element={<SeriesPage />} />
-          <Route path="/tags" element={<TagsPage />} />
-          <Route path="/tags/:id" element={<TagPage />} />
-          <Route path="/shelves/:id" element={<ShelfPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/upload" element={<ProtectedRoute adminOnly><UploadPage /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <>
+      <AuthenticatedEventStream online={online} />
+      {showOffline ? (
+        <OfflineShell />
+      ) : (
+        <Suspense>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/book/:id/read/:format" element={<ProtectedRoute><ErrorBoundary title="Не удалось открыть книгу" backLabel="Назад" onBack={() => { clearReadingFlag(); globalThis.history.back(); }}><ReaderPage /></ErrorBoundary></ProtectedRoute>} />
+            <Route element={<ProtectedRoute><ShellLayout /></ProtectedRoute>}>
+              <Route path="/" element={<CatalogPage />} />
+              <Route path="/book/:id" element={<BookPage />} />
+              <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
+              <Route path="/book/:id/similar" element={<SimilarBooksPage />} />
+              <Route path="/authors" element={<AuthorsPage />} />
+              <Route path="/authors/:id" element={<AuthorPage />} />
+              <Route path="/series" element={<SeriesListPage />} />
+              <Route path="/series/:id" element={<SeriesPage />} />
+              <Route path="/tags" element={<TagsPage />} />
+              <Route path="/tags/:id" element={<TagPage />} />
+              <Route path="/shelves/:id" element={<ShelfPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/upload" element={<ProtectedRoute adminOnly><UploadPage /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      )}
+    </>
   );
 }

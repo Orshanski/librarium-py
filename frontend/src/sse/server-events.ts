@@ -1,0 +1,226 @@
+import { domainEvents, type BookChangedField, type DomainEventMap } from "@/domain/events";
+
+type ServerEventScope = { kind: "library" } | { kind: "user"; userId: number };
+
+type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> = {
+  eventId: number;
+  scope: ServerEventScope;
+  event: { type: E; payload: DomainEventMap[E] };
+  originClientId?: string;
+};
+
+const KNOWN_EVENTS = [
+  "bookUpdated",
+  "bookCreated",
+  "bookDeleted",
+  "bookRatingChanged",
+  "bookReadChanged",
+  "bookHiddenChanged",
+  "authorRenamed",
+  "authorMerged",
+  "authorDeleted",
+  "seriesRenamed",
+  "seriesMerged",
+  "seriesDeleted",
+  "tagMapped",
+  "shelfCreated",
+  "shelfRenamed",
+  "shelfDeleted",
+  "shelfMembershipChanged",
+  "readingProgressChanged",
+] as const satisfies readonly (keyof DomainEventMap)[];
+
+const KNOWN_EVENT_SET = new Set<keyof DomainEventMap>(KNOWN_EVENTS);
+
+const USER_SCOPED_EVENTS = new Set<keyof DomainEventMap>([
+  "bookRatingChanged",
+  "bookReadChanged",
+  "bookHiddenChanged",
+  "shelfCreated",
+  "shelfRenamed",
+  "shelfDeleted",
+  "shelfMembershipChanged",
+  "readingProgressChanged",
+]);
+
+const BOOK_CHANGED_FIELDS = new Set<BookChangedField>([
+  "title",
+  "description",
+  "publisher",
+  "pubDate",
+  "coverPath",
+  "authors",
+  "series",
+  "seriesNumber",
+  "tags",
+  "language",
+  "rating",
+  "read",
+  "files",
+  "identifiers",
+]);
+
+export function dispatchServerEvent(raw: unknown): void {
+  const envelope = parseServerEvent(raw);
+  domainEvents.publish(envelope.event.type, envelope.event.payload);
+}
+
+function parseServerEvent(raw: unknown): ServerEventEnvelope {
+  const envelope = expectRecord(raw, "bad server event");
+  if (typeof envelope.eventId !== "number") throw new Error("bad server event id");
+
+  const scope = parseScope(envelope.scope);
+  const event = expectRecord(envelope.event, "bad server event payload");
+  if (typeof event.type !== "string" || !KNOWN_EVENT_SET.has(event.type as keyof DomainEventMap)) {
+    throw new Error(`unknown server event: ${String(event.type)}`);
+  }
+
+  const type = event.type as keyof DomainEventMap;
+  validateEventScope(type, scope);
+  validatePayload(type, event.payload);
+
+  return {
+    ...envelope,
+    scope,
+    event: { type, payload: event.payload as DomainEventMap[typeof type] },
+  } as ServerEventEnvelope;
+}
+
+function parseScope(raw: unknown): ServerEventScope {
+  const scope = expectRecord(raw, "bad server event scope");
+  if (scope.kind === "library") return { kind: "library" };
+  if (scope.kind === "user" && typeof scope.userId === "number") {
+    return { kind: "user", userId: scope.userId };
+  }
+  throw new Error("bad server event scope");
+}
+
+function validateEventScope(type: keyof DomainEventMap, scope: ServerEventScope): void {
+  const userScoped = USER_SCOPED_EVENTS.has(type);
+  if (userScoped && scope.kind !== "user") throw new Error("bad server event scope");
+  if (!userScoped && scope.kind !== "library") throw new Error("bad server event scope");
+}
+
+function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
+  const value = expectRecord(payload, "bad server event payload");
+
+  switch (type) {
+    case "bookUpdated":
+      requireBookPayload(value.book);
+      if (value.detail !== undefined) throw new Error("bad server event payload");
+      if (!Array.isArray(value.changedFields) || !value.changedFields.every(isBookChangedField)) {
+        throw new Error("bad server event payload");
+      }
+      if (value.affected !== undefined) validateAffected(value.affected);
+      return;
+    case "bookCreated":
+      requireNumber(value.bookId);
+      if (value.book !== undefined) requireBookPayload(value.book);
+      return;
+    case "bookDeleted":
+      requireNumber(value.bookId);
+      return;
+    case "bookRatingChanged":
+      requireNumber(value.bookId);
+      if (!(typeof value.rating === "number" || value.rating === null)) throw new Error("bad server event payload");
+      return;
+    case "bookReadChanged":
+      requireNumber(value.bookId);
+      requireBoolean(value.isRead);
+      return;
+    case "bookHiddenChanged":
+      requireNumber(value.bookId);
+      requireBoolean(value.isHidden);
+      return;
+    case "authorRenamed":
+      requireNumber(value.authorId);
+      requireString(value.name);
+      if (value.sortName !== undefined) requireString(value.sortName);
+      return;
+    case "authorMerged":
+      requireNumber(value.targetId);
+      requireNumber(value.sourceId);
+      return;
+    case "authorDeleted":
+      requireNumber(value.authorId);
+      return;
+    case "seriesRenamed":
+      requireNumber(value.seriesId);
+      requireString(value.name);
+      if (value.sortName !== undefined) requireString(value.sortName);
+      return;
+    case "seriesMerged":
+      requireNumber(value.targetId);
+      requireNumber(value.sourceId);
+      return;
+    case "seriesDeleted":
+      requireNumber(value.seriesId);
+      return;
+    case "tagMapped":
+      requireNumber(value.tagId);
+      requireNumber(value.targetId);
+      requireString(value.name);
+      return;
+    case "shelfCreated":
+    case "shelfRenamed":
+      requireNumber(value.shelfId);
+      requireString(value.name);
+      return;
+    case "shelfDeleted":
+      requireNumber(value.shelfId);
+      return;
+    case "shelfMembershipChanged":
+      requireNumber(value.shelfId);
+      requireNumber(value.bookId);
+      requireBoolean(value.hasBook);
+      return;
+    case "readingProgressChanged":
+      requireNumber(value.bookId);
+      requireBoolean(value.hadPosition);
+      requireBoolean(value.hasPosition);
+      requireBoolean(value.lastReadAtChanged);
+      return;
+  }
+}
+
+function requireBookPayload(raw: unknown): void {
+  const book = expectRecord(raw, "bad server event payload");
+  requireNumber(book.id);
+}
+
+function validateAffected(raw: unknown): void {
+  const affected = expectRecord(raw, "bad server event payload");
+  if (affected.authorIds !== undefined && !isNumberArray(affected.authorIds)) throw new Error("bad server event payload");
+  if (affected.seriesId !== undefined && !(typeof affected.seriesId === "number" || affected.seriesId === null)) {
+    throw new Error("bad server event payload");
+  }
+  if (affected.tagIds !== undefined && !isNumberArray(affected.tagIds)) throw new Error("bad server event payload");
+  if (affected.language !== undefined && !(typeof affected.language === "string" || affected.language === null)) {
+    throw new Error("bad server event payload");
+  }
+}
+
+function expectRecord(value: unknown, message: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(message);
+  return value as Record<string, unknown>;
+}
+
+function isBookChangedField(value: unknown): value is BookChangedField {
+  return typeof value === "string" && BOOK_CHANGED_FIELDS.has(value as BookChangedField);
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
+}
+
+function requireNumber(value: unknown): void {
+  if (typeof value !== "number") throw new Error("bad server event payload");
+}
+
+function requireString(value: unknown): void {
+  if (typeof value !== "string") throw new Error("bad server event payload");
+}
+
+function requireBoolean(value: unknown): void {
+  if (typeof value !== "boolean") throw new Error("bad server event payload");
+}
