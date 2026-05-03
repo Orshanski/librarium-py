@@ -162,6 +162,29 @@ def test_broker_queue_overflow_cancels_pending_get_before_stale_event_yields():
     asyncio.run(scenario())
 
 
+def test_broker_close_all_wakes_pending_subscriptions():
+    from app.events import EventBroker
+
+    async def scenario():
+        broker = EventBroker(queue_size=2)
+        left = broker.subscribe(user_id=1)
+        right = broker.subscribe(user_id=2)
+        pending_left = asyncio.create_task(left.get())
+        pending_right = asyncio.create_task(right.get())
+        await asyncio.sleep(0)
+
+        broker.close_all()
+
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(pending_left, timeout=0.1)
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(pending_right, timeout=0.1)
+        assert left.closed
+        assert right.closed
+
+    asyncio.run(scenario())
+
+
 def test_sse_format_uses_domain_event_name_and_json_payload():
     from app.events import format_sse_event
 

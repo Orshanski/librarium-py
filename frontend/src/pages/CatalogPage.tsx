@@ -106,11 +106,18 @@ export default function CatalogPage() {
   );
 
   const [state, setState] = useState<CatalogState>(() => initialStateFor(urlKey));
+  const subscribeBooksNamespace = useMemo(() => (handler: () => void) => metadataCache.subscribe("books", handler), []);
+  const booksVersion = useSyncExternalStore(
+    subscribeBooksNamespace,
+    () => metadataCache.version("books"),
+    () => metadataCache.version("books"),
+  );
   const booksInvalidationVersion = useSyncExternalStore(
-    useMemo(() => (handler: () => void) => metadataCache.subscribe("books", handler), []),
+    subscribeBooksNamespace,
     () => metadataCache.invalidationVersion("books"),
     () => metadataCache.invalidationVersion("books"),
   );
+  const seenBooksVersion = useRef(booksVersion);
   const seenBooksInvalidationVersion = useRef(booksInvalidationVersion);
 
   // Синхронная реакция на смену URL: пересчитываем state из кэша либо переходим в loading.
@@ -130,6 +137,23 @@ export default function CatalogPage() {
     setLoadingMore(false);
     setState(initialStateFor(urlKey));
   }, [booksInvalidationVersion, urlKey]);
+
+  useEffect(() => {
+    if (seenBooksVersion.current === booksVersion) return;
+    seenBooksVersion.current = booksVersion;
+    const cached = readCatalogCache(urlKey);
+    if (!cached) return;
+    setState((prev) => {
+      if (prev.urlKey !== urlKey) return prev;
+      return {
+        urlKey,
+        books: cached.books,
+        hasMore: cached.hasMore,
+        cursor: cached.cursor,
+        loading: prev.loading,
+      };
+    });
+  }, [booksVersion, urlKey]);
 
   const buildApiParams = useCallback(
     (c: number, size?: number): BookListParams & { pageSize: number; cursor: number } => {
