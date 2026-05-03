@@ -106,55 +106,35 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
 
   switch (type) {
     case "bookUpdated":
-      requireBookPayload(value.book);
-      if (value.detail !== undefined) throw new Error("bad server event payload");
-      if (!Array.isArray(value.changedFields) || !value.changedFields.every(isBookChangedField)) {
-        throw new Error("bad server event payload");
-      }
-      if (value.changedFields.some((field) => field === "rating" || field === "read")) {
-        throw new Error("bad server event payload");
-      }
-      if (value.affected !== undefined) validateAffected(value.affected);
+      validateBookUpdatedPayload(value);
       return;
     case "bookCreated":
-      requireNumber(value.bookId);
-      if (value.book !== undefined) requireBookPayload(value.book);
+      validateBookCreatedPayload(value);
       return;
     case "bookDeleted":
       requireNumber(value.bookId);
       return;
     case "bookRatingChanged":
-      requireNumber(value.bookId);
-      if (!(typeof value.rating === "number" || value.rating === null)) throw new Error("bad server event payload");
+      validateBookRatingPayload(value);
       return;
     case "bookReadChanged":
-      requireNumber(value.bookId);
-      requireBoolean(value.isRead);
+      validateBookBooleanPayload(value, "isRead");
       return;
     case "bookHiddenChanged":
-      requireNumber(value.bookId);
-      requireBoolean(value.isHidden);
+      validateBookBooleanPayload(value, "isHidden");
       return;
     case "authorRenamed":
-      requireNumber(value.authorId);
-      requireString(value.name);
-      if (value.sortName !== undefined) requireString(value.sortName);
+      validateRenamedPayload(value, "authorId");
       return;
     case "authorMerged":
-      requireNumber(value.targetId);
-      requireNumber(value.sourceId);
+    case "seriesMerged":
+      validateMergedPayload(value);
       return;
     case "authorDeleted":
       requireNumber(value.authorId);
       return;
     case "seriesRenamed":
-      requireNumber(value.seriesId);
-      requireString(value.name);
-      if (value.sortName !== undefined) requireString(value.sortName);
-      return;
-    case "seriesMerged":
-      requireNumber(value.targetId);
-      requireNumber(value.sourceId);
+      validateRenamedPayload(value, "seriesId");
       return;
     case "seriesDeleted":
       requireNumber(value.seriesId);
@@ -166,8 +146,7 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       return;
     case "shelfCreated":
     case "shelfRenamed":
-      requireNumber(value.shelfId);
-      requireString(value.name);
+      validateShelfNamedPayload(value);
       return;
     case "shelfDeleted":
       requireNumber(value.shelfId);
@@ -184,6 +163,57 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       requireBoolean(value.lastReadAtChanged);
       return;
   }
+}
+
+function validateBookUpdatedPayload(value: Record<string, unknown>): void {
+  requireBookPayload(value.book);
+  if (value.detail !== undefined) throw new Error("bad server event payload");
+  requireChangedFields(value.changedFields);
+  if (value.affected !== undefined) validateAffected(value.affected);
+}
+
+function requireChangedFields(value: unknown): void {
+  if (!Array.isArray(value) || !value.every(isBookChangedField)) {
+    throw new Error("bad server event payload");
+  }
+  if (value.some(isUserScopedBookField)) {
+    throw new Error("bad server event payload");
+  }
+}
+
+function isUserScopedBookField(field: BookChangedField): boolean {
+  return field === "rating" || field === "read";
+}
+
+function validateBookCreatedPayload(value: Record<string, unknown>): void {
+  requireNumber(value.bookId);
+  if (value.book !== undefined) requireBookPayload(value.book);
+}
+
+function validateBookRatingPayload(value: Record<string, unknown>): void {
+  requireNumber(value.bookId);
+  if (typeof value.rating !== "number" && value.rating !== null) throw new Error("bad server event payload");
+}
+
+function validateBookBooleanPayload(value: Record<string, unknown>, field: string): void {
+  requireNumber(value.bookId);
+  requireBoolean(value[field]);
+}
+
+function validateRenamedPayload(value: Record<string, unknown>, idField: string): void {
+  requireNumber(value[idField]);
+  requireString(value.name);
+  if (value.sortName !== undefined) requireString(value.sortName);
+}
+
+function validateMergedPayload(value: Record<string, unknown>): void {
+  requireNumber(value.targetId);
+  requireNumber(value.sourceId);
+}
+
+function validateShelfNamedPayload(value: Record<string, unknown>): void {
+  requireNumber(value.shelfId);
+  requireString(value.name);
 }
 
 function requireBookPayload(raw: unknown): void {
