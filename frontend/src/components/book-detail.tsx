@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Book } from "../types";
 import { useOfflineBookStatus } from "../hooks/useOfflineBookStatus";
@@ -7,9 +7,7 @@ import { useIsMobile } from "../responsive";
 import ConfirmDialog from "./confirm-dialog";
 import DesktopBookDetail from "./desktop/desktop-book-detail";
 import MobileBookDetail from "./mobile/mobile-book-detail";
-import { Shelf } from "./book-detail.types";
 import type { ListOrigin } from "./breadcrumb-origin";
-import { listShelves, addBookToShelf, removeBookFromShelf } from "@/api/endpoints/shelves";
 import { getCover } from "@/api/endpoints/covers";
 import {
   getBook,
@@ -35,11 +33,7 @@ export default function BookDetail({
   const isAdmin = user?.role === "admin";
   const [rating, setRating] = useState<number | null>(book.rating);
   const [isRead, setIsRead] = useState(book.isRead);
-  const [showShelfMenu, setShowShelfMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [shelfList, setShelfList] = useState<Shelf[] | null>(null);
-  const [bookShelfIds, setBookShelfIds] = useState<Set<number>>(new Set());
-  const shelfRef = useRef<HTMLDivElement>(null);
   const { hasOffline, loading: offlineLoading, toggleOffline, evict: evictOffline, isPwa } = useOfflineBookStatus(book.id);
 
   const handleToggleOffline = useCallback(() => {
@@ -60,17 +54,6 @@ export default function BookDetail({
       },
     );
   }, [book.id, book.title, book.authors, toggleOffline]);
-
-  useEffect(() => {
-    if (!showShelfMenu) return;
-    function handleClick(e: PointerEvent) {
-      if (shelfRef.current && !shelfRef.current.contains(e.target as Node)) {
-        setShowShelfMenu(false);
-      }
-    }
-    document.addEventListener("pointerdown", handleClick);
-    return () => document.removeEventListener("pointerdown", handleClick);
-  }, [showShelfMenu]);
 
   async function saveRating(nextRating: number) {
     const previous = rating;
@@ -94,44 +77,6 @@ export default function BookDetail({
     }
   }
 
-  function toggleShelfMenu() {
-    if (!showShelfMenu) {
-      listShelves(book.id)
-        .then((data) => {
-          setShelfList(data.shelves);
-          const onShelves = (data.bookShelves || []).filter((s) => s.hasBook).map((s) => s.id);
-          setBookShelfIds(new Set(onShelves));
-        })
-        .catch((err) => console.warn("Failed to load shelf list:", err));
-    }
-    setShowShelfMenu((value) => !value);
-  }
-
-  async function toggleShelfBook(shelfId: number) {
-    if (bookShelfIds.has(shelfId)) {
-      const previous = new Set(bookShelfIds);
-      setBookShelfIds((prev) => {
-        const next = new Set(prev);
-        next.delete(shelfId);
-        return next;
-      });
-      try {
-        await removeBookFromShelf(shelfId, book.id);
-      } catch {
-        setBookShelfIds(previous);
-      }
-      return;
-    }
-
-    const previous = new Set(bookShelfIds);
-    setBookShelfIds((prev) => new Set(prev).add(shelfId));
-    try {
-      await addBookToShelf(shelfId, book.id);
-    } catch {
-      setBookShelfIds(previous);
-    }
-  }
-
   const detailProps = {
     book,
     seriesBooks,
@@ -139,14 +84,8 @@ export default function BookDetail({
     isAdmin,
     rating,
     isRead,
-    showShelfMenu,
-    shelfList,
-    bookShelfIds,
-    shelfRef,
     onChangeRating: saveRating,
     onToggleRead: toggleRead,
-    onToggleShelfMenu: toggleShelfMenu,
-    onToggleShelfBook: toggleShelfBook,
     onShowDeleteConfirm: () => setShowDeleteConfirm(true),
     hasOffline,
     offlineLoading,

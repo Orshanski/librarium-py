@@ -1,5 +1,5 @@
 import { colors } from "../theme";
-import { Shelf } from "./book-detail.types";
+import type { Shelf } from "@/api/endpoints/shelves";
 
 export default function ShelfDropdownMenu({
   shelves,
