@@ -208,6 +208,7 @@ const setStylesImportant = (el, styles) => {
 }
 
 class View {
+    #destroyed = false
     #observer = new ResizeObserver(() => this.expand())
     #element = document.createElement('div')
     #iframe = document.createElement('iframe')
@@ -255,6 +256,10 @@ class View {
         return new Promise(resolve => {
             this.#iframe.addEventListener('load', () => {
                 const doc = this.document
+                if (this.#destroyed || !doc?.documentElement || !doc.body) {
+                    resolve()
+                    return
+                }
                 afterLoad?.(doc)
 
                 // it needs to be visible for Firefox to get computed style
@@ -275,7 +280,9 @@ class View {
                 // the resize observer above doesn't work in Firefox
                 // (see https://bugzilla.mozilla.org/show_bug.cgi?id=1832939)
                 // until the bug is fixed we can at least account for font load
-                doc.fonts.ready.then(() => this.expand())
+                doc.fonts.ready.then(() => {
+                    if (!this.#destroyed) this.expand()
+                })
 
                 resolve()
             }, { once: true })
@@ -283,15 +290,17 @@ class View {
         })
     }
     render(layout) {
-        if (!layout) return
+        if (this.#destroyed || !layout) return
         this.#column = layout.flow !== 'scrolled'
         this.#layout = layout
         if (this.#column) this.columnize(layout)
         else this.scrolled(layout)
     }
     scrolled({ gap, columnWidth }) {
+        if (this.#destroyed) return
         const vertical = this.#vertical
         const doc = this.document
+        if (!doc?.documentElement || !doc.body) return
         setStylesImportant(doc.documentElement, {
             'box-sizing': 'border-box',
             'padding': vertical ? `${gap}px 0` : `0 ${gap}px`,
@@ -307,10 +316,12 @@ class View {
         this.expand()
     }
     columnize({ width, height, gap, columnWidth }) {
+        if (this.#destroyed) return
         const vertical = this.#vertical
         this.#size = vertical ? height : width
 
         const doc = this.document
+        if (!doc?.documentElement || !doc.body) return
         setStylesImportant(doc.documentElement, {
             'box-sizing': 'border-box',
             'column-width': `${Math.trunc(columnWidth)}px`,
@@ -339,9 +350,11 @@ class View {
         this.expand()
     }
     setImageSize() {
+        if (this.#destroyed || !this.#layout) return
         const { width, height, margin } = this.#layout
         const vertical = this.#vertical
         const doc = this.document
+        if (!doc?.body) return
         for (const el of doc.body.querySelectorAll('img, svg, video')) {
             // preserve max size if they are already set
             const { maxHeight, maxWidth } = doc.defaultView.getComputedStyle(el)
@@ -360,7 +373,10 @@ class View {
         }
     }
     expand() {
-        const { documentElement } = this.document
+        if (this.#destroyed || !this.#layout) return
+        const doc = this.document
+        if (!doc?.documentElement) return
+        const { documentElement } = doc
         if (this.#column) {
             const side = this.#vertical ? 'height' : 'width'
             const otherSide = this.#vertical ? 'width' : 'height'
@@ -416,7 +432,8 @@ class View {
         return this.#overlayer
     }
     destroy() {
-        if (this.document) this.#observer.unobserve(this.document.body)
+        this.#destroyed = true
+        this.#observer.disconnect()
     }
 }
 
@@ -1254,20 +1271,23 @@ export class Paginator extends HTMLElement {
         } else $style.textContent = styles
 
         // NOTE: needs `requestAnimationFrame` in Chromium
-        requestAnimationFrame(() =>
-            this.#background.style.background = getBackground(this.#view.document))
+        const view = this.#view
+        requestAnimationFrame(() => {
+            if (!view?.document) return
+            this.#background.style.background = getBackground(view.document)
+        })
 
         // needed because the resize observer doesn't work in Firefox
-        this.#view?.document?.fonts?.ready?.then(() => this.#view.expand())
+        view?.document?.fonts?.ready?.then(() => view.expand())
     }
     focusView() {
         this.#view.document.defaultView.focus()
     }
     destroy() {
         this.#observer.unobserve(this)
-        this.#view.destroy()
+        this.#view?.destroy()
         this.#view = null
-        this.sections[this.#index]?.unload?.()
+        this.sections?.[this.#index]?.unload?.()
         this.#mediaQuery.removeEventListener('change', this.#mediaQueryListener)
     }
 }
