@@ -40,7 +40,19 @@ def update_user(db: sqlite3.Connection, user_id: int, body: UpdateUserBody, acto
         raise BadInputError("Нельзя менять свою роль")
     if data.get("role") == "reader" and users_dal.is_last_admin(db, user_id):
         raise BadInputError("Нельзя понизить последнего админа")
+
+    # Detect actual role change before update — saving the form unchanged sends
+    # the current role in payload, and we don't want to revoke tokens for a no-op.
+    role_actually_changed = False
+    if "role" in data:
+        current = users_dal.get_user_by_id(db, user_id)
+        if current is not None and current["role"] != data["role"]:
+            role_actually_changed = True
+
     users_dal.update_user(db, user_id, data)
+    if role_actually_changed:
+        from ..auth import bump_token_epoch  # deferred to break auth↔dal.users circular import
+        bump_token_epoch(db, user_id)
     log.info("Updated user_id=%d by user_id=%s", user_id, actor.user_id)
 
 

@@ -1,12 +1,15 @@
 import sqlite3
 import threading
 from pathlib import Path
+from typing import Callable
 
 from .config import DB_PATH, SCHEMA_PATH
 
 _local = threading.local()
 _schema_initialized = False
 _init_lock = threading.Lock()
+
+_AfterCommitHook = Callable[[], None]
 
 
 def _get_db() -> sqlite3.Connection:
@@ -36,14 +39,47 @@ def db_session():
     accesses the thread-local connection — unlike the async middleware.
     """
     db = _get_db()
+    previous_commit_hooks = getattr(_local, "after_commit_hooks", None)
+    previous_rollback_hooks = getattr(_local, "after_rollback_hooks", None)
+    _local.after_commit_hooks = []
+    _local.after_rollback_hooks = []
     try:
         yield db
         if db.in_transaction:
             db.commit()
+        for hook in _local.after_commit_hooks:
+            hook()
     except Exception:
         if db.in_transaction:
             db.rollback()
+        for hook in _local.after_rollback_hooks:
+            hook()
         raise
+    finally:
+        _local.after_commit_hooks = previous_commit_hooks
+        _local.after_rollback_hooks = previous_rollback_hooks
+
+
+def add_after_commit_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
+    """Register a callback to run after the current managed db_session commits.
+
+    Returns False when called outside the db_session that owns `db`; callers can
+    then fall back to immediate behavior for scripts or direct test helpers.
+    """
+    hooks = getattr(_local, "after_commit_hooks", None)
+    if hooks is None or getattr(_local, "db", None) is not db:
+        return False
+    hooks.append(hook)
+    return True
+
+
+def add_after_rollback_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
+    """Register a callback to run after the current managed db_session rolls back."""
+    hooks = getattr(_local, "after_rollback_hooks", None)
+    if hooks is None or getattr(_local, "db", None) is not db:
+        return False
+    hooks.append(hook)
+    return True
 
 
 def dict_from_row(row: sqlite3.Row | None) -> dict | None:
