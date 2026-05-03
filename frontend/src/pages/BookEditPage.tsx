@@ -7,7 +7,7 @@ import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.t
 import type { BookContextOrigin, ListOrigin } from "../components/breadcrumb-origin";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
-import { Book, RawBook, toBook, splitCsv } from "../types";
+import { Book, RawBook, toBook } from "../types";
 import { getBook, updateBook, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 
@@ -98,11 +98,10 @@ export default function BookEditPage() {
   };
 
   async function handleSave(data: BookSavePayload) {
-    const authorIds = splitCsv(data.authors)
-      .map((name: string) => {
-        const found = options?.authors?.find((a) => a.name === name);
-        return found ? found.id : name;
-      });
+    const authorIds = data.authors.map((name: string) => {
+      const found = options?.authors?.find((a) => a.name === name);
+      return found ? found.id : name;
+    });
     const tagIds = (data.tags || []).map((name: string) => {
       const found = options?.tags?.find((t) => t.name === name);
       return found ? found.id : name;

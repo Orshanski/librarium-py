@@ -510,7 +510,7 @@ describe("book-edit-form — books", () => {
     expect(capturedPayload!.commitCover).toBe(false);
   });
 
-  it("edits authors with the same token UI as tags and saves authors as CSV", async () => {
+  it("edits authors with the same token UI as tags and saves authors as an array", async () => {
     const user = userEvent.setup();
     let capturedPayload: import("./book-edit-form.types").BookSavePayload | null = null;
     const parentOnSave = async (payload: import("./book-edit-form.types").BookSavePayload) => {
@@ -541,7 +541,7 @@ describe("book-edit-form — books", () => {
     await user.click(screen.getByRole("button", { name: /сохранить/i }));
 
     await waitFor(() => expect(capturedPayload).not.toBeNull());
-    expect(capturedPayload!.authors).toBe("Новый Автор");
+    expect(capturedPayload!.authors).toEqual(["Новый Автор"]);
   });
 
   it("save_4xx_shows_detail_preserves_state", async () => {

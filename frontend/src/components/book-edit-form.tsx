@@ -128,7 +128,7 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     try {
       await onSave({
         title,
-        authors: authors.join(", "),
+        authors,
         series: seriesName || null,
         seriesNumber: seriesNumber || null,
         description,

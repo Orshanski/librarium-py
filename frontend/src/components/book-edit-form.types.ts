@@ -23,7 +23,7 @@ export interface BookEditOptions {
 
 export interface BookSavePayload {
   title: string;
-  authors: string;
+  authors: string[];
   series: string | null;
   seriesNumber: string | null;
   description: string;
