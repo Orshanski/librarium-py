@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 import { server } from "@/test/msw/server";
 import { ResponsiveProvider } from "@/responsive";
+import { domainEvents } from "@/domain/events";
+import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
 import SmartFilterBar from "./smart-filter-bar";
 
 const mockAuthors = [
@@ -30,6 +33,72 @@ const mockLanguages = [{ name: "English" }, { name: "Russian" }];
 // Per-test handlers are registered via server.use(...).
 
 describe("SmartFilterBar", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    domainEvents.clear();
+    metadataCache.clear();
+    registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  it("does not use the legacy librarium_filter_options sessionStorage cache", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("librarium_filter_options", JSON.stringify({
+      key: "authorIds|",
+      options: { authorIds: [{ id: 999, name: "Stale Author" }] },
+    }));
+    server.use(
+      http.get("/api/filter-options/authors", () =>
+        HttpResponse.json({ authors: mockAuthors }),
+      ),
+    );
+
+    render(
+      <SmartFilterBar
+        filterKeys={["authorIds"]}
+        selected={{}}
+        onSelectionChange={vi.fn()}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+
+    await screen.findByRole("button", { name: /Автор/ });
+    await user.click(screen.getByRole("button", { name: /Автор/ }));
+
+    expect(screen.queryByText("Stale Author")).not.toBeInTheDocument();
+    expect(await screen.findByText("Author One")).toBeInTheDocument();
+  });
+
+  it("refetches mounted options after author cache invalidation", async () => {
+    const user = userEvent.setup();
+    let call = 0;
+    server.use(
+      http.get("/api/filter-options/authors", () => {
+        call += 1;
+        return HttpResponse.json({
+          authors: [{ id: 1, name: call === 1 ? "Old Author" : "New Author" }],
+        });
+      }),
+    );
+
+    render(
+      <SmartFilterBar
+        filterKeys={["authorIds"]}
+        selected={{}}
+        onSelectionChange={vi.fn()}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+
+    await screen.findByRole("button", { name: /Автор/ });
+    await user.click(screen.getByRole("button", { name: /Автор/ }));
+    await screen.findByText("Old Author");
+
+    domainEvents.publish("authorRenamed", { authorId: 1, name: "New Author" });
+
+    await waitFor(() => expect(call).toBe(2));
+    await screen.findByText("New Author");
+  });
+
   it("renders filter options from API", async () => {
     server.use(
       http.get("/api/filter-options/authors", () =>
@@ -82,7 +151,7 @@ describe("SmartFilterBar", () => {
 
     const { rerender } = render(
       <SmartFilterBar
-        filterKeys={["authorIds"]}
+        filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
       />,
@@ -99,17 +168,20 @@ describe("SmartFilterBar", () => {
 
     rerender(
       <SmartFilterBar
-        filterKeys={["authorIds"]}
-        selected={{ authorIds: ["2"] }}
+        filterKeys={["authorIds", "seriesIds"]}
+        selected={{ seriesIds: ["2"] }}
         onSelectionChange={() => {}}
       />,
     );
 
-    // With `selected.authorIds = ["2"]`, the filter bar renders the selected
-    // name as a chip after options load. Wait for the fast fetch to finish.
+    // Changing another dimension affects the author options request key. Wait
+    // for the fast fetch to finish, then open the author dropdown.
     await waitFor(() => {
-      expect(screen.getByText("Second Author")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
     });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Автор/ }));
+    expect(await screen.findByText("Second Author")).toBeInTheDocument();
 
     // Give the slow handler's delay(100) a chance to elapse. If abort failed,
     // the stale response would now overwrite state and "First Author" would

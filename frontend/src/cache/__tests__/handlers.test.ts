@@ -113,6 +113,7 @@ describe("metadata cache handlers", () => {
     store.set("filter-options/authors", "all", { authors: [{ id: 1, name: "Old" }] });
     store.set("filter-options/series", "all", { series: [{ id: 2, name: "Old" }] });
     store.set("filter-options/tags", "all", { tags: [{ id: 3, name: "Old" }] });
+    store.set("filter-options/tags", "authors=1", { tags: [{ id: 4, name: "Author Tag" }] });
     store.set("author/1", "detail", { author: { id: 1, name: "Old" } });
     store.set("series/2", "detail", { series: { id: 2, name: "Old" } });
     store.set("search", "old-series", { books: [{ id: 20, series: { id: 2, name: "Old" } }], hasMore: false }, {
@@ -142,6 +143,7 @@ describe("metadata cache handlers", () => {
     });
     domainEvents.publish("authorDeleted", { authorId: 1 });
     expect(store.get("tag/1", "detail")).toBeUndefined();
+    expect(store.get("filter-options/tags", "authors=1")).toBeUndefined();
 
     domainEvents.publish("seriesRenamed", { seriesId: 2, name: "New" });
     expect(store.get("filter-options/series", "all")).toBeUndefined();

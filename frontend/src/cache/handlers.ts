@@ -56,13 +56,13 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`author/${payload.targetId}`);
       store.invalidate(`author/${payload.sourceId}`);
       store.invalidateBookLists();
-      store.invalidate("filter-options/authors");
+      invalidateFilterOptions(store);
     }),
     bus.subscribe("authorDeleted", (payload) => {
       store.invalidate("authors");
       store.invalidate(`author/${payload.authorId}`);
       store.invalidateBookLists();
-      store.invalidate("filter-options/authors");
+      invalidateFilterOptions(store);
     }),
     bus.subscribe("seriesRenamed", (payload) => {
       store.invalidate("series");
@@ -75,20 +75,20 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`series/${payload.targetId}`);
       store.invalidate(`series/${payload.sourceId}`);
       store.invalidateBookLists();
-      store.invalidate("filter-options/series");
+      invalidateFilterOptions(store);
     }),
     bus.subscribe("seriesDeleted", (payload) => {
       store.invalidate("series");
       store.invalidate(`series/${payload.seriesId}`);
       store.invalidateBookLists();
-      store.invalidate("filter-options/series");
+      invalidateFilterOptions(store);
     }),
     bus.subscribe("tagMapped", (payload) => {
       store.invalidate("tags");
       store.invalidate(`tag/${payload.tagId}`);
       store.invalidate(`tag/${payload.targetId}`);
       store.invalidateBookLists();
-      store.invalidate("filter-options/tags");
+      invalidateFilterOptions(store);
     }),
     bus.subscribe("shelfCreated", () => {
       store.invalidate("shelves");

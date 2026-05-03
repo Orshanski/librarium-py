@@ -37,15 +37,21 @@ export function useCachedResource<T>(
     () => store.get<T>(namespace, cacheKey),
     () => store.get<T>(namespace, cacheKey),
   );
+  const invalidationVersion = useSyncExternalStore(
+    subscribe,
+    () => store.invalidationVersion(namespace),
+    () => store.invalidationVersion(namespace),
+  );
   const [errorState, setErrorState] = useState<{ resourceId: string; error: Error } | undefined>(undefined);
 
   useEffect(() => {
     if (data !== undefined) return undefined;
     const controller = new AbortController();
+    const startedAtInvalidationVersion = store.invalidationVersion(namespace);
     setErrorState(undefined);
     fetcherRef.current(controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && store.invalidationVersion(namespace) === startedAtInvalidationVersion) {
           store.set(namespace, cacheKey, value, { context: contextRef.current });
         }
       })
@@ -58,7 +64,7 @@ export function useCachedResource<T>(
         });
       });
     return () => controller.abort();
-  }, [store, namespace, cacheKey, resourceId, data]);
+  }, [store, namespace, cacheKey, resourceId, data, invalidationVersion]);
 
   const error = errorState?.resourceId === resourceId ? errorState.error : undefined;
   return { data, loading: data === undefined && !error, error: data === undefined ? error : undefined };

@@ -92,6 +92,36 @@ describe("useCachedResource", () => {
     await screen.findByText("fresh");
   });
 
+  it("does not store stale in-flight results after namespace invalidation", async () => {
+    const first = deferred<{ value: string }>();
+    const fetcher = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ value: "fresh" });
+
+    render(<Harness store={store} cacheKey="k1" fetcher={fetcher} />);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+
+    store.invalidate("demo");
+    first.resolve({ value: "stale" });
+
+    await screen.findByText("fresh");
+    expect(store.get("demo", "k1")).toEqual({ value: "fresh" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not discard valid in-flight results after unrelated same-namespace writes", async () => {
+    const first = deferred<{ value: string }>();
+    const fetcher = vi.fn().mockReturnValueOnce(first.promise);
+
+    render(<Harness store={store} cacheKey="k1" fetcher={fetcher} />);
+    store.set("demo", "k2", { value: "other" });
+    first.resolve({ value: "fresh" });
+
+    await screen.findByText("fresh");
+    expect(store.get("demo", "k1")).toEqual({ value: "fresh" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("exposes fetch errors without throwing from async effects", async () => {
     const fetcher = vi.fn().mockRejectedValue(new Error("network down"));
 

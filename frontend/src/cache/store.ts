@@ -10,6 +10,8 @@ type CacheEntry = {
 type Namespace = {
   entries: Map<string, CacheEntry>;
   subscribers: Set<() => void>;
+  version: number;
+  invalidationVersion: number;
 };
 
 const STORAGE_PREFIX = "librarium_metadata_cache_";
@@ -29,6 +31,7 @@ export class MetadataCacheStore {
   ): void {
     const ns = this.getNamespace(namespace);
     ns.entries.set(key, { value, context: options.context });
+    ns.version += 1;
     this.persist(namespace);
     this.notify(namespace);
   }
@@ -48,6 +51,8 @@ export class MetadataCacheStore {
       return;
     }
     ns.entries.clear();
+    ns.version += 1;
+    ns.invalidationVersion += 1;
     sessionStorage.removeItem(STORAGE_PREFIX + namespace);
     this.notify(namespace);
   }
@@ -140,8 +145,18 @@ export class MetadataCacheStore {
     for (const namespace of affectedNamespaces) {
       const ns = this.getNamespace(namespace);
       ns.entries.clear();
+      ns.version += 1;
+      ns.invalidationVersion += 1;
       this.notify(namespace);
     }
+  }
+
+  version(namespace: string): number {
+    return this.getNamespace(namespace).version;
+  }
+
+  invalidationVersion(namespace: string): number {
+    return this.getNamespace(namespace).invalidationVersion;
   }
 
   private getNamespace(namespace: string): Namespace {
@@ -150,6 +165,8 @@ export class MetadataCacheStore {
     const created: Namespace = {
       entries: readPersistedNamespace(namespace),
       subscribers: new Set<() => void>(),
+      version: 0,
+      invalidationVersion: 0,
     };
     this.namespaces.set(namespace, created);
     return created;
@@ -161,18 +178,24 @@ export class MetadataCacheStore {
     this.hydratePersistedNamespaces();
     for (const [namespace, ns] of this.namespaces) {
       let changed = false;
+      let invalidated = false;
       for (const [key, entry] of [...ns.entries]) {
         if (!isBookList(entry.value)) continue;
         const result = updater(entry as CacheEntry & { value: BookListValue });
         if (result.delete) {
           ns.entries.delete(key);
           changed = true;
+          invalidated = true;
         } else if (result.value) {
           ns.entries.set(key, { ...entry, value: result.value });
           changed = true;
         }
       }
       if (changed) {
+        ns.version += 1;
+        if (invalidated) {
+          ns.invalidationVersion += 1;
+        }
         this.persist(namespace);
         this.notify(namespace);
       }
