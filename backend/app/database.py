@@ -1,5 +1,6 @@
 import sqlite3
 import threading
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -12,52 +13,92 @@ _init_lock = threading.Lock()
 _AfterCommitHook = Callable[[], None]
 
 
-def _get_db() -> sqlite3.Connection:
+@dataclass
+class _SessionHooks:
+    db: sqlite3.Connection
+    restore_db: sqlite3.Connection | None
+    restore_hooks: "_SessionHooks | None"
+    isolated_connection: bool
+    after_commit: list[_AfterCommitHook] = field(default_factory=list)
+    after_rollback: list[_AfterCommitHook] = field(default_factory=list)
+    closed: bool = False
+
+
+def _open_db() -> sqlite3.Connection:
     global _schema_initialized
+    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
+
+    with _init_lock:
+        if not _schema_initialized:
+            schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
+            db.executescript(schema)
+            _schema_initialized = True
+    return db
+
+
+def _get_db() -> sqlite3.Connection:
+    _discard_closed_session_state()
     db = getattr(_local, "db", None)
     if db is None:
-        db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("PRAGMA foreign_keys=ON")
-        db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
-
-        with _init_lock:
-            if not _schema_initialized:
-                schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
-                db.executescript(schema)
-                _schema_initialized = True
-
+        db = _open_db()
         _local.db = db
     return db
+
+
+def _discard_closed_session_state() -> None:
+    while True:
+        hooks = getattr(_local, "session_hooks", None)
+        if hooks is None or not hooks.closed:
+            return
+        if getattr(_local, "db", None) is hooks.db:
+            _local.db = hooks.restore_db
+        _local.session_hooks = hooks.restore_hooks
 
 
 def db_session():
     """FastAPI dependency: commit on success, rollback on error.
 
-    Runs on the same threadpool thread as sync handlers, so it correctly
-    accesses the thread-local connection — unlike the async middleware.
+    FastAPI may close sync generator dependencies on a different worker thread
+    than the one that opened them, so teardown uses hook lists captured in this
+    generator frame instead of reading them back from thread-local storage.
     """
-    db = _get_db()
-    previous_commit_hooks = getattr(_local, "after_commit_hooks", None)
-    previous_rollback_hooks = getattr(_local, "after_rollback_hooks", None)
-    _local.after_commit_hooks = []
-    _local.after_rollback_hooks = []
+    _discard_closed_session_state()
+    previous_hooks = getattr(_local, "session_hooks", None)
+    isolated_connection = previous_hooks is not None
+    if isolated_connection:
+        previous_db = getattr(_local, "db", None)
+        db = _open_db()
+        restore_db = previous_db
+    else:
+        db = _get_db()
+        restore_db = db
+    hooks = _SessionHooks(db, restore_db, previous_hooks, isolated_connection)
+    _local.db = db
+    _local.session_hooks = hooks
+
     try:
         yield db
         if db.in_transaction:
             db.commit()
-        for hook in _local.after_commit_hooks:
+        for hook in hooks.after_commit:
             hook()
     except Exception:
         if db.in_transaction:
             db.rollback()
-        for hook in _local.after_rollback_hooks:
+        for hook in hooks.after_rollback:
             hook()
         raise
     finally:
-        _local.after_commit_hooks = previous_commit_hooks
-        _local.after_rollback_hooks = previous_rollback_hooks
+        hooks.closed = True
+        if isolated_connection:
+            db.close()
+        if getattr(_local, "session_hooks", None) is hooks:
+            _local.db = restore_db
+            _local.session_hooks = previous_hooks
 
 
 def add_after_commit_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
@@ -66,19 +107,21 @@ def add_after_commit_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> boo
     Returns False when called outside the db_session that owns `db`; callers can
     then fall back to immediate behavior for scripts or direct test helpers.
     """
-    hooks = getattr(_local, "after_commit_hooks", None)
-    if hooks is None or getattr(_local, "db", None) is not db:
+    _discard_closed_session_state()
+    hooks = getattr(_local, "session_hooks", None)
+    if hooks is None or hooks.closed or hooks.db is not db:
         return False
-    hooks.append(hook)
+    hooks.after_commit.append(hook)
     return True
 
 
 def add_after_rollback_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
     """Register a callback to run after the current managed db_session rolls back."""
-    hooks = getattr(_local, "after_rollback_hooks", None)
-    if hooks is None or getattr(_local, "db", None) is not db:
+    _discard_closed_session_state()
+    hooks = getattr(_local, "session_hooks", None)
+    if hooks is None or hooks.closed or hooks.db is not db:
         return False
-    hooks.append(hook)
+    hooks.after_rollback.append(hook)
     return True
 
 
@@ -99,4 +142,5 @@ def reset_db():
     if db:
         db.close()
         _local.db = None
+    _local.session_hooks = None
     _schema_initialized = False
