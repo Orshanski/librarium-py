@@ -318,6 +318,39 @@ def test_stale_old_epoch_cache_does_not_accept_revoked_token(client):
     assert_error(resp, 401, message_matches="invalid token")
 
 
+def test_old_token_rejected_between_commit_and_cache_invalidation_hook(client):
+    """A request after commit but before invalidation hook must not trust OLD cache."""
+    from app.auth import _token_epoch_cache, bump_token_epoch
+    from app.database import add_after_commit_hook, db_session
+
+    resp = client.post("/api/auth/login", json={"username": "reader", "password": "reader123"})
+    assert resp.status_code == 200
+    old_reader_token = resp.cookies[COOKIE_NAME]
+
+    admin = _admin_test_client()
+    reader_id = _user_id_by_username(admin, "reader")
+    with _token_epoch_cache_lock_for_test():
+        _token_epoch_cache[reader_id] = 0
+
+    observed_statuses: list[int] = []
+
+    def probe_old_token_before_invalidation() -> None:
+        client.cookies.clear()
+        client.cookies.set(COOKIE_NAME, old_reader_token)
+        observed_statuses.append(client.get("/api/auth/me").status_code)
+
+    session = db_session()
+    db = next(session)
+    assert add_after_commit_hook(db, probe_old_token_before_invalidation)
+    bump_token_epoch(db, reader_id)
+    try:
+        next(session)
+    except StopIteration:
+        pass
+
+    assert observed_statuses == [401]
+
+
 def _token_epoch_cache_lock_for_test():
     """Доступ к module-private locks в тестах — короткий контекст-менеджер."""
     from app.auth import _token_epoch_cache_lock

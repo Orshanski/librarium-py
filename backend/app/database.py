@@ -26,10 +26,19 @@ def _get_db() -> sqlite3.Connection:
             if not _schema_initialized:
                 schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
                 db.executescript(schema)
+                _ensure_runtime_migrations(db)
                 _schema_initialized = True
 
         _local.db = db
     return db
+
+
+def _ensure_runtime_migrations(db: sqlite3.Connection) -> None:
+    """Apply small idempotent schema upgrades that CREATE TABLE cannot cover."""
+    user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+    if "token_epoch" not in user_columns:
+        db.execute("ALTER TABLE users ADD COLUMN token_epoch INTEGER NOT NULL DEFAULT 0")
+        db.commit()
 
 
 def db_session():
@@ -39,8 +48,10 @@ def db_session():
     accesses the thread-local connection — unlike the async middleware.
     """
     db = _get_db()
-    previous_hooks = getattr(_local, "after_commit_hooks", None)
+    previous_commit_hooks = getattr(_local, "after_commit_hooks", None)
+    previous_rollback_hooks = getattr(_local, "after_rollback_hooks", None)
     _local.after_commit_hooks = []
+    _local.after_rollback_hooks = []
     try:
         yield db
         if db.in_transaction:
@@ -50,9 +61,12 @@ def db_session():
     except Exception:
         if db.in_transaction:
             db.rollback()
+        for hook in _local.after_rollback_hooks:
+            hook()
         raise
     finally:
-        _local.after_commit_hooks = previous_hooks
+        _local.after_commit_hooks = previous_commit_hooks
+        _local.after_rollback_hooks = previous_rollback_hooks
 
 
 def add_after_commit_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
@@ -62,6 +76,15 @@ def add_after_commit_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> boo
     then fall back to immediate behavior for scripts or direct test helpers.
     """
     hooks = getattr(_local, "after_commit_hooks", None)
+    if hooks is None or getattr(_local, "db", None) is not db:
+        return False
+    hooks.append(hook)
+    return True
+
+
+def add_after_rollback_hook(db: sqlite3.Connection, hook: _AfterCommitHook) -> bool:
+    """Register a callback to run after the current managed db_session rolls back."""
+    hooks = getattr(_local, "after_rollback_hooks", None)
     if hooks is None or getattr(_local, "db", None) is not db:
         return False
     hooks.append(hook)

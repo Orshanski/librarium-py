@@ -91,8 +91,11 @@ def hash_password(plain: str) -> str:
 # from that user re-reads the authoritative DB value and re-fills the cache.
 # Invalidation must happen after commit so a concurrent pre-commit reader cannot
 # repopulate the old epoch and make it authoritative after the bump commits.
+# While a bump transaction is open, the user_id is marked dirty and auth bypasses
+# the cache; this closes the narrow post-commit/pre-hook window.
 
 _token_epoch_cache: dict[int, int] = {}
+_token_epoch_dirty_users: set[int] = set()
 _token_epoch_cache_lock = threading.Lock()
 _token_epoch_cache_initialized = False
 _TOKEN_EPOCH_LEGACY_MODE = False  # set True if column missing — auth runs without revocation
@@ -160,10 +163,10 @@ def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
     Call from admin-side flows that should invalidate the user's outstanding JWTs
     (role change, password reset, forced logout).
 
-    Cache strategy: pop after commit, not write-on-bump — the next request from
-    `user_id` re-reads the authoritative DB value. This is both rollback-safe
-    and race-safe: aborted transactions never invalidate, while committed bumps
-    clear any old epoch that a concurrent pre-commit reader may have cached.
+    Cache strategy: mark dirty during the transaction, then pop after commit
+    instead of write-on-bump. Dirty users bypass the cache, so old tokens are
+    rejected as soon as the bump commits even if the invalidation hook has not
+    run yet. Rollback clears only the dirty marker.
 
     Returns None if the user_id is not in the table.
     """
@@ -176,12 +179,22 @@ def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
         return None
     new_epoch = row[0]
 
+    with _token_epoch_cache_lock:
+        _token_epoch_dirty_users.add(user_id)
+
     def invalidate_cache() -> None:
         with _token_epoch_cache_lock:
             _token_epoch_cache.pop(user_id, None)
+            _token_epoch_dirty_users.discard(user_id)
 
-    from .database import add_after_commit_hook
-    if not add_after_commit_hook(db, invalidate_cache):
+    def clear_dirty_marker() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_dirty_users.discard(user_id)
+
+    from .database import add_after_commit_hook, add_after_rollback_hook
+    if add_after_commit_hook(db, invalidate_cache):
+        add_after_rollback_hook(db, clear_dirty_marker)
+    else:
         invalidate_cache()
     return new_epoch
 
@@ -191,6 +204,7 @@ def reset_token_epoch_cache_for_tests() -> None:
     global _token_epoch_cache_initialized
     with _token_epoch_cache_lock:
         _token_epoch_cache.clear()
+        _token_epoch_dirty_users.clear()
         _token_epoch_cache_initialized = False
 
 
@@ -228,23 +242,28 @@ def get_current_user(request: Request) -> CurrentUser:
     _ensure_token_epoch_cache_initialized()
     jwt_epoch = payload.get("tep", 0)
     if not _TOKEN_EPOCH_LEGACY_MODE:
-        cached_epoch = _token_epoch_cache.get(user.user_id)
-        if cached_epoch is None:
+        with _token_epoch_cache_lock:
+            dirty = user.user_id in _token_epoch_dirty_users
+            cached_epoch = _token_epoch_cache.get(user.user_id)
+
+        if dirty:
+            fresh_epoch = _fetch_token_epoch(user.user_id)
+            if fresh_epoch is not None and jwt_epoch != fresh_epoch:
+                log.info("Auth: token revoked (dirty epoch mismatch) user_id=%s jwt=%s db=%s",
+                         user.user_id, jwt_epoch, fresh_epoch)
+                raise AuthError(_INVALID_TOKEN)
+        elif cached_epoch is None:
             # Cache miss: either user created post-init or entry was invalidated by
             # a recent bump. Read once from authoritative DB and repopulate cache.
             cached_epoch = _fetch_token_epoch(user.user_id)
             if cached_epoch is not None:
                 with _token_epoch_cache_lock:
                     _token_epoch_cache[user.user_id] = cached_epoch
-        if cached_epoch is not None and jwt_epoch != cached_epoch:
-            # Mismatch may be a real revocation OR a stale cache. Race scenario:
-            # admin's bump pops cache while their UPDATE is still uncommitted; a
-            # concurrent reader fills cache with the pre-commit (old) value via
-            # SQLite isolation; admin then commits NEW. Cache is stuck at OLD,
-            # legitimate fresh JWTs (tep=NEW) get rejected. To self-heal: re-read
-            # the authoritative DB once on mismatch and update cache. Only then
-            # decide. Cost: at most one extra SELECT per actually-mismatched
-            # request — rare, never on the steady-state hot path.
+        if not dirty and cached_epoch is not None and jwt_epoch != cached_epoch:
+            # Mismatch may be a real revocation OR a stale cache. To self-heal:
+            # re-read the authoritative DB once on mismatch and update cache.
+            # Only then decide. Cost: at most one extra SELECT per actually
+            # mismatched request — rare, never on the steady-state hot path.
             fresh_epoch = _fetch_token_epoch(user.user_id)
             if fresh_epoch is not None:
                 with _token_epoch_cache_lock:
