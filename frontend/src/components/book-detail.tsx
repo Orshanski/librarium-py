@@ -16,7 +16,6 @@ import {
   setRead as apiSetRead,
   deleteBook,
 } from "@/api/endpoints/books";
-import { removeBookFromLocalStorage } from "@/utils/offline-storage";
 import { domainEvents } from "@/domain/events";
 
 export default function BookDetail({
@@ -108,10 +107,6 @@ export default function BookDetail({
             try {
               await deleteBook(book.id);
               domainEvents.publish("bookDeleted", { bookId: book.id });
-              // Server side удалил книгу — снесём локальные следы (IDB offline + progress),
-              // иначе в offline-mode и через getOfflineBooks() она остаётся видна.
-              // Best-effort — навигация не должна блокироваться на сбое IDB.
-              await removeBookFromLocalStorage(book.id).catch(() => {});
               // После удаления — возврат на parent-список (source, откуда открыли книгу).
               // replace: true — чтобы системный жест "назад" не привёл на 404 удалённой книги.
               // Без state — sidebar-like переход, стек wipe'нется. Scroll-counter уже

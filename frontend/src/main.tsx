@@ -9,11 +9,13 @@ import { saveSettings } from "./api/endpoints/reader";
 import { getDeviceName } from "./utils/device-info";
 import { installMetadataCacheHandlersForApp } from "./cache/bootstrap";
 import { installScrollInvalidationHandlersForApp } from "./scroll/bootstrap";
+import { installOfflineStorageHandlersForApp } from "./offline/bootstrap";
 import App from "./App";
 
 installFetchCredentials();
 installMetadataCacheHandlersForApp();
 installScrollInvalidationHandlersForApp();
+installOfflineStorageHandlersForApp();
 
 const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
