@@ -26,19 +26,10 @@ def _get_db() -> sqlite3.Connection:
             if not _schema_initialized:
                 schema = Path(SCHEMA_PATH).read_text(encoding="utf-8")
                 db.executescript(schema)
-                _ensure_runtime_migrations(db)
                 _schema_initialized = True
 
         _local.db = db
     return db
-
-
-def _ensure_runtime_migrations(db: sqlite3.Connection) -> None:
-    """Apply small idempotent schema upgrades that CREATE TABLE cannot cover."""
-    user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
-    if "token_epoch" not in user_columns:
-        db.execute("ALTER TABLE users ADD COLUMN token_epoch INTEGER NOT NULL DEFAULT 0")
-        db.commit()
 
 
 def db_session():
