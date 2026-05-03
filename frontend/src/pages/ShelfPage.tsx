@@ -16,6 +16,7 @@ import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
+import { shelfScrollContext } from "@/scroll/contexts";
 
 export default function ShelfPage() {
   const { id } = useParams();
@@ -30,10 +31,18 @@ export default function ShelfPage() {
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  useScrollRestore(!loading);
-
   // Fallback default до первого fetch — реальный default-per-page определяется ниже после load'а
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
+  const scrollContext = useMemo(
+    () => shelfScrollContext({
+      key: location.pathname + location.search,
+      shelfId,
+      systemCode: shelf?.systemCode,
+      sort,
+    }),
+    [location.pathname, location.search, shelfId, shelf?.systemCode, sort],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   useEffect(() => {
     setLoading(true);

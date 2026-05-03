@@ -18,6 +18,7 @@ import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { NotFoundError } from "@/api/errors";
+import { seriesScrollContext } from "@/scroll/contexts";
 
 export default function SeriesPage() {
   const { id } = useParams();
@@ -32,7 +33,12 @@ export default function SeriesPage() {
   const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
-  useScrollRestore(!loading);
+  const seriesId = Number(id);
+  const scrollContext = useMemo(
+    () => seriesScrollContext(location.pathname + location.search, seriesId),
+    [location.pathname, location.search, seriesId],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   const stateOrigin = readOriginFromState(location.state);
   const crumb =
@@ -41,8 +47,7 @@ export default function SeriesPage() {
       : { label: "Серии", href: "/series" };
 
   useEffect(() => {
-    const numericId = Number(id);
-    if (!id || isNaN(numericId)) {
+    if (!id || isNaN(seriesId)) {
       setNotFoundState(true);
       setLoading(false);
       return;
@@ -50,7 +55,7 @@ export default function SeriesPage() {
 
     const controller = new AbortController();
 
-    getSeries(numericId, controller.signal)
+    getSeries(seriesId, controller.signal)
       .then((data) => {
         setSeries(data.series);
         setBooks(data.books || []);
@@ -67,7 +72,7 @@ export default function SeriesPage() {
       });
 
     return () => controller.abort();
-  }, [id]);
+  }, [id, seriesId]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);

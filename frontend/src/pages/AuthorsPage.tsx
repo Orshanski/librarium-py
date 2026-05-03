@@ -9,6 +9,7 @@ import { listAuthors } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
 import { useScrollRestore } from "../hooks/useScrollRestore";
+import { entityListScrollContext } from "@/scroll/contexts";
 
 export default function AuthorsPage() {
   const navigate = useNavigate();
@@ -18,7 +19,11 @@ export default function AuthorsPage() {
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useScrollRestore(!loading);
+  const scrollContext = useMemo(
+    () => entityListScrollContext(location.pathname + location.search, "authors"),
+    [location.pathname, location.search],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   const authorLinkState = useMemo(
     () => ({

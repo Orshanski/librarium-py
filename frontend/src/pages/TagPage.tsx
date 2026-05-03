@@ -19,6 +19,7 @@ import { useScrollRestore } from "../hooks/useScrollRestore";
 import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, sortOptionsFor } from "../config/sort";
+import { tagScrollContext } from "@/scroll/contexts";
 
 export default function TagPage() {
   const { id } = useParams();
@@ -36,12 +37,22 @@ export default function TagPage() {
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
-  useScrollRestore(!loading);
-
   const sort = searchParams.get("sort") || SORT_CONFIG.tag.default;
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
+  const scrollContext = useMemo(
+    () => tagScrollContext({
+      key: location.pathname + location.search,
+      tagId,
+      sort,
+      authorIds,
+      seriesIds,
+      languages,
+    }),
+    [location.pathname, location.search, tagId, sort, authorIds, seriesIds, languages],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
 

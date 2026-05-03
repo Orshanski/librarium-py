@@ -9,6 +9,7 @@ import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { useScrollRestore } from "../hooks/useScrollRestore";
+import { entityListScrollContext } from "@/scroll/contexts";
 
 export default function SeriesListPage() {
   const navigate = useNavigate();
@@ -18,7 +19,11 @@ export default function SeriesListPage() {
   const [allSeries, setAllSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useScrollRestore(!loading);
+  const scrollContext = useMemo(
+    () => entityListScrollContext(location.pathname + location.search, "series"),
+    [location.pathname, location.search],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   const seriesLinkState = useMemo(
     () => ({

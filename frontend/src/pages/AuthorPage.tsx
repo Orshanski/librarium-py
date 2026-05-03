@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -14,6 +14,7 @@ import { useIsMobile } from "../responsive";
 import { getAuthor } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { NotFoundError } from "@/api/errors";
+import { authorScrollContext } from "@/scroll/contexts";
 
 // UI-local shape: tags split to string[], sortName required (post-map transform).
 interface AuthorData {
@@ -37,7 +38,12 @@ export default function AuthorPage() {
   const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
-  useScrollRestore(!loading);
+  const authorId = Number(id);
+  const scrollContext = useMemo(
+    () => authorScrollContext(location.pathname + location.search, authorId),
+    [location.pathname, location.search, authorId],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   // Динамический родитель: если пришли с поиска (или другого места с origin) —
   // crumb ведёт туда; иначе fallback "Авторы" → "/authors".
@@ -48,8 +54,7 @@ export default function AuthorPage() {
       : { label: "Авторы", href: "/authors" };
 
   useEffect(() => {
-    const numericId = Number(id);
-    if (!id || isNaN(numericId)) {
+    if (!id || isNaN(authorId)) {
       setNotFound(true);
       setLoading(false);
       return;
@@ -57,7 +62,7 @@ export default function AuthorPage() {
 
     const controller = new AbortController();
 
-    getAuthor(numericId, controller.signal)
+    getAuthor(authorId, controller.signal)
       .then((data) => {
         const raw: Author = data.author;
         const authorData: AuthorData = {
@@ -82,7 +87,7 @@ export default function AuthorPage() {
       });
 
     return () => controller.abort();
-  }, [id]);
+  }, [id, authorId]);
 
   if (loading) {
     return (

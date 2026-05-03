@@ -8,10 +8,12 @@ import { pushProgressToServerCAS } from "./utils/reader-sync";
 import { saveSettings } from "./api/endpoints/reader";
 import { getDeviceName } from "./utils/device-info";
 import { installMetadataCacheHandlersForApp } from "./cache/bootstrap";
+import { installScrollInvalidationHandlersForApp } from "./scroll/bootstrap";
 import App from "./App";
 
 installFetchCredentials();
 installMetadataCacheHandlersForApp();
+installScrollInvalidationHandlersForApp();
 
 const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
 
