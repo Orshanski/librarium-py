@@ -39,6 +39,7 @@ export type DomainEventMap = {
   bookDeleted: { bookId: number };
   bookRatingChanged: { bookId: number; rating: number | null };
   bookReadChanged: { bookId: number; isRead: boolean };
+  bookHiddenChanged: { bookId: number; isHidden: boolean };
   authorRenamed: { authorId: number; name: string; sortName?: string };
   authorMerged: { targetId: number; sourceId: number };
   authorDeleted: { authorId: number };

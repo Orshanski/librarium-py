@@ -204,4 +204,33 @@ describe("list scroll validity", () => {
     expect(readScrollEntries()).toEqual([]);
     expect(sessionStorage.getItem("librarium_scroll_state")).toBeNull();
   });
+
+  it("invalidates book-list scroll entries on hidden-state changes", () => {
+    writeScrollEntries([
+      {
+        url: "/",
+        scrollTop: 240,
+        version: 1,
+        context: { kind: "book-list", key: "catalog", source: "catalog", sort: "addedDesc" },
+      },
+      {
+        url: "/authors",
+        scrollTop: 80,
+        version: 1,
+        context: { kind: "entity-list", key: "authors", entity: "authors" },
+      },
+    ]);
+
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("bookHiddenChanged", { bookId: 7, isHidden: true });
+
+    expect(readScrollEntries()).toEqual([
+      {
+        url: "/authors",
+        scrollTop: 80,
+        version: 1,
+        context: { kind: "entity-list", key: "authors", entity: "authors" },
+      },
+    ]);
+  });
 });
