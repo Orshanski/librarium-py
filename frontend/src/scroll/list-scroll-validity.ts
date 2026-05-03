@@ -18,6 +18,7 @@ export type ScrollEntry = {
 };
 
 type EventBus = typeof domainEvents;
+type BookListContext = Extract<ScrollContext, { kind: "book-list" }>;
 
 export type ScrollInvalidationEvent =
   | { kind: "bookCreated" }
@@ -108,10 +109,36 @@ function isStillValid(entry: ScrollEntry, event: ScrollInvalidationEvent): boole
   return isBookListStillValid(entry.context, event);
 }
 
-function isBookListStillValid(context: Extract<ScrollContext, { kind: "book-list" }>, event: ScrollInvalidationEvent): boolean {
+function isBookListStillValid(context: BookListContext, event: ScrollInvalidationEvent): boolean {
   if (event.kind === "bookUpdated") {
     return classifyBookUpdateForBookList(context, event.changedFields, event.affected) !== "structural";
   }
+  if (isBookPatchEvent(event)) return isBookPatchStillValid(context, event);
+  if (isAuthorEvent(event)) return isAuthorEventStillValid(context, event);
+  if (isSeriesEvent(event)) return isSeriesEventStillValid(context, event);
+  if (event.kind === "tagMapped") return isTagMapStillValid(context, event);
+  if (isShelfEvent(event)) return isShelfEventStillValid(context, event);
+  return true;
+}
+
+type BookPatchEvent = Extract<
+  ScrollInvalidationEvent,
+  | { kind: "shelfMembershipChanged" }
+  | { kind: "bookRatingChanged" }
+  | { kind: "bookReadChanged" }
+  | { kind: "bookHiddenChanged" }
+  | { kind: "readingProgressChanged" }
+>;
+
+function isBookPatchEvent(event: ScrollInvalidationEvent): event is BookPatchEvent {
+  return event.kind === "shelfMembershipChanged"
+    || event.kind === "bookRatingChanged"
+    || event.kind === "bookReadChanged"
+    || event.kind === "bookHiddenChanged"
+    || event.kind === "readingProgressChanged";
+}
+
+function isBookPatchStillValid(context: BookListContext, event: BookPatchEvent): boolean {
   if (event.kind === "shelfMembershipChanged") {
     return classifyShelfMembershipForContext(context, { shelfId: event.shelfId }) !== "structural";
   }
@@ -121,54 +148,76 @@ function isBookListStillValid(context: Extract<ScrollContext, { kind: "book-list
   if (event.kind === "bookReadChanged") {
     return classifyBookUpdateForBookList(context, ["read"]) !== "structural";
   }
-  if (event.kind === "bookHiddenChanged") {
-    return false;
-  }
-  if (event.kind === "readingProgressChanged") {
-    return classifyReadingProgressForContext(context, event) !== "structural";
-  }
+  if (event.kind === "bookHiddenChanged") return false;
+  return classifyReadingProgressForContext(context, event) !== "structural";
+}
+
+type AuthorEvent = Extract<
+  ScrollInvalidationEvent,
+  { kind: "authorRenamed" } | { kind: "authorMerged" } | { kind: "authorDeleted" }
+>;
+
+function isAuthorEvent(event: ScrollInvalidationEvent): event is AuthorEvent {
+  return event.kind === "authorRenamed" || event.kind === "authorMerged" || event.kind === "authorDeleted";
+}
+
+function isAuthorEventStillValid(context: BookListContext, event: AuthorEvent): boolean {
+  if (context.source === "search") return false;
   if (event.kind === "authorRenamed") {
-    if (context.source === "search") return false;
     if (context.authorId === event.authorId) return true;
     return classifyAuthorRenameForBookList(context) !== "structural";
   }
-  if (event.kind === "authorMerged") {
-    if (context.source === "search") return false;
-    if (context.sort === "authorAsc" || context.sort === "authorDesc") return false;
-    return context.authorId !== event.sourceId
-      && context.authorId !== event.targetId
-      && !context.filters?.authorIds?.some((id) => id === event.sourceId || id === event.targetId);
-  }
-  if (event.kind === "authorDeleted") {
-    if (context.source === "search") return false;
-    if (context.sort === "authorAsc" || context.sort === "authorDesc") return false;
-    return context.authorId !== event.authorId
-      && !context.filters?.authorIds?.includes(event.authorId);
-  }
-  if (event.kind === "seriesRenamed") {
-    return context.source !== "search";
-  }
+  if (context.sort === "authorAsc" || context.sort === "authorDesc") return false;
+  if (event.kind === "authorMerged") return isAuthorMergeStillValid(context, event.sourceId, event.targetId);
+  return context.authorId !== event.authorId
+    && !context.filters?.authorIds?.includes(event.authorId);
+}
+
+function isAuthorMergeStillValid(context: BookListContext, sourceId: number, targetId: number): boolean {
+  return context.authorId !== sourceId
+    && context.authorId !== targetId
+    && !context.filters?.authorIds?.some((id) => id === sourceId || id === targetId);
+}
+
+type SeriesEvent = Extract<
+  ScrollInvalidationEvent,
+  { kind: "seriesRenamed" } | { kind: "seriesMerged" } | { kind: "seriesDeleted" }
+>;
+
+function isSeriesEvent(event: ScrollInvalidationEvent): event is SeriesEvent {
+  return event.kind === "seriesRenamed" || event.kind === "seriesMerged" || event.kind === "seriesDeleted";
+}
+
+function isSeriesEventStillValid(context: BookListContext, event: SeriesEvent): boolean {
+  if (context.source === "search") return false;
+  if (event.kind === "seriesRenamed") return true;
   if (event.kind === "seriesMerged") {
-    if (context.source === "search") return false;
     return context.seriesId !== event.sourceId
       && context.seriesId !== event.targetId
       && !context.filters?.seriesIds?.some((id) => id === event.sourceId || id === event.targetId);
   }
-  if (event.kind === "seriesDeleted") {
-    if (context.source === "search") return false;
-    return context.seriesId !== event.seriesId
-      && !context.filters?.seriesIds?.includes(event.seriesId);
-  }
-  if (event.kind === "tagMapped") {
-    if (context.source === "search") return false;
-    return context.tagId !== event.tagId
-      && context.tagId !== event.targetId
-      && !context.filters?.tagIds?.some((id) => id === event.tagId || id === event.targetId);
-  }
-  if (event.kind === "shelfDeleted") {
-    return context.shelfId !== event.shelfId;
-  }
-  if (event.kind === "shelfCreated" || event.kind === "shelfRenamed") return true;
+  return context.seriesId !== event.seriesId
+    && !context.filters?.seriesIds?.includes(event.seriesId);
+}
+
+function isTagMapStillValid(context: BookListContext, event: Extract<ScrollInvalidationEvent, { kind: "tagMapped" }>): boolean {
+  if (context.source === "search") return false;
+  return context.tagId !== event.tagId
+    && context.tagId !== event.targetId
+    && !context.filters?.tagIds?.some((id) => id === event.tagId || id === event.targetId);
+}
+
+type ShelfEvent = Extract<
+  ScrollInvalidationEvent,
+  { kind: "shelfCreated" } | { kind: "shelfRenamed" } | { kind: "shelfDeleted" }
+>;
+
+function isShelfEvent(event: ScrollInvalidationEvent): event is ShelfEvent {
+  return event.kind === "shelfCreated" || event.kind === "shelfRenamed" || event.kind === "shelfDeleted";
+}
+
+function isShelfEventStillValid(context: BookListContext, event: ShelfEvent): boolean {
+  if (event.kind === "shelfDeleted") return context.shelfId !== event.shelfId;
   return true;
 }
 
