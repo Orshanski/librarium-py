@@ -242,42 +242,7 @@ def get_current_user(request: Request) -> CurrentUser:
     _ensure_token_epoch_cache_initialized()
     jwt_epoch = payload.get("tep", 0)
     if not _TOKEN_EPOCH_LEGACY_MODE:
-        with _token_epoch_cache_lock:
-            dirty = user.user_id in _token_epoch_dirty_users
-            cached_epoch = _token_epoch_cache.get(user.user_id)
-
-        if dirty:
-            fresh_epoch = _fetch_token_epoch(user.user_id)
-            if fresh_epoch is not None and jwt_epoch != fresh_epoch:
-                log.info("Auth: token revoked (dirty epoch mismatch) user_id=%s jwt=%s db=%s",
-                         user.user_id, jwt_epoch, fresh_epoch)
-                raise AuthError(_INVALID_TOKEN)
-        elif cached_epoch is None:
-            # Cache miss: either user created post-init or entry was invalidated by
-            # a recent bump. Read once from authoritative DB and repopulate cache.
-            cached_epoch = _fetch_token_epoch(user.user_id)
-            if cached_epoch is not None:
-                with _token_epoch_cache_lock:
-                    _token_epoch_cache[user.user_id] = cached_epoch
-        if not dirty and cached_epoch is not None and jwt_epoch != cached_epoch:
-            # Mismatch may be a real revocation OR a stale cache. To self-heal:
-            # re-read the authoritative DB once on mismatch and update cache.
-            # Only then decide. Cost: at most one extra SELECT per actually
-            # mismatched request — rare, never on the steady-state hot path.
-            fresh_epoch = _fetch_token_epoch(user.user_id)
-            if fresh_epoch is not None:
-                with _token_epoch_cache_lock:
-                    _token_epoch_cache[user.user_id] = fresh_epoch
-                if fresh_epoch == jwt_epoch:
-                    cached_epoch = fresh_epoch  # accept; cache repaired
-                else:
-                    log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s db=%s",
-                             user.user_id, jwt_epoch, fresh_epoch)
-                    raise AuthError(_INVALID_TOKEN)
-            else:
-                log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s cache=%s",
-                         user.user_id, jwt_epoch, cached_epoch)
-                raise AuthError(_INVALID_TOKEN)
+        _validate_token_epoch(user.user_id, jwt_epoch)
 
     if token_needs_refresh(payload):
         request.state._refresh_token = True
@@ -285,6 +250,65 @@ def get_current_user(request: Request) -> CurrentUser:
         request.state._refresh_role = user.role
         request.state._refresh_epoch = jwt_epoch
     return user
+
+
+def _validate_token_epoch(user_id: int, jwt_epoch: Any) -> None:
+    dirty, cached_epoch = _read_token_epoch_cache_state(user_id)
+
+    if dirty:
+        _reject_dirty_epoch_mismatch(user_id, jwt_epoch)
+        return
+
+    if cached_epoch is None:
+        # Cache miss: either user created post-init or entry was invalidated by
+        # a recent bump. Read once from authoritative DB and repopulate cache.
+        cached_epoch = _load_and_cache_token_epoch(user_id)
+
+    if cached_epoch is not None and jwt_epoch != cached_epoch:
+        _repair_or_reject_epoch_mismatch(user_id, jwt_epoch, cached_epoch)
+
+
+def _read_token_epoch_cache_state(user_id: int) -> tuple[bool, int | None]:
+    with _token_epoch_cache_lock:
+        dirty = user_id in _token_epoch_dirty_users
+        cached_epoch = _token_epoch_cache.get(user_id)
+    return dirty, cached_epoch
+
+
+def _reject_dirty_epoch_mismatch(user_id: int, jwt_epoch: Any) -> None:
+    fresh_epoch = _fetch_token_epoch(user_id)
+    if fresh_epoch is not None and jwt_epoch != fresh_epoch:
+        log.info("Auth: token revoked (dirty epoch mismatch) user_id=%s jwt=%s db=%s",
+                 user_id, jwt_epoch, fresh_epoch)
+        raise AuthError(_INVALID_TOKEN)
+
+
+def _load_and_cache_token_epoch(user_id: int) -> int | None:
+    cached_epoch = _fetch_token_epoch(user_id)
+    if cached_epoch is not None:
+        with _token_epoch_cache_lock:
+            _token_epoch_cache[user_id] = cached_epoch
+    return cached_epoch
+
+
+def _repair_or_reject_epoch_mismatch(user_id: int, jwt_epoch: Any, cached_epoch: int) -> None:
+    # Mismatch may be a real revocation OR a stale cache. To self-heal:
+    # re-read the authoritative DB once on mismatch and update cache.
+    # Only then decide. Cost: at most one extra SELECT per actually
+    # mismatched request — rare, never on the steady-state hot path.
+    fresh_epoch = _fetch_token_epoch(user_id)
+    if fresh_epoch is not None:
+        with _token_epoch_cache_lock:
+            _token_epoch_cache[user_id] = fresh_epoch
+        if fresh_epoch == jwt_epoch:
+            return  # accept; cache repaired
+        log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s db=%s",
+                 user_id, jwt_epoch, fresh_epoch)
+        raise AuthError(_INVALID_TOKEN)
+
+    log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s cache=%s",
+             user_id, jwt_epoch, cached_epoch)
+    raise AuthError(_INVALID_TOKEN)
 
 
 def token_needs_refresh(payload: dict[str, Any]) -> bool:

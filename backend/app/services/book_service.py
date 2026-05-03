@@ -67,27 +67,29 @@ def _metadata_changed_fields(
     current: BookDetailResponse,
 ) -> list[str]:
     changed: list[str] = []
-    book = current.book
     for field_name, event_field in _BOOK_UPDATE_EVENT_FIELDS.items():
         if field_name not in body.model_fields_set:
             continue
-        if field_name == "isbn":
-            if (data.get("isbn") or None) != _current_isbn(current):
-                changed.append(event_field)
-        elif field_name == "author_ids":
-            if set(data.get("author_ids", [])) != {author.id for author in book.authors}:
-                changed.append(event_field)
-        elif field_name == "tag_ids":
-            if set(data.get("tag_ids", [])) != {tag.id for tag in book.tags}:
-                changed.append(event_field)
-        elif field_name == "series_id":
-            current_series_id = book.series.id if book.series else None
-            if data.get("series_id") != current_series_id:
-                changed.append(event_field)
-        else:
-            if data.get(field_name) != getattr(book, field_name):
-                changed.append(event_field)
+        if _metadata_field_changed(field_name, data, current):
+            changed.append(event_field)
     return changed
+
+
+def _metadata_field_changed(
+    field_name: str,
+    data: BookUpdateData,
+    current: BookDetailResponse,
+) -> bool:
+    if field_name == "isbn":
+        return (data.get("isbn") or None) != _current_isbn(current)
+    if field_name == "author_ids":
+        return set(data.get("author_ids", [])) != {author.id for author in current.book.authors}
+    if field_name == "tag_ids":
+        return set(data.get("tag_ids", [])) != {tag.id for tag in current.book.tags}
+    if field_name == "series_id":
+        current_series_id = current.book.series.id if current.book.series else None
+        return data.get("series_id") != current_series_id
+    return data.get(field_name) != getattr(current.book, field_name)
 
 
 def _changed_book_fields(
@@ -170,7 +172,7 @@ def _check_format_collision(
     deleted_set = set(delete_formats)
     conflict = added_set & (existing_fmts - deleted_set)
     if conflict:
-        raise ConflictError(f"Format {sorted(conflict)[0]} already present")
+        raise ConflictError(f"Format {min(conflict)} already present")
 
 
 def _resolve_delete_formats(
