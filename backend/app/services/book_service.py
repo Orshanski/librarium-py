@@ -35,6 +35,24 @@ _BOOK_UPDATE_EVENT_FIELDS = {
     "language": "language",
 }
 
+_USER_SCOPED_BOOK_EVENT_FIELDS = {
+    "rating",
+    "isRead",
+    "is_read",
+    "isHidden",
+    "is_hidden",
+    "hidden",
+}
+
+
+def _library_event_book_payload(response: UpdateBookResponse) -> dict[str, object]:
+    book = response.model_dump(mode="json", by_alias=True)["book"]
+    return {
+        key: value
+        for key, value in book.items()
+        if key not in _USER_SCOPED_BOOK_EVENT_FIELDS
+    }
+
 
 def _current_isbn(detail: BookDetailResponse) -> str | None:
     for identifier in detail.identifiers:
@@ -319,7 +337,7 @@ def update_book(
             scope=EventScope(kind="library"),
             event_type="bookUpdated",
             payload={
-                "book": response.model_dump(mode="json", by_alias=True)["book"],
+                "book": _library_event_book_payload(response),
                 "changedFields": changed_fields,
             },
         )

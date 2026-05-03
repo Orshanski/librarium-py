@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from tests._helpers import assert_error, assert_ok
+from tests._helpers import assert_error, assert_ok, login_client
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
+USER_SCOPED_BOOK_FIELDS = {"rating", "isRead", "is_read", "isHidden", "is_hidden", "hidden"}
 
 
 def _close_session(session):
@@ -39,6 +40,14 @@ def _upload_temp(client, filename: str) -> str:
             files={"file": (filename, f, "application/octet-stream")},
         )
     return assert_ok(response)["tempId"]
+
+
+def _without_user_scoped_fields(book: dict) -> dict:
+    return {
+        key: value
+        for key, value in book.items()
+        if key not in USER_SCOPED_BOOK_FIELDS
+    }
 
 
 def test_publish_domain_event_after_commit_waits_for_managed_commit(monkeypatch):
@@ -166,13 +175,33 @@ def test_update_book_publishes_library_book_updated(admin_client, captured_domai
             "event": {
                 "type": "bookUpdated",
                 "payload": {
-                    "book": data["book"],
+                    "book": _without_user_scoped_fields(data["book"]),
                     "changedFields": ["title", "publisher"],
                 },
             },
         }
     ]
     assert "affected" not in captured_domain_events[0]["event"]["payload"]
+
+
+def test_update_book_library_payload_excludes_user_scoped_fields(
+    admin_client,
+    captured_domain_events,
+):
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "admin"}))
+
+    reader_admin = login_client(username="reader", password="reader123")
+
+    response = reader_admin.put("/api/books/1", json={"title": "Reader Evented Title"})
+    data = assert_ok(response)
+
+    assert data["book"]["rating"] == 5
+    assert data["book"]["isRead"] == 1
+
+    event_book = captured_domain_events[0]["event"]["payload"]["book"]
+    assert event_book["id"] == 1
+    assert event_book["title"] == "Reader Evented Title"
+    assert USER_SCOPED_BOOK_FIELDS.isdisjoint(event_book)
 
 
 def test_no_op_update_does_not_publish(admin_client, captured_domain_events):
