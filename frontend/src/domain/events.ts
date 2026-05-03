@@ -1,6 +1,11 @@
 import type { BookDetailResponse } from "@/api/endpoints/books";
 
-type MinimalBook = { id: number; title?: string };
+type MinimalBook = {
+  id: number;
+  title?: string;
+  rating?: number | null;
+  isRead?: boolean;
+};
 
 export type BookChangedField =
   | "title"

@@ -99,6 +99,22 @@ export class MetadataCacheStore {
     });
   }
 
+  applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
+    this.updateBookListEntries((entry) => {
+      if (!entry.context || entry.context.source === "search") return { delete: true };
+      return {
+        value: {
+          ...entry.value,
+          books: entry.value.books.map((row) => patchSeriesRef(row, payload)),
+        },
+      };
+    });
+  }
+
+  invalidateBookLists(): void {
+    this.updateBookListEntries(() => ({ delete: true }));
+  }
+
   patchBookRowsWhere(
     predicate: (row: BookListRow) => boolean,
     patcher: (row: BookListRow) => BookListRow,
@@ -218,10 +234,27 @@ function patchAuthorRefs(
   };
 }
 
+function patchSeriesRef(
+  row: BookListRow,
+  payload: DomainEventMap["seriesRenamed"],
+): BookListRow {
+  if (!isRefWithId(row.series, payload.seriesId)) return row;
+  return {
+    ...row,
+    series: { ...row.series, name: payload.name, sortName: payload.sortName },
+  };
+}
+
 function isAuthorRef(value: unknown): value is { id: number; name: string; sortName?: string } {
   return typeof value === "object"
     && value !== null
     && typeof (value as { id?: unknown }).id === "number";
+}
+
+function isRefWithId(value: unknown, id: number): value is { id: number; name?: string; sortName?: string } {
+  return typeof value === "object"
+    && value !== null
+    && (value as { id?: unknown }).id === id;
 }
 
 function isBookListRow(value: unknown): value is BookListRow {
