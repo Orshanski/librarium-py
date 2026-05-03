@@ -1,4 +1,6 @@
 import logging
+import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Literal
@@ -81,11 +83,123 @@ def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_token(user_id: int, role: str) -> str:
+# --- Token revocation (per-user epoch) ---
+#
+# Persistent: column users.token_epoch. Bumped only when admin changes a user's role.
+# Hot path: in-memory dict[user_id, epoch], lazily populated. In managed
+# db_session flows, bump registers post-commit invalidation; the next request
+# from that user re-reads the authoritative DB value and re-fills the cache.
+# Invalidation must happen after commit so a concurrent pre-commit reader cannot
+# repopulate the old epoch and make it authoritative after the bump commits.
+
+_token_epoch_cache: dict[int, int] = {}
+_token_epoch_cache_lock = threading.Lock()
+_token_epoch_cache_initialized = False
+_TOKEN_EPOCH_LEGACY_MODE = False  # set True if column missing — auth runs without revocation
+
+
+def _ensure_token_epoch_cache_initialized() -> None:
+    """Load all (user_id, token_epoch) into cache once per process. Idempotent.
+
+    If users.token_epoch column does not exist (pre-migration), enters legacy mode:
+    cache stays empty and revocation checks are skipped, so auth keeps working.
+
+    Legacy mode is sticky for the process lifetime: applying the migration after
+    startup will NOT reactivate revocation until the process is restarted. This
+    is intentional — re-checking on every request would mean a per-request DB
+    hit, which is the regression we are explicitly avoiding. Operations contract:
+    run scripts/add_token_epoch_column.py BEFORE deploying the app, and restart
+    the service if migration is applied to a running process.
+    """
+    global _token_epoch_cache_initialized, _TOKEN_EPOCH_LEGACY_MODE
+    if _token_epoch_cache_initialized:
+        return
+    with _token_epoch_cache_lock:
+        if _token_epoch_cache_initialized:
+            return
+        from .database import _get_db
+        db = _get_db()
+        try:
+            cur = db.execute("SELECT id, token_epoch FROM users")
+            for row in cur.fetchall():
+                _token_epoch_cache[row["id"]] = row["token_epoch"]
+        except sqlite3.OperationalError as exc:
+            if "no such column" in str(exc).lower():
+                log.error("Auth: users.token_epoch column missing — JWT revocation "
+                          "is DISABLED for this process. Run "
+                          "scripts/add_token_epoch_column.py and restart uvicorn.")
+                _TOKEN_EPOCH_LEGACY_MODE = True
+            else:
+                raise
+        _token_epoch_cache_initialized = True
+
+
+def _fetch_token_epoch(user_id: int) -> int | None:
+    """One-shot read of users.token_epoch for a single user. Used on cache miss
+    after invalidation. None means user does not exist or column is missing.
+
+    Only "no such column" is swallowed (legacy/pre-migration mode). Other
+    OperationalError flavours (e.g. "database is locked") propagate so we never
+    silently disable the revocation security control under transient SQLite
+    pressure.
+    """
+    from .database import _get_db
+    try:
+        cur = _get_db().execute("SELECT token_epoch FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        return row[0] if row is not None else None
+    except sqlite3.OperationalError as exc:
+        if "no such column" in str(exc).lower():
+            return None
+        raise
+
+
+def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
+    """Increment users.token_epoch and invalidate the cache entry. Returns new epoch.
+
+    Call from admin-side flows that should invalidate the user's outstanding JWTs
+    (role change, password reset, forced logout).
+
+    Cache strategy: pop after commit, not write-on-bump — the next request from
+    `user_id` re-reads the authoritative DB value. This is both rollback-safe
+    and race-safe: aborted transactions never invalidate, while committed bumps
+    clear any old epoch that a concurrent pre-commit reader may have cached.
+
+    Returns None if the user_id is not in the table.
+    """
+    cur = db.execute(
+        "UPDATE users SET token_epoch = token_epoch + 1 WHERE id = ? RETURNING token_epoch",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    new_epoch = row[0]
+
+    def invalidate_cache() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_cache.pop(user_id, None)
+
+    from .database import add_after_commit_hook
+    if not add_after_commit_hook(db, invalidate_cache):
+        invalidate_cache()
+    return new_epoch
+
+
+def reset_token_epoch_cache_for_tests() -> None:
+    """Test-only: clear cache and force re-init on next access."""
+    global _token_epoch_cache_initialized
+    with _token_epoch_cache_lock:
+        _token_epoch_cache.clear()
+        _token_epoch_cache_initialized = False
+
+
+def create_token(user_id: int, role: str, token_epoch: int) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "userId": user_id,
         "role": role,
+        "tep": token_epoch,
         "iat": now,
         "exp": now + timedelta(hours=JWT_EXPIRE_HOURS),
     }
@@ -111,10 +225,46 @@ def get_current_user(request: Request) -> CurrentUser:
 
     user = CurrentUser.from_payload(payload)
 
+    _ensure_token_epoch_cache_initialized()
+    jwt_epoch = payload.get("tep", 0)
+    if not _TOKEN_EPOCH_LEGACY_MODE:
+        cached_epoch = _token_epoch_cache.get(user.user_id)
+        if cached_epoch is None:
+            # Cache miss: either user created post-init or entry was invalidated by
+            # a recent bump. Read once from authoritative DB and repopulate cache.
+            cached_epoch = _fetch_token_epoch(user.user_id)
+            if cached_epoch is not None:
+                with _token_epoch_cache_lock:
+                    _token_epoch_cache[user.user_id] = cached_epoch
+        if cached_epoch is not None and jwt_epoch != cached_epoch:
+            # Mismatch may be a real revocation OR a stale cache. Race scenario:
+            # admin's bump pops cache while their UPDATE is still uncommitted; a
+            # concurrent reader fills cache with the pre-commit (old) value via
+            # SQLite isolation; admin then commits NEW. Cache is stuck at OLD,
+            # legitimate fresh JWTs (tep=NEW) get rejected. To self-heal: re-read
+            # the authoritative DB once on mismatch and update cache. Only then
+            # decide. Cost: at most one extra SELECT per actually-mismatched
+            # request — rare, never on the steady-state hot path.
+            fresh_epoch = _fetch_token_epoch(user.user_id)
+            if fresh_epoch is not None:
+                with _token_epoch_cache_lock:
+                    _token_epoch_cache[user.user_id] = fresh_epoch
+                if fresh_epoch == jwt_epoch:
+                    cached_epoch = fresh_epoch  # accept; cache repaired
+                else:
+                    log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s db=%s",
+                             user.user_id, jwt_epoch, fresh_epoch)
+                    raise AuthError(_INVALID_TOKEN)
+            else:
+                log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s cache=%s",
+                         user.user_id, jwt_epoch, cached_epoch)
+                raise AuthError(_INVALID_TOKEN)
+
     if token_needs_refresh(payload):
         request.state._refresh_token = True
         request.state._refresh_user_id = user.user_id
         request.state._refresh_role = user.role
+        request.state._refresh_epoch = jwt_epoch
     return user
 
 

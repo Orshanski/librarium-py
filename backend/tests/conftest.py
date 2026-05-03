@@ -47,7 +47,9 @@ def reset_test_data():
     state drift (segfault / teardown error в tearDown) снёс baseline.
     """
     from app.database import reset_db
+    from app.auth import reset_token_epoch_cache_for_tests
     reset_db()
+    reset_token_epoch_cache_for_tests()
 
     if not BASELINE_DIR.exists():
         from tests.seed import seed_baseline

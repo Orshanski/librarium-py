@@ -67,4 +67,5 @@ class UserInternalRow(TypedDict):
     display_name: str | None
     email: str | None
     role: Literal["admin", "reader"]
+    token_epoch: int
     created_at: str

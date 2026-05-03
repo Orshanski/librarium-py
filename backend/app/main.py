@@ -64,8 +64,13 @@ async def csrf_header_middleware(request: Request, call_next):
     if (getattr(request.state, "_refresh_token", False)
             and hasattr(request.state, "_refresh_user_id")
             and hasattr(request.state, "_refresh_role")
+            and hasattr(request.state, "_refresh_epoch")
             and 200 <= response.status_code < 400):
-        token = create_token(request.state._refresh_user_id, request.state._refresh_role)
+        token = create_token(
+            request.state._refresh_user_id,
+            request.state._refresh_role,
+            request.state._refresh_epoch,
+        )
         response.set_cookie(
             COOKIE_NAME,
             token,

@@ -73,7 +73,10 @@ def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tupl
 
     _clear_attempts(ip)
     log.info("Login OK user=%s ip=%s", user["username"], ip)
-    token = create_token(user["id"], user["role"])
+    # user.get to stay backward-compatible if users.token_epoch column is absent
+    # (pre-migration DB). create_token tolerates 0; revocation check stays inert
+    # via _TOKEN_EPOCH_LEGACY_MODE on the request side.
+    token = create_token(user["id"], user["role"], user.get("token_epoch", 0))
     user_response = AuthUserResponse(
         id=user["id"],
         username=user["username"],
