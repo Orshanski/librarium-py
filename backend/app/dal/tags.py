@@ -80,7 +80,7 @@ def resolve_raw_tag(db: sqlite3.Connection, raw_tag: str) -> int:
 
     Семантика регистра: `tag_mappings.raw_tag` хранит вход дословно (FB2-код
     "sf_fantasy" остаётся lowercase для lookup), а `tags.name` нормализуется
-    через get_or_create_tag → _capitalize_tag. Lookup raw_tag → tag_id идёт
+    через get_or_create_tag → normalize_tag_name. Lookup raw_tag → tag_id идёт
     через COLLATE NOCASE, поэтому регистр в raw_tag для match не важен.
     """
     row = queries.resolve_raw_tag(db, raw=raw_tag)
@@ -91,7 +91,7 @@ def resolve_raw_tag(db: sqlite3.Connection, raw_tag: str) -> int:
     return tag_id
 
 
-def _capitalize_tag(name: str) -> str:
+def normalize_tag_name(name: str) -> str:
     """Capitalize first letter, leave the rest untouched.
 
     Special case: if the string is ALL-CAPS and longer than 4 chars, lowercase
@@ -122,7 +122,7 @@ def resolve_tag_names(db: sqlite3.Connection, raw_tags: list[str]) -> list[str]:
     result = []
     for raw in raw_tags:
         row = queries.resolve_tag_name(db, raw=raw)
-        name = row["name"] if row else _capitalize_tag(raw)
+        name = row["name"] if row else normalize_tag_name(raw)
         if name not in seen:
             seen.add(name)
             result.append(name)
@@ -134,11 +134,11 @@ def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> TagMapResu
 
     Returns {"renamed": bool, "target_id": int}.
 
-    Нормализует target_name через _capitalize_tag — write-path инвариант
+    Нормализует target_name через normalize_tag_name — write-path инвариант
     (tags.name всегда Capitalized) держится одинаково и на create-path
     (get_or_create_tag), и на rename-path (этот метод).
     """
-    target_name = _capitalize_tag(target_name)
+    target_name = normalize_tag_name(target_name)
     existing = queries.map_tag_check_existing(db, name=target_name, id=tag_id)
 
     if existing:
@@ -160,11 +160,11 @@ def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> TagMapResu
 
 
 def get_or_create_tag(db: sqlite3.Connection, name: str) -> int:
-    """Single write-path entry for tag creation. Normalizes via _capitalize_tag
+    """Single write-path entry for tag creation. Normalizes via normalize_tag_name
     so the invariant «tag names start with uppercase» holds in the tags table
     regardless of how the caller (FB2/EPUB parser, edit form, raw-code
     self-mapping) supplied the value."""
-    normalized = _capitalize_tag(name)
+    normalized = normalize_tag_name(name)
     queries.insert_or_ignore_tag(db, name=normalized)
     row = queries.get_tag_id_by_name(db, name=normalized)
     return row["id"]
@@ -172,3 +172,8 @@ def get_or_create_tag(db: sqlite3.Connection, name: str) -> int:
 
 def tag_exists(db: sqlite3.Connection, tag_id: int) -> bool:
     return queries.tag_exists(db, id=tag_id) is not None
+
+
+def get_tag_name(db: sqlite3.Connection, tag_id: int) -> str | None:
+    row = queries.get_tag_name_by_id(db, id=tag_id)
+    return row["name"] if row else None

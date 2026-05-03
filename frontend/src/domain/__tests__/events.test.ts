@@ -29,6 +29,15 @@ describe("domainEvents", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("publishes hidden-state changes", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookHiddenChanged", handler);
+
+    domainEvents.publish("bookHiddenChanged", { bookId: 7, isHidden: true });
+
+    expect(handler).toHaveBeenCalledWith({ bookId: 7, isHidden: true });
+  });
+
   it("isolates handler failures and keeps notifying later subscribers", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const later = vi.fn();

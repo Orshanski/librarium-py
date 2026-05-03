@@ -8,6 +8,7 @@ from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 from ..dtos.catalog import UserSort
 from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
+from ..events import EventScope, publish_domain_event_after_commit
 from ..services import tags_service
 
 log = logging.getLogger("librarium.tags")
@@ -44,6 +45,13 @@ def map_tag(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     result = tags_service.map_tag(db, tag_id, body.name)
+    if result.changed:
+        publish_domain_event_after_commit(
+            db,
+            scope=EventScope(kind="library"),
+            event_type="tagMapped",
+            payload={"tagId": tag_id, "targetId": result.target_id, "name": result.name},
+        )
     action = "renamed" if result.renamed else "merged"
     log.info(
         "Tag %s: %d → %s (target=%d) by user_id=%s",

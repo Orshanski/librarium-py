@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
 import { useReaderSettings } from "./useReaderSettings";
@@ -49,7 +49,9 @@ describe("useReaderSettings — fresh device (no local settings)", () => {
     // After sync with no local settings, hook should adopt server settings
     expect(result.current.settings).toMatchObject({ fontSize: 18, theme: "dark" });
     expect(mockSaveLocalSettings).toHaveBeenCalledOnce();
-    expect(mockMarkSettingsSynced).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(mockMarkSettingsSynced).toHaveBeenCalledOnce();
+    });
   });
 });
 

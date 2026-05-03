@@ -9,6 +9,7 @@ from ..dtos.reader import (
     ReaderSettingsBody, ReadingProgressBody,
     ReaderSettingsGetResponse,  # response_model annotation
 )
+from ..events import EventScope, publish_domain_event_after_commit
 from ..services import reader_service
 
 router = APIRouter(tags=["reader"])
@@ -52,4 +53,12 @@ def api_get_progress(book_id: int, user: Annotated[CurrentUser, Depends(get_curr
 
 @router.put("/api/reader/progress/{book_id}", response_model=ProgressSaveResponse)
 def api_save_progress(book_id: int, body: ReadingProgressBody, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
-    return reader_service.save_progress(db, user.user_id, book_id, body)
+    result = reader_service.save_progress(db, user.user_id, book_id, body)
+    if result.event_payload is not None:
+        publish_domain_event_after_commit(
+            db,
+            scope=EventScope(kind="user", user_id=user.user_id),
+            event_type="readingProgressChanged",
+            payload=result.event_payload,
+        )
+    return result.response

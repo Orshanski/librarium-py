@@ -11,6 +11,7 @@ from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
     UpdateBookResponse,
 )
+from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
@@ -20,6 +21,87 @@ from .temp_cleanup import cleanup_temp_session, find_temp_file
 log = logging.getLogger("librarium.services.books")
 
 _BOOK_NOT_FOUND = "Book not found"
+
+_BOOK_UPDATE_EVENT_FIELDS = {
+    "title": "title",
+    "description": "description",
+    "publisher": "publisher",
+    "pub_date": "pubDate",
+    "isbn": "identifiers",
+    "author_ids": "authors",
+    "series_id": "series",
+    "series_number": "seriesNumber",
+    "tag_ids": "tags",
+    "language": "language",
+}
+
+_USER_SCOPED_BOOK_EVENT_FIELDS = {
+    "rating",
+    "isRead",
+    "is_read",
+    "isHidden",
+    "is_hidden",
+    "hidden",
+}
+
+
+def _library_event_book_payload(response: UpdateBookResponse) -> dict[str, object]:
+    book = response.model_dump(mode="json", by_alias=True)["book"]
+    return {
+        key: value
+        for key, value in book.items()
+        if key not in _USER_SCOPED_BOOK_EVENT_FIELDS
+    }
+
+
+def _current_isbn(detail: BookDetailResponse) -> str | None:
+    for identifier in detail.identifiers:
+        if identifier.type == "isbn":
+            return identifier.value
+    return None
+
+
+def _metadata_changed_fields(
+    body: UpdateBookBody,
+    data: BookUpdateData,
+    current: BookDetailResponse,
+) -> list[str]:
+    changed: list[str] = []
+    book = current.book
+    for field_name, event_field in _BOOK_UPDATE_EVENT_FIELDS.items():
+        if field_name not in body.model_fields_set:
+            continue
+        if field_name == "isbn":
+            if (data.get("isbn") or None) != _current_isbn(current):
+                changed.append(event_field)
+        elif field_name == "author_ids":
+            if set(data.get("author_ids", [])) != {author.id for author in book.authors}:
+                changed.append(event_field)
+        elif field_name == "tag_ids":
+            if set(data.get("tag_ids", [])) != {tag.id for tag in book.tags}:
+                changed.append(event_field)
+        elif field_name == "series_id":
+            current_series_id = book.series.id if book.series else None
+            if data.get("series_id") != current_series_id:
+                changed.append(event_field)
+        else:
+            if data.get(field_name) != getattr(book, field_name):
+                changed.append(event_field)
+    return changed
+
+
+def _changed_book_fields(
+    metadata_fields: list[str],
+    *,
+    files_changed: bool,
+    cover_changed: bool,
+) -> list[str]:
+    fields = list(metadata_fields)
+    if files_changed:
+        fields.append("files")
+    if cover_changed:
+        fields.append("coverPath")
+    return fields
 
 
 def delete_book(db: sqlite3.Connection, book_id: int) -> None:
@@ -205,11 +287,14 @@ def update_book(
         return _update_book_response(db, book_id, user_id)
 
     # Шаг 1: валидация и резолвы — до любых side effects.
+    current_detail = get_book(db, book_id, user_id)
     resolved_adds = _resolve_add_formats(add_formats)
     _check_format_collision(db, book_id, resolved_adds, delete_formats)
     if body.commit_cover and cover_service._find_temp_cover(book_id) is None:
         raise BadInputError("No pending cover to commit")
     resolved_deletes = _resolve_delete_formats(db, book_id, delete_formats)
+    _resolve_metadata_refs(db, data)
+    metadata_changed_fields = _metadata_changed_fields(body, data, current_detail)
 
     # Шаг 2-3: delete (backup-then-delete) → add (copy/register/linearize).
     # При сбое add — restore .bak из шага 2.
@@ -217,7 +302,10 @@ def update_book(
     _apply_add_formats(db, book_id, resolved_adds, backed_up_paths)
 
     # Шаг 4: commitCover.
-    if body.commit_cover and not cover_service._commit(db, book_id):
+    cover_changed = False
+    if body.commit_cover:
+        cover_changed = cover_service._commit(db, book_id)
+    if body.commit_cover and not cover_changed:
         # Pending-cover исчез между check и commit (race с cleanup_old_uploads —
         # grace 3600 s, практически невозможно).
         log.warning(
@@ -226,7 +314,6 @@ def update_book(
         )
 
     # Шаг 5: metadata — всегда (updated_at bump при file-only тоже).
-    _resolve_metadata_refs(db, data)
     dal.update_book(db, book_id, data)
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
@@ -238,9 +325,23 @@ def update_book(
     for (tid, _src, _fmt, _ext) in resolved_adds:
         cleanup_temp_session(tid)
 
-    # Шаг 7: SSE publish hook (будущее в `ewg0`).
-    # TODO(ewg0): publish event здесь; wrap в try/except в ewg0-impl чтобы сбой не ломал уже успешный Save.
-    return _update_book_response(db, book_id, user_id)
+    response = _update_book_response(db, book_id, user_id)
+    changed_fields = _changed_book_fields(
+        metadata_changed_fields,
+        files_changed=bool(resolved_adds or resolved_deletes),
+        cover_changed=cover_changed,
+    )
+    if changed_fields:
+        publish_domain_event_after_commit(
+            db,
+            scope=EventScope(kind="library"),
+            event_type="bookUpdated",
+            payload={
+                "book": _library_event_book_payload(response),
+                "changedFields": changed_fields,
+            },
+        )
+    return response
 
 
 def list_books(

@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -34,9 +35,18 @@ from .routers import metadata as metadata_router
 from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
+from .routers import events as events_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    events_router.close_event_streams()
+
 
 app = FastAPI(
     title="Librarium",
+    lifespan=lifespan,
 )
 
 register_error_handlers(app)
@@ -101,6 +111,7 @@ app.include_router(metadata_router.router)
 app.include_router(upload_router.router)
 app.include_router(similar_router.router)
 app.include_router(reader_router.router)
+app.include_router(events_router.router)
 
 # Static files (Vite build) — added last so API routes take priority
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

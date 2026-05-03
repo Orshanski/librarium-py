@@ -315,6 +315,8 @@ class TagMapResponse(BaseModel):
     ok: bool = True
     target_id: int
     renamed: bool = Field(exclude=True)
+    changed: bool = Field(default=True, exclude=True)
+    name: str = Field(exclude=True)
 
 
 class AuthorOptionsResponse(BaseModel):

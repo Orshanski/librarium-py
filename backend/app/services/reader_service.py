@@ -1,6 +1,7 @@
 """Reader device settings + reading progress."""
 import sqlite3
 import uuid
+from dataclasses import dataclass
 
 from ..dal import reader as dal
 from ..dtos.reader import (
@@ -8,6 +9,12 @@ from ..dtos.reader import (
     ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody,
     ReadingProgressBody, ReaderSettingsGetResponse,
 )
+
+
+@dataclass(frozen=True)
+class ProgressSaveEventResult:
+    response: ProgressSaveResponse
+    event_payload: dict[str, object] | None
 
 
 def get_or_create_device_id(cookie_value: str | None) -> str:
@@ -46,19 +53,31 @@ def save_progress(
     user_id: int,
     book_id: int,
     body: ReadingProgressBody,
-) -> ProgressSaveResponse:
+) -> ProgressSaveEventResult:
+    previous = dal.get_reading_progress(db, user_id, book_id)
     result = dal.save_reading_progress(
         db, user_id, book_id,
         body.position, body.last_device, body.last_format, body.fraction, body.expected_version,
     )
     if result["accepted"]:
-        return ProgressAcceptedResponse(
+        current = dal.get_reading_progress(db, user_id, book_id)
+        response = ProgressAcceptedResponse(
             accepted=True,
             version=result["version"],
             rebased=result.get("rebased", False),
         )
-    return ProgressRejectedResponse(
+        return ProgressSaveEventResult(
+            response=response,
+            event_payload={
+                "bookId": book_id,
+                "hadPosition": bool(previous["position"]),
+                "hasPosition": bool(body.position),
+                "lastReadAtChanged": previous["last_read_at"] != current["last_read_at"],
+            },
+        )
+    response = ProgressRejectedResponse(
         accepted=False,
         current=result.get("current"),
         retry_exhausted=result.get("retry_exhausted", False),
     )
+    return ProgressSaveEventResult(response=response, event_payload=None)

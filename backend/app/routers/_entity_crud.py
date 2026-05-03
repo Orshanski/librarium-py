@@ -31,6 +31,11 @@ from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.entities import RenameBody, MergeBody
+from ..events import EventScope, publish_domain_event_after_commit
+
+
+def _entity_id_payload_key(entity_label: str) -> str:
+    return "seriesId" if entity_label == "series" else f"{entity_label}Id"
 
 
 def register_entity_crud(
@@ -86,7 +91,14 @@ def register_entity_crud(
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         name = body.name.strip()
-        rename_fn(db, entity_id, name)
+        changed = rename_fn(db, entity_id, name)
+        if changed:
+            publish_domain_event_after_commit(
+                db,
+                scope=EventScope(kind="library"),
+                event_type=f"{entity_label}Renamed",
+                payload={_entity_id_payload_key(entity_label): entity_id, "name": name},
+            )
         logger.info(
             "Renamed %s=%d to=%s by user_id=%s",
             entity_label, entity_id, name, user.user_id,
@@ -100,7 +112,14 @@ def register_entity_crud(
         user: Annotated[CurrentUser, Depends(require_admin)],
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
-        merge_fn(db, entity_id, body.source_id)
+        changed = merge_fn(db, entity_id, body.source_id)
+        if changed:
+            publish_domain_event_after_commit(
+                db,
+                scope=EventScope(kind="library"),
+                event_type=f"{entity_label}Merged",
+                payload={"targetId": entity_id, "sourceId": body.source_id},
+            )
         logger.info(
             "Merged %s source=%d into target=%d by user_id=%s",
             entity_label, body.source_id, entity_id, user.user_id,
@@ -114,5 +133,11 @@ def register_entity_crud(
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
         delete_fn(db, entity_id)
+        publish_domain_event_after_commit(
+            db,
+            scope=EventScope(kind="library"),
+            event_type=f"{entity_label}Deleted",
+            payload={_entity_id_payload_key(entity_label): entity_id},
+        )
         logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user.user_id)
         return OkResponse()

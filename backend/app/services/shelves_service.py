@@ -52,10 +52,30 @@ def update_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int, name: str)
     dal.update_shelf(db, shelf_id, name)
 
 
+def update_shelf_changed(db: sqlite3.Connection, shelf_id: int, user_id: int, name: str) -> bool:
+    shelf = dal.get_shelf_meta(db, shelf_id, user_id)
+    if not shelf:
+        raise NotFoundError(_NOT_FOUND)
+    if shelf["is_system"] or shelf["name"] == name:
+        return False
+    dal.update_shelf(db, shelf_id, name)
+    return True
+
+
 def delete_shelf(db: sqlite3.Connection, shelf_id: int, user_id: int) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
         raise NotFoundError(_NOT_FOUND)
     dal.delete_shelf(db, shelf_id)
+
+
+def delete_shelf_changed(db: sqlite3.Connection, shelf_id: int, user_id: int) -> bool:
+    shelf = dal.get_shelf_meta(db, shelf_id, user_id)
+    if not shelf:
+        raise NotFoundError(_NOT_FOUND)
+    if shelf["is_system"]:
+        return False
+    dal.delete_shelf(db, shelf_id)
+    return True
 
 
 def add_book(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> None:
@@ -64,7 +84,33 @@ def add_book(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) 
     dal.add_book_to_shelf(db, shelf_id, book_id)
 
 
+def add_book_changed(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> bool:
+    shelf = dal.get_shelf_meta(db, shelf_id, user_id)
+    if not shelf:
+        raise NotFoundError(_NOT_FOUND)
+    if shelf["is_system"]:
+        dal.add_book_to_shelf(db, shelf_id, book_id)
+        return False
+    if shelf_id in dal.get_book_shelf_ids(db, book_id, user_id):
+        return False
+    dal.add_book_to_shelf(db, shelf_id, book_id)
+    return True
+
+
 def remove_book(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> None:
     if not dal.shelf_exists(db, shelf_id, user_id):
         raise NotFoundError(_NOT_FOUND)
     dal.remove_book_from_shelf(db, shelf_id, book_id)
+
+
+def remove_book_changed(db: sqlite3.Connection, shelf_id: int, user_id: int, book_id: int) -> bool:
+    shelf = dal.get_shelf_meta(db, shelf_id, user_id)
+    if not shelf:
+        raise NotFoundError(_NOT_FOUND)
+    if shelf["is_system"]:
+        dal.remove_book_from_shelf(db, shelf_id, book_id)
+        return False
+    if shelf_id not in dal.get_book_shelf_ids(db, book_id, user_id):
+        return False
+    dal.remove_book_from_shelf(db, shelf_id, book_id)
+    return True
