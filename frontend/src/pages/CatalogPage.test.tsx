@@ -207,6 +207,50 @@ describe("CatalogPage", () => {
     expect(fetchCount).toBe(0);
   });
 
+  it("refetches the visible catalog when the books namespace is invalidated", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/books", () => {
+        fetchCount++;
+        return HttpResponse.json({
+          books: [{ ...mockBooks[0], id: 3, title: "Свежая книга" }],
+          hasMore: false,
+          total: 1,
+        });
+      }),
+      http.get("/api/filter-options/:key", () =>
+        HttpResponse.json({ authors: [], series: [], tags: [], languages: [] })
+      ),
+      http.get("/api/tags/cloud", () => HttpResponse.json({ tags: [] })),
+    );
+
+    metadataCache.set(
+      "books",
+      "/",
+      {
+        books: [{ ...mockBooks[0], title: "Старая книга" }],
+        hasMore: false,
+        cursor: 1,
+      },
+      { context: { kind: "book-list", key: "/", source: "catalog", sort: "addedDesc" } },
+    );
+
+    renderWithProviders(<CatalogPage />, { initialEntries: ["/"] });
+
+    expect(screen.getByText("Старая книга")).toBeInTheDocument();
+    expect(fetchCount).toBe(0);
+
+    act(() => {
+      metadataCache.invalidateBookLists();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Свежая книга")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Старая книга")).not.toBeInTheDocument();
+    expect(fetchCount).toBe(1);
+  });
+
   it("ignores legacy librarium_catalog_cache even if populated", async () => {
     let fetchCount = 0;
     server.use(

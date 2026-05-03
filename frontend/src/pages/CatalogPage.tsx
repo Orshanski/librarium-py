@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -106,6 +106,12 @@ export default function CatalogPage() {
   );
 
   const [state, setState] = useState<CatalogState>(() => initialStateFor(urlKey));
+  const booksInvalidationVersion = useSyncExternalStore(
+    useMemo(() => (handler: () => void) => metadataCache.subscribe("books", handler), []),
+    () => metadataCache.invalidationVersion("books"),
+    () => metadataCache.invalidationVersion("books"),
+  );
+  const seenBooksInvalidationVersion = useRef(booksInvalidationVersion);
 
   // Синхронная реакция на смену URL: пересчитываем state из кэша либо переходим в loading.
   // React бракует рендер после setState-in-render и сразу рендерит новый state — без промежуточного кадра.
@@ -117,6 +123,13 @@ export default function CatalogPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   useScrollRestore(!loading, scrollContext);
+
+  useEffect(() => {
+    if (seenBooksInvalidationVersion.current === booksInvalidationVersion) return;
+    seenBooksInvalidationVersion.current = booksInvalidationVersion;
+    setLoadingMore(false);
+    setState(initialStateFor(urlKey));
+  }, [booksInvalidationVersion, urlKey]);
 
   const buildApiParams = useCallback(
     (c: number, size?: number): BookListParams & { pageSize: number; cursor: number } => {

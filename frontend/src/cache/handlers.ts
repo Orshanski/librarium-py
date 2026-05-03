@@ -118,12 +118,12 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
     }),
     bus.subscribe("bookRatingChanged", (payload) => {
       store.applyBookUpdate({ book: { id: payload.bookId, rating: payload.rating }, changedFields: ["rating"] });
-      store.invalidate(`book/${payload.bookId}`);
+      patchCachedBookDetail(store, payload.bookId, { rating: payload.rating });
       store.invalidate("shelf/best");
     }),
     bus.subscribe("bookReadChanged", (payload) => {
       store.applyBookUpdate({ book: { id: payload.bookId, isRead: payload.isRead }, changedFields: ["read"] });
-      store.invalidate(`book/${payload.bookId}`);
+      patchCachedBookDetail(store, payload.bookId, { isRead: payload.isRead });
       store.invalidate("shelf/reading-now");
     }),
     bus.subscribe("bookHiddenChanged", (payload) => {
@@ -158,4 +158,29 @@ function invalidateAggregateEntityReadModels(store: MetadataCacheStore): void {
 
 function invalidateBookDetails(store: MetadataCacheStore): void {
   store.invalidateNamespacePrefix("book/");
+}
+
+function patchCachedBookDetail(
+  store: MetadataCacheStore,
+  bookId: number,
+  patch: Record<string, unknown>,
+): void {
+  const namespace = `book/${bookId}`;
+  const detail = store.get<{ book?: unknown } & Record<string, unknown>>(namespace, "detail");
+  if (!isCachedBookDetailFor(detail, bookId)) return;
+  store.set(namespace, "detail", {
+    ...detail,
+    book: { ...detail.book, ...patch },
+  });
+}
+
+function isCachedBookDetailFor(
+  detail: ({ book?: unknown } & Record<string, unknown>) | undefined,
+  bookId: number,
+): detail is { book: { id: number } & Record<string, unknown> } & Record<string, unknown> {
+  return typeof detail === "object"
+    && detail !== null
+    && typeof detail.book === "object"
+    && detail.book !== null
+    && (detail.book as { id?: unknown }).id === bookId;
 }
