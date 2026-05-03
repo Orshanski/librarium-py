@@ -9,6 +9,9 @@ type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> 
   originClientId?: string;
 };
 
+type BookBooleanPayloadField = "isRead" | "isHidden";
+type RenamedPayloadIdField = "authorId" | "seriesId";
+
 const KNOWN_EVENTS = [
   "bookUpdated",
   "bookCreated",
@@ -195,12 +198,12 @@ function validateBookRatingPayload(value: Record<string, unknown>): void {
   if (typeof value.rating !== "number" && value.rating !== null) throw new Error("bad server event payload");
 }
 
-function validateBookBooleanPayload(value: Record<string, unknown>, field: string): void {
+function validateBookBooleanPayload(value: Record<string, unknown>, field: BookBooleanPayloadField): void {
   requireNumber(value.bookId);
   requireBoolean(value[field]);
 }
 
-function validateRenamedPayload(value: Record<string, unknown>, idField: string): void {
+function validateRenamedPayload(value: Record<string, unknown>, idField: RenamedPayloadIdField): void {
   requireNumber(value[idField]);
   requireString(value.name);
   if (value.sortName !== undefined) requireString(value.sortName);

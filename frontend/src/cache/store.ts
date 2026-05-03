@@ -223,7 +223,7 @@ export class MetadataCacheStore {
   private notify(namespace: string): void {
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
-    for (const handler of ns.subscribers) {
+    for (const handler of subscriberSnapshot(ns)) {
       handler();
     }
   }
@@ -233,6 +233,10 @@ export class MetadataCacheStore {
     if (!ns) return;
     sessionStorage.setItem(STORAGE_PREFIX + namespace, JSON.stringify(Object.fromEntries(ns.entries)));
   }
+}
+
+function subscriberSnapshot(ns: Namespace): Array<() => void> {
+  return Array.from(ns.subscribers);
 }
 
 type BookListRow = { id: number } & Record<string, unknown>;

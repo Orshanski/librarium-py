@@ -26,6 +26,21 @@ describe("MetadataCacheStore", () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
+  it("notifies subscribers that were present when notification started", () => {
+    let unsubscribeSecond = () => {};
+    const second = vi.fn();
+    const first = vi.fn(() => {
+      unsubscribeSecond();
+    });
+    store.subscribe("books", first);
+    unsubscribeSecond = store.subscribe("books", second);
+
+    store.set("books", "k1", { books: [] });
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
   it("patches matching book rows inside the books namespace", () => {
     store.set("books", "k1", {
       books: [{ id: 1, title: "Old" }, { id: 2, title: "Other" }],
