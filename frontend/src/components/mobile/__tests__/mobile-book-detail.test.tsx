@@ -65,6 +65,12 @@ describe("MobileBookDetail composition", () => {
     expect(screen.getByText("фэнтези")).toBeInTheDocument();
   });
 
+  it("renders authors as a plain comma-separated line", () => {
+    renderMobile(makeProps(makeBook({ authors: ["Автор 1", "Автор 2"] }), false));
+
+    expect(screen.getByText("Автор 1, Автор 2")).toBeInTheDocument();
+  });
+
   it("excludes PDF from mobile readable formats but keeps it downloadable", () => {
     renderMobile(makeProps(makeBook(), false));
 
@@ -80,10 +86,10 @@ describe("MobileBookDetail composition", () => {
     expect(screen.queryByText(/^Серия$/i)).toBeNull();
   });
 
-  it("renders admin actions for admins", () => {
+  it("renders only the existing mobile delete admin action for admins", () => {
     renderMobile(makeProps(makeBook(), true));
 
-    expect(screen.getByRole("link", { name: "Редактировать" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Редактировать" })).toBeNull();
     expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
   });
 

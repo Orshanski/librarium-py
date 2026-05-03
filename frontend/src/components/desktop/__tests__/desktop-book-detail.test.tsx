@@ -68,6 +68,14 @@ describe("DesktopBookDetail composition", () => {
     expect(screen.getByText("Издатель")).toBeInTheDocument();
   });
 
+  it("renders authors as plain accent text, not metadata pills", () => {
+    renderDesktop(makeProps(makeBook({ authors: ["Автор 1", "Автор 2"] }), false));
+
+    const authors = screen.getByTestId("desktop-book-authors");
+    expect(authors).toHaveTextContent("Автор 1");
+    expect(authors).toHaveTextContent("Автор 2");
+  });
+
   it("links readable desktop formats to reader routes, including PDF", () => {
     renderDesktop(makeProps(makeBook(), false));
 
@@ -93,14 +101,15 @@ describe("DesktopBookDetail composition", () => {
   it("renders admin actions only for admins", () => {
     renderDesktop(makeProps(makeBook(), true));
 
-    expect(screen.getByRole("link", { name: "Редактировать" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
+    const adminActions = screen.getByTestId("desktop-book-admin-actions");
+    expect(adminActions).toContainElement(screen.getByRole("link", { name: "Ред." }));
+    expect(adminActions).toContainElement(screen.getByRole("button", { name: "Удалить" }));
   });
 
   it("omits admin actions for reader users", () => {
     renderDesktop(makeProps(makeBook(), false));
 
-    expect(screen.queryByRole("link", { name: "Редактировать" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ред." })).toBeNull();
     expect(screen.queryByRole("button", { name: "Удалить" })).toBeNull();
   });
 

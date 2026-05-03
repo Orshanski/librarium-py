@@ -107,7 +107,11 @@ export default function MobileBookDetail({
           >
             {book.title}
           </div>
-          {book.authors.length > 0 && <BookMetaPillList items={book.authors} tokens={PILL_TOKENS} />}
+          {book.authors.length > 0 && (
+            <div style={{ fontSize: 13, color: colors.accent, marginBottom: 8 }}>
+              {book.authors.join(", ")}
+            </div>
+          )}
           {book.series && (
             <BookSeriesLine
               seriesName={book.series}
@@ -145,16 +149,6 @@ export default function MobileBookDetail({
 
       {isAdmin && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <div style={{ flex: 1 }}>
-            <BookActionButton
-              kind="link"
-              to={`/book/${book.id}/edit`}
-              state={bookContext}
-              variant="neutral"
-            >
-              Редактировать
-            </BookActionButton>
-          </div>
           <div style={{ flex: 1 }}>
             <BookActionButton kind="button" onClick={onShowDeleteConfirm} variant="danger">
               Удалить

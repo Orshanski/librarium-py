@@ -1,4 +1,5 @@
 import { colors } from "../../theme";
+import { Link } from "react-router-dom";
 import BookActionButton from "../book-action-button";
 import BookDescription from "../book-description";
 import { BookDetailViewProps } from "../book-detail.types";
@@ -57,6 +58,27 @@ const SERIES_RAIL_TOKENS = {
   titleMarginBottom: 16,
   marginTop: 48,
 };
+const DESKTOP_ADMIN_EDIT_STYLE = {
+  background: "none",
+  border: `1px solid ${colors.border}`,
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 12,
+  color: colors.textDim,
+  padding: "4px 10px",
+  fontFamily: "inherit",
+  textDecoration: "none",
+};
+const DESKTOP_ADMIN_DELETE_STYLE = {
+  background: "none",
+  border: "1px solid rgba(239,68,68,0.3)",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 12,
+  color: colors.danger,
+  padding: "4px 10px",
+  fontFamily: "inherit",
+};
 
 export default function DesktopBookDetail({
   book,
@@ -101,25 +123,49 @@ export default function DesktopBookDetail({
           >
             Похожие книги
           </BookActionButton>
-          {isAdmin && (
-            <>
-              <BookActionButton
-                kind="link"
-                to={`/book/${book.id}/edit`}
-                state={bookContext}
-                variant="neutral"
-              >
-                Редактировать
-              </BookActionButton>
-              <BookActionButton kind="button" onClick={onShowDeleteConfirm} variant="danger">
-                Удалить
-              </BookActionButton>
-            </>
-          )}
         </div>
 
         <div style={{ width: 520, flexShrink: 0 }}>
-          {book.authors.length > 0 && <BookMetaPillList items={book.authors} tokens={PILL_TOKENS} />}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            {book.authors.length > 0 ? (
+              <div data-testid="desktop-book-authors">
+                {book.authors.map((author) => (
+                  <span
+                    key={author}
+                    style={{
+                      color: colors.accent,
+                      fontSize: 16,
+                      marginRight: 12,
+                    }}
+                  >
+                    {author}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+            {isAdmin && (
+              <div data-testid="desktop-book-admin-actions" style={{ display: "flex", gap: 12 }}>
+                <Link
+                  to={`/book/${book.id}/edit`}
+                  state={bookContext}
+                  title="Редактировать"
+                  style={DESKTOP_ADMIN_EDIT_STYLE}
+                >
+                  Ред.
+                </Link>
+                <button
+                  type="button"
+                  title="Удалить"
+                  onClick={onShowDeleteConfirm}
+                  style={DESKTOP_ADMIN_DELETE_STYLE}
+                >
+                  Удалить
+                </button>
+              </div>
+            )}
+          </div>
 
           {book.series && (
             <BookSeriesLine
