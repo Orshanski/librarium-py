@@ -1,9 +1,12 @@
 import asyncio
 import json
 import logging
+import sqlite3
 import threading
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
+
+from .database import add_after_commit_hook
 
 log = logging.getLogger("librarium.events")
 
@@ -109,6 +112,33 @@ class EventBroker:
 
 
 broker = EventBroker()
+
+
+def publish_domain_event_after_commit(
+    db: sqlite3.Connection,
+    *,
+    scope: EventScope,
+    event_type: str,
+    payload: dict[str, Any],
+    event_broker: EventBroker = broker,
+) -> bool:
+    """Publish a domain event after managed commit, or immediately outside one.
+
+    Returns True when publication was deferred to a managed db_session commit.
+    Returns False when no matching managed session exists and the event was
+    published immediately.
+    """
+    def publish() -> None:
+        try:
+            event_broker.publish_nowait(scope=scope, event_type=event_type, payload=payload)
+        except Exception:
+            log.exception("Failed to publish domain event after commit type=%s", event_type)
+
+    if add_after_commit_hook(db, publish):
+        return True
+
+    publish()
+    return False
 
 
 def format_sse_event(event: ServerEvent) -> str:
