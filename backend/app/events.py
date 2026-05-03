@@ -38,13 +38,26 @@ class EventSubscription:
     closed: bool = False
 
     async def get(self) -> ServerEvent:
+        if self.closed:
+            raise asyncio.CancelledError
         item = await self.queue.get()
-        if item is None:
+        if item is None or self.closed:
             raise asyncio.CancelledError
         return item
 
     def close(self) -> None:
+        if self.closed:
+            return
         self.closed = True
+        self.loop.call_soon_threadsafe(self._wake_closed)
+
+    def _wake_closed(self) -> None:
+        while True:
+            try:
+                self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        self.queue.put_nowait(None)
 
 
 class EventBroker:
