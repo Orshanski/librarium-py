@@ -13,7 +13,8 @@ import { ApiError, ServerError, ValidationError } from "@/api/errors";
 export default function BookEditForm({ book, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
   const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);
-  const [authors, setAuthors] = useState(book.authors.join(", "));
+  const [authors, setAuthors] = useState<string[]>(book.authors);
+  const [authorSearch, setAuthorSearch] = useState("");
   const [seriesName, setSeriesName] = useState(book.series || "");
   const [seriesNumber, setSeriesNumber] = useState(book.seriesNumber?.toString() || "");
   const [description, setDescription] = useState(book.description || "");
@@ -40,7 +41,8 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
   const seriesOptions = options?.series.map((s: NamedOption) => ({ value: s.name })) || [];
   const languageOptions = options?.languages.map((l) => ({ value: l.name })) || [];
   const publisherOptions = options?.publishers.map((p: string) => ({ value: p })) || [];
-  const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: 0 })) || [];
+  const allTags = options?.tags.map((t: TagOption) => ({ name: t.name, bookCount: t.bookCount ?? 0 })) || [];
+  const allAuthors = options?.authors.map((a: NamedOption) => ({ value: a.name })) || [];
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -80,7 +82,7 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
 
   async function applyMetadata(data: MetadataPayload) {
     if (data.title) setTitle(data.title);
-    if (data.authors) setAuthors(data.authors);
+    if (data.authors) setAuthors(splitCsv(data.authors));
     if (data.description) setDescription(data.description);
     if (data.publisher) setPublisher(data.publisher);
     if (data.pubDate) setPubDate(data.pubDate);
@@ -126,7 +128,7 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     try {
       await onSave({
         title,
-        authors,
+        authors: authors.join(", "),
         series: seriesName || null,
         seriesNumber: seriesNumber || null,
         description,
@@ -173,6 +175,7 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     book,
     title,
     authors,
+    authorSearch,
     seriesName,
     seriesNumber,
     description,
@@ -193,10 +196,18 @@ export default function BookEditForm({ book, options, onSave, editOrigin }: Read
     languageOptions,
     publisherOptions,
     allTags,
+    allAuthors,
     fileInputRef,
     coverInputRef,
     onSetTitle: setTitle,
-    onSetAuthors: setAuthors,
+    onSetAuthorSearch: setAuthorSearch,
+    onAddAuthor: (value: string) => {
+      if (value && !authors.includes(value)) {
+        setAuthors((prev) => [...prev, value]);
+      }
+      setAuthorSearch("");
+    },
+    onRemoveAuthor: (value: string) => setAuthors((prev) => prev.filter((author) => author !== value)),
     onSetSeriesName: setSeriesName,
     onSetSeriesNumber: setSeriesNumber,
     onSetDescription: setDescription,

@@ -1,6 +1,7 @@
 import { colors } from "../../theme";
 import MetadataSearch from "../metadata-search";
 import Combobox from "../combobox";
+import BookEditTokenField from "../book-edit-token-field";
 import { BookEditViewProps } from "../book-edit-form.types";
 import { sharedBookEditButtonStyle, sharedBookEditInputStyle, sharedBookEditLabelStyle } from "../book-edit-form.styles";
 
@@ -27,6 +28,7 @@ export default function DesktopBookEditForm({
   book,
   title,
   authors,
+  authorSearch,
   seriesName,
   seriesNumber,
   description,
@@ -47,10 +49,13 @@ export default function DesktopBookEditForm({
   languageOptions,
   publisherOptions,
   allTags,
+  allAuthors,
   fileInputRef,
   coverInputRef,
   onSetTitle,
-  onSetAuthors,
+  onSetAuthorSearch,
+  onAddAuthor,
+  onRemoveAuthor,
   onSetSeriesName,
   onSetSeriesNumber,
   onSetDescription,
@@ -187,11 +192,15 @@ export default function DesktopBookEditForm({
 
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Авторы</label>
-          <input
-            style={inputStyle}
-            value={authors}
-            onChange={(e) => onSetAuthors(e.target.value)}
-            placeholder="Через запятую"
+          <BookEditTokenField
+            values={authors}
+            searchValue={authorSearch}
+            options={allAuthors}
+            placeholder="Найти или добавить автора..."
+            testId="book-edit-token-field-authors"
+            onSearchChange={onSetAuthorSearch}
+            onAdd={onAddAuthor}
+            onRemove={onRemoveAuthor}
           />
         </div>
 
@@ -228,36 +237,16 @@ export default function DesktopBookEditForm({
 
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Жанры / теги</label>
-          <Combobox
-            value={tagSearch}
-            onChange={onSetTagSearch}
-            onSelect={onAddTag}
-            options={allTags.filter((t) => !tags.includes(t.name)).map((t) => ({ value: t.name, hint: String(t.bookCount) }))}
+          <BookEditTokenField
+            values={tags}
+            searchValue={tagSearch}
+            options={allTags.map((t) => ({ value: t.name, hint: String(t.bookCount) }))}
             placeholder="Найти или добавить жанр..."
+            testId="book-edit-token-field-tags"
+            onSearchChange={onSetTagSearch}
+            onAdd={onAddTag}
+            onRemove={onRemoveTag}
           />
-          {tags.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "4px 10px",
-                    fontSize: 12,
-                    borderRadius: 12,
-                    backgroundColor: "rgba(249, 190, 3, 0.12)",
-                    border: "1px solid rgba(249, 190, 3, 0.3)",
-                    color: colors.accent,
-                  }}
-                >
-                  {tag}
-                  <span onClick={() => onRemoveTag(tag)} style={{ cursor: "pointer", fontSize: 11, marginLeft: 2 }}>✕</span>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>

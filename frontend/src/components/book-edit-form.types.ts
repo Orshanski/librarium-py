@@ -60,7 +60,8 @@ export interface BookEditFormProps {
 export interface BookEditViewProps {
   book: Book;
   title: string;
-  authors: string;
+  authors: string[];
+  authorSearch: string;
   seriesName: string;
   seriesNumber: string;
   description: string;
@@ -81,10 +82,13 @@ export interface BookEditViewProps {
   languageOptions: { value: string }[];
   publisherOptions: { value: string }[];
   allTags: { name: string; bookCount: number }[];
+  allAuthors: { value: string }[];
   fileInputRef: RefObject<HTMLInputElement | null>;
   coverInputRef: RefObject<HTMLInputElement | null>;
   onSetTitle: (value: string) => void;
-  onSetAuthors: (value: string) => void;
+  onSetAuthorSearch: (value: string) => void;
+  onAddAuthor: (value: string) => void;
+  onRemoveAuthor: (value: string) => void;
   onSetSeriesName: (value: string) => void;
   onSetSeriesNumber: (value: string) => void;
   onSetDescription: (value: string) => void;

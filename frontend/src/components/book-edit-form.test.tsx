@@ -251,7 +251,7 @@ describe("book-edit-form — metadata", () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue("Книга без обложки")).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue("Автор Без Обложки")).toBeInTheDocument();
+    expect(screen.getByTestId("book-edit-token-field-authors")).toHaveTextContent("Автор Без Обложки");
 
     expect(coverProxyCalled).toBe(false);
     expect(coverUploadCalled).toBe(false);
@@ -508,6 +508,40 @@ describe("book-edit-form — books", () => {
     expect(capturedPayload!.addFormats).toEqual([]);
     expect(capturedPayload!.deleteFormats).toEqual([]);
     expect(capturedPayload!.commitCover).toBe(false);
+  });
+
+  it("edits authors with the same token UI as tags and saves authors as CSV", async () => {
+    const user = userEvent.setup();
+    let capturedPayload: import("./book-edit-form.types").BookSavePayload | null = null;
+    const parentOnSave = async (payload: import("./book-edit-form.types").BookSavePayload) => {
+      capturedPayload = payload;
+    };
+    const options: BookEditOptions = {
+      ...mockOptions,
+      authors: [
+        { id: 1, name: "Автор Тестов" },
+        { id: 2, name: "Новый Автор" },
+      ],
+    };
+
+    renderWithProviders(
+      <BookEditForm book={mockBook} options={options} onSave={parentOnSave} />,
+    );
+
+    const authorField = screen.getByTestId("book-edit-token-field-authors");
+    expect(authorField).toHaveTextContent("Автор Тестов");
+
+    await user.click(screen.getByRole("button", { name: "Удалить Автор Тестов" }));
+    expect(authorField).not.toHaveTextContent("Автор Тестов");
+
+    await user.type(screen.getByPlaceholderText("Найти или добавить автора..."), "Новый");
+    await user.click(screen.getByText("Новый Автор"));
+    expect(authorField).toHaveTextContent("Новый Автор");
+
+    await user.click(screen.getByRole("button", { name: /сохранить/i }));
+
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload!.authors).toBe("Новый Автор");
   });
 
   it("save_4xx_shows_detail_preserves_state", async () => {
