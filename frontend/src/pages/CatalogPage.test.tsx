@@ -5,6 +5,8 @@ import { screen, waitFor, act } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
+import { domainEvents } from "@/domain/events";
 import CatalogPage from "./CatalogPage";
 
 const mockBooks = [
@@ -63,10 +65,12 @@ function makeBooks(count: number, startId = 1) {
 
 describe("CatalogPage", () => {
   let mainEl: HTMLElement | null = null;
+  let unregisterCacheHandlers: (() => void) | undefined;
 
   beforeEach(() => {
     sessionStorage.clear();
     metadataCache.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
     // CatalogPage reads document.querySelector("main") for scroll-based lazy load.
     // Inject a <main> element so the scroll/check logic has a target.
     mainEl = document.createElement("main");
@@ -78,6 +82,9 @@ describe("CatalogPage", () => {
       mainEl.parentNode.removeChild(mainEl);
     }
     mainEl = null;
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
+    domainEvents.clear();
   });
 
   it("happy: GET /api/books returns books — grid renders titles", async () => {
@@ -204,6 +211,44 @@ describe("CatalogPage", () => {
 
     expect(screen.getByText("Книга первая")).toBeInTheDocument();
     expect(screen.getByText("Книга вторая")).toBeInTheDocument();
+    expect(fetchCount).toBe(0);
+  });
+
+  it("metadata cache: patches visible catalog rows after rating event without refetch", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/books", () => {
+        fetchCount++;
+        return HttpResponse.json({ books: mockBooks, hasMore: false, total: 2 });
+      }),
+      http.get("/api/filter-options/:key", () =>
+        HttpResponse.json({ authors: [], series: [], tags: [], languages: [] })
+      ),
+      http.get("/api/tags/cloud", () => HttpResponse.json({ tags: [] })),
+    );
+
+    metadataCache.set(
+      "books",
+      "/",
+      {
+        books: [{ ...mockBooks[0], rating: 1 }, mockBooks[1]],
+        hasMore: false,
+        cursor: 2,
+      },
+      { context: { kind: "book-list", key: "/", source: "catalog", sort: "addedDesc" } },
+    );
+
+    renderWithProviders(<CatalogPage />, { initialEntries: ["/"] });
+
+    expect(screen.getByText("★")).toBeInTheDocument();
+
+    act(() => {
+      domainEvents.publish("bookRatingChanged", { bookId: 1, rating: 3 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("★★★")).toBeInTheDocument();
+    });
     expect(fetchCount).toBe(0);
   });
 

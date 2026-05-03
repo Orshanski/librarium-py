@@ -86,6 +86,13 @@ class EventBroker:
             self._subscriptions = [sub for sub in self._subscriptions if sub is not subscription]
             subscription.close()
 
+    def close_all(self) -> None:
+        with self._lock:
+            subscriptions = self._subscriptions
+            self._subscriptions = []
+        for subscription in subscriptions:
+            subscription.close()
+
     def publish_nowait(self, *, scope: EventScope, event_type: str, payload: dict[str, Any]) -> None:
         wire_event: ServerEvent
         with self._lock:

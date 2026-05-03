@@ -11,6 +11,10 @@ router = APIRouter(tags=["events"])
 SSE_KEEPALIVE_INTERVAL_SECONDS = 15.0
 
 
+def close_event_streams() -> None:
+    broker.close_all()
+
+
 @router.get("/api/events/stream")
 async def stream_events(request: Request, user: Annotated[CurrentUser, Depends(get_current_user)]):
     subscription = broker.subscribe(user.user_id)

@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -36,8 +37,16 @@ from .routers import similar as similar_router
 from .routers import reader as reader_router
 from .routers import events as events_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    events_router.close_event_streams()
+
+
 app = FastAPI(
     title="Librarium",
+    lifespan=lifespan,
 )
 
 register_error_handlers(app)
