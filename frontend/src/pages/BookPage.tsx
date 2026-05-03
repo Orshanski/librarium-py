@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { useParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -9,6 +9,7 @@ import { colors } from "../theme";
 import { Book, toBook, RawBook } from "../types";
 import { getBook, listBooks, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
+import { metadataCache, useCachedResource } from "@/cache";
 
 const FALLBACK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
 
@@ -25,13 +26,6 @@ function StatusScreen({ title, message, crumb }: Readonly<StatusScreenProps>) {
       <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>{message}</div>
     </>
   );
-}
-
-function ignoreAbortAndWarn(label: string) {
-  return (err: unknown) => {
-    if (err instanceof Error && err.name === "AbortError") return;
-    console.warn(label, err);
-  };
 }
 
 /**
@@ -52,13 +46,6 @@ async function fetchSeriesBooks(seriesId: number, signal: AbortSignal): Promise<
 export default function BookPage() {
   const { id } = useParams();
   const location = useLocation();
-  const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<BookFileInfo[]>([]);
-  const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
-  const [seriesBooks, setSeriesBooks] = useState<RawBook[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
   const stateOrigin = readOriginFromState(location.state);
   const origin: ListOrigin =
     stateOrigin && stateOrigin.type !== "book" ? stateOrigin : FALLBACK_ORIGIN;
@@ -69,39 +56,30 @@ export default function BookPage() {
     state: origin.parentOrigin ? { origin: origin.parentOrigin } : undefined,
   };
 
-  useEffect(() => {
-    if (!id) return;
-    const controller = new AbortController();
-
-    setLoading(true);
-    setNotFound(false);
-
-    getBook(Number(id), controller.signal)
-      .then((data) => {
-        setBook(data.book);
-        setFiles(data.files || []);
-        setIdentifiers(data.identifiers || []);
-
-        if (data.book.series?.id) {
-          fetchSeriesBooks(data.book.series.id, controller.signal)
-            .then(setSeriesBooks)
-            .catch(ignoreAbortAndWarn("Failed to load series books:"));
-        }
-
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        if (err instanceof NotFoundError) {
-          setNotFound(true);
-        } else {
-          console.warn("Failed to load book:", err);
-        }
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [id]);
+  const bookId = Number(id);
+  const bookResource = useCachedResource(
+    metadataCache,
+    `book/${bookId}`,
+    "detail",
+    (signal) => (
+      !id || isNaN(bookId)
+        ? Promise.reject(new NotFoundError(404, "Not found"))
+        : getBook(bookId, signal)
+    ),
+  );
+  const book = bookResource.data?.book ?? null;
+  const files: BookFileInfo[] = bookResource.data?.files || [];
+  const identifiers: BookIdentifier[] = bookResource.data?.identifiers || [];
+  const seriesId = book?.series?.id ?? null;
+  const seriesResource = useCachedResource(
+    metadataCache,
+    `series/${seriesId ?? "none"}`,
+    "book-page-books",
+    async (signal) => ({ books: seriesId ? await fetchSeriesBooks(seriesId, signal) : [] }),
+  );
+  const seriesBooks = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
+  const loading = bookResource.loading;
+  const notFound = bookResource.error instanceof NotFoundError || !id || isNaN(bookId);
 
   if (loading) {
     return <StatusScreen title="..." message="Загрузка..." crumb={crumb} />;

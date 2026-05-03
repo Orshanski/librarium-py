@@ -17,6 +17,7 @@ import {
   deleteBook,
 } from "@/api/endpoints/books";
 import { removeBookFromLocalStorage } from "@/utils/offline-storage";
+import { domainEvents } from "@/domain/events";
 
 export default function BookDetail({
   book,
@@ -60,6 +61,7 @@ export default function BookDetail({
     setRating(nextRating);
     try {
       await apiSetRating(book.id, nextRating);
+      domainEvents.publish("bookRatingChanged", { bookId: book.id, rating: nextRating });
     } catch {
       setRating(previous ?? null);
     }
@@ -71,6 +73,7 @@ export default function BookDetail({
     setIsRead(next);
     try {
       await apiSetRead(book.id, next);
+      domainEvents.publish("bookReadChanged", { bookId: book.id, isRead: next });
       if (next) evictOffline().catch((err) => console.warn("Failed to remove offline book:", err));
     } catch {
       setIsRead(previous);
@@ -104,6 +107,7 @@ export default function BookDetail({
           onConfirm={async () => {
             try {
               await deleteBook(book.id);
+              domainEvents.publish("bookDeleted", { bookId: book.id });
               // Server side удалил книгу — снесём локальные следы (IDB offline + progress),
               // иначе в offline-mode и через getOfflineBooks() она остаётся видна.
               // Best-effort — навигация не должна блокироваться на сбое IDB.

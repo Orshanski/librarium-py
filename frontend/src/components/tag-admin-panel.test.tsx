@@ -5,6 +5,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
 import TagAdminPanel from "./tag-admin-panel";
 
 describe("TagAdminPanel", () => {
@@ -35,10 +36,13 @@ describe("TagAdminPanel", () => {
   });
 
   it("sends PUT /api/tags/:id/map and invokes onMapped after confirmation", async () => {
+    domainEvents.clear();
     const user = userEvent.setup();
     const onMapped = vi.fn();
     let capturedUrl = "";
     let capturedBody: { name?: string } | null = null;
+    const events: Array<{ tagId: number; targetId: number; name: string }> = [];
+    domainEvents.subscribe("tagMapped", (payload) => events.push(payload));
 
     server.use(
       http.get("/api/filter-options/tags", () =>
@@ -94,6 +98,7 @@ describe("TagAdminPanel", () => {
     expect(onMapped).toHaveBeenCalledWith(2, "Sci-Fi");
     expect(capturedUrl).toContain("/api/tags/1/map");
     expect(capturedBody).toEqual({ name: "Sci-Fi" });
+    expect(events).toEqual([{ tagId: 1, targetId: 2, name: "Sci-Fi" }]);
   });
 
   it("shows inline error when mapTag fails (not silent, not alert)", async () => {

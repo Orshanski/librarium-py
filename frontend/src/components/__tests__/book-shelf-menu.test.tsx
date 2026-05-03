@@ -4,10 +4,12 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
 import BookShelfMenu from "../book-shelf-menu";
 
 describe("BookShelfMenu", () => {
   beforeEach(() => {
+    domainEvents.clear();
     server.use(
       http.get("/api/shelves", ({ request }) => {
         const url = new URL(request.url);
@@ -105,6 +107,24 @@ describe("BookShelfMenu", () => {
     await waitFor(() => expect(checkbox).toBeChecked());
     release();
     await waitFor(() => expect(checkbox).not.toBeChecked());
+  });
+
+  it("publishes shelf membership event after successful toggle", async () => {
+    server.use(
+      http.post("/api/shelves/:shelfId/books", () => HttpResponse.json({ ok: true })),
+    );
+    const events: Array<{ shelfId: number; bookId: number; hasBook: boolean }> = [];
+    domainEvents.subscribe("shelfMembershipChanged", (payload) => events.push(payload));
+    const user = userEvent.setup();
+    renderWithProviders(<BookShelfMenu bookId={7} compact={false} />);
+
+    await user.click(screen.getByRole("button", { name: /на полку/i }));
+    const checkbox = await screen.findByRole("checkbox", { name: /прочитанное/i });
+    await user.click(checkbox);
+
+    await waitFor(() => {
+      expect(events).toEqual([{ shelfId: 2, bookId: 7, hasBook: true }]);
+    });
   });
 
   it("rolls back only the shelf whose older mutation failed", async () => {

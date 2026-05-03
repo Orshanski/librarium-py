@@ -7,6 +7,7 @@ import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import UploadForm from "./upload-form";
 import { mergeMeta } from "./upload-form.helpers";
+import { domainEvents } from "@/domain/events";
 import type { UploadResponse } from "@/api/endpoints/upload";
 
 const FULL_METADATA: UploadResponse["metadata"] = {
@@ -102,6 +103,7 @@ describe("mergeMeta", () => {
 
 describe("UploadForm", () => {
   beforeEach(() => {
+    domainEvents.clear();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -144,6 +146,8 @@ describe("UploadForm", () => {
 
   it("save all → POST /api/books/create fires with tempId and metadata", async () => {
     let capturedBody: unknown = null;
+    const events: Array<{ bookId: number; book?: { id: number; title?: string } }> = [];
+    domainEvents.subscribe("bookCreated", (payload) => events.push(payload));
 
     server.use(
       makeUploadHandler(),
@@ -168,6 +172,7 @@ describe("UploadForm", () => {
         tempId: "abc123",
         metadata: expect.objectContaining({ title: "Test Book" }),
       });
+      expect(events).toEqual([{ bookId: 100, book: { id: 100, title: "Test Book" } }]);
     });
   });
 
@@ -373,6 +378,8 @@ describe("UploadForm", () => {
   it("save with duplicate=add-format multi-file: addFormat called per file, no createBookFromUpload", async () => {
     let createCalls = 0;
     const addFormatCalls: Array<{ id: string; tempId: string }> = [];
+    const events: Array<{ book: { id: number }; changedFields: string[] }> = [];
+    domainEvents.subscribe("bookUpdated", (payload) => events.push(payload));
     let n = 0;
     server.use(
       http.post("/api/upload", () => {
@@ -406,6 +413,10 @@ describe("UploadForm", () => {
     await waitFor(() => expect(addFormatCalls.length).toBe(2));
     expect(createCalls).toBe(0);
     expect(addFormatCalls.every((c) => c.id === "42")).toBe(true);
+    expect(events).toEqual([
+      { book: { id: 42 }, changedFields: ["files"] },
+      { book: { id: 42 }, changedFields: ["files"] },
+    ]);
   });
 
   it("merge-self: clicking own card after activating merge resets mergeSource via Отмена", async () => {

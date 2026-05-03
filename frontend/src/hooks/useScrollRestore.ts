@@ -1,10 +1,21 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
-import { getScrollCounter } from "../utils/scroll-counter";
+import { useLocation, useNavigationType } from "react-router-dom";
+import type { ScrollContext } from "@/domain/read-models";
 
 const STACK_KEY = "librarium_scroll_state";
+const STACK_ENTRY_VERSION = 0;
+let hasSeenRouterNavigation = false;
 
-export type ScrollStackEntry = { url: string; scrollTop: number; version: number };
+export function __resetScrollRestoreForTests(): void {
+  hasSeenRouterNavigation = false;
+}
+
+export type ScrollStackEntry = {
+  url: string;
+  scrollTop: number;
+  context?: ScrollContext;
+  version: number;
+};
 
 function readStack(): ScrollStackEntry[] {
   try {
@@ -38,8 +49,9 @@ function findMain(): HTMLElement | null {
   return document.querySelector("main");
 }
 
-export function useScrollRestore(ready: boolean): void {
+export function useScrollRestore(ready: boolean, context?: ScrollContext): void {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const url = location.pathname + location.search;
   const hasRestored = useRef(false);
   const lastUrlRef = useRef<string | null>(null);
@@ -64,19 +76,24 @@ export function useScrollRestore(ready: boolean): void {
     // (crumb, BookCard linkState, state-origin переходы) остаются в цепочке.
     const stack = readStack();
     let target: number;
-    if (location.state === null) {
-      writeStack([{ url, scrollTop: 0, version: getScrollCounter() }]);
+    const isHistoryReturn = hasSeenRouterNavigation && navigationType === "POP" && stack.some((e) => e.url === url);
+    if (location.state === null && !isHistoryReturn) {
+      writeStack([{ url, scrollTop: 0, context, version: STACK_ENTRY_VERSION }]);
       target = 0;
     } else {
       const idx = stack.findIndex((e) => e.url === url);
       if (idx >= 0) {
+        const nextStack = stack.slice(0, idx + 1);
+        if (context) {
+          nextStack[idx] = { ...nextStack[idx], context };
+        }
         // Trim only если реально отрезаем хвост.
-        if (idx < stack.length - 1) {
-          writeStack(stack.slice(0, idx + 1));
+        if (idx < stack.length - 1 || context) {
+          writeStack(nextStack);
         }
         target = stack[idx].scrollTop;
       } else {
-        writeStack([...stack, { url, scrollTop: 0, version: getScrollCounter() }]);
+        writeStack([...stack, { url, scrollTop: 0, context, version: STACK_ENTRY_VERSION }]);
         target = 0;
       }
     }
@@ -84,17 +101,11 @@ export function useScrollRestore(ready: boolean): void {
     if (hasRestored.current) return;
     if (!ready) return;
 
-    const latest = readStack();
-    const top = latest[latest.length - 1];
-    if (!top || top.version !== getScrollCounter()) {
-      hasRestored.current = true;
-      return;
-    }
-
     hasRestored.current = true;
+    hasSeenRouterNavigation = true;
     const main = findMain();
     if (main) main.scrollTop = target;
-  }, [url, ready]);
+  }, [url, ready, context, navigationType]);
 
   // 3. Click-save в <main> через event-делегирование в capture-фазе.
   useEffect(() => {
@@ -107,17 +118,19 @@ export function useScrollRestore(ready: boolean): void {
       if (target.closest("[data-breadcrumb='true']")) return;
       const stack = readStack();
       if (stack.length === 0) return;
+      if (stack[stack.length - 1].url !== url) return;
       const mainEl = findMain();
       if (!mainEl) return;
       stack[stack.length - 1] = {
         ...stack[stack.length - 1],
         scrollTop: mainEl.scrollTop,
-        version: getScrollCounter(),
+        context,
+        version: STACK_ENTRY_VERSION,
       };
       writeStack(stack);
     };
 
     main.addEventListener("click", handler, true);
     return () => main.removeEventListener("click", handler, true);
-  }, []);
+  }, [context, url]);
 }

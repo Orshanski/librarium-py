@@ -9,6 +9,7 @@ from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
+    UpdateBookResponse,
 )
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from . import cover_service, filters_service, thumb
@@ -162,7 +163,26 @@ def _resolve_metadata_refs(db: sqlite3.Connection, data: BookUpdateData) -> None
         data["series_id"] = resolve_series(db, data["series_id"])
 
 
-def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> None:
+def _update_book_response(
+    db: sqlite3.Connection,
+    book_id: int,
+    user_id: int,
+) -> UpdateBookResponse:
+    detail = get_book(db, book_id, user_id)
+    return UpdateBookResponse(
+        ok=True,
+        book=detail.book,
+        files=detail.files,
+        identifiers=detail.identifiers,
+    )
+
+
+def update_book(
+    db: sqlite3.Connection,
+    book_id: int,
+    body: UpdateBookBody,
+    user_id: int = 1,
+) -> UpdateBookResponse:
     """Apply full desired state to a book: metadata + files + cover commit.
 
     Последовательность шагов — spec 2026-04-24-book-format-staging-design.md §5.
@@ -182,7 +202,7 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
 
     # Шаг 0: no-op guard.
     if not data and not add_formats and not delete_formats and not body.commit_cover:
-        return
+        return _update_book_response(db, book_id, user_id)
 
     # Шаг 1: валидация и резолвы — до любых side effects.
     resolved_adds = _resolve_add_formats(add_formats)
@@ -220,6 +240,7 @@ def update_book(db: sqlite3.Connection, book_id: int, body: UpdateBookBody) -> N
 
     # Шаг 7: SSE publish hook (будущее в `ewg0`).
     # TODO(ewg0): publish event здесь; wrap в try/except в ewg0-impl чтобы сбой не ломал уже успешный Save.
+    return _update_book_response(db, book_id, user_id)
 
 
 def list_books(

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -14,6 +14,8 @@ import { useIsMobile } from "../responsive";
 import { getAuthor } from "../api/endpoints/authors";
 import type { Author } from "../api/endpoints/authors";
 import { NotFoundError } from "@/api/errors";
+import { authorScrollContext } from "@/scroll/contexts";
+import { metadataCache, useCachedResource } from "@/cache";
 
 // UI-local shape: tags split to string[], sortName required (post-map transform).
 interface AuthorData {
@@ -31,13 +33,13 @@ export default function AuthorPage() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
-  const [author, setAuthor] = useState<AuthorData | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
-  useScrollRestore(!loading);
+  const authorId = Number(id);
+  const scrollContext = useMemo(
+    () => authorScrollContext(location.pathname + location.search, authorId),
+    [location.pathname, location.search, authorId],
+  );
 
   // Динамический родитель: если пришли с поиска (или другого места с origin) —
   // crumb ведёт туда; иначе fallback "Авторы" → "/authors".
@@ -47,42 +49,35 @@ export default function AuthorPage() {
       ? { label: stateOrigin.label, href: stateOrigin.url }
       : { label: "Авторы", href: "/authors" };
 
-  useEffect(() => {
-    const numericId = Number(id);
-    if (!id || isNaN(numericId)) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    getAuthor(numericId, controller.signal)
-      .then((data) => {
-        const raw: Author = data.author;
-        const authorData: AuthorData = {
-          id: raw.id,
-          name: raw.name,
-          sortName: raw.sortName ?? "",
-          bookCount: data.books?.length || 0,
-          tags: raw.tags?.map((t) => t.name) ?? [],
-        };
-        setAuthor(authorData);
-        setBooks((data.books || []).map((b) => toBook(b)));
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        if (err instanceof NotFoundError) {
-          setNotFound(true);
-        } else {
-          console.warn("Failed to fetch author:", err);
-        }
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [id]);
+  const authorResource = useCachedResource(
+    metadataCache,
+    `author/${authorId}`,
+    "detail",
+    (signal) => (
+      !id || isNaN(authorId)
+        ? Promise.reject(new NotFoundError(404, "Not found"))
+        : getAuthor(authorId, signal)
+    ),
+    { context: scrollContext },
+  );
+  const author = useMemo<AuthorData | null>(() => {
+    const raw: Author | undefined = authorResource.data?.author;
+    if (!raw) return null;
+    return {
+      id: raw.id,
+      name: raw.name,
+      sortName: raw.sortName ?? "",
+      bookCount: authorResource.data?.books?.length || 0,
+      tags: raw.tags?.map((t) => t.name) ?? [],
+    };
+  }, [authorResource.data]);
+  const books = useMemo<Book[]>(
+    () => (authorResource.data?.books || []).map((b) => toBook(b)),
+    [authorResource.data],
+  );
+  const loading = authorResource.loading;
+  const notFound = authorResource.error instanceof NotFoundError || !id || isNaN(authorId);
+  useScrollRestore(!loading, scrollContext);
 
   if (loading) {
     return (
@@ -143,7 +138,15 @@ export default function AuthorPage() {
           entityId={author.id}
           currentName={author.name}
           bookCount={author.bookCount}
-          onRenamed={(newName) => { setAuthor({...author, name: newName}); setShowAdmin(false); }}
+          onRenamed={(newName) => {
+            if (authorResource.data) {
+              metadataCache.set(`author/${author.id}`, "detail", {
+                ...authorResource.data,
+                author: { ...authorResource.data.author, name: newName },
+              }, { context: scrollContext });
+            }
+            setShowAdmin(false);
+          }}
           onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/authors")}
         />

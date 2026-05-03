@@ -41,6 +41,7 @@ export interface BookUpdatePayload {
   language: string;
   publisher: string | null;
   pubDate: string | null;
+  isbn: string | null;
   seriesId: number | string | null;
   seriesNumber: number | null;
   authorIds: (number | string)[];
@@ -51,6 +52,10 @@ export interface BookUpdatePayload {
 }
 
 export interface BookOkResponse {
+  ok: true;
+}
+
+export interface UpdateBookResponse extends BookDetailResponse {
   ok: true;
 }
 
@@ -79,8 +84,8 @@ export function getBook(
 export function updateBook(
   id: number,
   body: BookUpdatePayload,
-): Promise<BookOkResponse> {
-  return client<BookOkResponse>("PUT", `/api/books/${id}`, { body });
+): Promise<UpdateBookResponse> {
+  return client<UpdateBookResponse>("PUT", `/api/books/${id}`, { body });
 }
 
 export function deleteBook(id: number): Promise<BookOkResponse> {

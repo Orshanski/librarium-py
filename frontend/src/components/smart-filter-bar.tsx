@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useMemo } from "react";
 import { useIsMobile } from "../responsive";
 import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
+import { metadataCache, useCachedResource } from "../cache";
 
 export type FilterKey = "authorIds" | "seriesIds" | "tagIds" | "language";
 
@@ -42,41 +43,11 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
-// Unified-ключ: одна запись, setItem перезаписывает предыдущую. Никакого accumulation
-// или scan всего sessionStorage — тот же паттерн что librarium_scroll_state.
-const CACHE_KEY = "librarium_filter_options";
 const KEY_ORDER: FilterKey[] = ["authorIds", "seriesIds", "tagIds", "language"];
-
-type CachedEntry = {
-  key: string;
-  options: Record<string, FilterOption[]>;
-};
 
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
   return KEY_ORDER.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
-}
-
-function cacheIdentity(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): string {
-  return `${filterKeys.join(",")}|${serializeBase(baseFilters)}`;
-}
-
-function loadCachedOptions(filterKeys: FilterKey[], baseFilters?: ApiFilterParams): Record<string, FilterOption[]> {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return {};
-    const parsed: CachedEntry = JSON.parse(raw);
-    return parsed.key === cacheIdentity(filterKeys, baseFilters) ? parsed.options : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveCachedOptions(filterKeys: FilterKey[], options: Record<string, FilterOption[]>, baseFilters?: ApiFilterParams) {
-  try {
-    const entry: CachedEntry = { key: cacheIdentity(filterKeys, baseFilters), options };
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(entry));
-  } catch {}
 }
 
 export function buildQueryParams(
@@ -95,6 +66,46 @@ export function buildQueryParams(
   return out;
 }
 
+function optionCacheKey(key: FilterKey, selected: SelectedFilters, baseFilters?: ApiFilterParams): string {
+  const params = buildQueryParams(key, selected, baseFilters);
+  const query = new URLSearchParams();
+  for (const [paramKey, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        query.append(paramKey, String(item));
+      }
+    } else {
+      query.set(paramKey, String(value));
+    }
+  }
+  return `${FILTER_META[key].apiKey}?${query.toString()}`;
+}
+
+function useFilterOptions(
+  key: FilterKey,
+  active: boolean,
+  selected: SelectedFilters,
+  baseFilters?: ApiFilterParams,
+): FilterOption[] | undefined {
+  const meta = FILTER_META[key];
+  const cacheKey = active ? optionCacheKey(key, selected, baseFilters) : `inactive:${key}`;
+  const fetcher = useMemo(
+    () => async (signal: AbortSignal) => {
+      if (!active) return [];
+      try {
+        const response = await listFilterOptions(meta.apiKey, buildQueryParams(key, selected, baseFilters), signal);
+        return (response[meta.responseKey as keyof typeof response] || []) as FilterOption[];
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") throw err;
+        return [];
+      }
+    },
+    [key, meta.apiKey, meta.responseKey, cacheKey, active],
+  );
+  return useCachedResource(metadataCache, `filter-options/${meta.apiKey}`, cacheKey, fetcher).data;
+}
+
 export default function SmartFilterBar({
   filterKeys,
   selected,
@@ -103,8 +114,6 @@ export default function SmartFilterBar({
   baseFilters,
 }: SmartFilterBarProps) {
   const isMobile = useIsMobile();
-  const [options, setOptions] = useState<Record<string, FilterOption[]>>(() => loadCachedOptions(filterKeys, baseFilters));
-  const abortRef = useRef<AbortController | null>(null);
 
   // Build stable dependency key
   const selectedKey = filterKeys
@@ -113,46 +122,25 @@ export default function SmartFilterBar({
   const baseKey = serializeBase(baseFilters);
   const filterKeysKey = filterKeys.join(",");
 
-  useEffect(() => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const fetches = filterKeys.map(async (key) => {
-      const meta = FILTER_META[key];
-      const filterParams = buildQueryParams(key, selected, baseFilters);
-
-      try {
-        const response = await listFilterOptions(meta.apiKey, filterParams, controller.signal);
-        const data = response[meta.responseKey as keyof typeof response] || [];
-        return { key, data };
-      } catch (err) {
-        // Explicitly skip AbortError — it's expected control flow, not an error to report/setState.
-        // Check by `name` (not `instanceof DOMException`) — the concrete class
-        // varies between runtimes; client.ts rethrows AbortError as-is.
-        if (err instanceof Error && err.name === "AbortError") {
-          return null;
-        }
-        // For real errors, return empty data
-        return { key, data: [] };
-      }
-    });
-
-    Promise.all(fetches).then((results) => {
-      if (controller.signal.aborted) return;
-      const newOptions: Record<string, FilterOption[]> = {};
-      for (const result of results) {
-        if (result !== null) {
-          const { key, data } = result;
-          newOptions[key] = data;
-        }
-      }
-      setOptions(newOptions);
-      saveCachedOptions(filterKeys, newOptions, baseFilters);
-    });
-
-    return () => controller.abort();
-  }, [selectedKey, baseKey, filterKeysKey]);
+  const activeKeys = new Set(filterKeys);
+  const authorOptions = useFilterOptions("authorIds", activeKeys.has("authorIds"), selected, baseFilters);
+  const seriesOptions = useFilterOptions("seriesIds", activeKeys.has("seriesIds"), selected, baseFilters);
+  const tagOptions = useFilterOptions("tagIds", activeKeys.has("tagIds"), selected, baseFilters);
+  const languageOptions = useFilterOptions("language", activeKeys.has("language"), selected, baseFilters);
+  const options: Record<FilterKey, FilterOption[] | undefined> = useMemo(() => ({
+    authorIds: authorOptions,
+    seriesIds: seriesOptions,
+    tagIds: tagOptions,
+    language: languageOptions,
+  }), [
+    selectedKey,
+    baseKey,
+    filterKeysKey,
+    authorOptions,
+    seriesOptions,
+    tagOptions,
+    languageOptions,
+  ]);
 
   const filterConfigs: FilterConfig[] = filterKeys
     .filter((key) => options[key])

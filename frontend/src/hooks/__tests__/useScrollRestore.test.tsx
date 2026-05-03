@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useScrollRestore } from "../useScrollRestore";
-import { bumpScrollCounter } from "../../utils/scroll-counter";
+import { __resetScrollRestoreForTests, useScrollRestore } from "../useScrollRestore";
+import { domainEvents } from "@/domain/events";
+import { registerScrollInvalidationHandlers } from "@/scroll/list-scroll-validity";
+import type { ScrollContext } from "@/domain/read-models";
 
 const STACK_KEY = "librarium_scroll_state";
+const CATALOG_CONTEXT = { kind: "book-list" as const, key: "/catalog", source: "catalog" as const, sort: "addedDesc" as const };
 
-function Harness({ ready = true }: Readonly<{ ready?: boolean }>) {
-  useScrollRestore(ready);
+function Harness({ ready = true, context = CATALOG_CONTEXT }: Readonly<{ ready?: boolean; context?: ScrollContext }>) {
+  useScrollRestore(ready, context);
   return <div data-testid="harness">harness</div>;
 }
 
@@ -23,6 +26,9 @@ describe("useScrollRestore", () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    __resetScrollRestoreForTests();
+    domainEvents.clear();
+    registerScrollInvalidationHandlers(domainEvents);
     document.body.innerHTML = "";
     main = setupMain();
   });
@@ -39,7 +45,7 @@ describe("useScrollRestore", () => {
     );
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
     expect(stack).toHaveLength(1);
-    expect(stack[0]).toMatchObject({ url: "/catalog", scrollTop: 0, version: 0 });
+    expect(stack[0]).toMatchObject({ url: "/catalog", scrollTop: 0, version: 0, context: CATALOG_CONTEXT });
   });
 
   it("state=null на mount: стек ЗАМЕЩАЕТСЯ одной записью (wipe предыдущих)", () => {
@@ -57,7 +63,7 @@ describe("useScrollRestore", () => {
       </MemoryRouter>,
     );
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
-    expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, version: 0 }]);
+    expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, context: CATALOG_CONTEXT, version: 0 }]);
   });
 
   it("state!=null, URL есть в стеке: trim до [0, i+1), scrollTop применяется", () => {
@@ -79,6 +85,63 @@ describe("useScrollRestore", () => {
     expect(main.scrollTop).toBe(300);
   });
 
+  it("browser back POP restores scroll even when returned entry has null state", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([{ url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT }]),
+    );
+
+    function BackHarness() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <Harness />
+          <button onClick={() => navigate(-1)}>back</button>
+        </>
+      );
+    }
+
+    const { getByText } = render(
+      <MemoryRouter
+        initialEntries={[
+          "/catalog",
+          {
+            pathname: "/book/42",
+            state: { origin: { type: "catalog", url: "/catalog", label: "Каталог" } },
+          },
+        ]}
+        initialIndex={1}
+      >
+        <BackHarness />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(getByText("back"));
+
+    expect(main.scrollTop).toBe(420);
+    expect(JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]")).toEqual([
+      { url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT },
+    ]);
+  });
+
+  it("initial POP direct load wipes stale stack instead of restoring old scroll", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([{ url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT }]),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(main.scrollTop).toBe(0);
+    expect(JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]")).toEqual([
+      { url: "/catalog", scrollTop: 0, context: CATALOG_CONTEXT, version: 0 },
+    ]);
+  });
+
   it("state!=null, URL отсутствует в стеке: push, цепочка растёт", () => {
     sessionStorage.setItem(
       STACK_KEY,
@@ -94,8 +157,7 @@ describe("useScrollRestore", () => {
     expect(stack[1]).toMatchObject({ url: "/authors/1", scrollTop: 0 });
   });
 
-  it("click в <main>: обновляется scrollTop и version верхней записи стека", () => {
-    bumpScrollCounter(); // version = 1
+  it("click в <main>: обновляется scrollTop верхней записи стека", () => {
     render(
       <MemoryRouter initialEntries={["/catalog"]}>
         <Harness />
@@ -105,7 +167,8 @@ describe("useScrollRestore", () => {
     fireEvent.click(main);
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
     expect(stack[0].scrollTop).toBe(420);
-    expect(stack[0].version).toBe(1);
+    expect(stack[0].version).toBe(0);
+    expect(stack[0].context).toEqual(CATALOG_CONTEXT);
   });
 
   it("click по элементу с data-breadcrumb='true': запись не обновляется", () => {
@@ -154,18 +217,99 @@ describe("useScrollRestore", () => {
     expect(main.scrollTop).toBe(50);
   });
 
-  it("stale version: scroll не применяется", () => {
-    for (let i = 0; i < 5; i++) bumpScrollCounter();
+  it("version больше не блокирует доменно-валидный scroll", () => {
     sessionStorage.setItem(
       STACK_KEY,
       JSON.stringify([{ url: "/catalog", scrollTop: 200, version: 1 }]),
     );
     render(
-      <MemoryRouter initialEntries={["/catalog"]}>
+      <MemoryRouter initialEntries={[{ pathname: "/catalog", state: { crumb: true } }]}>
         <Harness />
       </MemoryRouter>,
     );
+    expect(main.scrollTop).toBe(200);
+  });
+
+  it("preserves catalog scroll after patchable book update event", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([
+        {
+          url: "/catalog",
+          scrollTop: 240,
+          version: 0,
+          context: CATALOG_CONTEXT,
+        },
+      ]),
+    );
+
+    domainEvents.publish("bookUpdated", {
+      book: { id: 7, title: "Dune" },
+      changedFields: ["description"],
+    });
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/catalog", state: { crumb: true } }]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(main.scrollTop).toBe(240);
+  });
+
+  it("resets catalog scroll after structural book create event", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([
+        {
+          url: "/catalog",
+          scrollTop: 240,
+          version: 0,
+          context: CATALOG_CONTEXT,
+        },
+      ]),
+    );
+
+    domainEvents.publish("bookCreated", { bookId: 8, book: { id: 8, title: "New" } });
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/catalog", state: { crumb: true } }]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
     expect(main.scrollTop).toBe(0);
+  });
+
+  it("does not overwrite previous stack entry when current page was invalidated by event", () => {
+    const shelfContext = {
+      kind: "book-list" as const,
+      key: "/shelves/3",
+      source: "shelf-regular" as const,
+      sort: "addedDesc" as const,
+      shelfId: 3,
+    };
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([
+        { url: "/", scrollTop: 500, version: 0, context: CATALOG_CONTEXT },
+        { url: "/shelves/3", scrollTop: 240, version: 0, context: shelfContext },
+      ]),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/shelves/3", state: { origin: { type: "shelf", url: "/", label: "Shelf" } } }]}>
+        <Harness context={shelfContext} />
+      </MemoryRouter>,
+    );
+
+    domainEvents.publish("shelfMembershipChanged", { shelfId: 3, bookId: 10, hasBook: false });
+    main.scrollTop = 360;
+    fireEvent.click(main);
+
+    expect(JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]")).toEqual([
+      { url: "/", scrollTop: 500, version: 0, context: CATALOG_CONTEXT },
+    ]);
   });
 
   it.each([
@@ -181,7 +325,7 @@ describe("useScrollRestore", () => {
       </MemoryRouter>,
     );
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
-    expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, version: 0 }]);
+    expect(stack).toEqual([{ url: "/catalog", scrollTop: 0, context: CATALOG_CONTEXT, version: 0 }]);
   });
 
   it("sidebar-подобный переход (navigate без state): стек wipe, catalog-cache НЕ трогается", () => {
@@ -225,7 +369,7 @@ describe("useScrollRestore", () => {
 
     // sidebar-переход wipe стек:
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
-    expect(stack).toEqual([{ url: "/", scrollTop: 0, version: 0 }]);
+    expect(stack).toEqual([{ url: "/", scrollTop: 0, context: CATALOG_CONTEXT, version: 0 }]);
     // catalog-cache НЕ трогается (дорого):
     const cache = JSON.parse(sessionStorage.getItem("librarium_catalog_cache") || "{}");
     expect(cache["/"]).toBeDefined();

@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor, act } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import CatalogPage from "./CatalogPage";
 
 const mockBooks = [
@@ -65,6 +66,7 @@ describe("CatalogPage", () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    metadataCache.clear();
     // CatalogPage reads document.querySelector("main") for scroll-based lazy load.
     // Inject a <main> element so the scroll/check logic has a target.
     mainEl = document.createElement("main");
@@ -152,7 +154,7 @@ describe("CatalogPage", () => {
     expect(screen.getByText("Книга 31")).toBeInTheDocument();
   });
 
-  it("кэш: при unmount запись в librarium_catalog_cache для текущего URL (books/hasMore/cursor/version)", async () => {
+  it("does not write the legacy librarium_catalog_cache on unmount", async () => {
     server.use(
       http.get("/api/books", () =>
         HttpResponse.json({ books: mockBooks, hasMore: false, total: 2 })
@@ -171,17 +173,10 @@ describe("CatalogPage", () => {
 
     unmount();
 
-    const raw = sessionStorage.getItem("librarium_catalog_cache");
-    expect(raw).not.toBeNull();
-    const cache = JSON.parse(raw!);
-    expect(cache["/"]).toBeDefined();
-    expect(cache["/"].books).toHaveLength(2);
-    expect(cache["/"].hasMore).toBe(false);
-    expect(cache["/"].cursor).toBe(2);
-    expect(cache["/"].version).toBe(0);
+    expect(sessionStorage.getItem("librarium_catalog_cache")).toBeNull();
   });
 
-  it("кэш: восстановление при mount с валидным version — listBooks не вызывается", async () => {
+  it("metadata cache: restoration on mount avoids listBooks", async () => {
     let fetchCount = 0;
     server.use(
       http.get("/api/books", () => {
@@ -194,7 +189,37 @@ describe("CatalogPage", () => {
       http.get("/api/tags/cloud", () => HttpResponse.json({ tags: [] })),
     );
 
-    // Cache hit с валидной версией
+    metadataCache.set(
+      "books",
+      "/",
+      {
+        books: mockBooks,
+        hasMore: false,
+        cursor: 2,
+      },
+      { context: { kind: "book-list", key: "/", source: "catalog", sort: "addedDesc" } },
+    );
+
+    renderWithProviders(<CatalogPage />, { initialEntries: ["/"] });
+
+    expect(screen.getByText("Книга первая")).toBeInTheDocument();
+    expect(screen.getByText("Книга вторая")).toBeInTheDocument();
+    expect(fetchCount).toBe(0);
+  });
+
+  it("ignores legacy librarium_catalog_cache even if populated", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/books", () => {
+        fetchCount++;
+        return HttpResponse.json({ books: mockBooks, hasMore: false, total: 2 });
+      }),
+      http.get("/api/filter-options/:key", () =>
+        HttpResponse.json({ authors: [], series: [], tags: [], languages: [] })
+      ),
+      http.get("/api/tags/cloud", () => HttpResponse.json({ tags: [] })),
+    );
+
     sessionStorage.setItem(
       "librarium_catalog_cache",
       JSON.stringify({
@@ -209,46 +234,9 @@ describe("CatalogPage", () => {
 
     renderWithProviders(<CatalogPage />, { initialEntries: ["/"] });
 
-    // Немедленно рендерятся из кэша
-    expect(screen.getByText("Книга первая")).toBeInTheDocument();
-    expect(screen.getByText("Книга вторая")).toBeInTheDocument();
-    expect(fetchCount).toBe(0);
-  });
-
-  it("кэш: stale version → запись игнорируется, идёт listBooks(0)", async () => {
-    let fetchCount = 0;
-    server.use(
-      http.get("/api/books", () => {
-        fetchCount++;
-        return HttpResponse.json({ books: mockBooks, hasMore: false, total: 2 });
-      }),
-      http.get("/api/filter-options/:key", () =>
-        HttpResponse.json({ authors: [], series: [], tags: [], languages: [] })
-      ),
-      http.get("/api/tags/cloud", () => HttpResponse.json({ tags: [] })),
-    );
-
-    // Version=5 в счётчике, version=1 в записи → stale
-    sessionStorage.setItem("librarium_scroll_counter", "5");
-    sessionStorage.setItem(
-      "librarium_catalog_cache",
-      JSON.stringify({
-        "/": {
-          books: [{ ...mockBooks[0], title: "Устаревшая книга" }],
-          hasMore: false,
-          cursor: 1,
-          version: 1,
-        },
-      }),
-    );
-
-    renderWithProviders(<CatalogPage />, { initialEntries: ["/"] });
-
-    // stale запись не используется — идёт фетч
     await waitFor(() => {
       expect(screen.getByText("Книга первая")).toBeInTheDocument();
     });
-    expect(screen.queryByText("Устаревшая книга")).not.toBeInTheDocument();
     expect(fetchCount).toBe(1);
   });
 

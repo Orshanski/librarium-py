@@ -7,6 +7,7 @@ import {
   removeBookFromShelf,
   type Shelf,
 } from "@/api/endpoints/shelves";
+import { domainEvents } from "@/domain/events";
 import BookActionButton from "./book-action-button";
 import ShelfDropdownMenu from "./shelf-dropdown-menu";
 
@@ -76,6 +77,11 @@ export default function BookShelfMenu({ bookId, compact }: Readonly<BookShelfMen
     try {
       if (wasOnShelf) await removeBookFromShelf(shelfId, bookId);
       else await addBookToShelf(shelfId, bookId);
+      domainEvents.publish("shelfMembershipChanged", {
+        shelfId,
+        bookId,
+        hasBook: !wasOnShelf,
+      });
     } catch {
       if (mutationRequestIds.current.get(shelfId) === mutationId) {
         setSelectedIds((prev) => {

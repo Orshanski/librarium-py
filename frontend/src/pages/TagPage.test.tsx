@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import { Routes, Route } from "react-router-dom";
 import TagPage from "./TagPage";
 import {
@@ -15,6 +16,7 @@ describe("TagPage", () => {
   beforeEach(() => {
     // Clear sessionStorage between tests
     sessionStorage.clear();
+    metadataCache.clear();
   });
 
   it("displays tag and books when data is successfully fetched", async () => {
@@ -178,6 +180,54 @@ describe("TagPage", () => {
     expect(capturedQuery.authorIds).toBeUndefined();
     expect(capturedQuery.seriesIds).toBeUndefined();
     expect(capturedQuery.language).toBeUndefined();
+  });
+
+  it("uses cached tag detail on remount without refetch", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/tags/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          tag: { id: 1, name: "Science Fiction", code: null },
+          books: [
+            {
+              id: 101,
+              title: "Dune",
+              authors: ["Frank Herbert"],
+              series: null,
+              seriesNumber: null,
+              tags: ["Science Fiction"],
+              tagIds: [],
+              authorIds: [],
+              rating: null,
+              isRead: false,
+              language: "",
+              coverPath: "",
+              description: null,
+              publisher: null,
+              pubDate: null,
+              formats: [],
+              isbn: null,
+            },
+          ],
+        });
+      })
+    );
+
+    const route = (
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>
+    );
+
+    const first = renderWithProviders(route, { initialEntries: ["/tags/1"] });
+    await waitFor(() => expect(screen.getByText("Dune")).toBeInTheDocument());
+    first.unmount();
+
+    renderWithProviders(route, { initialEntries: ["/tags/1"] });
+
+    expect(screen.getByText("Dune")).toBeInTheDocument();
+    expect(requestCount).toBe(1);
   });
 });
 

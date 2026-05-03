@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from tests._helpers import assert_error, assert_ok, connect_test_db
+from tests._helpers import assert_error, assert_ok, connect_test_db, login_client
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
@@ -36,7 +36,37 @@ def test_update_book_no_op(admin_client):
     так что этот тест проверяет защитную ветку — не штатный flow.
     """
     resp = admin_client.put("/api/books/1", json={})
-    assert_ok(resp)
+    data = assert_ok(resp)
+    assert data["ok"] is True
+    assert data["book"]["id"] == 1
+    assert data["book"]["title"]
+    assert data["files"]
+    assert "identifiers" in data
+
+
+def test_update_book_metadata_returns_fresh_detail(admin_client):
+    """PUT metadata returns the updated book detail, not only {ok: true}."""
+    resp = admin_client.put("/api/books/1", json={"title": "Fresh Detail Title"})
+    data = assert_ok(resp)
+    assert data["ok"] is True
+    assert data["book"]["id"] == 1
+    assert data["book"]["title"] == "Fresh Detail Title"
+    assert data["files"]
+    assert "identifiers" in data
+
+
+def test_update_book_response_uses_authenticated_user_scope(admin_client):
+    """PUT response detail must include per-user fields for the admin making the request."""
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "admin"}))
+    reader_admin = login_client(username="reader", password="reader123")
+
+    resp = reader_admin.put("/api/books/1", json={"title": "Reader Admin Detail"})
+    data = assert_ok(resp)
+
+    assert data["book"]["id"] == 1
+    assert data["book"]["title"] == "Reader Admin Detail"
+    assert data["book"]["rating"] == 5
+    assert data["book"]["isRead"] == 1
 
 
 def test_update_book_add_formats_happy(admin_client):
@@ -47,7 +77,9 @@ def test_update_book_add_formats_happy(admin_client):
     assert os.path.exists(os.path.join(test_data, "uploads", f"{temp_id}.epub"))
 
     resp = admin_client.put("/api/books/1", json={"addFormats": [temp_id]})
-    assert_ok(resp)
+    data = assert_ok(resp)
+    assert data["ok"] is True
+    assert any(f["format"] == "EPUB" for f in data["files"])
 
     db = connect_test_db()
     try:
@@ -68,7 +100,9 @@ def test_update_book_delete_formats_happy(admin_client):
     assert os.path.isfile(os.path.join(test_data, "library", "1", "book.fb2"))
 
     resp = admin_client.put("/api/books/1", json={"deleteFormats": ["FB2"]})
-    assert_ok(resp)
+    data = assert_ok(resp)
+    assert data["ok"] is True
+    assert all(f["format"] != "FB2" for f in data["files"])
 
     db = connect_test_db()
     try:
@@ -104,6 +138,8 @@ def test_update_book_delete_nonexistent_format_idempotent(admin_client, caplog):
 def test_update_book_commit_cover_happy(admin_client):
     """commitCover: true применяет pending cover, temp-cover удалён."""
     test_data = os.environ["DATA_DIR"]
+    before = assert_ok(admin_client.get("/api/books/2"))["book"]
+    assert before["coverPath"].endswith("/cover.jpg")
 
     with open(FIXTURES / "../test_cover.png", "rb") as f:
         upload = admin_client.post(
@@ -113,7 +149,10 @@ def test_update_book_commit_cover_happy(admin_client):
     assert_ok(upload)
 
     resp = admin_client.put("/api/books/2", json={"commitCover": True})
-    assert_ok(resp)
+    data = assert_ok(resp)
+    assert data["ok"] is True
+    assert data["book"]["coverPath"].endswith("/cover.png")
+    assert data["book"]["coverPath"] != before["coverPath"]
 
     get_resp = admin_client.get("/api/covers/2", params={"full": 1})
     assert get_resp.status_code == 200

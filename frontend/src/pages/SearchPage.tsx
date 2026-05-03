@@ -10,6 +10,7 @@ import { colors, fonts } from "../theme";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { searchAll, searchHitToBook, type SearchResponse } from "../api/endpoints/search";
+import { searchScrollContext } from "@/scroll/contexts";
 
 function SearchResults() {
   const [searchParams] = useSearchParams();
@@ -20,7 +21,11 @@ function SearchResults() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useScrollRestore(!loading);
+  const scrollContext = useMemo(
+    () => searchScrollContext(location.pathname + location.search, q),
+    [location.pathname, location.search, q],
+  );
+  useScrollRestore(!loading, scrollContext);
 
   const searchLinkState = useMemo(
     () => ({

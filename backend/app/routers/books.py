@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from ..auth import CurrentUser, get_current_user, require_admin
 from ..database import db_session
 from ..dtos import OkResponse
-from ..dtos.books import BookDetailResponse, BookListResponse, UpdateBookBody
+from ..dtos.books import BookDetailResponse, BookListResponse, UpdateBookBody, UpdateBookResponse
 from ..dtos.catalog import UserSort
 from ..services import book_service
 
@@ -46,16 +46,16 @@ def get_book(book_id: int, user: Annotated[CurrentUser, Depends(get_current_user
     return book_service.get_book(db, book_id, user.user_id)
 
 
-@router.put("/{book_id}", response_model=OkResponse)
+@router.put("/{book_id}", response_model=UpdateBookResponse)
 def update_book(
     book_id: int,
     body: UpdateBookBody,
     user: Annotated[CurrentUser, Depends(require_admin)],
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
-    book_service.update_book(db, book_id, body)
+    result = book_service.update_book(db, book_id, body, user.user_id)
     log.info("Updated book=%d by user_id=%s", book_id, user.user_id)
-    return OkResponse()
+    return result
 
 
 @router.delete("/{book_id}", response_model=OkResponse)

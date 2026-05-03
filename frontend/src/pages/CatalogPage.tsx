@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -11,11 +11,11 @@ import { colors } from "../theme";
 import { toBook, RawBook } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
-import { getScrollCounter } from "../utils/scroll-counter";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import { sortOptionsFor, SORT_CONFIG } from "../config/sort";
-
-const CATALOG_CACHE_KEY = "librarium_catalog_cache";
+import { metadataCache } from "@/cache";
+import { catalogScrollContext } from "@/scroll/contexts";
+import type { BookListContext } from "@/domain/read-models";
 
 const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
@@ -24,7 +24,6 @@ type CatalogCacheEntry = {
   books: RawBook[];
   hasMore: boolean;
   cursor: number;
-  version: number;
 };
 
 type CatalogState = {
@@ -36,16 +35,7 @@ type CatalogState = {
 };
 
 function readCatalogCache(url: string): CatalogCacheEntry | null {
-  try {
-    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
-    if (!raw) return null;
-    const map: Record<string, CatalogCacheEntry> = JSON.parse(raw);
-    const entry = map[url];
-    if (entry?.version !== getScrollCounter()) return null;
-    return entry;
-  } catch {
-    return null;
-  }
+  return metadataCache.get<CatalogCacheEntry>("books", url) ?? null;
 }
 
 /**
@@ -72,15 +62,8 @@ function mergeNextPage(
   };
 }
 
-function writeCatalogCache(url: string, entry: CatalogCacheEntry): void {
-  try {
-    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
-    const map: Record<string, CatalogCacheEntry> = raw ? JSON.parse(raw) : {};
-    map[url] = entry;
-    sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(map));
-  } catch {
-    /* best-effort */
-  }
+function writeCatalogCache(url: string, entry: CatalogCacheEntry, context: BookListContext): void {
+  metadataCache.set("books", url, entry, { context });
 }
 
 // Идемпотентна в пределах одного render-цикла: sessionStorage читается синхронно.
@@ -110,6 +93,17 @@ export default function CatalogPage() {
   const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
 
   const urlKey = location.pathname + location.search;
+  const scrollContext = useMemo(
+    () => catalogScrollContext({
+      key: urlKey,
+      sort,
+      authorIds,
+      seriesIds,
+      tagIds,
+      languages: language,
+    }),
+    [urlKey, sort, authorIds, seriesIds, tagIds, language],
+  );
 
   const [state, setState] = useState<CatalogState>(() => initialStateFor(urlKey));
 
@@ -122,14 +116,7 @@ export default function CatalogPage() {
   const { books, hasMore, cursor, loading } = state;
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Актуальный state через ref: cleanup-эффект ниже должен видеть state предыдущего commit,
-  // не stale-замыкание. ref обновляется на каждом commit (useEffect без deps).
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  });
-
-  useScrollRestore(!loading);
+  useScrollRestore(!loading, scrollContext);
 
   const buildApiParams = useCallback(
     (c: number, size?: number): BookListParams & { pageSize: number; cursor: number } => {
@@ -155,13 +142,19 @@ export default function CatalogPage() {
     const controller = new AbortController();
     listBooks(buildApiParams(0), controller.signal)
       .then((data) => {
-        setState({
+        const next = {
           urlKey,
           books: data.books || [],
           hasMore: data.hasMore || false,
           cursor: (data.books || []).length,
           loading: false,
-        });
+        };
+        writeCatalogCache(urlKey, {
+          books: next.books,
+          hasMore: next.hasMore,
+          cursor: next.cursor,
+        }, scrollContext);
+        setState(next);
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -169,23 +162,7 @@ export default function CatalogPage() {
         setState({ urlKey, books: [], hasMore: false, cursor: 0, loading: false });
       });
     return () => controller.abort();
-  }, [urlKey, state.loading, buildApiParams]);
-
-  // Cleanup — сохранить запись при unmount/смене url.
-  // Защита current.urlKey === urlKey: пишем только если state и ключ эффекта относятся к одному URL.
-  useEffect(() => {
-    return () => {
-      const current = stateRef.current;
-      if (!current.loading && current.urlKey === urlKey) {
-        writeCatalogCache(urlKey, {
-          books: current.books,
-          hasMore: current.hasMore,
-          cursor: current.cursor,
-          version: getScrollCounter(),
-        });
-      }
-    };
-  }, [urlKey]);
+  }, [urlKey, state.loading, buildApiParams, scrollContext]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore || loading) return;
@@ -194,7 +171,17 @@ export default function CatalogPage() {
       .then((data) => {
         const newBooks = data.books || [];
         const hasMoreNext = data.hasMore || false;
-        setState((prev) => mergeNextPage(prev, newBooks, hasMoreNext, urlKey));
+        setState((prev) => {
+          const next = mergeNextPage(prev, newBooks, hasMoreNext, urlKey);
+          if (next !== prev) {
+            writeCatalogCache(urlKey, {
+              books: next.books,
+              hasMore: next.hasMore,
+              cursor: next.cursor,
+            }, scrollContext);
+          }
+          return next;
+        });
         setLoadingMore(false);
       })
       .catch((err: unknown) => {
@@ -202,7 +189,7 @@ export default function CatalogPage() {
         console.warn("Failed to load more books:", err);
         setLoadingMore(false);
       });
-  }, [hasMore, loading, loadingMore, buildApiParams, cursor, urlKey]);
+  }, [hasMore, loading, loadingMore, buildApiParams, cursor, urlKey, scrollContext]);
 
   useEffect(() => {
     const main = document.querySelector("main");

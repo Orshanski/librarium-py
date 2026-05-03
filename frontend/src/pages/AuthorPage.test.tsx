@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import { Routes, Route } from "react-router-dom";
 import AuthorPage from "./AuthorPage";
 import {
@@ -14,6 +15,7 @@ import {
 describe("AuthorPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    metadataCache.clear();
   });
 
   it("renders author title and books when data is fetched successfully", async () => {
@@ -96,6 +98,50 @@ describe("AuthorPage", () => {
       const elements = screen.queryAllByText("Автор не найден");
       expect(elements.length).toBeGreaterThan(0);
     });
+  });
+
+  it("uses cached author detail on remount without refetch", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/authors/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          author: { id: 42, name: "Isaac Asimov", sortName: "Asimov, Isaac", bookCount: 1, tags: [] },
+          books: [
+            {
+              id: 101,
+              title: "Foundation",
+              authors: [{ id: 42, name: "Isaac Asimov" }],
+              series: null,
+              seriesNumber: null,
+              tags: [],
+              rating: null,
+              language: "en",
+              coverPath: null,
+              description: null,
+              publisher: null,
+              pubDate: null,
+              updatedAt: null,
+            },
+          ],
+        });
+      })
+    );
+
+    const route = (
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+      </Routes>
+    );
+
+    const first = renderWithProviders(route, { initialEntries: ["/authors/42"] });
+    await waitFor(() => expect(screen.getByText("Foundation")).toBeInTheDocument());
+    first.unmount();
+
+    renderWithProviders(route, { initialEntries: ["/authors/42"] });
+
+    expect(screen.getByText("Foundation")).toBeInTheDocument();
+    expect(requestCount).toBe(1);
   });
 });
 
