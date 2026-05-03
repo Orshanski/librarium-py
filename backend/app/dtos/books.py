@@ -189,6 +189,11 @@ class BookDetailResponse(BaseModel):
     identifiers: list[BookIdentifierItem]
 
 
+class UpdateBookResponse(BookDetailResponse):
+    """Response for PUT /api/books/{book_id}: success marker plus fresh detail."""
+    ok: bool = True
+
+
 class BookListResponse(BaseModel):
     """Response for GET /api/books (paginated catalog).
 

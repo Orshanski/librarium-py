@@ -54,6 +54,10 @@ export interface BookOkResponse {
   ok: true;
 }
 
+export interface UpdateBookResponse extends BookDetailResponse {
+  ok: true;
+}
+
 export interface AddFormatResponse {
   ok: true;
   format: string;
@@ -79,8 +83,8 @@ export function getBook(
 export function updateBook(
   id: number,
   body: BookUpdatePayload,
-): Promise<BookOkResponse> {
-  return client<BookOkResponse>("PUT", `/api/books/${id}`, { body });
+): Promise<UpdateBookResponse> {
+  return client<UpdateBookResponse>("PUT", `/api/books/${id}`, { body });
 }
 
 export function deleteBook(id: number): Promise<BookOkResponse> {
