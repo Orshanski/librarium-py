@@ -68,6 +68,39 @@ describe("metadata cache handlers", () => {
     });
   });
 
+  it("patches rating and read changes into cached book detail without invalidating it", () => {
+    store.set("books", "rating", { books: [{ id: 10, rating: 1, isRead: false }], hasMore: false }, {
+      context: { kind: "book-list", key: "rating", source: "catalog", sort: "addedDesc" },
+    });
+    store.set("book/10", "detail", {
+      book: { id: 10, rating: 1, isRead: false },
+      files: [],
+      identifiers: [],
+    });
+    store.set("shelf/best", "default", { books: [{ id: 10 }], hasMore: false });
+
+    domainEvents.publish("bookRatingChanged", { bookId: 10, rating: 5 });
+
+    expect(store.get<{ books: { rating: number }[] }>("books", "rating")?.books[0].rating).toBe(5);
+    expect(store.get<{ book: { rating: number | null; isRead: boolean } }>("book/10", "detail")?.book).toMatchObject({
+      id: 10,
+      rating: 5,
+      isRead: false,
+    });
+    expect(store.get("shelf/best", "default")).toBeUndefined();
+
+    store.set("shelf/reading-now", "default", { books: [{ id: 10 }], hasMore: false });
+    domainEvents.publish("bookReadChanged", { bookId: 10, isRead: true });
+
+    expect(store.get<{ books: { isRead: boolean }[] }>("books", "rating")?.books[0].isRead).toBe(true);
+    expect(store.get<{ book: { rating: number | null; isRead: boolean } }>("book/10", "detail")?.book).toMatchObject({
+      id: 10,
+      rating: 5,
+      isRead: true,
+    });
+    expect(store.get("shelf/reading-now", "default")).toBeUndefined();
+  });
+
   it("invalidates stale book detail when book update has no fresh detail", () => {
     store.set("book/1", "detail", { book: { id: 1, title: "Old" }, files: [], identifiers: [] });
 
@@ -224,12 +257,12 @@ describe("metadata cache handlers", () => {
     store.set("book/10", "detail", { book: { id: 10, rating: 1, isRead: false }, files: [], identifiers: [] });
     domainEvents.publish("bookRatingChanged", { bookId: 10, rating: 5 });
     expect(store.get<{ books: { rating: number }[] }>("books", "rating")?.books[0].rating).toBe(5);
-    expect(store.get("book/10", "detail")).toBeUndefined();
+    expect(store.get<{ book: { rating: number } }>("book/10", "detail")?.book.rating).toBe(5);
 
     store.set("book/10", "detail", { book: { id: 10, rating: 5, isRead: false }, files: [], identifiers: [] });
     domainEvents.publish("bookReadChanged", { bookId: 10, isRead: true });
     expect(store.get<{ books: { isRead: boolean }[] }>("books", "rating")?.books[0].isRead).toBe(true);
-    expect(store.get("book/10", "detail")).toBeUndefined();
+    expect(store.get<{ book: { isRead: boolean } }>("book/10", "detail")?.book.isRead).toBe(true);
 
     store.set("shelf/reading-now", "default", { books: [{ id: 10 }], hasMore: false });
     domainEvents.publish("readingProgressChanged", {

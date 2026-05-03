@@ -123,7 +123,7 @@ describe("dispatchServerEvent", () => {
     domainEvents.subscribe("bookUpdated", handler);
 
     expect(() => dispatchServerEvent({
-      eventId: 8,
+      eventId: 9,
       scope: { kind: "library" },
       event: {
         type: "bookUpdated",
@@ -136,7 +136,7 @@ describe("dispatchServerEvent", () => {
     })).toThrow(/payload/i);
 
     expect(() => dispatchServerEvent({
-      eventId: 9,
+      eventId: 10,
       scope: { kind: "library" },
       event: {
         type: "bookUpdated",
@@ -150,4 +150,24 @@ describe("dispatchServerEvent", () => {
 
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it.each(["rating", "read"] as const)(
+    "rejects library bookUpdated with user-scoped changed field %s",
+    (field) => {
+      const handler = vi.fn();
+      domainEvents.subscribe("bookUpdated", handler);
+
+      expect(() => dispatchServerEvent({
+        eventId: 11,
+        scope: { kind: "library" },
+        event: {
+          type: "bookUpdated",
+          payload: { book: { id: 9 }, changedFields: [field] },
+        },
+      })).toThrow(/payload/i);
+
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
+
 });

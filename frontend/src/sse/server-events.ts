@@ -111,6 +111,9 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       if (!Array.isArray(value.changedFields) || !value.changedFields.every(isBookChangedField)) {
         throw new Error("bad server event payload");
       }
+      if (value.changedFields.some((field) => field === "rating" || field === "read")) {
+        throw new Error("bad server event payload");
+      }
       if (value.affected !== undefined) validateAffected(value.affected);
       return;
     case "bookCreated":
