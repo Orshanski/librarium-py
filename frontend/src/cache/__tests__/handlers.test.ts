@@ -252,4 +252,26 @@ describe("metadata cache handlers", () => {
     expect(store.get("shelf/4", "detail")).toBeUndefined();
     expect(store.get("book-shelves/10", "all")).toBeUndefined();
   });
+
+  it("invalidates hidden-filtered read models on hidden-state changes", () => {
+    store.set("books", "catalog", { books: [{ id: 7 }], hasMore: false });
+    store.set("authors", "all", { authors: [{ id: 1, bookCount: 1 }] });
+    store.set("series", "all", { series: [{ id: 2, bookCount: 1 }] });
+    store.set("tags", "cloud?top=30", { tags: [{ id: 3, bookCount: 1 }] });
+    store.set("filter-options/authors", "all", { authors: [{ id: 1 }] });
+    store.set("filter-options/series", "all", { series: [{ id: 2 }] });
+    store.set("filter-options/tags", "all", { tags: [{ id: 3 }] });
+    store.set("filter-options/languages", "all", { languages: [{ value: "ru" }] });
+
+    domainEvents.publish("bookHiddenChanged", { bookId: 7, isHidden: true });
+
+    expect(store.get("books", "catalog")).toBeUndefined();
+    expect(store.get("authors", "all")).toBeUndefined();
+    expect(store.get("series", "all")).toBeUndefined();
+    expect(store.get("tags", "cloud?top=30")).toBeUndefined();
+    expect(store.get("filter-options/authors", "all")).toBeUndefined();
+    expect(store.get("filter-options/series", "all")).toBeUndefined();
+    expect(store.get("filter-options/tags", "all")).toBeUndefined();
+    expect(store.get("filter-options/languages", "all")).toBeUndefined();
+  });
 });

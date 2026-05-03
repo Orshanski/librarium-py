@@ -126,6 +126,12 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`book/${payload.bookId}`);
       store.invalidate("shelf/reading-now");
     }),
+    bus.subscribe("bookHiddenChanged", (payload) => {
+      store.invalidateBookLists();
+      store.invalidate(`book/${payload.bookId}`);
+      invalidateAggregateEntityReadModels(store);
+      invalidateFilterOptions(store);
+    }),
     bus.subscribe("readingProgressChanged", () => {
       store.invalidate("shelf/reading-now");
     }),

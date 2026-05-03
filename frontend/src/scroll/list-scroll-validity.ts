@@ -26,6 +26,7 @@ export type ScrollInvalidationEvent =
   | { kind: "shelfMembershipChanged"; shelfId: number }
   | { kind: "bookRatingChanged" }
   | { kind: "bookReadChanged" }
+  | { kind: "bookHiddenChanged" }
   | { kind: "readingProgressChanged"; hasPositionChanged: boolean; lastReadAtChanged: boolean }
   | { kind: "authorRenamed"; authorId: number }
   | { kind: "authorMerged"; targetId: number; sourceId: number }
@@ -76,6 +77,7 @@ export function registerScrollInvalidationHandlers(bus: EventBus): () => void {
     })),
     bus.subscribe("bookRatingChanged", () => clearInvalidScrollEntries({ kind: "bookRatingChanged" })),
     bus.subscribe("bookReadChanged", () => clearInvalidScrollEntries({ kind: "bookReadChanged" })),
+    bus.subscribe("bookHiddenChanged", () => clearInvalidScrollEntries({ kind: "bookHiddenChanged" })),
     bus.subscribe("readingProgressChanged", (payload) => clearInvalidScrollEntries({
       kind: "readingProgressChanged",
       hasPositionChanged: payload.hadPosition !== payload.hasPosition,
@@ -118,6 +120,9 @@ function isBookListStillValid(context: Extract<ScrollContext, { kind: "book-list
   }
   if (event.kind === "bookReadChanged") {
     return classifyBookUpdateForBookList(context, ["read"]) !== "structural";
+  }
+  if (event.kind === "bookHiddenChanged") {
+    return false;
   }
   if (event.kind === "readingProgressChanged") {
     return classifyReadingProgressForContext(context, event) !== "structural";
