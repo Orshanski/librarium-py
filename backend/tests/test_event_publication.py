@@ -10,6 +10,26 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 USER_SCOPED_BOOK_FIELDS = {"rating", "isRead", "is_read", "isHidden", "is_hidden", "hidden"}
 
 
+def _row_exists(db, sql: str, params: tuple) -> bool:
+    return db.execute(sql, params).fetchone() is not None
+
+
+def _user_book_row_exists(db, *, user_id: int, book_id: int) -> bool:
+    return _row_exists(
+        db,
+        "SELECT 1 FROM user_books WHERE user_id = ? AND book_id = ? LIMIT 1",
+        (user_id, book_id),
+    )
+
+
+def _shelf_book_row_exists(db, *, shelf_id: int, book_id: int) -> bool:
+    return _row_exists(
+        db,
+        "SELECT 1 FROM shelf_books WHERE shelf_id = ? AND book_id = ? LIMIT 1",
+        (shelf_id, book_id),
+    )
+
+
 def _close_session(session):
     try:
         next(session)
@@ -537,4 +557,318 @@ def test_tag_map_event_name_matches_normalized_committed_name(
 def test_tag_map_same_name_publishes_nothing(admin_client, captured_domain_events):
     assert_ok(admin_client.put("/api/tags/1/map", json={"name": "  Фэнтези  "}))
 
+    assert captured_domain_events == []
+
+
+def _assert_single_user_event(captured_domain_events, event_type: str, payload: dict):
+    assert captured_domain_events == [
+        {
+            "scope": {"kind": "user", "userId": 2},
+            "event": {"type": event_type, "payload": payload},
+        }
+    ]
+
+
+def test_rating_publishes_user_scoped_event(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/3/rating", json={"rating": 4}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "bookRatingChanged",
+        {"bookId": 3, "rating": 4},
+    )
+
+
+def test_read_publishes_user_scoped_event(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/3/read", json={"isRead": True}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "bookReadChanged",
+        {"bookId": 3, "isRead": True},
+    )
+
+
+def test_hidden_publishes_user_scoped_event(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/3/hidden", json={"isHidden": True}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "bookHiddenChanged",
+        {"bookId": 3, "isHidden": True},
+    )
+
+
+def test_same_rating_publishes_nothing(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/1/rating", json={"rating": 5}))
+
+    assert captured_domain_events == []
+
+
+def test_same_read_flag_publishes_nothing(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/1/read", json={"isRead": True}))
+
+    assert captured_domain_events == []
+
+
+def test_default_unread_without_user_book_row_publishes_nothing(
+    reader_client,
+    db,
+    captured_domain_events,
+):
+    assert not _user_book_row_exists(db, user_id=2, book_id=2)
+
+    assert_ok(reader_client.put("/api/books/2/read", json={"isRead": False}))
+
+    assert not _user_book_row_exists(db, user_id=2, book_id=2)
+    assert captured_domain_events == []
+
+
+def test_same_hidden_flag_publishes_nothing(reader_client, captured_domain_events):
+    assert_ok(reader_client.put("/api/books/3/hidden", json={"isHidden": True}))
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.put("/api/books/3/hidden", json={"isHidden": True}))
+
+    assert captured_domain_events == []
+
+
+def test_default_unhidden_without_user_book_row_publishes_nothing(
+    reader_client,
+    db,
+    captured_domain_events,
+):
+    assert not _user_book_row_exists(db, user_id=2, book_id=2)
+
+    assert_ok(reader_client.put("/api/books/2/hidden", json={"isHidden": False}))
+
+    assert not _user_book_row_exists(db, user_id=2, book_id=2)
+    assert captured_domain_events == []
+
+
+def test_create_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):
+    data = assert_ok(reader_client.post("/api/shelves", json={"name": "Event Shelf"}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "shelfCreated",
+        {"shelfId": data["id"], "name": "Event Shelf"},
+    )
+
+
+def test_rename_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Old Shelf"}))["id"]
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.put(f"/api/shelves/{shelf_id}", json={"name": "Renamed Shelf"}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "shelfRenamed",
+        {"shelfId": shelf_id, "name": "Renamed Shelf"},
+    )
+
+
+def test_delete_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Delete Shelf"}))["id"]
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.delete(f"/api/shelves/{shelf_id}"))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "shelfDeleted",
+        {"shelfId": shelf_id},
+    )
+
+
+def test_add_book_to_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Membership Shelf"}))["id"]
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.post(f"/api/shelves/{shelf_id}/books", json={"bookId": 1}))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "shelfMembershipChanged",
+        {"shelfId": shelf_id, "bookId": 1, "hasBook": True},
+    )
+
+
+def test_remove_book_from_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Membership Shelf"}))["id"]
+    assert_ok(reader_client.post(f"/api/shelves/{shelf_id}/books", json={"bookId": 1}))
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.delete(f"/api/shelves/{shelf_id}/books/1"))
+
+    _assert_single_user_event(
+        captured_domain_events,
+        "shelfMembershipChanged",
+        {"shelfId": shelf_id, "bookId": 1, "hasBook": False},
+    )
+
+
+def test_duplicate_add_book_to_shelf_publishes_nothing(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Duplicate Shelf"}))["id"]
+    assert_ok(reader_client.post(f"/api/shelves/{shelf_id}/books", json={"bookId": 1}))
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.post(f"/api/shelves/{shelf_id}/books", json={"bookId": 1}))
+
+    assert captured_domain_events == []
+
+
+def test_remove_missing_book_from_shelf_publishes_nothing(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Missing Shelf"}))["id"]
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.delete(f"/api/shelves/{shelf_id}/books/3"))
+
+    assert captured_domain_events == []
+
+
+def test_add_book_to_system_shelf_publishes_nothing(
+    reader_client,
+    db,
+    reading_now_shelf_id,
+    captured_domain_events,
+):
+    assert not _shelf_book_row_exists(db, shelf_id=reading_now_shelf_id, book_id=2)
+
+    assert_ok(reader_client.post(f"/api/shelves/{reading_now_shelf_id}/books", json={"bookId": 2}))
+
+    assert _shelf_book_row_exists(db, shelf_id=reading_now_shelf_id, book_id=2)
+    assert captured_domain_events == []
+
+
+def test_remove_book_from_system_shelf_publishes_nothing(
+    reader_client,
+    db,
+    reading_now_shelf_id,
+    captured_domain_events,
+):
+    assert_ok(reader_client.post(f"/api/shelves/{reading_now_shelf_id}/books", json={"bookId": 2}))
+    assert _shelf_book_row_exists(db, shelf_id=reading_now_shelf_id, book_id=2)
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.delete(f"/api/shelves/{reading_now_shelf_id}/books/2"))
+
+    assert not _shelf_book_row_exists(db, shelf_id=reading_now_shelf_id, book_id=2)
+    assert captured_domain_events == []
+
+
+def test_same_name_shelf_rename_publishes_nothing(reader_client, captured_domain_events):
+    shelf_id = assert_ok(reader_client.post("/api/shelves", json={"name": "Same Name Shelf"}))["id"]
+    captured_domain_events.clear()
+
+    assert_ok(reader_client.put(f"/api/shelves/{shelf_id}", json={"name": "Same Name Shelf"}))
+
+    assert captured_domain_events == []
+
+
+def test_accepted_reading_progress_publishes_user_scoped_event(
+    reader_client,
+    captured_domain_events,
+):
+    response = assert_ok(
+        reader_client.put(
+            "/api/reader/progress/1",
+            json={
+                "position": "p1",
+                "lastDevice": "test",
+                "lastFormat": "EPUB",
+                "fraction": 0.1,
+                "expectedVersion": 0,
+            },
+        )
+    )
+
+    assert response["accepted"] is True
+    _assert_single_user_event(
+        captured_domain_events,
+        "readingProgressChanged",
+        {
+            "bookId": 1,
+            "hadPosition": False,
+            "hasPosition": True,
+            "lastReadAtChanged": True,
+        },
+    )
+
+
+def test_accepted_reading_progress_empty_position_reports_position_state(
+    reader_client,
+    captured_domain_events,
+):
+    assert_ok(
+        reader_client.put(
+            "/api/reader/progress/1",
+            json={
+                "position": "p1",
+                "lastDevice": "test",
+                "lastFormat": "EPUB",
+                "fraction": 0.1,
+                "expectedVersion": 0,
+            },
+        )
+    )
+    captured_domain_events.clear()
+
+    response = assert_ok(
+        reader_client.put(
+            "/api/reader/progress/1",
+            json={
+                "position": "",
+                "lastDevice": "test",
+                "lastFormat": "EPUB",
+                "fraction": 0.2,
+                "expectedVersion": 1,
+            },
+        )
+    )
+
+    assert response["accepted"] is True
+    _assert_single_user_event(
+        captured_domain_events,
+        "readingProgressChanged",
+        {
+            "bookId": 1,
+            "hadPosition": True,
+            "hasPosition": False,
+            "lastReadAtChanged": True,
+        },
+    )
+
+
+def test_rejected_reading_progress_publishes_nothing(reader_client, captured_domain_events):
+    accepted = assert_ok(
+        reader_client.put(
+            "/api/reader/progress/1",
+            json={
+                "position": "far",
+                "lastDevice": "test",
+                "lastFormat": "EPUB",
+                "fraction": 0.8,
+                "expectedVersion": 0,
+            },
+        )
+    )
+    assert accepted["accepted"] is True
+    captured_domain_events.clear()
+
+    rejected = assert_ok(
+        reader_client.put(
+            "/api/reader/progress/1",
+            json={
+                "position": "back",
+                "lastDevice": "test",
+                "lastFormat": "EPUB",
+                "fraction": 0.2,
+                "expectedVersion": 0,
+            },
+        )
+    )
+
+    assert rejected["accepted"] is False
     assert captured_domain_events == []
