@@ -3,6 +3,7 @@ import { colors, fonts } from "../theme";
 import ConfirmDialog from "./confirm-dialog";
 import { listSeries, renameSeries, mergeSeries, deleteSeries } from "../api/endpoints/series";
 import { listAuthors, renameAuthor, mergeAuthor, deleteAuthor } from "../api/endpoints/authors";
+import { domainEvents } from "@/domain/events";
 
 interface EntityAdminPanelProps {
   entityType: "author" | "series";
@@ -143,8 +144,10 @@ export default function EntityAdminPanel({
     try {
       if (entityType === "series") {
         await renameSeries(entityId, trimmed);
+        domainEvents.publish("seriesRenamed", { seriesId: entityId, name: trimmed });
       } else {
         await renameAuthor(entityId, trimmed);
+        domainEvents.publish("authorRenamed", { authorId: entityId, name: trimmed });
       }
       onRenamed(trimmed);
     } catch (err) {
@@ -164,8 +167,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await mergeSeries(entityId, source.id);
+            domainEvents.publish("seriesMerged", { targetId: entityId, sourceId: source.id });
           } else {
             await mergeAuthor(entityId, source.id);
+            domainEvents.publish("authorMerged", { targetId: entityId, sourceId: source.id });
           }
           onMerged();
         } catch (err) {
@@ -188,8 +193,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await deleteSeries(entityId);
+            domainEvents.publish("seriesDeleted", { seriesId: entityId });
           } else {
             await deleteAuthor(entityId);
+            domainEvents.publish("authorDeleted", { authorId: entityId });
           }
           onDeleted();
         } catch (err) {

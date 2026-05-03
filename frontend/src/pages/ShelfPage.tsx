@@ -17,6 +17,7 @@ import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
 import { shelfScrollContext } from "@/scroll/contexts";
+import { domainEvents } from "@/domain/events";
 
 export default function ShelfPage() {
   const { id } = useParams();
@@ -68,6 +69,7 @@ export default function ShelfPage() {
   async function handleDelete() {
     try {
       await deleteShelf(shelfId);
+      domainEvents.publish("shelfDeleted", { shelfId });
       globalThis.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
     } catch (err) {
@@ -78,6 +80,7 @@ export default function ShelfPage() {
   const handleRemoveBookFromShelf = useCallback(async (bookId: number) => {
     try {
       await removeBookFromShelf(shelfId, bookId);
+      domainEvents.publish("shelfMembershipChanged", { shelfId, bookId, hasBook: false });
       setRawBooks((prev) => prev.filter((x) => x.id !== bookId));
     } catch (err) {
       console.warn("Failed to remove book from shelf:", err);

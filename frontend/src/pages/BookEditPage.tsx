@@ -10,8 +10,42 @@ import { colors } from "../theme";
 import { Book, RawBook, toBook } from "../types";
 import { getBook, updateBook, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
+import { deriveBookChangedFields } from "@/domain/book-changes";
+import { domainEvents } from "@/domain/events";
+import type { BookChangedField } from "@/domain/events";
 
 const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
+
+function arraysEqual(left: unknown[], right: unknown[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function changedBookEditBody(body: Record<string, unknown>, original: RawBook, originalIsbn: string | null): Record<string, unknown> {
+  const changed: Record<string, unknown> = {};
+  if (body.title !== original.title) changed.title = body.title;
+  if ((body.description || "") !== (original.description || "")) changed.description = body.description;
+  if ((body.language || "") !== (original.language || "")) changed.language = body.language;
+  if ((body.publisher || null) !== (original.publisher || null)) changed.publisher = body.publisher;
+  if ((body.pubDate || null) !== (original.pubDate || null)) changed.pubDate = body.pubDate;
+  if ((body.isbn || null) !== (originalIsbn || null)) changed.isbn = body.isbn;
+  if (!arraysEqual(body.authorIds as unknown[], original.authors.map((author) => author.id))) {
+    changed.authorIds = body.authorIds;
+  }
+  if ((body.seriesId ?? null) !== (original.series?.id ?? null)) changed.seriesId = body.seriesId;
+  if ((body.seriesNumber ?? null) !== (original.seriesNumber ?? null)) changed.seriesNumber = body.seriesNumber;
+  if (!arraysEqual(body.tagIds as unknown[], original.tags.map((tag) => tag.id))) {
+    changed.tagIds = body.tagIds;
+  }
+  if (Array.isArray(body.addFormats) && body.addFormats.length > 0) changed.addFormats = body.addFormats;
+  if (Array.isArray(body.deleteFormats) && body.deleteFormats.length > 0) changed.deleteFormats = body.deleteFormats;
+  if (body.commitCover === true) changed.commitCover = true;
+  return changed;
+}
+
+function hasMembershipChange(changedFields: BookChangedField[]): boolean {
+  return changedFields.some((field) => field === "authors" || field === "series" || field === "tags" || field === "language");
+}
 
 export default function BookEditPage() {
   const { id } = useParams();
@@ -84,10 +118,11 @@ export default function BookEditPage() {
       </>
     );
   }
+  const currentBook = book;
 
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
   const bookData: Book = {
-    ...toBook(book, { fullCover: true, isbn }),
+    ...toBook(currentBook, { fullCover: true, isbn }),
     formats: files.map((f) => {
       const sz = f.fileSize ?? 0;
       return {
@@ -116,6 +151,7 @@ export default function BookEditPage() {
       language: data.language,
       publisher: data.publisher,
       pubDate: data.pubDate,
+      isbn: data.isbn,
       seriesId,
       seriesNumber: data.seriesNumber ? parseFloat(data.seriesNumber) : null,
       authorIds,
@@ -125,7 +161,19 @@ export default function BookEditPage() {
       commitCover: data.commitCover,
     };
 
-    await updateBook(Number(id), body);
+    const updated = await updateBook(Number(id), body);
+    const changedFields = deriveBookChangedFields(changedBookEditBody(body, currentBook, isbn));
+    domainEvents.publish("bookUpdated", {
+      book: updated.book,
+      detail: updated,
+      changedFields,
+      affected: hasMembershipChange(changedFields) ? undefined : {
+        authorIds: currentBook.authors.map((author) => author.id),
+        seriesId: currentBook.series?.id ?? null,
+        tagIds: currentBook.tags.map((tag) => tag.id),
+        language: currentBook.language,
+      },
+    });
     navigate(`/book/${id}`, {
       replace: true,
       state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },
@@ -134,7 +182,7 @@ export default function BookEditPage() {
 
   return (
     <>
-      <PageHeader title={`Редактирование: ${book.title}`} breadcrumb={crumb} />
+      <PageHeader title={`Редактирование: ${currentBook.title}`} breadcrumb={crumb} />
       <BookEditForm book={bookData} options={options} onSave={handleSave} editOrigin={editOrigin} />
     </>
   );

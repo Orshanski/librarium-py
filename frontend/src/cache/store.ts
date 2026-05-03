@@ -251,7 +251,7 @@ function patchAuthorRefs(
     ...row,
     authors: row.authors.map((author) => (
       isAuthorRef(author) && author.id === payload.authorId
-        ? { ...author, name: payload.name, sortName: payload.sortName }
+        ? { ...author, name: payload.name, ...(payload.sortName !== undefined ? { sortName: payload.sortName } : {}) }
         : author
     )),
   };
@@ -264,7 +264,11 @@ function patchSeriesRef(
   if (!isRefWithId(row.series, payload.seriesId)) return row;
   return {
     ...row,
-    series: { ...row.series, name: payload.name, sortName: payload.sortName },
+    series: {
+      ...row.series,
+      name: payload.name,
+      ...(payload.sortName !== undefined ? { sortName: payload.sortName } : {}),
+    },
   };
 }
 

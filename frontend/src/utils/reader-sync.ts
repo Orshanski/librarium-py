@@ -1,6 +1,7 @@
 import type { LocalProgress } from "./offline-storage";
 import { saveProgress, markProgressSynced, adoptServerProgressLocal } from "./offline-storage";
 import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
+import { domainEvents } from "@/domain/events";
 
 /**
  * Result of a CAS PUT to /api/reader/progress.
@@ -60,6 +61,12 @@ export async function pushProgressToServerCAS(
         serverVersion: data.version,
       });
       await markProgressSynced(progress.bookId);
+      domainEvents.publish("readingProgressChanged", {
+        bookId: progress.bookId,
+        hadPosition: Boolean(progress.position),
+        hasPosition: Boolean(progress.position),
+        lastReadAtChanged: true,
+      });
       return {
         status: data.rebased === true ? "rebased" : "accepted",
         serverVersion: data.version,

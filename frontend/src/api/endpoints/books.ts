@@ -41,6 +41,7 @@ export interface BookUpdatePayload {
   language: string;
   publisher: string | null;
   pubDate: string | null;
+  isbn: string | null;
   seriesId: number | string | null;
   seriesNumber: number | null;
   authorIds: (number | string)[];

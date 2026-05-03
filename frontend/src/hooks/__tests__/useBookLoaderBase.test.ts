@@ -5,6 +5,7 @@ import {
   fetchBookMetadata,
   markUnreadInBackground,
 } from "../useBookLoaderBase";
+import { domainEvents } from "@/domain/events";
 
 vi.mock("../../utils/offline-storage", () => ({
   getProgress: vi.fn(),
@@ -38,6 +39,7 @@ function setOnline(online: boolean) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  domainEvents.clear();
   setOnline(true);
 });
 
@@ -107,10 +109,16 @@ describe("fetchBookMetadata", () => {
 });
 
 describe("markUnreadInBackground", () => {
-  it("calls setRead(id, false) when online and isRead is truthy", () => {
+  it("calls setRead(id, false) when online and publishes event after success", async () => {
     mockedSetRead.mockResolvedValue(undefined);
+    const events: Array<{ bookId: number; isRead: boolean }> = [];
+    domainEvents.subscribe("bookReadChanged", (payload) => events.push(payload));
+
     markUnreadInBackground("42", { book: { isRead: 1 } } as never);
+
     expect(mockedSetRead).toHaveBeenCalledWith(42, false);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual([{ bookId: 42, isRead: false }]);
   });
 
   it("does NOT call setRead when offline", () => {

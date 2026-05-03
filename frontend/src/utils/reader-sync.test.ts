@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
 import { pushProgressToServerCAS } from "./reader-sync";
 import type { LocalProgress } from "./offline-storage";
+import { domainEvents } from "@/domain/events";
 
 // Mock offline-storage so CAS side-effects (IDB writes) don't hit real IndexedDB
 vi.mock("./offline-storage", () => ({
@@ -29,12 +30,16 @@ const baseProgress: LocalProgress = {
 };
 
 afterEach(() => {
+  domainEvents.clear();
   server.resetHandlers();
   vi.clearAllMocks();
 });
 
 describe("pushProgressToServerCAS — accept path", () => {
   it("returns {status: 'accepted', serverVersion: N} and updates local state", async () => {
+    const events: Array<{ bookId: number; hadPosition: boolean; hasPosition: boolean; lastReadAtChanged: boolean }> = [];
+    domainEvents.subscribe("readingProgressChanged", (payload) => events.push(payload));
+
     server.use(
       http.put("/api/reader/progress/42", () =>
         HttpResponse.json({ accepted: true, version: 4, rebased: false }),
@@ -48,6 +53,9 @@ describe("pushProgressToServerCAS — accept path", () => {
     expect(mockSaveProgress).toHaveBeenCalledOnce();
     expect(mockMarkProgressSynced).toHaveBeenCalledOnce();
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      { bookId: 42, hadPosition: true, hasPosition: true, lastReadAtChanged: true },
+    ]);
   });
 });
 

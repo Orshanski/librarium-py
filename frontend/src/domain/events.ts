@@ -4,7 +4,7 @@ type MinimalBook = {
   id: number;
   title?: string;
   rating?: number | null;
-  isRead?: boolean;
+  isRead?: boolean | number | null;
 };
 
 export type BookChangedField =

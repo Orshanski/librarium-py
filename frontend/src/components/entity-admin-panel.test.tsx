@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
 import EntityAdminPanel from "./entity-admin-panel";
 
 // Default /api/auth/me returns admin (from defaultHandlers in handlers.ts)
@@ -61,6 +62,10 @@ describe.each(CASES)(
   "EntityAdminPanel — $entityType mode",
   ({ entityType, apiPath, searchPlaceholder, rename, merge, emptyName }) => {
     it("calls onRenamed after successful rename", async () => {
+      domainEvents.clear();
+      const events: unknown[] = [];
+      const eventName = entityType === "author" ? "authorRenamed" : "seriesRenamed";
+      domainEvents.subscribe(eventName, (payload) => events.push(payload));
       setupDefaultHandlers();
       server.use(
         http.put(`${apiPath}/:id`, () => HttpResponse.json({ ok: true }))
@@ -88,6 +93,11 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onRenamed).toHaveBeenCalledWith(rename.to);
+        expect(events).toEqual([
+          entityType === "author"
+            ? { authorId: 1, name: rename.to }
+            : { seriesId: 1, name: rename.to },
+        ]);
       });
     });
 
@@ -126,6 +136,10 @@ describe.each(CASES)(
     });
 
     it("calls onMerged after successful merge", async () => {
+      domainEvents.clear();
+      const events: unknown[] = [];
+      const eventName = entityType === "author" ? "authorMerged" : "seriesMerged";
+      domainEvents.subscribe(eventName, (payload) => events.push(payload));
       setupDefaultHandlers();
       server.use(
         http.post(`${apiPath}/:id/merge`, () => HttpResponse.json({ ok: true }))
@@ -169,10 +183,15 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onMerged).toHaveBeenCalled();
+        expect(events).toEqual([{ targetId: 1, sourceId: 2 }]);
       });
     });
 
     it("calls onDeleted after successful delete (no books)", async () => {
+      domainEvents.clear();
+      const events: unknown[] = [];
+      const eventName = entityType === "author" ? "authorDeleted" : "seriesDeleted";
+      domainEvents.subscribe(eventName, (payload) => events.push(payload));
       setupDefaultHandlers();
       server.use(
         http.delete(`${apiPath}/:id`, () => HttpResponse.json({ ok: true }))
@@ -205,6 +224,9 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onDeleted).toHaveBeenCalled();
+        expect(events).toEqual([
+          entityType === "author" ? { authorId: 1 } : { seriesId: 1 },
+        ]);
       });
     });
   }

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
 import BookEditPage from "./BookEditPage";
 
 const mockRawBook = {
@@ -55,6 +56,7 @@ function setupAllHandlers() {
 describe("BookEditPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    domainEvents.clear();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -74,14 +76,21 @@ describe("BookEditPage", () => {
     });
   });
 
-  it("save success: PUT /api/books/:id fires and navigates", async () => {
+  it("save success: PUT /api/books/:id fires, publishes bookUpdated, and navigates", async () => {
     setupAllHandlers();
     let putBody: unknown = null;
+    const events: unknown[] = [];
+    domainEvents.subscribe("bookUpdated", (payload) => events.push(payload));
 
     server.use(
       http.put("/api/books/:id", async ({ request }) => {
         putBody = await request.json();
-        return HttpResponse.json({ ok: true });
+        return HttpResponse.json({
+          ok: true,
+          book: { ...mockRawBook, title: "Тестовая книга 2" },
+          files: [{ format: "epub", fileSize: 512000 }],
+          identifiers: [],
+        });
       })
     );
 
@@ -98,6 +107,12 @@ describe("BookEditPage", () => {
     });
 
     const user = userEvent.setup();
+    const titleInput = screen.getByDisplayValue("Тестовая книга");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Тестовая книга 2");
+    const isbnInput = screen.getByText("ISBN").parentElement?.querySelector("input");
+    expect(isbnInput).toBeTruthy();
+    await user.type(isbnInput as HTMLInputElement, "9780000000000");
     const saveBtn = screen.getByRole("button", { name: /сохранить/i });
     await user.click(saveBtn);
 
@@ -108,6 +123,15 @@ describe("BookEditPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Book Detail")).toBeInTheDocument();
     });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      book: { id: 42, title: "Тестовая книга 2" },
+      changedFields: ["title", "identifiers"],
+      detail: {
+        book: { id: 42, title: "Тестовая книга 2" },
+      },
+    });
+    expect(putBody).toMatchObject({ isbn: "9780000000000" });
   });
 
   it("save: navigate state.origin взят из editOrigin.bookOrigin (цепочка crumb к источнику)", async () => {

@@ -128,6 +128,20 @@ describe("MetadataCacheStore", () => {
     });
   });
 
+  it("preserves existing sortName when rename event omits canonical sortName", () => {
+    store.set("tag/1", "detail", {
+      books: [{ id: 1, authors: [{ id: 7, name: "Old", sortName: "Old Sort" }], series: { id: 9, name: "Series", sortName: "Series Sort" } }],
+      hasMore: false,
+    }, { context: { kind: "book-list", key: "tag/1", source: "tag-detail", tagId: 1, sort: "addedDesc" } });
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+    store.applySeriesRename({ seriesId: 9, name: "New Series" });
+
+    const row = store.get<{ books: { authors: { sortName?: string }[]; series: { sortName?: string } }[] }>("tag/1", "detail")?.books[0];
+    expect(row?.authors[0].sortName).toBe("Old Sort");
+    expect(row?.series.sortName).toBe("Series Sort");
+  });
+
   it("persists and hydrates namespace entries from sessionStorage", () => {
     store.set("authors", "/authors", { authors: [{ id: 1, name: "Frank Herbert" }] });
 

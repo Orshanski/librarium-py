@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import { colors, layout } from "../theme";
 import { listShelves, createShelf as apiCreateShelf, type Shelf } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey } from "../config/sort";
+import { domainEvents } from "@/domain/events";
 
 function shelfHref(shelf: Shelf): string {
   const key = shelfSortConfigKey(shelf.systemCode);
@@ -71,10 +72,12 @@ export function SidebarContent({
   async function createShelf() {
     if (!newShelfName.trim()) return;
     try {
-      const { id } = await apiCreateShelf(newShelfName.trim());
-      setShelves([...shelves, { id, name: newShelfName.trim(), isSystem: false, bookCount: 0 }]);
+      const name = newShelfName.trim();
+      const { id } = await apiCreateShelf(name);
+      setShelves([...shelves, { id, name, isSystem: false, bookCount: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
+      domainEvents.publish("shelfCreated", { shelfId: id, name });
       globalThis.dispatchEvent(new Event("shelves-changed"));
       onNavigate?.();
     } catch (err) {

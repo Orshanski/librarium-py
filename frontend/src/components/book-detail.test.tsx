@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { setupMobileViewport, teardownViewport } from "@/test/mobile-viewport";
 import { renderWithProviders } from "@/test/render";
+import { domainEvents } from "@/domain/events";
 import BookDetail from "./book-detail";
 import type { Book } from "../types";
 
@@ -174,13 +175,19 @@ describe("book-detail — cover display", () => {
 });
 
 describe("book-detail — books", () => {
+  beforeEach(() => {
+    domainEvents.clear();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("rating: click star span → PUT /api/books/:id/rating fires with {rating: N}", async () => {
+  it("rating: click star span → PUT /api/books/:id/rating fires and publishes event", async () => {
     const user = userEvent.setup();
     let capturedBody: unknown = null;
+    const events: Array<{ bookId: number; rating: number | null }> = [];
+    domainEvents.subscribe("bookRatingChanged", (payload) => events.push(payload));
 
     server.use(
       http.put("/api/books/:id/rating", async ({ request }) => {
@@ -199,6 +206,7 @@ describe("book-detail — books", () => {
     await waitFor(() => {
       expect(capturedBody).not.toBeNull();
       expect((capturedBody as { rating: number }).rating).toBe(5);
+      expect(events).toEqual([{ bookId: 7, rating: 5 }]);
     });
   });
 
@@ -235,9 +243,11 @@ describe("book-detail — books", () => {
     });
   });
 
-  it("read status: click 'Не прочитано' → PUT /api/books/:id/read fires with {isRead: true}", async () => {
+  it("read status: click 'Не прочитано' → PUT /api/books/:id/read fires and publishes event", async () => {
     const user = userEvent.setup();
     let capturedBody: unknown = null;
+    const events: Array<{ bookId: number; isRead: boolean }> = [];
+    domainEvents.subscribe("bookReadChanged", (payload) => events.push(payload));
 
     server.use(
       http.put("/api/books/:id/read", async ({ request }) => {
@@ -254,6 +264,7 @@ describe("book-detail — books", () => {
     await waitFor(() => {
       expect(capturedBody).not.toBeNull();
       expect((capturedBody as { isRead: boolean }).isRead).toBe(true);
+      expect(events).toEqual([{ bookId: 7, isRead: true }]);
     });
   });
 
@@ -281,9 +292,11 @@ describe("book-detail — books", () => {
     });
   });
 
-  it("delete: click 'Удалить' → confirm dialog → DELETE /api/books/:id fires", async () => {
+  it("delete: click 'Удалить' → confirm dialog → DELETE /api/books/:id fires and publishes event", async () => {
     const user = userEvent.setup();
     let deleteCalled = false;
+    const events: Array<{ bookId: number }> = [];
+    domainEvents.subscribe("bookDeleted", (payload) => events.push(payload));
 
     server.use(
       http.delete("/api/books/:id", () => {
@@ -305,6 +318,7 @@ describe("book-detail — books", () => {
     await user.click(confirmBtn);
     await waitFor(() => {
       expect(deleteCalled).toBe(true);
+      expect(events).toEqual([{ bookId: 7 }]);
     });
   });
 

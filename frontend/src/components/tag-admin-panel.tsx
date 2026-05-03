@@ -3,6 +3,7 @@ import { colors, fonts } from "../theme";
 import Combobox, { ComboboxOption } from "./combobox";
 import ConfirmDialog from "./confirm-dialog";
 import { listTagOptions, mapTag } from "../api/endpoints/tags";
+import { domainEvents } from "@/domain/events";
 
 interface TagAdminPanelProps {
   tagId: number;
@@ -82,6 +83,7 @@ export default function TagAdminPanel({ tagId, currentName, onMapped }: Readonly
     setError(null);
     try {
       const data = await mapTag(tagId, trimmed);
+      domainEvents.publish("tagMapped", { tagId, targetId: data.targetId, name: trimmed });
       onMapped(data.targetId, trimmed);
     } catch (err) {
       const message =
