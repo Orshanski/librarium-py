@@ -9,6 +9,7 @@ from ..config import MAX_BOOK_SIZE
 from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.upload import AddFormatResponse, CreateBookBody, CreateBookResponse, AddFormatBody, UploadParseResponse
+from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError
 from ..logging_utils import safe as safe_log
 from ..services.temp_cleanup import cleanup_temp_session
@@ -64,6 +65,12 @@ def create_book_from_upload(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     book_id = create_book(db, body.temp_id, body.metadata)
+    publish_domain_event_after_commit(
+        db,
+        scope=EventScope(kind="library"),
+        event_type="bookCreated",
+        payload={"bookId": book_id},
+    )
     log.info("Created book=%d by user_id=%s", book_id, user.user_id)
     return CreateBookResponse(book_id=book_id)
 
@@ -76,5 +83,11 @@ def add_format_endpoint(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     fmt = add_format(db, book_id, body.temp_id)
+    publish_domain_event_after_commit(
+        db,
+        scope=EventScope(kind="library"),
+        event_type="bookUpdated",
+        payload={"book": {"id": book_id}, "changedFields": ["files"]},
+    )
     log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
     return AddFormatResponse(format=fmt)
