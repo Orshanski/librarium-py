@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -6,6 +6,7 @@ import Combobox from "../components/combobox";
 import { colors, fonts } from "../theme";
 import { getTagCloud, listTagOptions } from "../api/endpoints/tags";
 import type { CloudTag, DirectoryTag } from "../api/endpoints/tags";
+import { metadataCache, useCachedResource } from "@/cache";
 
 const CLOUD_SIZE = 30;
 
@@ -23,17 +24,20 @@ function shuffled<T extends { name: string }>(arr: T[]): T[] {
 
 export default function TagsPage() {
   const [search, setSearch] = useState("");
-  const [cloudTags, setCloudTags] = useState<CloudTag[]>([]);
-  const [allTags, setAllTags] = useState<DirectoryTag[]>([]);
-
-  useEffect(() => {
-    getTagCloud({ top: CLOUD_SIZE })
-      .then((data) => setCloudTags(data.tags || []))
-      .catch((err) => console.warn("Failed to fetch tag cloud:", err));
-    listTagOptions()
-      .then((data) => setAllTags(data.tags || []))
-      .catch((err) => console.warn("Failed to fetch tag options:", err));
-  }, []);
+  const cloudResource = useCachedResource(
+    metadataCache,
+    "tags",
+    `cloud?top=${CLOUD_SIZE}`,
+    (signal) => getTagCloud({ top: CLOUD_SIZE, signal }),
+  );
+  const optionsResource = useCachedResource(
+    metadataCache,
+    "filter-options/tags",
+    "all",
+    (signal) => listTagOptions(signal),
+  );
+  const cloudTags = cloudResource.data?.tags ?? [];
+  const allTags = optionsResource.data?.tags ?? [];
 
   const shuffledCloud = useMemo(() => shuffled(cloudTags), [cloudTags]);
 

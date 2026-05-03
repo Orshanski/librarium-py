@@ -97,6 +97,24 @@ describe("MetadataCacheStore", () => {
     expect(store.get("books", "legacy")).toBeUndefined();
   });
 
+  it("updates an existing entry context for later structural classification", () => {
+    store.set("shelf/7", "detail", {
+      books: [{ id: 1, title: "Old", isRead: false }],
+      hasMore: false,
+    }, { context: { kind: "book-list", key: "shelf/7", source: "shelf-regular", shelfId: 7, sort: "addedDesc" } });
+
+    store.updateContext("shelf/7", "detail", {
+      kind: "book-list",
+      key: "shelf/7",
+      source: "shelf-reading-now",
+      shelfId: 7,
+      sort: "lastReadDesc",
+    });
+    store.applyBookUpdate({ book: { id: 1, isRead: true }, changedFields: ["read"] });
+
+    expect(store.get("shelf/7", "detail")).toBeUndefined();
+  });
+
   it("updates book-list-shaped detail namespace entries with context", () => {
     store.set("author/2", "detail", {
       books: [{ id: 1, title: "Old" }],

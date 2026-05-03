@@ -36,6 +36,16 @@ export class MetadataCacheStore {
     this.notify(namespace);
   }
 
+  updateContext(namespace: string, key: string, context: BookListContext | undefined): void {
+    const ns = this.getNamespace(namespace);
+    const entry = ns.entries.get(key);
+    if (!entry || sameContext(entry.context, context)) return;
+    ns.entries.set(key, { ...entry, context });
+    ns.version += 1;
+    this.persist(namespace);
+    this.notify(namespace);
+  }
+
   subscribe(namespace: string, handler: () => void): () => void {
     const ns = this.getNamespace(namespace);
     ns.subscribers.add(handler);
@@ -233,6 +243,10 @@ function isBookList(value: unknown): value is BookListValue {
     && value !== null
     && Array.isArray((value as { books?: unknown }).books)
     && (value as { books: unknown[] }).books.every(isBookListRow);
+}
+
+function sameContext(left: BookListContext | undefined, right: BookListContext | undefined): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function patchBookList(value: BookListValue, book: { id: number } & Record<string, unknown>): BookListValue {

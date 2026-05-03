@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,20 +10,17 @@ import { listSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
+import { metadataCache, useCachedResource } from "@/cache";
 
 export default function SeriesListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const [allSeries, setAllSeries] = useState<Series[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const scrollContext = useMemo(
     () => entityListScrollContext(location.pathname + location.search, "series"),
     [location.pathname, location.search],
   );
-  useScrollRestore(!loading, scrollContext);
 
   const seriesLinkState = useMemo(
     () => ({
@@ -42,22 +39,15 @@ export default function SeriesListPage() {
 
   const selected = readSelectedFromSearchParams(searchParams);
 
-  useEffect(() => {
-    setLoading(true);
-    const controller = new AbortController();
-    listSeries(selectedToApiParams(selected), controller.signal)
-      .then((data) => {
-        setAllSeries(data.series || []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        console.warn("Failed to fetch series list:", err);
-        setAllSeries([]);
-        setLoading(false);
-      });
-    return () => controller.abort();
-  }, [authorIds, tagIds, language]);
+  const seriesResource = useCachedResource(
+    metadataCache,
+    "series",
+    location.pathname + location.search,
+    (signal) => listSeries(selectedToApiParams(selected), signal),
+  );
+  const allSeries = seriesResource.data?.series ?? [];
+  const loading = seriesResource.loading;
+  useScrollRestore(!loading, scrollContext);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());

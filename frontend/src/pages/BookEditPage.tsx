@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -13,6 +13,8 @@ import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 import { deriveBookChangedFields } from "@/domain/book-changes";
 import { domainEvents } from "@/domain/events";
 import type { BookChangedField } from "@/domain/events";
+import { metadataCache, useCachedResource } from "@/cache";
+import { NotFoundError } from "@/api/errors";
 
 const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
 
@@ -51,49 +53,78 @@ export default function BookEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [book, setBook] = useState<RawBook | null>(null);
-  const [files, setFiles] = useState<BookFileInfo[]>([]);
-  const [identifiers, setIdentifiers] = useState<BookIdentifier[]>([]);
-  const [options, setOptions] = useState<BookEditOptions>();
-  const [loading, setLoading] = useState(true);
-
   const stateOrigin = readOriginFromState(location.state);
   const editOrigin: BookContextOrigin | undefined =
     stateOrigin?.type === "book" ? stateOrigin : undefined;
 
-  useEffect(() => {
-    if (!id) return;
-    const controller = new AbortController();
-
-    Promise.all([
-      getBook(Number(id), controller.signal),
-      listFilterOptions("authors", {}, controller.signal),
-      listFilterOptions("series", {}, controller.signal),
-      listFilterOptions("tags", {}, controller.signal),
-      listFilterOptions("languages", {}, controller.signal),
-      listPublishers(controller.signal),
-    ])
-      .then(([bookData, authorsData, seriesData, tagsData, langsData, pubsData]) => {
-        setBook(bookData.book);
-        setFiles(bookData.files || []);
-        setIdentifiers(bookData.identifiers || []);
-        setOptions({
-          authors: authorsData.authors || [],
-          series: seriesData.series || [],
-          tags: tagsData.tags || [],
-          languages: langsData.languages || [],
-          publishers: pubsData.publishers || [],
-        });
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        console.warn("Failed to load book edit data:", err);
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [id]);
+  const bookId = Number(id);
+  const bookResource = useCachedResource(
+    metadataCache,
+    `book/${bookId}`,
+    "detail",
+    (signal) => (
+      !id || isNaN(bookId)
+        ? Promise.reject(new NotFoundError(404, "Not found"))
+        : getBook(bookId, signal)
+    ),
+  );
+  const authorsResource = useCachedResource(
+    metadataCache,
+    "filter-options/authors",
+    "all",
+    (signal) => listFilterOptions("authors", {}, signal),
+  );
+  const seriesResource = useCachedResource(
+    metadataCache,
+    "filter-options/series",
+    "all",
+    (signal) => listFilterOptions("series", {}, signal),
+  );
+  const tagsResource = useCachedResource(
+    metadataCache,
+    "filter-options/tags",
+    "all",
+    (signal) => listFilterOptions("tags", {}, signal),
+  );
+  const languagesResource = useCachedResource(
+    metadataCache,
+    "filter-options/languages",
+    "all",
+    (signal) => listFilterOptions("languages", {}, signal),
+  );
+  const publishersResource = useCachedResource(
+    metadataCache,
+    "publishers",
+    "all",
+    (signal) => listPublishers(signal),
+  );
+  const book = bookResource.data?.book ?? null;
+  const files: BookFileInfo[] = bookResource.data?.files || [];
+  const identifiers: BookIdentifier[] = bookResource.data?.identifiers || [];
+  const options = useMemo<BookEditOptions | undefined>(() => {
+    if (
+      !authorsResource.data
+      || !seriesResource.data
+      || !tagsResource.data
+      || !languagesResource.data
+      || !publishersResource.data
+    ) {
+      return undefined;
+    }
+    return {
+      authors: authorsResource.data.authors || [],
+      series: seriesResource.data.series || [],
+      tags: tagsResource.data.tags || [],
+      languages: languagesResource.data.languages || [],
+      publishers: publishersResource.data.publishers || [],
+    };
+  }, [authorsResource.data, seriesResource.data, tagsResource.data, languagesResource.data, publishersResource.data]);
+  const loading = bookResource.loading
+    || authorsResource.loading
+    || seriesResource.loading
+    || tagsResource.loading
+    || languagesResource.loading
+    || publishersResource.loading;
 
   const crumb = editOrigin
     ? { label: editOrigin.label, href: editOrigin.url }

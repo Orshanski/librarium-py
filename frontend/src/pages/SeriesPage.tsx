@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -19,6 +19,7 @@ import { getSeries } from "../api/endpoints/series";
 import type { Series } from "../api/endpoints/series";
 import { NotFoundError } from "@/api/errors";
 import { seriesScrollContext } from "@/scroll/contexts";
+import { metadataCache, useCachedResource } from "@/cache";
 
 export default function SeriesPage() {
   const { id } = useParams();
@@ -27,10 +28,6 @@ export default function SeriesPage() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
-  const [series, setSeries] = useState<Series | null>(null);
-  const [books, setBooks] = useState<RawBook[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFoundState, setNotFoundState] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
   const seriesId = Number(id);
@@ -38,7 +35,6 @@ export default function SeriesPage() {
     () => seriesScrollContext(location.pathname + location.search, seriesId),
     [location.pathname, location.search, seriesId],
   );
-  useScrollRestore(!loading, scrollContext);
 
   const stateOrigin = readOriginFromState(location.state);
   const crumb =
@@ -46,33 +42,22 @@ export default function SeriesPage() {
       ? { label: stateOrigin.label, href: stateOrigin.url }
       : { label: "Серии", href: "/series" };
 
-  useEffect(() => {
-    if (!id || isNaN(seriesId)) {
-      setNotFoundState(true);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    getSeries(seriesId, controller.signal)
-      .then((data) => {
-        setSeries(data.series);
-        setBooks(data.books || []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        if (err instanceof NotFoundError) {
-          setNotFoundState(true);
-        } else {
-          console.warn("Failed to fetch series:", err);
-        }
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [id, seriesId]);
+  const seriesResource = useCachedResource(
+    metadataCache,
+    `series/${seriesId}`,
+    "detail",
+    (signal) => (
+      !id || isNaN(seriesId)
+        ? Promise.reject(new NotFoundError(404, "Not found"))
+        : getSeries(seriesId, signal)
+    ),
+    { context: scrollContext },
+  );
+  const series = seriesResource.data?.series ?? null;
+  const books = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
+  const loading = seriesResource.loading;
+  const notFoundState = seriesResource.error instanceof NotFoundError || !id || isNaN(seriesId);
+  useScrollRestore(!loading, scrollContext);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
@@ -139,7 +124,15 @@ export default function SeriesPage() {
           entityId={series.id}
           currentName={series.name}
           bookCount={series.bookCount}
-          onRenamed={(newName) => { setSeries({...series, name: newName}); setShowAdmin(false); }}
+          onRenamed={(newName) => {
+            if (seriesResource.data) {
+              metadataCache.set(`series/${series.id}`, "detail", {
+                ...seriesResource.data,
+                series: { ...seriesResource.data.series, name: newName },
+              }, { context: scrollContext });
+            }
+            setShowAdmin(false);
+          }}
           onMerged={() => globalThis.location.reload()}
           onDeleted={() => navigate("/series")}
         />

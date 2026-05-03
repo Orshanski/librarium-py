@@ -4,12 +4,14 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import TagsPage from "./TagsPage";
 
 describe("TagsPage", () => {
   beforeEach(() => {
     // Clear sessionStorage between tests
     sessionStorage.clear();
+    metadataCache.clear();
   });
 
   it("displays tag cloud and search options when both endpoints succeed", async () => {
@@ -73,4 +75,36 @@ describe("TagsPage", () => {
     expect(screen.getByRole("link", { name: /Mystery/ })).toBeInTheDocument();
   });
 
+  it("uses cached tag cloud and options on remount without refetch", async () => {
+    let cloudRequestCount = 0;
+    let optionsRequestCount = 0;
+    server.use(
+      http.get("/api/tags/cloud", () => {
+        cloudRequestCount += 1;
+        return HttpResponse.json({
+          tags: [
+            { id: 1, name: "Fiction", bookCount: 10 },
+          ],
+        });
+      }),
+      http.get("/api/filter-options/tags", () => {
+        optionsRequestCount += 1;
+        return HttpResponse.json({
+          tags: [
+            { id: 1, name: "Fiction" },
+          ],
+        });
+      })
+    );
+
+    const first = renderWithProviders(<TagsPage />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Fiction \(10\)$/ })).toBeInTheDocument());
+    first.unmount();
+
+    renderWithProviders(<TagsPage />);
+
+    expect(screen.getByRole("link", { name: /^Fiction \(10\)$/ })).toBeInTheDocument();
+    expect(cloudRequestCount).toBe(1);
+    expect(optionsRequestCount).toBe(1);
+  });
 });

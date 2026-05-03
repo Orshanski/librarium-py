@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -20,6 +20,7 @@ import { getTag, type TagSummary } from "../api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, sortOptionsFor } from "../config/sort";
 import { tagScrollContext } from "@/scroll/contexts";
+import { metadataCache, useCachedResource } from "@/cache";
 
 export default function TagPage() {
   const { id } = useParams();
@@ -30,11 +31,7 @@ export default function TagPage() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
-  const [tag, setTag] = useState<TagSummary | null>(null);
-  const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
-  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [tagOverride, setTagOverride] = useState<TagSummary | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
 
   const sort = searchParams.get("sort") || SORT_CONFIG.tag.default;
@@ -52,38 +49,25 @@ export default function TagPage() {
     }),
     [location.pathname, location.search, tagId, sort, authorIds, seriesIds, languages],
   );
-  useScrollRestore(!loading, scrollContext);
-
   const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
 
-  useEffect(() => {
-    if (isNaN(tagId)) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const controller = new AbortController();
-    const apiParams = { ...selectedToApiParams(selected), sort };
-    getTag(tagId, apiParams, controller.signal)
-      .then((data) => {
-        setTag(data.tag);
-        setRawBooks(data.books);
-      })
-      .catch((err) => {
-        if (err instanceof NotFoundError) {
-          setNotFound(true);
-        } else {
-          console.warn("Failed to fetch tag:", err);
-        }
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // deps на строковых join(',') — object-идентичность массивов из searchParams.getAll
-    // нестабильна между рендерами, сравниваем по содержимому как stable-string.
-  }, [tagId, sort, authorIds.join(","), seriesIds.join(","), languages.join(",")]);
+  const tagResource = useCachedResource(
+    metadataCache,
+    `tag/${tagId}`,
+    location.pathname + location.search,
+    (signal) => {
+      if (isNaN(tagId)) return Promise.reject(new NotFoundError(404, "Not found"));
+      const apiParams = { ...selectedToApiParams(selected), sort };
+      return getTag(tagId, apiParams, signal);
+    },
+    { context: scrollContext },
+  );
+  const tag = tagOverride ?? tagResource.data?.tag ?? null;
+  const rawBooks = useMemo<RawBook[]>(() => tagResource.data?.books || [], [tagResource.data]);
+  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
+  const loading = tagResource.loading;
+  const notFound = tagResource.error instanceof NotFoundError || isNaN(tagId);
+  useScrollRestore(!loading, scrollContext);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -181,7 +165,7 @@ export default function TagPage() {
             if (targetId !== tag.id) {
               navigate(`/tags/${targetId}`);
             } else {
-              setTag({ ...tag, name: newName });
+              setTagOverride({ ...tag, name: newName });
               setShowAdmin(false);
             }
           }}

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import { domainEvents } from "@/domain/events";
 import BookEditPage from "./BookEditPage";
 
@@ -56,6 +57,7 @@ function setupAllHandlers() {
 describe("BookEditPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    metadataCache.clear();
     domainEvents.clear();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -250,5 +252,65 @@ describe("BookEditPage", () => {
       const elements = screen.queryAllByText("Книга не найдена");
       expect(elements.length).toBeGreaterThan(0);
     });
+  });
+
+  it("uses cached book and edit options on remount without refetch", async () => {
+    let bookRequestCount = 0;
+    let authorsRequestCount = 0;
+    let seriesRequestCount = 0;
+    let tagsRequestCount = 0;
+    let languagesRequestCount = 0;
+    let publishersRequestCount = 0;
+
+    server.use(
+      http.get("/api/books/:id", () => {
+        bookRequestCount += 1;
+        return HttpResponse.json({
+          book: mockRawBook,
+          files: [{ format: "epub", fileSize: 512000 }],
+          identifiers: [],
+        });
+      }),
+      http.get("/api/filter-options/authors", () => {
+        authorsRequestCount += 1;
+        return HttpResponse.json({ authors: [{ id: 1, name: "Автор Тестов" }] });
+      }),
+      http.get("/api/filter-options/series", () => {
+        seriesRequestCount += 1;
+        return HttpResponse.json({ series: [] });
+      }),
+      http.get("/api/filter-options/tags", () => {
+        tagsRequestCount += 1;
+        return HttpResponse.json({ tags: [] });
+      }),
+      http.get("/api/filter-options/languages", () => {
+        languagesRequestCount += 1;
+        return HttpResponse.json({ languages: [{ name: "ru" }] });
+      }),
+      http.get("/api/publishers", () => {
+        publishersRequestCount += 1;
+        return HttpResponse.json({ publishers: [] });
+      }),
+    );
+
+    const route = (
+      <Routes>
+        <Route path="/book/:id/edit" element={<BookEditPage />} />
+      </Routes>
+    );
+
+    const first = renderWithProviders(route, { initialEntries: ["/book/42/edit"] });
+    await waitFor(() => expect(screen.getByDisplayValue("Тестовая книга")).toBeInTheDocument());
+    first.unmount();
+
+    renderWithProviders(route, { initialEntries: ["/book/42/edit"] });
+
+    expect(screen.getByDisplayValue("Тестовая книга")).toBeInTheDocument();
+    expect(bookRequestCount).toBe(1);
+    expect(authorsRequestCount).toBe(1);
+    expect(seriesRequestCount).toBe(1);
+    expect(tagsRequestCount).toBe(1);
+    expect(languagesRequestCount).toBe(1);
+    expect(publishersRequestCount).toBe(1);
   });
 });

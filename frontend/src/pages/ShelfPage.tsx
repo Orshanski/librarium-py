@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
@@ -14,10 +14,10 @@ import type { Book, RawBook } from "../types";
 import { toBook } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
-import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
 import { shelfScrollContext } from "@/scroll/contexts";
 import { domainEvents } from "@/domain/events";
+import { metadataCache, useCachedResource } from "@/cache";
 
 export default function ShelfPage() {
   const { id } = useParams();
@@ -26,14 +26,28 @@ export default function ShelfPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const [shelf, setShelf] = useState<ShelfSummary | null>(null);
-  const [rawBooks, setRawBooks] = useState<RawBook[]>([]);
-  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
-  const [loading, setLoading] = useState(true);
+  const [removedBookIds, setRemovedBookIds] = useState<Set<number>>(() => new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Fallback default до первого fetch — реальный default-per-page определяется ниже после load'а
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
+  useEffect(() => {
+    setRemovedBookIds(new Set());
+  }, [shelfId]);
+
+  const shelfResource = useCachedResource(
+    metadataCache,
+    `shelf/${shelfId}`,
+    location.pathname + location.search,
+    (signal) => getShelf(shelfId, { sort }, signal),
+  );
+  const shelf = shelfResource.data?.shelf ?? null;
+  const rawBooks = useMemo(
+    () => (shelfResource.data?.books || []).filter((book) => !removedBookIds.has(book.id)),
+    [shelfResource.data, removedBookIds],
+  );
+  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
+  const loading = shelfResource.loading;
   const scrollContext = useMemo(
     () => shelfScrollContext({
       key: location.pathname + location.search,
@@ -46,21 +60,10 @@ export default function ShelfPage() {
   useScrollRestore(!loading, scrollContext);
 
   useEffect(() => {
-    setLoading(true);
-    const controller = new AbortController();
-    getShelf(shelfId, { sort }, controller.signal)
-      .then((data) => {
-        setShelf(data.shelf);
-        setRawBooks(data.books || []);
-      })
-      .catch((err) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        if (err instanceof NotFoundError) return;
-        console.warn("Failed to load shelf:", err);
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [shelfId, sort]);
+    if (shelfResource.data) {
+      metadataCache.updateContext(`shelf/${shelfId}`, location.pathname + location.search, scrollContext);
+    }
+  }, [shelfResource.data, shelfId, location.pathname, location.search, scrollContext]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
@@ -81,7 +84,7 @@ export default function ShelfPage() {
     try {
       await removeBookFromShelf(shelfId, bookId);
       domainEvents.publish("shelfMembershipChanged", { shelfId, bookId, hasBook: false });
-      setRawBooks((prev) => prev.filter((x) => x.id !== bookId));
+      setRemovedBookIds((prev) => new Set(prev).add(bookId));
     } catch (err) {
       console.warn("Failed to remove book from shelf:", err);
     }

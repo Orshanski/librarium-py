@@ -81,10 +81,16 @@ describe("metadata cache handlers", () => {
 
   it("invalidates books on create and delete", () => {
     store.set("books", "catalog-added", { books: [{ id: 1 }], hasMore: false });
+    store.set("series", "/series", { series: [{ id: 1, bookCount: 1 }] });
+    store.set("tags", "cloud?top=30", { tags: [{ id: 1, bookCount: 1 }] });
     domainEvents.publish("bookCreated", { bookId: 2 });
     expect(store.get("books", "catalog-added")).toBeUndefined();
+    expect(store.get("series", "/series")).toBeUndefined();
+    expect(store.get("tags", "cloud?top=30")).toBeUndefined();
 
     store.set("books", "catalog-added", { books: [{ id: 1 }], hasMore: false });
+    store.set("series", "/series", { series: [{ id: 1, bookCount: 1 }] });
+    store.set("tags", "cloud?top=30", { tags: [{ id: 1, bookCount: 1 }] });
     store.set("author/1", "detail", { books: [{ id: 1 }], hasMore: false }, {
       context: { kind: "book-list", key: "author/1", source: "author-detail", authorId: 1, sort: "addedDesc" },
     });
@@ -92,9 +98,50 @@ describe("metadata cache handlers", () => {
     store.set("book-shelves/1", "all", { shelves: [{ id: 1 }] });
     domainEvents.publish("bookDeleted", { bookId: 1 });
     expect(store.get("books", "catalog-added")).toBeUndefined();
+    expect(store.get("series", "/series")).toBeUndefined();
+    expect(store.get("tags", "cloud?top=30")).toBeUndefined();
     expect(store.get("author/1", "detail")).toBeUndefined();
     expect(store.get("book/1", "detail")).toBeUndefined();
     expect(store.get("book-shelves/1", "all")).toBeUndefined();
+  });
+
+  it("invalidates aggregate entity read models after membership-changing book updates", () => {
+    store.set("series", "/series", { series: [{ id: 1, bookCount: 1 }] });
+    store.set("tags", "cloud?top=30", { tags: [{ id: 1, bookCount: 1 }] });
+
+    domainEvents.publish("bookUpdated", {
+      book: { id: 1 },
+      changedFields: ["authors", "tags"],
+    });
+
+    expect(store.get("series", "/series")).toBeUndefined();
+    expect(store.get("tags", "cloud?top=30")).toBeUndefined();
+  });
+
+  it("invalidates cached book details after entity metadata changes", () => {
+    store.set("book/1", "detail", {
+      book: { id: 1, authors: [{ id: 7, name: "Old" }] },
+      files: [],
+      identifiers: [],
+    });
+    domainEvents.publish("authorRenamed", { authorId: 7, name: "New" });
+    expect(store.get("book/1", "detail")).toBeUndefined();
+
+    store.set("book/1", "detail", {
+      book: { id: 1, series: { id: 3, name: "Old" } },
+      files: [],
+      identifiers: [],
+    });
+    domainEvents.publish("seriesRenamed", { seriesId: 3, name: "New" });
+    expect(store.get("book/1", "detail")).toBeUndefined();
+
+    store.set("book/1", "detail", {
+      book: { id: 1, tags: [{ id: 5, name: "Old" }] },
+      files: [],
+      identifiers: [],
+    });
+    domainEvents.publish("tagMapped", { tagId: 5, targetId: 6, name: "Mapped" });
+    expect(store.get("book/1", "detail")).toBeUndefined();
   });
 
   it("invalidates shelves summary on shelf membership changes", () => {

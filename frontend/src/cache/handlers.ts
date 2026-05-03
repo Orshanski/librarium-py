@@ -25,15 +25,18 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       }
       if (payload.changedFields.some((field) => ["authors", "series", "tags", "language"].includes(field))) {
         invalidateFilterOptions(store);
+        invalidateAggregateEntityReadModels(store);
       }
     }),
     bus.subscribe("bookCreated", () => {
       store.invalidateBookLists();
+      invalidateAggregateEntityReadModels(store);
       invalidateFilterOptions(store);
       store.invalidate("publishers");
     }),
     bus.subscribe("bookDeleted", (payload) => {
       store.invalidateBookLists();
+      invalidateAggregateEntityReadModels(store);
       store.invalidate(`book/${payload.bookId}`);
       invalidateFilterOptions(store);
       store.invalidate("publishers");
@@ -49,18 +52,24 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate("authors");
       store.invalidate(`author/${payload.authorId}`);
       store.invalidate("filter-options/authors");
+      store.invalidate("series");
+      invalidateBookDetails(store);
       store.applyAuthorRename(payload);
     }),
     bus.subscribe("authorMerged", (payload) => {
       store.invalidate("authors");
       store.invalidate(`author/${payload.targetId}`);
       store.invalidate(`author/${payload.sourceId}`);
+      store.invalidate("series");
+      invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
     bus.subscribe("authorDeleted", (payload) => {
       store.invalidate("authors");
       store.invalidate(`author/${payload.authorId}`);
+      store.invalidate("series");
+      invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
@@ -68,18 +77,21 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate("series");
       store.invalidate(`series/${payload.seriesId}`);
       store.invalidate("filter-options/series");
+      invalidateBookDetails(store);
       store.applySeriesRename(payload);
     }),
     bus.subscribe("seriesMerged", (payload) => {
       store.invalidate("series");
       store.invalidate(`series/${payload.targetId}`);
       store.invalidate(`series/${payload.sourceId}`);
+      invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
     bus.subscribe("seriesDeleted", (payload) => {
       store.invalidate("series");
       store.invalidate(`series/${payload.seriesId}`);
+      invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
@@ -87,6 +99,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate("tags");
       store.invalidate(`tag/${payload.tagId}`);
       store.invalidate(`tag/${payload.targetId}`);
+      invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
@@ -129,4 +142,14 @@ function invalidateFilterOptions(store: MetadataCacheStore): void {
   for (const namespace of FILTER_OPTION_NAMESPACES) {
     store.invalidate(namespace);
   }
+}
+
+function invalidateAggregateEntityReadModels(store: MetadataCacheStore): void {
+  store.invalidate("authors");
+  store.invalidate("series");
+  store.invalidate("tags");
+}
+
+function invalidateBookDetails(store: MetadataCacheStore): void {
+  store.invalidateNamespacePrefix("book/");
 }

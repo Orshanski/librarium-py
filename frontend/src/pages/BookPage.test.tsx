@@ -5,6 +5,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import BookPage from "./BookPage";
 
 const mockRawBook = {
@@ -27,6 +28,7 @@ const mockRawBook = {
 describe("BookPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    metadataCache.clear();
   });
 
   it("happy: renders book title and files on successful fetch", async () => {
@@ -144,5 +146,34 @@ describe("BookPage", () => {
       const elements = screen.queryAllByText("Книга не найдена");
       expect(elements.length).toBeGreaterThan(0);
     });
+  });
+
+  it("uses cached book detail on remount without refetch", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/books/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          book: mockRawBook,
+          files: [{ format: "epub", fileSize: 1048576 }],
+          identifiers: [],
+        });
+      })
+    );
+
+    const route = (
+      <Routes>
+        <Route path="/book/:id" element={<BookPage />} />
+      </Routes>
+    );
+
+    const first = renderWithProviders(route, { initialEntries: ["/book/42"] });
+    await waitFor(() => expect(screen.getAllByText("Мастер и Маргарита").length).toBeGreaterThan(0));
+    first.unmount();
+
+    renderWithProviders(route, { initialEntries: ["/book/42"] });
+
+    expect(screen.getAllByText("Мастер и Маргарита").length).toBeGreaterThan(0);
+    expect(requestCount).toBe(1);
   });
 });
