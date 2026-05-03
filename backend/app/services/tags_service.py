@@ -44,5 +44,14 @@ def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:
     as an attribute for router-side logging."""
     if not dal.tag_exists(db, tag_id):
         raise NotFoundError("Not found")
+    normalized_name = dal.normalize_tag_name(name)
+    if dal.get_tag_name(db, tag_id) == normalized_name:
+        return TagMapResponse(ok=True, target_id=tag_id, renamed=True, changed=False, name=normalized_name)
     result = dal.map_tag(db, tag_id, name)
-    return TagMapResponse(ok=True, target_id=result["target_id"], renamed=result["renamed"])
+    committed_name = dal.get_tag_name(db, result["target_id"]) or normalized_name
+    return TagMapResponse(
+        ok=True,
+        target_id=result["target_id"],
+        renamed=result["renamed"],
+        name=committed_name,
+    )

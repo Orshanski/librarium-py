@@ -9,6 +9,7 @@ from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.books import BookDetailResponse, BookListResponse, UpdateBookBody, UpdateBookResponse
 from ..dtos.catalog import UserSort
+from ..events import EventScope, publish_domain_event_after_commit
 from ..services import book_service
 
 log = logging.getLogger("librarium.books")
@@ -61,5 +62,11 @@ def update_book(
 @router.delete("/{book_id}", response_model=OkResponse)
 def delete_book(book_id: int, user: Annotated[CurrentUser, Depends(require_admin)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     book_service.delete_book(db, book_id)
+    publish_domain_event_after_commit(
+        db,
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": book_id},
+    )
     log.info("Deleted book=%d by user_id=%s", book_id, user.user_id)
     return OkResponse()

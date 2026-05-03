@@ -24,17 +24,24 @@ def get_series(db: sqlite3.Connection, series_id: int) -> SeriesDetailResponse:
     return SeriesDetailResponse(series=result["series"], books=result["books"])
 
 
-def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> None:
+def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
     """Переименовать серию. Raises NotFoundError если серия не существует."""
-    if not dal.get_series_by_id(db, series_id):
+    result = dal.get_series_by_id(db, series_id)
+    if not result:
         raise NotFoundError("Серия не найдена")
+    if result["series"]["name"] == name:
+        return False
     dal.rename_series(db, series_id, name)
+    return True
 
 
-def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
+def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
     if target_id == source_id:
         raise BadInputError("Нельзя объединить с самой собой")
+    if not dal.get_series_by_id(db, source_id):
+        return False
     dal.merge_series(db, target_id, source_id)
+    return True
 
 
 def delete_series(db: sqlite3.Connection, series_id: int) -> None:

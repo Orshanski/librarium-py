@@ -23,17 +23,24 @@ def get_author(db: sqlite3.Connection, author_id: int) -> AuthorDetailResponse:
     return AuthorDetailResponse(author=result["author"], books=result["books"])
 
 
-def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> None:
+def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
     """Переименовать автора. Raises NotFoundError если автор не существует."""
-    if not dal.get_author_by_id(db, author_id):
+    result = dal.get_author_by_id(db, author_id)
+    if not result:
         raise NotFoundError("Автор не найден")
+    if result["author"]["name"] == name:
+        return False
     dal.rename_author(db, author_id, name)
+    return True
 
 
-def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
+def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
     if target_id == source_id:
         raise BadInputError("Нельзя объединить с самим собой")
+    if not dal.get_author_by_id(db, source_id):
+        return False
     dal.merge_authors(db, target_id, source_id)
+    return True
 
 
 def delete_author(db: sqlite3.Connection, author_id: int) -> None:
