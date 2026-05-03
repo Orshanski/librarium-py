@@ -122,6 +122,16 @@ export function offlineBottomFor(hasProgress: boolean): number {
   return OFFLINE_BADGE_BOTTOM_BASE_PX;
 }
 
+export function pickOpacity(isCurrent: boolean): number {
+  if (isCurrent) return SERIES_RAIL_OPACITY_ACTIVE;
+  return SERIES_RAIL_OPACITY_INACTIVE;
+}
+
+export function pickBorder(isCurrent: boolean): string {
+  if (isCurrent) return SERIES_RAIL_BORDER_ACCENT;
+  return SERIES_RAIL_BORDER_PLACEHOLDER;
+}
+
 export function toStarRating(value: number | null | undefined): BookCardRating | undefined {
   if (!value) return undefined;
   return { value, style: "stars" };
