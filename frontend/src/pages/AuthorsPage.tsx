@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,20 +10,17 @@ import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
+import { metadataCache, useCachedResource } from "@/cache";
 
 export default function AuthorsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const [authors, setAuthors] = useState<Author[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const scrollContext = useMemo(
     () => entityListScrollContext(location.pathname + location.search, "authors"),
     [location.pathname, location.search],
   );
-  useScrollRestore(!loading, scrollContext);
 
   const authorLinkState = useMemo(
     () => ({
@@ -41,22 +38,15 @@ export default function AuthorsPage() {
 
   const selected = readSelectedFromSearchParams(searchParams);
 
-  useEffect(() => {
-    setLoading(true);
-    const controller = new AbortController();
-    listAuthors(selectedToApiParams(selected), controller.signal)
-      .then((data) => {
-        setAuthors(data.authors || []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        console.warn("Failed to fetch authors list:", err);
-        setAuthors([]);
-        setLoading(false);
-      });
-    return () => controller.abort();
-  }, [tagIds, language]);
+  const authorsResource = useCachedResource(
+    metadataCache,
+    "authors",
+    location.pathname + location.search,
+    (signal) => listAuthors(selectedToApiParams(selected), signal),
+  );
+  const authors = authorsResource.data?.authors ?? [];
+  const loading = authorsResource.loading;
+  useScrollRestore(!loading, scrollContext);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
