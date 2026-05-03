@@ -1,9 +1,14 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
 import type { ScrollContext } from "@/domain/read-models";
 
 const STACK_KEY = "librarium_scroll_state";
 const STACK_ENTRY_VERSION = 0;
+let hasSeenRouterNavigation = false;
+
+export function __resetScrollRestoreForTests(): void {
+  hasSeenRouterNavigation = false;
+}
 
 export type ScrollStackEntry = {
   url: string;
@@ -46,6 +51,7 @@ function findMain(): HTMLElement | null {
 
 export function useScrollRestore(ready: boolean, context?: ScrollContext): void {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const url = location.pathname + location.search;
   const hasRestored = useRef(false);
   const lastUrlRef = useRef<string | null>(null);
@@ -70,7 +76,8 @@ export function useScrollRestore(ready: boolean, context?: ScrollContext): void 
     // (crumb, BookCard linkState, state-origin переходы) остаются в цепочке.
     const stack = readStack();
     let target: number;
-    if (location.state === null) {
+    const isHistoryReturn = hasSeenRouterNavigation && navigationType === "POP" && stack.some((e) => e.url === url);
+    if (location.state === null && !isHistoryReturn) {
       writeStack([{ url, scrollTop: 0, context, version: STACK_ENTRY_VERSION }]);
       target = 0;
     } else {
@@ -95,9 +102,10 @@ export function useScrollRestore(ready: boolean, context?: ScrollContext): void 
     if (!ready) return;
 
     hasRestored.current = true;
+    hasSeenRouterNavigation = true;
     const main = findMain();
     if (main) main.scrollTop = target;
-  }, [url, ready, context]);
+  }, [url, ready, context, navigationType]);
 
   // 3. Click-save в <main> через event-делегирование в capture-фазе.
   useEffect(() => {

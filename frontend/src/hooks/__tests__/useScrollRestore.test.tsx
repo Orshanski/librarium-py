@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useScrollRestore } from "../useScrollRestore";
+import { __resetScrollRestoreForTests, useScrollRestore } from "../useScrollRestore";
 import { domainEvents } from "@/domain/events";
 import { registerScrollInvalidationHandlers } from "@/scroll/list-scroll-validity";
 import type { ScrollContext } from "@/domain/read-models";
@@ -26,6 +26,7 @@ describe("useScrollRestore", () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    __resetScrollRestoreForTests();
     domainEvents.clear();
     registerScrollInvalidationHandlers(domainEvents);
     document.body.innerHTML = "";
@@ -82,6 +83,63 @@ describe("useScrollRestore", () => {
     const stack = JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]");
     expect(stack).toHaveLength(1);
     expect(main.scrollTop).toBe(300);
+  });
+
+  it("browser back POP restores scroll even when returned entry has null state", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([{ url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT }]),
+    );
+
+    function BackHarness() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <Harness />
+          <button onClick={() => navigate(-1)}>back</button>
+        </>
+      );
+    }
+
+    const { getByText } = render(
+      <MemoryRouter
+        initialEntries={[
+          "/catalog",
+          {
+            pathname: "/book/42",
+            state: { origin: { type: "catalog", url: "/catalog", label: "Каталог" } },
+          },
+        ]}
+        initialIndex={1}
+      >
+        <BackHarness />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(getByText("back"));
+
+    expect(main.scrollTop).toBe(420);
+    expect(JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]")).toEqual([
+      { url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT },
+    ]);
+  });
+
+  it("initial POP direct load wipes stale stack instead of restoring old scroll", () => {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify([{ url: "/catalog", scrollTop: 420, version: 0, context: CATALOG_CONTEXT }]),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(main.scrollTop).toBe(0);
+    expect(JSON.parse(sessionStorage.getItem(STACK_KEY) || "[]")).toEqual([
+      { url: "/catalog", scrollTop: 0, context: CATALOG_CONTEXT, version: 0 },
+    ]);
   });
 
   it("state!=null, URL отсутствует в стеке: push, цепочка растёт", () => {
