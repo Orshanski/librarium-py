@@ -1,0 +1,102 @@
+import asyncio
+import json
+import logging
+import threading
+from dataclasses import dataclass
+from typing import Any, Literal, TypedDict
+
+log = logging.getLogger("librarium.events")
+
+
+@dataclass(frozen=True)
+class EventScope:
+    kind: Literal["library", "user"]
+    user_id: int | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        if self.kind == "user":
+            if self.user_id is None:
+                raise ValueError("user scope requires user_id")
+            return {"kind": "user", "userId": self.user_id}
+        return {"kind": "library"}
+
+    def matches(self, user_id: int) -> bool:
+        return self.kind == "library" or self.user_id == user_id
+
+
+class ServerEvent(TypedDict):
+    eventId: int
+    scope: dict[str, Any]
+    event: dict[str, Any]
+
+
+@dataclass
+class EventSubscription:
+    user_id: int
+    queue: asyncio.Queue[ServerEvent | None]
+    loop: asyncio.AbstractEventLoop
+    closed: bool = False
+
+    async def get(self) -> ServerEvent:
+        item = await self.queue.get()
+        if item is None:
+            raise asyncio.CancelledError
+        return item
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class EventBroker:
+    def __init__(self, queue_size: int = 100) -> None:
+        self._queue_size = queue_size
+        self._lock = threading.Lock()
+        self._subscriptions: list[EventSubscription] = []
+        self._next_event_id = 1
+
+    def subscribe(self, user_id: int) -> EventSubscription:
+        loop = asyncio.get_running_loop()
+        subscription = EventSubscription(
+            user_id=user_id,
+            queue=asyncio.Queue(maxsize=self._queue_size),
+            loop=loop,
+        )
+        with self._lock:
+            self._subscriptions.append(subscription)
+        return subscription
+
+    def unsubscribe(self, subscription: EventSubscription) -> None:
+        with self._lock:
+            self._subscriptions = [sub for sub in self._subscriptions if sub is not subscription]
+            subscription.close()
+
+    def publish_nowait(self, *, scope: EventScope, event_type: str, payload: dict[str, Any]) -> None:
+        wire_event: ServerEvent
+        with self._lock:
+            event_id = self._next_event_id
+            self._next_event_id += 1
+            wire_event = {
+                "eventId": event_id,
+                "scope": scope.to_wire(),
+                "event": {"type": event_type, "payload": payload},
+            }
+            subscriptions = [sub for sub in self._subscriptions if not sub.closed and scope.matches(sub.user_id)]
+
+        for subscription in subscriptions:
+            subscription.loop.call_soon_threadsafe(self._deliver, subscription, wire_event)
+
+    def _deliver(self, subscription: EventSubscription, event: ServerEvent) -> None:
+        if subscription.closed:
+            return
+        try:
+            subscription.queue.put_nowait(event)
+        except asyncio.QueueFull:
+            log.warning("Dropping slow SSE client user_id=%s", subscription.user_id)
+            self.unsubscribe(subscription)
+
+
+broker = EventBroker()
+
+
+def format_sse_event(event: ServerEvent) -> str:
+    return f"event: domain\ndata: {json.dumps(event, ensure_ascii=False, separators=(',', ':'))}\n\n"
