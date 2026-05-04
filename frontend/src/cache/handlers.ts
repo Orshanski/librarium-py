@@ -133,7 +133,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       invalidateFilterOptions(store);
     }),
     bus.subscribe("readingProgressChanged", () => {
-      store.invalidate("shelf/reading-now");
+      store.invalidateNamespacePrefix("shelf/");
     }),
   ];
 

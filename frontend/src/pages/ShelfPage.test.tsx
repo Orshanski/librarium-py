@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,13 +7,22 @@ import { Link, Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
 import { domainEvents } from "@/domain/events";
 import ShelfPage from "./ShelfPage";
 
 describe("ShelfPage", () => {
+  let unregisterCacheHandlers: (() => void) | undefined;
+
   beforeEach(() => {
     sessionStorage.clear();
     metadataCache.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  afterEach(() => {
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
     domainEvents.clear();
   });
 
@@ -208,6 +217,62 @@ describe("ShelfPage", () => {
 
     expect(screen.getByText("Dune")).toBeInTheDocument();
     expect(requestCount).toBe(1);
+  });
+
+  it("refetches an open reading-now shelf when reading progress changes", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/shelves/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          shelf: { id: 42, name: "Читаю сейчас", isSystem: true, systemCode: "reading_now" },
+          books: [
+            {
+              id: 101,
+              title: "Dune",
+              authors: [{ id: 1, name: "Frank Herbert" }],
+              series: null,
+              seriesNumber: null,
+              tags: [],
+              rating: null,
+              isRead: false,
+              language: "",
+              coverPath: "",
+              description: null,
+              publisher: null,
+              pubDate: null,
+              updatedAt: null,
+              fraction: requestCount === 1 ? 0.2 : 0.8,
+              lastFormat: "EPUB",
+              lastReadAt: "2026-05-04T07:00:00Z",
+            },
+          ],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/shelves/:id" element={<ShelfPage />} />
+      </Routes>,
+      { initialEntries: ["/shelves/42"] },
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('[style*="width: 20%"]')).toBeInTheDocument();
+    });
+
+    domainEvents.publish("readingProgressChanged", {
+      bookId: 101,
+      hadPosition: true,
+      hasPosition: true,
+      lastReadAtChanged: true,
+    });
+
+    await waitFor(() => {
+      expect(requestCount).toBe(2);
+      expect(document.querySelector('[style*="width: 80%"]')).toBeInTheDocument();
+    });
   });
 
   it("does not carry locally removed book ids across shelf navigation", async () => {

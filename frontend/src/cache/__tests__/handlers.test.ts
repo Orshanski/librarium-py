@@ -265,6 +265,16 @@ describe("metadata cache handlers", () => {
     expect(store.get<{ book: { isRead: boolean } }>("book/10", "detail")?.book.isRead).toBe(true);
 
     store.set("shelf/reading-now", "default", { books: [{ id: 10 }], hasMore: false });
+    store.set("shelf/2", "/shelves/2?sort=lastReadDesc", { books: [{ id: 10, fraction: 0.2 }], hasMore: false }, {
+      context: {
+        kind: "book-list",
+        key: "/shelves/2?sort=lastReadDesc",
+        source: "shelf-reading-now",
+        shelfId: 2,
+        sort: "lastReadDesc",
+      },
+    });
+    store.set("shelf/7", "/shelves/7", { books: [{ id: 10, fraction: 0.1 }], hasMore: false });
     domainEvents.publish("readingProgressChanged", {
       bookId: 10,
       hadPosition: false,
@@ -272,6 +282,8 @@ describe("metadata cache handlers", () => {
       lastReadAtChanged: true,
     });
     expect(store.get("shelf/reading-now", "default")).toBeUndefined();
+    expect(store.get("shelf/2", "/shelves/2?sort=lastReadDesc")).toBeUndefined();
+    expect(store.get("shelf/7", "/shelves/7")).toBeUndefined();
   });
 
   it("invalidates shelf namespaces and book-shelves prefixes on shelf delete", () => {
