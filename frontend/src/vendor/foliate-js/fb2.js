@@ -3,6 +3,10 @@ const normalizeWhitespace = str => str ? str
     .replace(/^[\t\n\f\r ]+/, '')
     .replace(/[\t\n\f\r ]+$/, '') : ''
 const getElementText = el => normalizeWhitespace(el?.textContent)
+const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
+const getEmbeddedSrcLength = el =>
+    getSrcLength(el) + Array.from(el.querySelectorAll('[src]'), getSrcLength)
+        .reduce((a, b) => a + b, 0)
 
 const NS = {
     XLINK: 'http://www.w3.org/1999/xlink',
@@ -488,9 +492,7 @@ export const makeFB2 = async blob => {
             return {
                 ids, el, title, load: () => url,
                 createDocument: () => new DOMParser().parseFromString(str, MIME.XHTML),
-                size: blob.size - Array.from(el.querySelectorAll('[src]'),
-                    el => el.getAttribute('src')?.length ?? 0)
-                    .reduce((a, b) => a + b, 0),
+                size: blob.size - getEmbeddedSrcLength(el),
                 charCount: charCount ?? el.textContent?.length ?? 0,
                 linear,
             }
