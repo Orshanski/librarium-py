@@ -65,7 +65,7 @@ export function useReaderFooter(
 
   const startCharCount = useCallback((
     sections: Array<{ charCount?: number; createDocument?: () => Promise<Document> }>,
-    disposed: { current: boolean },
+    isDisposed: () => boolean,
   ) => {
     const hasCharCount = sections.some(s => s.charCount != null);
     if (hasCharCount) {
@@ -79,7 +79,7 @@ export function useReaderFooter(
         let totalChars = 0;
         const batch = 3;
         for (let i = 0; i < sections.length; i += batch) {
-          if (disposed.current) return;
+          if (isDisposed()) return;
           for (let j = i; j < Math.min(i + batch, sections.length); j++) {
             const s = sections[j];
             if (!s.createDocument) continue;

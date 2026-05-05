@@ -14,3 +14,14 @@ export interface EbookReaderHandle {
   hasRenderer: () => boolean;
   performNavigation: (request: ReaderNavigationRequest) => Promise<void>;
 }
+
+/**
+ * `onReady` fires once content is loaded and the initial navigation has completed.
+ * `onRelocate` is UI-only and follows foliate location changes.
+ * `onSavePosition` is persistence-only and runs after explicit navigation/pagehide.
+ */
+export interface ReaderCallbacks {
+  onRelocate?: (detail: ReaderRelocateDetail) => void;
+  onReady?: () => void;
+  onSavePosition?: (cfi: string, fraction: number) => void;
+}
