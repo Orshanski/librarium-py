@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import { render } from "@testing-library/react";
-import { useEbookReaderInstance, type EbookReaderInstanceConfig, type UseEbookReaderInstanceParams } from "./useEbookReaderInstance";
+import { useEbookReaderInstance, type EbookReaderInstanceConfig } from "./useEbookReaderInstance";
 import { useFootnoteState } from "./useFootnoteState";
 import { useReaderFooter } from "./useReaderFooter";
 import type { ReaderSettings } from "../types/reader-settings";
@@ -41,10 +41,15 @@ function makeConfig(): EbookReaderInstanceConfig {
  * Test host that builds all 11 hook params via real React refs and child hooks
  * (useFootnoteState, useReaderFooter), then mounts the foliate-view into its own
  * container <div>. Mirrors the production wiring in ebook-reader.tsx.
+ *
+ * `viewRef` is accepted from the outside so tests can inspect `viewRef.current`
+ * directly after render/unmount.
  */
-function TestHost({ blob }: { blob: Blob }) {
+function TestHost({ blob, viewRef }: {
+  blob: Blob;
+  viewRef: MutableRefObject<ReaderViewElement | null>;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<ReaderViewElement | null>(null);
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
   const callbacksRef = useRef<{
     onRelocate?: (detail: ReaderRelocateDetail) => void;
@@ -79,11 +84,11 @@ function TestHost({ blob }: { blob: Blob }) {
  * Forces the defensive short-circuit branch (`if (!container || !bookBlob) return;`)
  * without otherwise differing from TestHost.
  */
-function TestHostNullContainer({ blob, containerRef }: {
+function TestHostNullContainer({ blob, containerRef, viewRef }: {
   blob: Blob;
   containerRef: RefObject<HTMLDivElement | null>;
+  viewRef: MutableRefObject<ReaderViewElement | null>;
 }) {
-  const viewRef = useRef<ReaderViewElement | null>(null);
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
   const callbacksRef = useRef<{
     onRelocate?: (detail: ReaderRelocateDetail) => void;
@@ -111,28 +116,31 @@ function TestHostNullContainer({ blob, containerRef }: {
     footer,
   });
 
-  // Captures viewRef into a place the test can read after render.
-  return <div data-view-ref={viewRef.current ? "set" : "null"} />;
+  return null;
 }
 
 describe("useEbookReaderInstance", () => {
   it("mounts foliate-view into containerRef on render and removes it on unmount", () => {
     const blob = new Blob([""], { type: "application/epub+zip" });
-    const { container, unmount } = render(<TestHost blob={blob} />);
+    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
+    const { container, unmount } = render(<TestHost blob={blob} viewRef={viewRef} />);
 
     expect(container.querySelector("foliate-view")).not.toBeNull();
+    expect(viewRef.current).not.toBeNull();
 
     unmount();
 
     expect(container.querySelector("foliate-view")).toBeNull();
+    expect(viewRef.current).toBeNull();
   });
 
   it("attaches resize and pagehide listeners on mount and removes them on unmount", () => {
     const add = vi.spyOn(globalThis, "addEventListener");
     const remove = vi.spyOn(globalThis, "removeEventListener");
     const blob = new Blob([""], { type: "application/epub+zip" });
+    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
 
-    const { unmount } = render(<TestHost blob={blob} />);
+    const { unmount } = render(<TestHost blob={blob} viewRef={viewRef} />);
 
     const addedResize = add.mock.calls.filter(([t]) => t === "resize").length;
     const addedPagehide = add.mock.calls.filter(([t]) => t === "pagehide").length;
@@ -152,21 +160,15 @@ describe("useEbookReaderInstance", () => {
 
   it("defensively short-circuits when containerRef.current is null", () => {
     const nullContainerRef: MutableRefObject<HTMLDivElement | null> = { current: null };
+    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
     const blob = new Blob([""], { type: "application/epub+zip" });
     const { container } = render(
-      <TestHostNullContainer blob={blob} containerRef={nullContainerRef} />,
+      <TestHostNullContainer blob={blob} containerRef={nullContainerRef} viewRef={viewRef} />,
     );
 
-    // No foliate-view appended anywhere in the rendered subtree.
+    // No foliate-view appended anywhere; viewRef stays null.
     expect(container.querySelector("foliate-view")).toBeNull();
-    // The data attribute reflects viewRef.current at render time — should still be null.
-    // (We don't assert viewRef.current here from the outside since it lives inside the host;
-    // the absence of foliate-view in the document is the observable invariant.)
+    expect(viewRef.current).toBeNull();
   });
 
-  // Suppress unused-import warning for type-only export imports.
-  it("type exports are reachable", () => {
-    const params: Partial<UseEbookReaderInstanceParams> = {};
-    expect(params).toEqual({});
-  });
 });

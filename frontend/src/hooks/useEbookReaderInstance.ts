@@ -170,8 +170,8 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
       cleanupInteraction();
       removeLinkListener();
       performNavigationRef.current = async () => {};
-      try { view.renderer?.destroy?.(); } catch { /* renderer may already be destroyed */ }
-      try { view.close(); } catch { /* view may already be closed */ }
+      try { view.renderer?.destroy?.(); } catch {}
+      try { view.close(); } catch {}
       view.remove();
       viewRef.current = null;
     };
