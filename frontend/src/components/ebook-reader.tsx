@@ -1,5 +1,6 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import FootnotePopup from "./FootnotePopup";
+import { useFootnoteState } from "../hooks/useFootnoteState";
 import type { ReaderSettings } from "../types/reader-settings";
 import { THEME_STYLES } from "../constants/reader-theme";
 import { applySettings } from "../utils/reader-styling";
@@ -54,11 +55,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
   const settingsRef = useRef(settings);
   const configRef = useRef({ maxInlineSize, gap, margin, maxBlockSize, showFooter, isMobile });
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
-  const [footnoteHtml, setFootnoteHtml] = useState<string | null>(null);
-  const [footnoteSide, setFootnoteSide] = useState<"left" | "right">("left");
-  const lastClickXRef = useRef(0);
-  const lastClickYRef = useRef(0);
-  const footnoteOpenRef = useRef(false);
+  const footnote = useFootnoteState();
   const footer = useReaderFooter(containerRef, settingsRef, configRef);
 
   // Apply settings when they change
@@ -116,8 +113,8 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
 
     const cleanupInteraction = attachReaderInteraction(view, container, nav, configRef, {
       onCenterTap: () => onCenterTapRef.current?.(),
-      isFootnoteOpen: () => footnoteOpenRef.current,
-      onDismissFootnote: () => { setFootnoteHtml(null); footnoteOpenRef.current = false; },
+      isFootnoteOpen: () => footnote.isOpenRef.current,
+      onDismissFootnote: footnote.dismiss,
       getSettings: () => settingsRef.current,
     });
 
@@ -133,16 +130,11 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       if (doc) {
         // Apply user settings to new document
         applySettings(doc, settingsRef.current, view.renderer);
-        setupFootnoteDocListeners(doc, lastClickXRef, lastClickYRef);
+        setupFootnoteDocListeners(doc, footnote.clickXRef, footnote.clickYRef);
       }
     });
 
-    const removeLinkListener = attachFootnoteHandler(view, container, {
-      setFootnoteHtml,
-      setFootnoteSide,
-      setFootnoteOpen: (open) => { footnoteOpenRef.current = open; },
-      lastClickXRef,
-    });
+    const removeLinkListener = attachFootnoteHandler(view, container, footnote.handlerCallbacks);
 
     // Resize handler: recalculate pages on window resize
     const handleResize = () => footer.recalcPages();
@@ -217,7 +209,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
           backgroundColor: theme.bg,
         }}
       />
-      <FootnotePopup html={footnoteHtml} side={footnoteSide} settings={settings} />
+      <FootnotePopup html={footnote.html} side={footnote.side} settings={settings} />
     </>
   );
 });
