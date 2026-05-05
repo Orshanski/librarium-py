@@ -1,4 +1,5 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 import type { RawBook, AuthorRef } from "@/types";
 
 export interface Series {
@@ -25,10 +26,6 @@ export interface SeriesDetailResponse {
   books: RawBook[];
 }
 
-export interface SeriesOkResponse {
-  ok: true;
-}
-
 export function listSeries(
   params: SeriesListParams = {},
   signal?: AbortSignal,
@@ -40,14 +37,14 @@ export function getSeries(id: number, signal?: AbortSignal): Promise<SeriesDetai
   return client<SeriesDetailResponse>("GET", `/api/series/${id}`, { signal });
 }
 
-export function renameSeries(id: number, name: string): Promise<SeriesOkResponse> {
-  return client<SeriesOkResponse>("PUT", `/api/series/${id}`, { body: { name } });
+export function renameSeries(id: number, name: string): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/series/${id}`, { body: { name } });
 }
 
-export function mergeSeries(id: number, sourceId: number): Promise<SeriesOkResponse> {
-  return client<SeriesOkResponse>("POST", `/api/series/${id}/merge`, { body: { sourceId } });
+export function mergeSeries(id: number, sourceId: number): Promise<OkResponse> {
+  return client<OkResponse>("POST", `/api/series/${id}/merge`, { body: { sourceId } });
 }
 
-export function deleteSeries(id: number): Promise<SeriesOkResponse> {
-  return client<SeriesOkResponse>("DELETE", `/api/series/${id}`);
+export function deleteSeries(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/series/${id}`);
 }

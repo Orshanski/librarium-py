@@ -1,4 +1,5 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 import type { RawBook } from "@/types";
 
 export interface BookFileInfo {
@@ -51,10 +52,6 @@ export interface BookUpdatePayload {
   commitCover: boolean;
 }
 
-export interface BookOkResponse {
-  ok: true;
-}
-
 export interface UpdateBookResponse extends BookDetailResponse {
   ok: true;
 }
@@ -88,18 +85,18 @@ export function updateBook(
   return client<UpdateBookResponse>("PUT", `/api/books/${id}`, { body });
 }
 
-export function deleteBook(id: number): Promise<BookOkResponse> {
-  return client<BookOkResponse>("DELETE", `/api/books/${id}`);
+export function deleteBook(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/books/${id}`);
 }
 
-export function setRating(id: number, rating: number): Promise<BookOkResponse> {
-  return client<BookOkResponse>("PUT", `/api/books/${id}/rating`, {
+export function setRating(id: number, rating: number): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/books/${id}/rating`, {
     body: { rating },
   });
 }
 
-export function setRead(id: number, isRead: boolean): Promise<BookOkResponse> {
-  return client<BookOkResponse>("PUT", `/api/books/${id}/read`, {
+export function setRead(id: number, isRead: boolean): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/books/${id}/read`, {
     body: { isRead },
   });
 }

@@ -1,11 +1,8 @@
 import { client } from "../client";
+import type { OkResponse } from "../types";
 
 export interface ReaderSettingsResponse {
   settings: Record<string, unknown>;
-}
-
-export interface ReaderOkResponse {
-  ok: true;
 }
 
 export interface ReadingProgressState {
@@ -48,8 +45,8 @@ export function getSettings(signal?: AbortSignal): Promise<ReaderSettingsRespons
   return client<ReaderSettingsResponse>("GET", "/api/reader/settings", { signal });
 }
 
-export function saveSettings(settings: Record<string, unknown>): Promise<ReaderOkResponse> {
-  return client<ReaderOkResponse>("PUT", "/api/reader/settings", { body: { settings } });
+export function saveSettings(settings: Record<string, unknown>): Promise<OkResponse> {
+  return client<OkResponse>("PUT", "/api/reader/settings", { body: { settings } });
 }
 
 export function getProgress(id: number, signal?: AbortSignal): Promise<ReadingProgressState> {
