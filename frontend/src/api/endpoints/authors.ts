@@ -1,4 +1,5 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 import type { RawBook, TagRef } from "@/types";
 
 export interface Author {
@@ -24,10 +25,6 @@ export interface AuthorDetailResponse {
   books: RawBook[];
 }
 
-export interface AuthorOkResponse {
-  ok: true;
-}
-
 export function listAuthors(
   params: AuthorListParams = {},
   signal?: AbortSignal,
@@ -39,14 +36,14 @@ export function getAuthor(id: number, signal?: AbortSignal): Promise<AuthorDetai
   return client<AuthorDetailResponse>("GET", `/api/authors/${id}`, { signal });
 }
 
-export function renameAuthor(id: number, name: string): Promise<AuthorOkResponse> {
-  return client<AuthorOkResponse>("PUT", `/api/authors/${id}`, { body: { name } });
+export function renameAuthor(id: number, name: string): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/authors/${id}`, { body: { name } });
 }
 
-export function mergeAuthor(id: number, sourceId: number): Promise<AuthorOkResponse> {
-  return client<AuthorOkResponse>("POST", `/api/authors/${id}/merge`, { body: { sourceId } });
+export function mergeAuthor(id: number, sourceId: number): Promise<OkResponse> {
+  return client<OkResponse>("POST", `/api/authors/${id}/merge`, { body: { sourceId } });
 }
 
-export function deleteAuthor(id: number): Promise<AuthorOkResponse> {
-  return client<AuthorOkResponse>("DELETE", `/api/authors/${id}`);
+export function deleteAuthor(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/authors/${id}`);
 }

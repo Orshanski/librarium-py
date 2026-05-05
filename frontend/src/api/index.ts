@@ -14,4 +14,4 @@ export {
 } from "./errors";
 export type { PydanticDetailItem } from "./errors";
 
-export type { User, BookListParams } from "./types";
+export type { User, BookListParams, OkResponse } from "./types";

@@ -1,12 +1,9 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 
 export interface CoverUploadResponse {
   ok: true;
   tempCoverUrl: string;
-}
-
-export interface CoverOkResponse {
-  ok: true;
 }
 
 export function getCover(id: number, full?: boolean, signal?: AbortSignal): Promise<Blob> {
@@ -25,6 +22,6 @@ export function uploadCover(
   return client<CoverUploadResponse>("POST", `/api/books/${bookId}/cover`, { body: form });
 }
 
-export function discardCover(bookId: number): Promise<CoverOkResponse> {
-  return client<CoverOkResponse>("DELETE", `/api/books/${bookId}/cover`);
+export function discardCover(bookId: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/books/${bookId}/cover`);
 }

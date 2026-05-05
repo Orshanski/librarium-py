@@ -1,4 +1,5 @@
 import { client } from "../client";
+import type { OkResponse } from "../types";
 
 export interface AdminUser {
   id: number;
@@ -31,10 +32,6 @@ export interface CreateUserResponse {
   id: number;
 }
 
-export interface AdminOkResponse {
-  ok: true;
-}
-
 export interface AdminSettings {
   app_name?: string;
   smtp_host?: string;
@@ -51,22 +48,22 @@ export function createUser(body: CreateUserBody): Promise<CreateUserResponse> {
   return client<CreateUserResponse>("POST", "/api/admin/users", { body });
 }
 
-export function updateUser(id: number, body: UpdateUserBody): Promise<AdminOkResponse> {
-  return client<AdminOkResponse>("PUT", `/api/admin/users/${id}`, { body });
+export function updateUser(id: number, body: UpdateUserBody): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/admin/users/${id}`, { body });
 }
 
-export function deleteUser(id: number): Promise<AdminOkResponse> {
-  return client<AdminOkResponse>("DELETE", `/api/admin/users/${id}`);
+export function deleteUser(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/admin/users/${id}`);
 }
 
 export function getAdminSettings(signal?: AbortSignal): Promise<AdminSettings> {
   return client<AdminSettings>("GET", "/api/admin/settings", { signal });
 }
 
-export function saveAdminSettings(body: AdminSettings): Promise<AdminOkResponse> {
-  return client<AdminOkResponse>("PUT", "/api/admin/settings", { body });
+export function saveAdminSettings(body: AdminSettings): Promise<OkResponse> {
+  return client<OkResponse>("PUT", "/api/admin/settings", { body });
 }
 
-export function smtpTest(): Promise<AdminOkResponse> {
-  return client<AdminOkResponse>("POST", "/api/admin/smtp-test");
+export function smtpTest(): Promise<OkResponse> {
+  return client<OkResponse>("POST", "/api/admin/smtp-test");
 }

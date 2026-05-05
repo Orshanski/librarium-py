@@ -1,4 +1,5 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 import type { RawBook } from "@/types";
 
 export interface Shelf {
@@ -36,10 +37,6 @@ export interface CreateShelfResponse {
   id: number;
 }
 
-export interface ShelfOkResponse {
-  ok: true;
-}
-
 export function listShelves(
   bookId?: number,
   signal?: AbortSignal,
@@ -63,15 +60,15 @@ export function getShelf(
   return client<ShelfDetail>("GET", `/api/shelves/${id}`, { query, signal });
 }
 
-export function deleteShelf(id: number): Promise<ShelfOkResponse> {
-  return client<ShelfOkResponse>("DELETE", `/api/shelves/${id}`);
+export function deleteShelf(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/shelves/${id}`);
 }
 
 export function addBookToShelf(
   shelfId: number,
   bookId: number,
-): Promise<ShelfOkResponse> {
-  return client<ShelfOkResponse>("POST", `/api/shelves/${shelfId}/books`, {
+): Promise<OkResponse> {
+  return client<OkResponse>("POST", `/api/shelves/${shelfId}/books`, {
     body: { bookId },
   });
 }
@@ -79,8 +76,8 @@ export function addBookToShelf(
 export function removeBookFromShelf(
   shelfId: number,
   bookId: number,
-): Promise<ShelfOkResponse> {
-  return client<ShelfOkResponse>(
+): Promise<OkResponse> {
+  return client<OkResponse>(
     "DELETE",
     `/api/shelves/${shelfId}/books/${bookId}`,
   );

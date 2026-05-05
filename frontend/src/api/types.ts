@@ -4,6 +4,10 @@
  * or extend this file as migration progresses.
  */
 
+export interface OkResponse {
+  ok: true;
+}
+
 export interface User {
   id: number;
   username: string;
