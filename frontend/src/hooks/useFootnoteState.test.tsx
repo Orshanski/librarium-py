@@ -10,7 +10,7 @@ describe("useFootnoteState", () => {
     expect(result.current.side).toBe("left");
     expect(result.current.isOpenRef.current).toBe(false);
     expect(result.current.lastClickXRef.current).toBe(0);
-    expect(result.current.clickYRef.current).toBe(0);
+    expect(result.current.lastClickYRef.current).toBe(0);
   });
 
   it("opens the popup when handler callbacks set html, side, and open flag", () => {
@@ -60,12 +60,12 @@ describe("useFootnoteState", () => {
     const { result, rerender } = renderHook(() => useFootnoteState());
     const isOpenRefBefore = result.current.isOpenRef;
     const lastClickXRefBefore = result.current.lastClickXRef;
-    const clickYRefBefore = result.current.clickYRef;
+    const lastClickYRefBefore = result.current.lastClickYRef;
     const handlerClickXRefBefore = result.current.handlerCallbacks.lastClickXRef;
     rerender();
     expect(result.current.isOpenRef).toBe(isOpenRefBefore);
     expect(result.current.lastClickXRef).toBe(lastClickXRefBefore);
-    expect(result.current.clickYRef).toBe(clickYRefBefore);
+    expect(result.current.lastClickYRef).toBe(lastClickYRefBefore);
     expect(result.current.handlerCallbacks.lastClickXRef).toBe(handlerClickXRefBefore);
   });
 

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { MutableRefObject, RefObject } from "react";
+import type { RefObject } from "react";
 import { applySettings } from "../utils/reader-styling";
 import { addCustomEventListener } from "../utils/reader-input";
 import { attachFootnoteHandler, setupFootnoteDocListeners } from "../utils/reader-footnote-handler";
@@ -8,7 +8,7 @@ import { attachReaderInteraction } from "../utils/reader-interaction";
 import type { ReaderSettings } from "../types/reader-settings";
 import type { ReaderViewElement } from "../types/reader-foliate";
 import type { ReaderLoadDetail } from "../types/reader-events";
-import type { ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
+import type { ReaderCallbacks, ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
 import type { FootnoteState } from "./useFootnoteState";
 import type { useReaderFooter } from "./useReaderFooter";
 
@@ -24,22 +24,16 @@ export interface EbookReaderInstanceConfig {
   isMobile: boolean;
 }
 
-interface InstanceCallbacks {
-  onRelocate?: (detail: ReaderRelocateDetail) => void;
-  onReady?: () => void;
-  onSavePosition?: (cfi: string, fraction: number) => void;
-}
-
 export interface UseEbookReaderInstanceParams {
   bookBlob: Blob;
   initialPosition: string | null | undefined;
   containerRef: RefObject<HTMLDivElement | null>;
-  viewRef: MutableRefObject<ReaderViewElement | null>;
-  performNavigationRef: MutableRefObject<(request: ReaderNavigationRequest) => Promise<void>>;
-  callbacksRef: MutableRefObject<InstanceCallbacks | undefined>;
-  onCenterTapRef: MutableRefObject<(() => void) | undefined>;
-  settingsRef: MutableRefObject<ReaderSettings>;
-  configRef: MutableRefObject<EbookReaderInstanceConfig>;
+  viewRef: RefObject<ReaderViewElement | null>;
+  performNavigationRef: RefObject<(request: ReaderNavigationRequest) => Promise<void>>;
+  callbacksRef: RefObject<ReaderCallbacks | undefined>;
+  onCenterTapRef: RefObject<(() => void) | undefined>;
+  settingsRef: RefObject<ReaderSettings>;
+  configRef: RefObject<EbookReaderInstanceConfig>;
   footnote: FootnoteState;
   footer: ReturnType<typeof useReaderFooter>;
 }
@@ -80,7 +74,6 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
     container.appendChild(view);
     viewRef.current = view;
     let disposed = false;
-    const disposedRef = { current: false };
 
     const nav = createNavigationController(view, {
       onSavePosition: () => {
@@ -112,7 +105,7 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
       if (doc) {
         // Apply user settings to new document
         applySettings(doc, settingsRef.current, view.renderer);
-        setupFootnoteDocListeners(doc, footnote.lastClickXRef, footnote.clickYRef);
+        setupFootnoteDocListeners(doc, footnote.lastClickXRef, footnote.lastClickYRef);
       }
     });
 
@@ -134,7 +127,7 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
         const book = view.book;
         const renderer = view.renderer;
         if (!book || !renderer) return;
-        if (location.hostname === "localhost") console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${book.sections.length}`);
+        if (import.meta.env.DEV) console.log(`[reader] open: ${Math.round(performance.now() - t0)}ms, sections: ${book.sections.length}`);
         renderer.setAttribute("flow", settingsRef.current.flow);
         renderer.setAttribute("max-inline-size", configRef.current.maxInlineSize);
         renderer.setAttribute("gap", configRef.current.gap);
@@ -154,14 +147,13 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
 
         // Count total characters for virtual page numbers
         if (!disposed) {
-          footer.startCharCount(book.sections, disposedRef);
+          footer.startCharCount(book.sections, () => disposed);
         }
       })
       .catch((err: Error) => console.error("Failed to open book:", err));
 
     return () => {
       disposed = true;
-      disposedRef.current = true;
       footer.cleanupCharCount();
       globalThis.removeEventListener("resize", handleResize);
       globalThis.removeEventListener("pagehide", handlePageHide);

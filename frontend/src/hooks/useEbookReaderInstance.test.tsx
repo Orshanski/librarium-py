@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { useRef } from "react";
-import type { MutableRefObject, RefObject } from "react";
+import type { RefObject } from "react";
 import { render } from "@testing-library/react";
 import { useEbookReaderInstance, type EbookReaderInstanceConfig } from "./useEbookReaderInstance";
 import { useFootnoteState } from "./useFootnoteState";
 import { useReaderFooter } from "./useReaderFooter";
 import type { ReaderSettings } from "../types/reader-settings";
 import type { ReaderViewElement } from "../types/reader-foliate";
-import type { ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
+import type { ReaderCallbacks, ReaderNavigationRequest } from "../types/reader-handle";
 import { DEFAULT_DESKTOP_TAP_ZONES } from "../constants/reader-defaults";
 import "../vendor/foliate-js/view.js";
 
@@ -47,15 +47,11 @@ function makeConfig(): EbookReaderInstanceConfig {
  */
 function TestHost({ blob, viewRef }: {
   blob: Blob;
-  viewRef: MutableRefObject<ReaderViewElement | null>;
+  viewRef: RefObject<ReaderViewElement | null>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
-  const callbacksRef = useRef<{
-    onRelocate?: (detail: ReaderRelocateDetail) => void;
-    onReady?: () => void;
-    onSavePosition?: (cfi: string, fraction: number) => void;
-  } | undefined>(undefined);
+  const callbacksRef = useRef<ReaderCallbacks | undefined>(undefined);
   const onCenterTapRef = useRef<(() => void) | undefined>(undefined);
   const settingsRef = useRef<ReaderSettings>(makeSettings());
   const configRef = useRef<EbookReaderInstanceConfig>(makeConfig());
@@ -87,14 +83,10 @@ function TestHost({ blob, viewRef }: {
 function TestHostNullContainer({ blob, containerRef, viewRef }: {
   blob: Blob;
   containerRef: RefObject<HTMLDivElement | null>;
-  viewRef: MutableRefObject<ReaderViewElement | null>;
+  viewRef: RefObject<ReaderViewElement | null>;
 }) {
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
-  const callbacksRef = useRef<{
-    onRelocate?: (detail: ReaderRelocateDetail) => void;
-    onReady?: () => void;
-    onSavePosition?: (cfi: string, fraction: number) => void;
-  } | undefined>(undefined);
+  const callbacksRef = useRef<ReaderCallbacks | undefined>(undefined);
   const onCenterTapRef = useRef<(() => void) | undefined>(undefined);
   const settingsRef = useRef<ReaderSettings>(makeSettings());
   const configRef = useRef<EbookReaderInstanceConfig>(makeConfig());
@@ -122,7 +114,7 @@ function TestHostNullContainer({ blob, containerRef, viewRef }: {
 describe("useEbookReaderInstance", () => {
   it("mounts foliate-view into containerRef on render and removes it on unmount", () => {
     const blob = new Blob([""], { type: "application/epub+zip" });
-    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
+    const viewRef: RefObject<ReaderViewElement | null> = { current: null };
     const { container, unmount } = render(<TestHost blob={blob} viewRef={viewRef} />);
 
     expect(container.querySelector("foliate-view")).not.toBeNull();
@@ -138,7 +130,7 @@ describe("useEbookReaderInstance", () => {
     const add = vi.spyOn(globalThis, "addEventListener");
     const remove = vi.spyOn(globalThis, "removeEventListener");
     const blob = new Blob([""], { type: "application/epub+zip" });
-    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
+    const viewRef: RefObject<ReaderViewElement | null> = { current: null };
 
     const { unmount } = render(<TestHost blob={blob} viewRef={viewRef} />);
 
@@ -159,8 +151,8 @@ describe("useEbookReaderInstance", () => {
   });
 
   it("defensively short-circuits when containerRef.current is null", () => {
-    const nullContainerRef: MutableRefObject<HTMLDivElement | null> = { current: null };
-    const viewRef: MutableRefObject<ReaderViewElement | null> = { current: null };
+    const nullContainerRef: RefObject<HTMLDivElement | null> = { current: null };
+    const viewRef: RefObject<ReaderViewElement | null> = { current: null };
     const blob = new Blob([""], { type: "application/epub+zip" });
     const { container } = render(
       <TestHostNullContainer blob={blob} containerRef={nullContainerRef} viewRef={viewRef} />,

@@ -6,19 +6,10 @@ import type { ReaderSettings } from "../types/reader-settings";
 import { THEME_STYLES } from "../constants/reader-theme";
 import { applySettings } from "../utils/reader-styling";
 import { useReaderFooter } from "../hooks/useReaderFooter";
-import type { EbookReaderHandle, ReaderNavigationRequest, ReaderRelocateDetail } from "../types/reader-handle";
+import type { EbookReaderHandle, ReaderCallbacks, ReaderNavigationRequest } from "../types/reader-handle";
 import type { ReaderViewElement } from "../types/reader-foliate";
 
-/**
- * `onReady` fires once content is loaded and the initial navigation has completed.
- * `onRelocate` is UI-only and follows foliate location changes.
- * `onSavePosition` is persistence-only and runs after explicit navigation/pagehide.
- */
-export interface ReaderCallbacks {
-  onRelocate?: (detail: ReaderRelocateDetail) => void;
-  onReady?: () => void;
-  onSavePosition?: (cfi: string, fraction: number) => void;
-}
+export type { ReaderCallbacks };
 
 interface EbookReaderProps {
   bookBlob: Blob;

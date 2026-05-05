@@ -1,14 +1,14 @@
-import { useRef, useState, type MutableRefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import type { FootnoteHandlerCallbacks } from "../utils/reader-footnote-handler";
 
 export interface FootnoteState {
   html: string | null;
   side: "left" | "right";
-  // MutableRefObject (not RefObject): listeners outside React's reconciliation
-  // mutate `.current`; RefObject would type it readonly and force casts.
-  isOpenRef: MutableRefObject<boolean>;
-  lastClickXRef: MutableRefObject<number>;
-  clickYRef: MutableRefObject<number>;
+  // RefObject (React 19+ allows mutation through it; MutableRefObject is deprecated).
+  // Listeners outside React's reconciliation mutate `.current`.
+  isOpenRef: RefObject<boolean>;
+  lastClickXRef: RefObject<number>;
+  lastClickYRef: RefObject<number>;
   // Same object as lastClickXRef inside; wrapped here to satisfy
   // FootnoteHandlerCallbacks shape without giving callers two ways to reach
   // the same ref.
@@ -21,7 +21,7 @@ export function useFootnoteState(): FootnoteState {
   const [side, setSide] = useState<"left" | "right">("left");
   const isOpenRef = useRef(false);
   const lastClickXRef = useRef(0);
-  const clickYRef = useRef(0);
+  const lastClickYRef = useRef(0);
 
   // dismiss and handlerCallbacks are fresh per render. Their consumers in
   // ebook-reader live inside a [bookBlob]-scoped useEffect that captures
@@ -33,7 +33,7 @@ export function useFootnoteState(): FootnoteState {
     side,
     isOpenRef,
     lastClickXRef,
-    clickYRef,
+    lastClickYRef,
     handlerCallbacks: {
       setFootnoteHtml: setHtml,
       setFootnoteSide: setSide,
