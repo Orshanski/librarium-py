@@ -130,7 +130,7 @@ const EbookReader = forwardRef<EbookReaderHandle, EbookReaderProps>(function Ebo
       if (doc) {
         // Apply user settings to new document
         applySettings(doc, settingsRef.current, view.renderer);
-        setupFootnoteDocListeners(doc, footnote.clickXRef, footnote.clickYRef);
+        setupFootnoteDocListeners(doc, footnote.lastClickXRef, footnote.clickYRef);
       }
     });
 
