@@ -1,14 +1,15 @@
+import type { MutableRefObject } from "react";
 import { sanitizeHtml } from "./sanitize-html";
 import { isFootnoteRef, injectFootnoteHitAreaStyle } from "./reader-footnotes";
 import { addCustomEventListener } from "./reader-input";
 import type { ReaderLinkDetail } from "../types/reader-events";
 import type { ReaderViewElement } from "../types/reader-foliate";
 
-interface FootnoteHandlerCallbacks {
+export interface FootnoteHandlerCallbacks {
   setFootnoteHtml: (html: string | null) => void;
   setFootnoteSide: (side: "left" | "right") => void;
   setFootnoteOpen: (open: boolean) => void;
-  lastClickXRef: { current: number };
+  lastClickXRef: MutableRefObject<number>;
 }
 
 /**
@@ -61,8 +62,8 @@ export function attachFootnoteHandler(
  */
 export function setupFootnoteDocListeners(
   doc: Document,
-  lastClickXRef: { current: number },
-  lastClickYRef: { current: number },
+  lastClickXRef: MutableRefObject<number>,
+  lastClickYRef: MutableRefObject<number>,
 ): void {
   injectFootnoteHitAreaStyle(doc);
   doc.addEventListener("click", (ev: MouseEvent) => {
