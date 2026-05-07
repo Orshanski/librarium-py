@@ -420,4 +420,23 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(book.sections.length).toBe(2);
     expect(book.sections[1].linear).toBe("no");
   });
+
+  it("preserves all items when whole book is decorative", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Photo Album</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>Photo Album</p></title>
+    <section><cite><p>© 2024</p></cite></section>
+    <section><epigraph><p>A quote.</p></epigraph></section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(3);
+  });
 });
