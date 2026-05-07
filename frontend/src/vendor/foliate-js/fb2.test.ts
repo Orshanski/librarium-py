@@ -391,4 +391,33 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(doc2.body.textContent).toContain("PARTTWO");
     expect(doc2.body.textContent).not.toContain("PARTONE");
   });
+
+  it("leaves second <body name='notes'> untouched", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>With Notes</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>With Notes</p></title>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+      <p>Main text<a l:href="#note1" type="note">[1]</a> here.</p>
+    </section>
+  </body>
+  <body name="notes">
+    <section id="note1">
+      <title><p>Note 1</p></title>
+      <p>Footnote text.</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(2);
+    expect(book.sections[1].linear).toBe("no");
+  });
 });
