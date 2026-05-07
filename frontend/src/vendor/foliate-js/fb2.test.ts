@@ -353,4 +353,42 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(2);
   });
+
+  it("does NOT merge tail-segment of part I with head-segment of part II (M3)", async () => {
+    const bulk1 = "Е".repeat(200_000);
+    const bulk2 = "Ж".repeat(200_000);
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Two Parts</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <title><p>PARTONE</p></title>
+      <section>
+        <title><p>Chapter 1</p></title>
+        <p>${bulk1}</p>
+      </section>
+    </section>
+    <section>
+      <title><p>PARTTWO</p></title>
+      <section>
+        <title><p>Chapter 2</p></title>
+        <p>${bulk2}</p>
+      </section>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(2);
+    const doc1 = book.sections[0].createDocument();
+    const doc2 = book.sections[1].createDocument();
+    expect(doc1.body.textContent).toContain("PARTONE");
+    expect(doc1.body.textContent).not.toContain("PARTTWO");
+    expect(doc2.body.textContent).toContain("PARTTWO");
+    expect(doc2.body.textContent).not.toContain("PARTONE");
+  });
 });
