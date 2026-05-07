@@ -232,4 +232,36 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(doc.body.textContent).toContain("Part I");
     expect(doc.body.textContent).toContain("Chapter 1");
   });
+
+  it("merges part-header (title + image) with first chapter via Pass B (Korsakov 930 pattern)", async () => {
+    const tinyImage = "AAAA";
+    const bulkProse = "В".repeat(200_000);
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Korsakov</book-title>
+      <author><first-name>I</first-name><last-name>E</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <title><p>Part I</p><p>The Case</p></title>
+      <image l:href="#map.jpg"/>
+      <section>
+        <title><p>Chapter I</p></title>
+        <p>${bulkProse}</p>
+      </section>
+    </section>
+  </body>
+  <binary id="map.jpg" content-type="image/jpeg">${tinyImage}</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    const map = doc.querySelector("img");
+    expect(map).not.toBeNull();
+    expect(doc.body.textContent).toContain("Part I");
+    expect(doc.body.textContent).toContain("Chapter I");
+  });
 });
