@@ -264,4 +264,36 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(doc.body.textContent).toContain("Part I");
     expect(doc.body.textContent).toContain("Chapter I");
   });
+
+  it("merges single-poem top-level item before content-item via Pass A", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Poem First</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <poem>
+        <stanza>
+          <v>First line of poem</v>
+          <v>Second line of poem</v>
+        </stanza>
+      </poem>
+    </section>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+      <p>Story marker.</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    expect(doc.body.textContent).toContain("First line of poem");
+    expect(doc.body.textContent).toContain("Story marker");
+  });
 });
