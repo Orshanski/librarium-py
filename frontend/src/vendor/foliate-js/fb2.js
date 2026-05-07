@@ -84,6 +84,43 @@ const BODY = {
     'section': ['section', SECTION],
 }
 
+// Frontmatter merging (b4ci.1): see spec at
+// project_documentation/specs/2026-05-07-b4ci.1-fb2-frontmatter-merging-design.md
+const DECORATIVE_TAGS = new Set(['header', 'aside', 'blockquote'])
+const DECORATIVE_CLASSES = new Set([
+    'title', 'subtitle', 'epigraph', 'cite', 'annotation',
+    'text-author', 'date', 'poem', 'stanza',
+])
+const PROSE_BUDGET = 1500
+
+const isDecorativeWrapper = el => {
+    if (!el || el.nodeType !== 1) return false
+    if (DECORATIVE_TAGS.has(el.tagName?.toLowerCase())) return true
+    for (const cls of el.classList) {
+        if (DECORATIVE_CLASSES.has(cls)) return true
+    }
+    return false
+}
+
+const hasProseContent = (root, budget = PROSE_BUDGET) => {
+    if (isDecorativeWrapper(root)) return false
+    let chars = 0
+    for (const p of root.querySelectorAll('p')) {
+        let cursor = p
+        let decorative = false
+        // walker stops at root: root-decorative shortcut обработан выше
+        while (cursor && cursor !== root) {
+            if (isDecorativeWrapper(cursor)) { decorative = true; break }
+            cursor = cursor.parentElement
+        }
+        if (!decorative) {
+            chars += p.textContent?.length ?? 0
+            if (chars >= budget) return true
+        }
+    }
+    return false
+}
+
 class FB2Converter {
     constructor(fb2) {
         this.fb2 = fb2
@@ -426,23 +463,11 @@ export const makeFB2 = async blob => {
         return segments
     }
 
-    // Post-process: merge heading-only intro segments with next segment
-    const HEADING_CLASSES = new Set(['title', 'epigraph', 'subtitle', 'text-author', 'date'])
-    const isHeadingOnly = (el) => {
-        for (const child of el.childNodes) {
-            if (child.nodeType === 3) {
-                if (child.textContent?.trim()) return false
-                continue
-            }
-            if (child.nodeType !== 1) continue
-            const tag = child.tagName?.toLowerCase()
-            if (tag === 'br') continue
-            if (child.classList && [...child.classList].some(c => HEADING_CLASSES.has(c))) continue
-            if (tag === 'header') continue
-            return false
-        }
-        return true
-    }
+    // Post-process: merge thin segments into next via wrapper-clone primitive (b4ci.1)
+    const isThinSegment = (seg) =>
+        seg.el.querySelectorAll('section').length === 0
+        && !hasProseContent(seg.el, PROSE_BUDGET)
+
     const mergeHeadingIntros = (segments) => {
         let merged = true
         while (merged) {
@@ -451,15 +476,9 @@ export const makeFB2 = async blob => {
             for (let i = 0; i < segments.length; i++) {
                 const seg = segments[i]
                 const next = segments[i + 1]
-                if (next
-                    && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
-                    && seg.el.querySelectorAll('section').length === 0
-                    && isHeadingOnly(seg.el)
-                ) {
+                if (next && isThinSegment(seg)) {
                     const beforeFirst = next.el.firstChild
-                    for (const child of Array.from(seg.el.childNodes)) {
-                        next.el.insertBefore(child.cloneNode(true), beforeFirst)
-                    }
+                    next.el.insertBefore(seg.el.cloneNode(true), beforeFirst)
                     next.ids = [...seg.ids, ...next.ids]
                     next.charCount = next.el.textContent?.length ?? 0
                     merged = true
@@ -472,10 +491,36 @@ export const makeFB2 = async blob => {
         return segments
     }
 
+    // Pass A: глотает префикс полностью-декоративных top-level items в первый
+    // сегмент первого content-item. Cross-boundary только тут — Pass B per-item.
+    const applyPassA = (items) => {
+        const preamble = []
+        let i = 0
+        while (i < items.length && !hasProseContent(items[i].el, PROSE_BUDGET)) {
+            preamble.push(items[i])
+            i += 1
+        }
+        if (preamble.length === 0 || i === items.length) {
+            return items.flatMap(item => mergeHeadingIntros(splitSection(item)))
+        }
+        const targetSegments = splitSection(items[i])
+        const beforeFirst = targetSegments[0].el.firstChild
+        for (const src of preamble) {
+            targetSegments[0].el.insertBefore(src.el.cloneNode(true), beforeFirst)
+        }
+        targetSegments[0].ids = [
+            ...preamble.flatMap(p => p.ids),
+            ...targetSegments[0].ids,
+        ]
+        targetSegments[0].charCount = targetSegments[0].el.textContent?.length ?? 0
+        const renderedFirst = mergeHeadingIntros(targetSegments)
+        const renderedRest = items.slice(i + 1)
+            .flatMap(item => mergeHeadingIntros(splitSection(item)))
+        return [...renderedFirst, ...renderedRest]
+    }
+
     // Step 3: Build render sections with el preserved for anchor mapping
-    // Merge heading intros per original top-level section, not across boundaries
-    const renderSections = bodyData[0][0]
-        .flatMap(item => mergeHeadingIntros(splitSection(item)))
+    const renderSections = applyPassA(bodyData[0][0])
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')

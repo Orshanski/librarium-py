@@ -46,4 +46,28 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBeGreaterThan(0);
   });
+
+  it("merges body-level <title> + chapter <section> into one render-section", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>The Book</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>The Book</p><p>By A B</p></title>
+    <section>
+      <title><p>Chapter 1</p></title>
+      <p>${"А".repeat(2000)}</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    const titleSection = doc.querySelector("body > section > section.title");
+    expect(titleSection?.textContent).toContain("The Book");
+  });
 });
