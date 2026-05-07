@@ -108,9 +108,12 @@ const hasProseContent = (root, budget = PROSE_BUDGET) => {
     for (const p of root.querySelectorAll('p')) {
         let cursor = p
         let decorative = false
-        // walker stops at root: root-decorative shortcut обработан выше
+        // walker stops at root: root-decorative shortcut handled in Step 1 above
         while (cursor && cursor !== root) {
-            if (isDecorativeWrapper(cursor)) { decorative = true; break }
+            if (isDecorativeWrapper(cursor)) {
+                decorative = true
+                break
+            }
             cursor = cursor.parentElement
         }
         if (!decorative) {
@@ -463,12 +466,15 @@ export const makeFB2 = async blob => {
         return segments
     }
 
-    // Post-process: merge thin segments into next via wrapper-clone primitive (b4ci.1)
+    // Post-process: merge thin segments into next via wrapper-clone primitive (b4ci.1).
+    // Pass B — per-top-level-item, no cross-boundary merges (Part I tail can't reach
+    // Part II head). Predicate isThinSegment uses hasProseContent + checks for
+    // nested sections.
     const isThinSegment = (seg) =>
         seg.el.querySelectorAll('section').length === 0
         && !hasProseContent(seg.el, PROSE_BUDGET)
 
-    const mergeHeadingIntros = (segments) => {
+    const mergeThinSegments = (segments) => {
         let merged = true
         while (merged) {
             merged = false
@@ -491,8 +497,10 @@ export const makeFB2 = async blob => {
         return segments
     }
 
-    // Pass A: глотает префикс полностью-декоративных top-level items в первый
-    // сегмент первого content-item. Cross-boundary только тут — Pass B per-item.
+    // Pass A — wraps decorative top-level prefix into a separate frontmatter
+    // render-section. Content items follow standard flatMap, untouched.
+    // The first content item (Prologue / Part I / Foreword) gets its own
+    // render-section, paginator opens it on a fresh spread.
     const applyPassA = (items) => {
         const preamble = []
         let i = 0
@@ -500,23 +508,29 @@ export const makeFB2 = async blob => {
             preamble.push(items[i])
             i += 1
         }
+        // Two fallthrough cases: no decorative prefix, or wholly decorative book.
+        // Both go through standard flatMap — no frontmatter wrapper makes sense.
         if (preamble.length === 0 || i === items.length) {
-            return items.flatMap(item => mergeHeadingIntros(splitSection(item)))
+            return items.flatMap(item => mergeThinSegments(splitSection(item)))
         }
-        const targetSegments = splitSection(items[i])
-        const beforeFirst = targetSegments[0].el.firstChild
+        // Build a separate <section class="frontmatter"> render-section from
+        // cloned preamble wrappers, in source order. Class/id/data-* preserved
+        // by cloneNode(true) on each wrapper.
+        const ownerDoc = items[0].el.ownerDocument
+        const frontmatterEl = ownerDoc.createElement('section')
+        frontmatterEl.classList.add('frontmatter')
         for (const src of preamble) {
-            targetSegments[0].el.insertBefore(src.el.cloneNode(true), beforeFirst)
+            frontmatterEl.appendChild(src.el.cloneNode(true))
         }
-        targetSegments[0].ids = [
-            ...preamble.flatMap(p => p.ids),
-            ...targetSegments[0].ids,
-        ]
-        targetSegments[0].charCount = targetSegments[0].el.textContent?.length ?? 0
-        const renderedFirst = mergeHeadingIntros(targetSegments)
-        const renderedRest = items.slice(i + 1)
-            .flatMap(item => mergeHeadingIntros(splitSection(item)))
-        return [...renderedFirst, ...renderedRest]
+        const frontmatterSegment = {
+            el: frontmatterEl,
+            ids: preamble.flatMap(p => p.ids),
+            charCount: frontmatterEl.textContent?.length ?? 0,
+        }
+        // Content items are processed by the standard pipeline.
+        const renderedContent = items.slice(i)
+            .flatMap(item => mergeThinSegments(splitSection(item)))
+        return [frontmatterSegment, ...renderedContent]
     }
 
     // Step 3: Build render sections with el preserved for anchor mapping

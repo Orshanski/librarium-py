@@ -65,10 +65,15 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
-    const doc = book.sections[0].createDocument();
-    const titleSection = doc.querySelector("body > section > section.title");
+    // book.sections[0] = <section class="frontmatter"> wrapping body-level <title>
+    // book.sections[1] = chapter (untouched, paginator opens it on a fresh spread)
+    expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    expect(frontDoc.querySelector("body > section.frontmatter")).not.toBeNull();
+    const titleSection = frontDoc.querySelector("section.frontmatter > section.title");
     expect(titleSection?.textContent).toContain("The Book");
+    const chapterDoc = book.sections[1].createDocument();
+    expect(chapterDoc.body.textContent).not.toContain("The Book");
   });
 
   it("merges title + <p>-style copyright into chapter (Sanderson pattern)", async () => {
@@ -94,11 +99,13 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
-    const doc = book.sections[0].createDocument();
-    expect(doc.body.textContent).toContain("Test Book");
-    expect(doc.body.textContent).toContain("All rights reserved");
-    expect(doc.body.textContent).toContain("Chapter content begins here");
+    expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    expect(frontDoc.body.textContent).toContain("Test Book");
+    expect(frontDoc.body.textContent).toContain("All rights reserved");
+    const chapterDoc = book.sections[1].createDocument();
+    expect(chapterDoc.body.textContent).toContain("Chapter content begins here");
+    expect(chapterDoc.body.textContent).not.toContain("Test Book");
   });
 
   it("merges title + <cite>-style copyright into chapter (Korsakov pattern)", async () => {
@@ -126,7 +133,7 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
+    expect(book.sections.length).toBe(2);
   });
 
   it("preserves bare top-level <image> through merge (M1 fix)", async () => {
@@ -150,9 +157,10 @@ describe("foliate FB2 frontmatter merging", () => {
   <binary id="illustration.jpg" content-type="image/jpeg">${tinyImage}</binary>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
-    const doc = book.sections[0].createDocument();
-    const img = doc.querySelector("img");
+    // frontmatter (title + image) — render-section[0]; chapter — render-section[1]
+    expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    const img = frontDoc.querySelector("img");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toContain("data:image/jpeg;base64,");
   });
@@ -176,7 +184,8 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
+    // empty + body-title in frontmatter render-section[0]; chapter — [1]
+    expect(book.sections.length).toBe(2);
   });
 
   it("stops Pass A at content-section with >=1500 chars prose", async () => {
@@ -203,7 +212,8 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(2);
+    // frontmatter (title + copyright) [0]; foreword [1]; chapter [2]
+    expect(book.sections.length).toBe(3);
   });
 
   it("does not swallow part-header containing nested chapters with prose (B-1)", async () => {
@@ -291,10 +301,12 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
-    const doc = book.sections[0].createDocument();
-    expect(doc.body.textContent).toContain("First line of poem");
-    expect(doc.body.textContent).toContain("Story marker");
+    // poem-section in frontmatter [0]; chapter [1]
+    expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    expect(frontDoc.body.textContent).toContain("First line of poem");
+    const chapterDoc = book.sections[1].createDocument();
+    expect(chapterDoc.body.textContent).toContain("Story marker");
   });
 
   it("does NOT merge single-poem item between content-items (status quo with main)", async () => {
@@ -351,7 +363,8 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(2);
+    // frontmatter (title) [0]; praise [1]; chapter [2]
+    expect(book.sections.length).toBe(3);
   });
 
   it("does NOT merge tail-segment of part I with head-segment of part II (M3)", async () => {
@@ -417,8 +430,9 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(2);
-    expect(book.sections[1].linear).toBe("no");
+    // frontmatter (title) [0]; chapter [1]; notes (linear='no') [2]
+    expect(book.sections.length).toBe(3);
+    expect(book.sections[2].linear).toBe("no");
   });
 
   it("preserves all items when whole book is decorative", async () => {
@@ -488,17 +502,19 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
-    const doc = book.sections[0].createDocument();
-    const text = doc.body.textContent ?? "";
-    const idxA = text.indexOf("ITEM_A");
-    const idxB = text.indexOf("ITEM_B");
-    const idxC = text.indexOf("ITEM_C");
-    const idxT = text.indexOf("ITEM_TARGET");
+    // 3 декоративных items в frontmatter [0]; chapter с ITEM_TARGET — [1]
+    expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    const frontText = frontDoc.body.textContent ?? "";
+    const idxA = frontText.indexOf("ITEM_A");
+    const idxB = frontText.indexOf("ITEM_B");
+    const idxC = frontText.indexOf("ITEM_C");
     expect(idxA).toBeGreaterThanOrEqual(0);
     expect(idxB).toBeGreaterThan(idxA);
     expect(idxC).toBeGreaterThan(idxB);
-    expect(idxT).toBeGreaterThan(idxC);
+    expect(frontText).not.toContain("ITEM_TARGET");
+    const chapterDoc = book.sections[1].createDocument();
+    expect(chapterDoc.body.textContent).toContain("ITEM_TARGET");
   });
 
   it("preserves wrapper id through Pass A clone (M2 fix)", async () => {
@@ -519,7 +535,8 @@ describe("foliate FB2 frontmatter merging", () => {
   </body>
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBe(1);
+    // copyright_section в frontmatter [0]; chapter [1]
+    expect(book.sections.length).toBe(2);
     const resolved = book.resolveHref("#copyright_section");
     expect(resolved.index).toBe(0);
     const doc = book.sections[0].createDocument();
@@ -550,6 +567,7 @@ describe("foliate FB2 frontmatter merging", () => {
     const tocItem = book.toc.find((t: { label: string }) => t.label === "Chapter 1");
     expect(tocItem).toBeDefined();
     const [sectionIdx] = book.splitTOCHref(tocItem!.href);
-    expect(sectionIdx).toBe(0);
+    // Chapter 1 теперь в render-section[1] (frontmatter — render-section[0])
+    expect(sectionIdx).toBe(1);
   });
 });
