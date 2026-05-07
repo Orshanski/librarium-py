@@ -525,4 +525,31 @@ describe("foliate FB2 frontmatter merging", () => {
     const doc = book.sections[0].createDocument();
     expect(resolved.anchor(doc)).not.toBeNull();
   });
+
+  it("preserves TOC labels and resolves them after Pass A merge", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>TOC Test</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>TOC Test</p></title>
+    <section><p>© 2024</p></section>
+    <section>
+      <title><p>Chapter 1</p></title>
+      <p>${"А".repeat(2000)}</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const labels = book.toc.map((t: { label: string }) => t.label);
+    expect(labels).toContain("Chapter 1");
+    const tocItem = book.toc.find((t: { label: string }) => t.label === "Chapter 1");
+    expect(tocItem).toBeDefined();
+    const [sectionIdx] = book.splitTOCHref(tocItem!.href);
+    expect(sectionIdx).toBe(0);
+  });
 });
