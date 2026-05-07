@@ -466,4 +466,38 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(doc.body.textContent).toContain("Chapter Title");
     expect(doc.body.textContent).toContain("Sub 1");
   });
+
+  it("preserves preamble order in DOM after Pass A merge (B-2 fix)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Order Test</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>ITEM_A</p></title>
+    <section><p>ITEM_B</p></section>
+    <section><cite><p>ITEM_C</p></cite></section>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+      <p>ITEM_TARGET</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    const text = doc.body.textContent ?? "";
+    const idxA = text.indexOf("ITEM_A");
+    const idxB = text.indexOf("ITEM_B");
+    const idxC = text.indexOf("ITEM_C");
+    const idxT = text.indexOf("ITEM_TARGET");
+    expect(idxA).toBeGreaterThanOrEqual(0);
+    expect(idxB).toBeGreaterThan(idxA);
+    expect(idxC).toBeGreaterThan(idxB);
+    expect(idxT).toBeGreaterThan(idxC);
+  });
 });
