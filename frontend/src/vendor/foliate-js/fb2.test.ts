@@ -100,4 +100,32 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(doc.body.textContent).toContain("All rights reserved");
     expect(doc.body.textContent).toContain("Chapter content begins here");
   });
+
+  it("merges title + <cite>-style copyright into chapter (Korsakov pattern)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Korsakov Test</book-title>
+      <author><first-name>I</first-name><last-name>E</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>Korsakov Test</p></title>
+    <section>
+      <cite>
+        <p>© Author, 2026</p>
+        <p>© Publisher, 2026</p>
+      </cite>
+    </section>
+    <section>
+      <title><p>Chapter 1</p></title>
+      <p>${"А".repeat(2000)}</p>
+      <p>The chapter starts.</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+  });
 });
