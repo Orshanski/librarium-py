@@ -518,11 +518,25 @@ export const makeFB2 = async blob => {
         if (preamble.length === 0 || i === items.length) {
             return items.flatMap(item => mergeThinSegments(splitSection(item)))
         }
+        // When cloning into the frontmatter wrapper, strip data-foliate-id
+        // attributes — those ids stay on the original elements (still rendered
+        // inside their content render-section), and a duplicate in frontmatter
+        // collides in foliateIdToSection map (frontmatter is index 0, scanned
+        // first, so the original chapter resolves to the wrong section).
+        const cloneForFrontmatter = (el) => {
+            const cloned = el.cloneNode(true)
+            cloned.removeAttribute(dataID)
+            for (const inner of cloned.querySelectorAll(`[${dataID}]`)) {
+                inner.removeAttribute(dataID)
+            }
+            return cloned
+        }
+
         const ownerDoc = items[0].el.ownerDocument
         const frontmatterEl = ownerDoc.createElement('section')
         frontmatterEl.classList.add('frontmatter')
         for (const src of preamble) {
-            frontmatterEl.appendChild(src.el.cloneNode(true))
+            frontmatterEl.appendChild(cloneForFrontmatter(src.el))
         }
         const frontmatterIds = [...preamble.flatMap(p => p.ids)]
 
@@ -532,7 +546,7 @@ export const makeFB2 = async blob => {
         if (preamble.length === 1) {
             const targetSegments = splitSection(items[i])
             if (targetSegments.length > 1 && isThinSegment(targetSegments[0])) {
-                frontmatterEl.appendChild(targetSegments[0].el.cloneNode(true))
+                frontmatterEl.appendChild(cloneForFrontmatter(targetSegments[0].el))
                 frontmatterIds.push(...targetSegments[0].ids)
                 remainingFirstSegments = targetSegments.slice(1)
             }
@@ -595,6 +609,12 @@ export const makeFB2 = async blob => {
         }
     }
 
+    // Whether Pass A produced a <section class="frontmatter"> wrapper as
+    // render-section[0]. If yes, TOC entries pointing to render-section 0
+    // are author/copyright/epigraph (preamble items) — drop them, they're
+    // not navigable content for the reader's table of contents.
+    const frontmatterExists = renderSections[0]?.el?.classList?.contains('frontmatter') ?? false
+
     // Release DOM references — no longer needed after mapping
     for (const s of renderSections) delete s.el
 
@@ -617,7 +637,7 @@ export const makeFB2 = async blob => {
             }
         }) ?? null
 
-    book.toc = originalToc.map(({ title, titles, topIndex }) => {
+    const rawToc = originalToc.map(({ title, titles, topIndex }) => {
         const sectionIdx = topIndex != null
             ? (foliateIdToSection.get(String(topIndex)) ?? 0)
             : 0
@@ -627,6 +647,26 @@ export const makeFB2 = async blob => {
             subitems: buildTocItems(titles),
         }
     }).filter(item => item.label)
+
+    // If frontmatter wrapper exists, drop TOC entries that resolve into
+    // render-section[0] (author title, copyrights, dedication, epigraphs
+    // pulled in via lone-author special case). When such an entry has
+    // subitems pointing into content (e.g. lone-author case where the
+    // whole-book section has inner chapters), promote those to the top
+    // level. Subitems that also point at render-section[0] — e.g. praise
+    // pages whose <cite>-wrapped endorsements made the whole praise block
+    // count as decorative and slip into frontmatter — are dropped, not
+    // promoted; they'd just be broken navigation links.
+    book.toc = frontmatterExists
+        ? rawToc.flatMap(item => {
+            const sectionIdx = Number(item.href.split('#')[0])
+            if (sectionIdx === 0) {
+                return (item.subitems ?? []).filter(sub =>
+                    Number(sub.href.split('#')[0]) > 0)
+            }
+            return [item]
+        })
+        : rawToc
 
     book.resolveHref = href => {
         const [a, b] = href.split('#')
