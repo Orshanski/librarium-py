@@ -70,4 +70,34 @@ describe("foliate FB2 frontmatter merging", () => {
     const titleSection = doc.querySelector("body > section > section.title");
     expect(titleSection?.textContent).toContain("The Book");
   });
+
+  it("merges title + <p>-style copyright into chapter (Sanderson pattern)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Test Book</book-title>
+      <author><first-name>X</first-name><last-name>Y</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>Test Book</p></title>
+    <section>
+      <p>© 2024 Author. All rights reserved.</p>
+      <p>Published by SomePublisher.</p>
+    </section>
+    <section>
+      <title><p>Chapter 1</p></title>
+      <p>${"А".repeat(2000)}</p>
+      <p>Chapter content begins here.</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    expect(doc.body.textContent).toContain("Test Book");
+    expect(doc.body.textContent).toContain("All rights reserved");
+    expect(doc.body.textContent).toContain("Chapter content begins here");
+  });
 });
