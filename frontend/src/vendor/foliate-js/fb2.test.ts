@@ -28,3 +28,22 @@ describe("foliate FB2 progress sizing", () => {
     expect(book.sections[1].size).toBeGreaterThan(book.sections[0].size);
   });
 });
+
+describe("foliate FB2 frontmatter merging", () => {
+  it("scaffold: vitest + jsdom + makeFB2 ready", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Scaffold</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section><p>hello</p></section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBeGreaterThan(0);
+  });
+});
