@@ -501,6 +501,13 @@ export const makeFB2 = async blob => {
     // render-section. Content items follow standard flatMap, untouched.
     // The first content item (Prologue / Part I / Foreword) gets its own
     // render-section, paginator opens it on a fresh spread.
+    //
+    // Special case for "lone author title" pattern (e.g. Erikson "Gardens of
+    // the Moon": body-level <title> contains only the author name, while
+    // book-title + epigraphs are inside the first content section): when
+    // preamble has exactly one item, also pull the first segment of
+    // splitSection(items[i]) into frontmatter if it's thin. That gathers
+    // author + book-title + epigraphs into one cohesive frontmatter block.
     const applyPassA = (items) => {
         const preamble = []
         let i = 0
@@ -508,28 +515,42 @@ export const makeFB2 = async blob => {
             preamble.push(items[i])
             i += 1
         }
-        // Two fallthrough cases: no decorative prefix, or wholly decorative book.
-        // Both go through standard flatMap — no frontmatter wrapper makes sense.
         if (preamble.length === 0 || i === items.length) {
             return items.flatMap(item => mergeThinSegments(splitSection(item)))
         }
-        // Build a separate <section class="frontmatter"> render-section from
-        // cloned preamble wrappers, in source order. Class/id/data-* preserved
-        // by cloneNode(true) on each wrapper.
         const ownerDoc = items[0].el.ownerDocument
         const frontmatterEl = ownerDoc.createElement('section')
         frontmatterEl.classList.add('frontmatter')
         for (const src of preamble) {
             frontmatterEl.appendChild(src.el.cloneNode(true))
         }
+        const frontmatterIds = [...preamble.flatMap(p => p.ids)]
+
+        // Lone-author-title special case: pull first thin segment from
+        // items[i] into frontmatter so that author and book-title sit together.
+        let remainingFirstSegments = null
+        if (preamble.length === 1) {
+            const targetSegments = splitSection(items[i])
+            if (targetSegments.length > 1 && isThinSegment(targetSegments[0])) {
+                frontmatterEl.appendChild(targetSegments[0].el.cloneNode(true))
+                frontmatterIds.push(...targetSegments[0].ids)
+                remainingFirstSegments = targetSegments.slice(1)
+            }
+        }
+
         const frontmatterSegment = {
             el: frontmatterEl,
-            ids: preamble.flatMap(p => p.ids),
+            ids: frontmatterIds,
             charCount: frontmatterEl.textContent?.length ?? 0,
         }
-        // Content items are processed by the standard pipeline.
-        const renderedContent = items.slice(i)
-            .flatMap(item => mergeThinSegments(splitSection(item)))
+        const renderedContent = remainingFirstSegments !== null
+            ? [
+                ...mergeThinSegments(remainingFirstSegments),
+                ...items.slice(i + 1).flatMap(item =>
+                    mergeThinSegments(splitSection(item))),
+            ]
+            : items.slice(i).flatMap(item =>
+                mergeThinSegments(splitSection(item)))
         return [frontmatterSegment, ...renderedContent]
     }
 
