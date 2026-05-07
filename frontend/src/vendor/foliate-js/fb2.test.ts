@@ -439,4 +439,31 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(3);
   });
+
+  it("regression guard: heading-only chapter intro still merges with prose segment", async () => {
+    const bulk = "З".repeat(200_000);
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Regression Guard</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <title><p>Chapter Title</p></title>
+      <section>
+        <title><p>Sub 1</p></title>
+        <p>${bulk}</p>
+      </section>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    expect(doc.body.textContent).toContain("Chapter Title");
+    expect(doc.body.textContent).toContain("Sub 1");
+  });
 });
