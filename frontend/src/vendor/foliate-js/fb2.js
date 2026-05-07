@@ -84,8 +84,7 @@ const BODY = {
     'section': ['section', SECTION],
 }
 
-// Frontmatter merging (b4ci.1): see spec at
-// project_documentation/specs/2026-05-07-b4ci.1-fb2-frontmatter-merging-design.md
+// Frontmatter merging (b4ci.1, branch feature/b4ci.1-fb2-frontmatter-merging).
 const DECORATIVE_TAGS = new Set(['header', 'aside', 'blockquote'])
 const DECORATIVE_CLASSES = new Set([
     'title', 'subtitle', 'epigraph', 'cite', 'annotation',
@@ -108,7 +107,8 @@ const hasProseContent = (root, budget = PROSE_BUDGET) => {
     for (const p of root.querySelectorAll('p')) {
         let cursor = p
         let decorative = false
-        // walker stops at root: root-decorative shortcut handled in Step 1 above
+        // walker terminates at root: the early-return above already handled
+        // the case where root itself is decorative
         while (cursor && cursor !== root) {
             if (isDecorativeWrapper(cursor)) {
                 decorative = true
@@ -538,17 +538,21 @@ export const makeFB2 = async blob => {
         for (const src of preamble) {
             frontmatterEl.appendChild(cloneForFrontmatter(src.el))
         }
-        const frontmatterIds = [...preamble.flatMap(p => p.ids)]
+        const frontmatterIds = preamble.flatMap(p => p.ids)
 
-        // Lone-author-title special case: pull first thin segment from
-        // items[i] into frontmatter so that author and book-title sit together.
-        let remainingFirstSegments = null
+        // Lone-author special case: when preamble is a single body-level title
+        // (just the author name) and the first content item is a big section
+        // whose first segment is decorative (book-title + dedication + epigraph),
+        // pull that first segment into frontmatter so author and book-title sit
+        // together. Otherwise use the same splitSection result for the standard
+        // pipeline below — avoids re-splitting the same large item twice.
+        let firstItemSegments = null
         if (preamble.length === 1) {
-            const targetSegments = splitSection(items[i])
-            if (targetSegments.length > 1 && isThinSegment(targetSegments[0])) {
-                frontmatterEl.appendChild(cloneForFrontmatter(targetSegments[0].el))
-                frontmatterIds.push(...targetSegments[0].ids)
-                remainingFirstSegments = targetSegments.slice(1)
+            firstItemSegments = splitSection(items[i])
+            if (firstItemSegments.length > 1 && isThinSegment(firstItemSegments[0])) {
+                frontmatterEl.appendChild(cloneForFrontmatter(firstItemSegments[0].el))
+                frontmatterIds.push(...firstItemSegments[0].ids)
+                firstItemSegments = firstItemSegments.slice(1)
             }
         }
 
@@ -557,9 +561,9 @@ export const makeFB2 = async blob => {
             ids: frontmatterIds,
             charCount: frontmatterEl.textContent?.length ?? 0,
         }
-        const renderedContent = remainingFirstSegments !== null
+        const renderedContent = firstItemSegments !== null
             ? [
-                ...mergeThinSegments(remainingFirstSegments),
+                ...mergeThinSegments(firstItemSegments),
                 ...items.slice(i + 1).flatMap(item =>
                     mergeThinSegments(splitSection(item))),
             ]
@@ -657,6 +661,9 @@ export const makeFB2 = async blob => {
     // pages whose <cite>-wrapped endorsements made the whole praise block
     // count as decorative and slip into frontmatter — are dropped, not
     // promoted; they'd just be broken navigation links.
+    // Subitems-of-subitems can never resolve to render-section[0]: their
+    // elements live inside content render-sections, so depth-1 promotion
+    // here suffices.
     book.toc = frontmatterExists
         ? rawToc.flatMap(item => {
             const sectionIdx = Number(item.href.split('#')[0])

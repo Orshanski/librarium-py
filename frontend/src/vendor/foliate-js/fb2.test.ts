@@ -30,23 +30,6 @@ describe("foliate FB2 progress sizing", () => {
 });
 
 describe("foliate FB2 frontmatter merging", () => {
-  it("scaffold: vitest + jsdom + makeFB2 ready", async () => {
-    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
-<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
-  <description>
-    <title-info>
-      <book-title>Scaffold</book-title>
-      <author><first-name>A</first-name><last-name>B</last-name></author>
-    </title-info>
-  </description>
-  <body>
-    <section><p>hello</p></section>
-  </body>
-</FictionBook>`;
-    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
-    expect(book.sections.length).toBeGreaterThan(0);
-  });
-
   it("merges body-level <title> + chapter <section> into one render-section", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
@@ -134,6 +117,12 @@ describe("foliate FB2 frontmatter merging", () => {
 </FictionBook>`;
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(2);
+    const frontDoc = book.sections[0].createDocument();
+    expect(frontDoc.body.textContent).toContain("Korsakov Test");
+    expect(frontDoc.body.textContent).toContain("© Author, 2026");
+    const chapterDoc = book.sections[1].createDocument();
+    expect(chapterDoc.body.textContent).toContain("The chapter starts");
+    expect(chapterDoc.body.textContent).not.toContain("Korsakov Test");
   });
 
   it("preserves bare top-level <image> through merge (M1 fix)", async () => {
