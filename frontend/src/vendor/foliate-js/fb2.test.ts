@@ -156,4 +156,26 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toContain("data:image/jpeg;base64,");
   });
+
+  it("handles empty top-level <section/> without TypeError (kn. 941, 942)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Empty First</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section/>
+    <title><p>Empty First</p></title>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+  });
 });
