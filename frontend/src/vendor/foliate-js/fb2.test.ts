@@ -205,4 +205,31 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(2);
   });
+
+  it("does not swallow part-header containing nested chapters with prose (B-1)", async () => {
+    const bulkProse = "Б".repeat(200_000);
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Part I Test</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <title><p>Part I</p><p>The Beginning</p></title>
+      <section>
+        <title><p>Chapter 1</p></title>
+        <p>${bulkProse}</p>
+      </section>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    expect(doc.body.textContent).toContain("Part I");
+    expect(doc.body.textContent).toContain("Chapter 1");
+  });
 });
