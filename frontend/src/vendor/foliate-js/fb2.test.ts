@@ -178,4 +178,31 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(1);
   });
+
+  it("stops Pass A at content-section with >=1500 chars prose", async () => {
+    const longProse = "А".repeat(2000);
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Bound Test</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>Bound Test</p></title>
+    <section><p>© 2024</p></section>
+    <section>
+      <title><p>Long Foreword</p></title>
+      <p>${longProse}</p>
+    </section>
+    <section>
+      <title><p>Chapter 1</p></title>
+      <p>Story begins.</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(2);
+  });
 });
