@@ -500,4 +500,29 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(idxC).toBeGreaterThan(idxB);
     expect(idxT).toBeGreaterThan(idxC);
   });
+
+  it("preserves wrapper id through Pass A clone (M2 fix)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Anchor Test</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section id="copyright_section"><p>© 2024</p></section>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const resolved = book.resolveHref("#copyright_section");
+    expect(resolved.index).toBe(0);
+    const doc = book.sections[0].createDocument();
+    expect(resolved.anchor(doc)).not.toBeNull();
+  });
 });
