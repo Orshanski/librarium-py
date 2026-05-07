@@ -84,6 +84,46 @@ const BODY = {
     'section': ['section', SECTION],
 }
 
+// Frontmatter merging (b4ci.1, branch feature/b4ci.1-fb2-frontmatter-merging).
+const DECORATIVE_TAGS = new Set(['header', 'aside', 'blockquote'])
+const DECORATIVE_CLASSES = new Set([
+    'title', 'subtitle', 'epigraph', 'cite', 'annotation',
+    'text-author', 'date', 'poem', 'stanza',
+])
+const PROSE_BUDGET = 1500
+
+const isDecorativeWrapper = el => {
+    if (!el || el.nodeType !== 1) return false
+    if (DECORATIVE_TAGS.has(el.tagName?.toLowerCase())) return true
+    for (const cls of el.classList) {
+        if (DECORATIVE_CLASSES.has(cls)) return true
+    }
+    return false
+}
+
+const hasProseContent = (root, budget = PROSE_BUDGET) => {
+    if (isDecorativeWrapper(root)) return false
+    let chars = 0
+    for (const p of root.querySelectorAll('p')) {
+        let cursor = p
+        let decorative = false
+        // walker terminates at root: the early-return above already handled
+        // the case where root itself is decorative
+        while (cursor && cursor !== root) {
+            if (isDecorativeWrapper(cursor)) {
+                decorative = true
+                break
+            }
+            cursor = cursor.parentElement
+        }
+        if (!decorative) {
+            chars += p.textContent?.length ?? 0
+            if (chars >= budget) return true
+        }
+    }
+    return false
+}
+
 class FB2Converter {
     constructor(fb2) {
         this.fb2 = fb2
@@ -426,24 +466,15 @@ export const makeFB2 = async blob => {
         return segments
     }
 
-    // Post-process: merge heading-only intro segments with next segment
-    const HEADING_CLASSES = new Set(['title', 'epigraph', 'subtitle', 'text-author', 'date'])
-    const isHeadingOnly = (el) => {
-        for (const child of el.childNodes) {
-            if (child.nodeType === 3) {
-                if (child.textContent?.trim()) return false
-                continue
-            }
-            if (child.nodeType !== 1) continue
-            const tag = child.tagName?.toLowerCase()
-            if (tag === 'br') continue
-            if (child.classList && [...child.classList].some(c => HEADING_CLASSES.has(c))) continue
-            if (tag === 'header') continue
-            return false
-        }
-        return true
-    }
-    const mergeHeadingIntros = (segments) => {
+    // Post-process: merge thin segments into next via wrapper-clone primitive (b4ci.1).
+    // Pass B — per-top-level-item, no cross-boundary merges (Part I tail can't reach
+    // Part II head). Predicate isThinSegment uses hasProseContent + checks for
+    // nested sections.
+    const isThinSegment = (seg) =>
+        seg.el.querySelectorAll('section').length === 0
+        && !hasProseContent(seg.el, PROSE_BUDGET)
+
+    const mergeThinSegments = (segments) => {
         let merged = true
         while (merged) {
             merged = false
@@ -451,15 +482,9 @@ export const makeFB2 = async blob => {
             for (let i = 0; i < segments.length; i++) {
                 const seg = segments[i]
                 const next = segments[i + 1]
-                if (next
-                    && (seg.charCount ?? seg.el.textContent?.length ?? 0) <= 500
-                    && seg.el.querySelectorAll('section').length === 0
-                    && isHeadingOnly(seg.el)
-                ) {
+                if (next && isThinSegment(seg)) {
                     const beforeFirst = next.el.firstChild
-                    for (const child of Array.from(seg.el.childNodes)) {
-                        next.el.insertBefore(child.cloneNode(true), beforeFirst)
-                    }
+                    next.el.insertBefore(seg.el.cloneNode(true), beforeFirst)
                     next.ids = [...seg.ids, ...next.ids]
                     next.charCount = next.el.textContent?.length ?? 0
                     merged = true
@@ -472,10 +497,83 @@ export const makeFB2 = async blob => {
         return segments
     }
 
+    // Pass A — wraps decorative top-level prefix into a separate frontmatter
+    // render-section. Content items follow standard flatMap, untouched.
+    // The first content item (Prologue / Part I / Foreword) gets its own
+    // render-section, paginator opens it on a fresh spread.
+    //
+    // Special case for "lone author title" pattern (e.g. Erikson "Gardens of
+    // the Moon": body-level <title> contains only the author name, while
+    // book-title + epigraphs are inside the first content section): when
+    // preamble has exactly one item, also pull the first segment of
+    // splitSection(items[i]) into frontmatter if it's thin. That gathers
+    // author + book-title + epigraphs into one cohesive frontmatter block.
+    const applyPassA = (items) => {
+        const preamble = []
+        let i = 0
+        while (i < items.length && !hasProseContent(items[i].el, PROSE_BUDGET)) {
+            preamble.push(items[i])
+            i += 1
+        }
+        if (preamble.length === 0 || i === items.length) {
+            return items.flatMap(item => mergeThinSegments(splitSection(item)))
+        }
+        // When cloning into the frontmatter wrapper, strip data-foliate-id
+        // attributes — those ids stay on the original elements (still rendered
+        // inside their content render-section), and a duplicate in frontmatter
+        // collides in foliateIdToSection map (frontmatter is index 0, scanned
+        // first, so the original chapter resolves to the wrong section).
+        const cloneForFrontmatter = (el) => {
+            const cloned = el.cloneNode(true)
+            cloned.removeAttribute(dataID)
+            for (const inner of cloned.querySelectorAll(`[${dataID}]`)) {
+                inner.removeAttribute(dataID)
+            }
+            return cloned
+        }
+
+        const ownerDoc = items[0].el.ownerDocument
+        const frontmatterEl = ownerDoc.createElement('section')
+        frontmatterEl.classList.add('frontmatter')
+        for (const src of preamble) {
+            frontmatterEl.appendChild(cloneForFrontmatter(src.el))
+        }
+        const frontmatterIds = preamble.flatMap(p => p.ids)
+
+        // Lone-author special case: when preamble is a single body-level title
+        // (just the author name) and the first content item is a big section
+        // whose first segment is decorative (book-title + dedication + epigraph),
+        // pull that first segment into frontmatter so author and book-title sit
+        // together. Otherwise use the same splitSection result for the standard
+        // pipeline below — avoids re-splitting the same large item twice.
+        let firstItemSegments = null
+        if (preamble.length === 1) {
+            firstItemSegments = splitSection(items[i])
+            if (firstItemSegments.length > 1 && isThinSegment(firstItemSegments[0])) {
+                frontmatterEl.appendChild(cloneForFrontmatter(firstItemSegments[0].el))
+                frontmatterIds.push(...firstItemSegments[0].ids)
+                firstItemSegments = firstItemSegments.slice(1)
+            }
+        }
+
+        const frontmatterSegment = {
+            el: frontmatterEl,
+            ids: frontmatterIds,
+            charCount: frontmatterEl.textContent?.length ?? 0,
+        }
+        const renderedContent = firstItemSegments !== null
+            ? [
+                ...mergeThinSegments(firstItemSegments),
+                ...items.slice(i + 1).flatMap(item =>
+                    mergeThinSegments(splitSection(item))),
+            ]
+            : items.slice(i).flatMap(item =>
+                mergeThinSegments(splitSection(item)))
+        return [frontmatterSegment, ...renderedContent]
+    }
+
     // Step 3: Build render sections with el preserved for anchor mapping
-    // Merge heading intros per original top-level section, not across boundaries
-    const renderSections = bodyData[0][0]
-        .flatMap(item => mergeHeadingIntros(splitSection(item)))
+    const renderSections = applyPassA(bodyData[0][0])
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
@@ -515,6 +613,12 @@ export const makeFB2 = async blob => {
         }
     }
 
+    // Whether Pass A produced a <section class="frontmatter"> wrapper as
+    // render-section[0]. If yes, TOC entries pointing to render-section 0
+    // are author/copyright/epigraph (preamble items) — drop them, they're
+    // not navigable content for the reader's table of contents.
+    const frontmatterExists = renderSections[0]?.el?.classList?.contains('frontmatter') ?? false
+
     // Release DOM references — no longer needed after mapping
     for (const s of renderSections) delete s.el
 
@@ -537,7 +641,7 @@ export const makeFB2 = async blob => {
             }
         }) ?? null
 
-    book.toc = originalToc.map(({ title, titles, topIndex }) => {
+    const rawToc = originalToc.map(({ title, titles, topIndex }) => {
         const sectionIdx = topIndex != null
             ? (foliateIdToSection.get(String(topIndex)) ?? 0)
             : 0
@@ -547,6 +651,29 @@ export const makeFB2 = async blob => {
             subitems: buildTocItems(titles),
         }
     }).filter(item => item.label)
+
+    // If frontmatter wrapper exists, drop TOC entries that resolve into
+    // render-section[0] (author title, copyrights, dedication, epigraphs
+    // pulled in via lone-author special case). When such an entry has
+    // subitems pointing into content (e.g. lone-author case where the
+    // whole-book section has inner chapters), promote those to the top
+    // level. Subitems that also point at render-section[0] — e.g. praise
+    // pages whose <cite>-wrapped endorsements made the whole praise block
+    // count as decorative and slip into frontmatter — are dropped, not
+    // promoted; they'd just be broken navigation links.
+    // Subitems-of-subitems can never resolve to render-section[0]: their
+    // elements live inside content render-sections, so depth-1 promotion
+    // here suffices.
+    book.toc = frontmatterExists
+        ? rawToc.flatMap(item => {
+            const sectionIdx = Number(item.href.split('#')[0])
+            if (sectionIdx === 0) {
+                return (item.subitems ?? []).filter(sub =>
+                    Number(sub.href.split('#')[0]) > 0)
+            }
+            return [item]
+        })
+        : rawToc
 
     book.resolveHref = href => {
         const [a, b] = href.split('#')
