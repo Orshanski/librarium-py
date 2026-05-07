@@ -128,4 +128,32 @@ describe("foliate FB2 frontmatter merging", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     expect(book.sections.length).toBe(1);
   });
+
+  it("preserves bare top-level <image> through merge (M1 fix)", async () => {
+    const tinyImage = "AAAA";
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Image In Frontmatter</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <title><p>Image In Frontmatter</p></title>
+    <image l:href="#illustration.jpg"/>
+    <section>
+      <title><p>Chapter</p></title>
+      <p>${"А".repeat(2000)}</p>
+    </section>
+  </body>
+  <binary id="illustration.jpg" content-type="image/jpeg">${tinyImage}</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    expect(book.sections.length).toBe(1);
+    const doc = book.sections[0].createDocument();
+    const img = doc.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("src")).toContain("data:image/jpeg;base64,");
+  });
 });
