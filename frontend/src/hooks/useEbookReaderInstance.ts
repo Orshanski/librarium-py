@@ -96,7 +96,7 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
     const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
       const { fraction, cfi, isCover, tocItem, location } = e.detail;
       callbacksRef.current?.onRelocate?.({ fraction, cfi, isCover, tocItem, location });
-      footer.updateFooter(fraction, tocItem, view.renderer?.feet);
+      footer.updateFooter(e.detail, tocItem, view.renderer?.feet);
     });
 
     const removeLoadListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {

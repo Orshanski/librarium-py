@@ -65,6 +65,10 @@ export function useReaderPage() {
   const handleRelocate = useCallback(
     (detail: ReaderRelocateDetail) => {
       setFraction(detail.fraction);
+      if (detail.isCover) {
+        setCurrentTocHref("__cover__");
+        return;
+      }
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
     },
     [],

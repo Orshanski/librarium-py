@@ -34,15 +34,12 @@ export function useReaderFooter(
   }, [containerRef, settingsRef]);
 
   const updateFooter = useCallback((
-    fraction: number,
+    location: { fraction: number; isCover?: boolean },
     tocItem: { label: string } | undefined,
     feet: HTMLElement[] | undefined,
   ) => {
-    if (!configRef.current.showFooter || !feet?.length || totalPagesRef.current <= 0) return;
+    if (!configRef.current.showFooter || !feet?.length) return;
     const theme = THEME_STYLES[settingsRef.current.theme];
-    const currentPage = Math.min(Math.max(1, Math.round(fraction * totalPagesRef.current)), totalPagesRef.current);
-    const pageText = `${currentPage} / ${totalPagesRef.current}`;
-    const chapterText = tocItem?.label || "";
     const footStyle = {
       fontSize: "12px",
       color: theme.text,
@@ -52,6 +49,17 @@ export function useReaderFooter(
       overflow: "hidden",
       whiteSpace: "nowrap",
     };
+    if (location.isCover) {
+      for (const foot of feet) {
+        Object.assign(foot.style, { ...footStyle, textAlign: "center" });
+        foot.textContent = "Обложка";
+      }
+      return;
+    }
+    if (totalPagesRef.current <= 0) return;
+    const currentPage = Math.min(Math.max(1, Math.round(location.fraction * totalPagesRef.current)), totalPagesRef.current);
+    const pageText = `${currentPage} / ${totalPagesRef.current}`;
+    const chapterText = tocItem?.label || "";
     if (feet.length === 1) {
       Object.assign(feet[0].style, { ...footStyle, textAlign: "center" });
       feet[0].textContent = chapterText ? `${pageText}  ·  ${chapterText}` : pageText;
@@ -64,12 +72,18 @@ export function useReaderFooter(
   }, [configRef, settingsRef]);
 
   const startCharCount = useCallback((
-    sections: Array<{ charCount?: number; createDocument?: () => Promise<Document> }>,
+    sections: Array<{
+      charCount?: number;
+      counted?: boolean;
+      createDocument?: () => Document | Promise<Document>;
+      isCover?: boolean;
+    }>,
     isDisposed: () => boolean,
   ) => {
-    const hasCharCount = sections.some(s => s.charCount != null);
+    const countedSections = sections.filter(section => section.counted !== false);
+    const hasCharCount = countedSections.some(s => s.charCount != null);
     if (hasCharCount) {
-      totalCharsRef.current = sections.reduce((sum, s) => sum + (s.charCount || 0), 0);
+      totalCharsRef.current = countedSections.reduce((sum, s) => sum + (s.charCount || 0), 0);
       recalcPages();
       return;
     }
@@ -78,10 +92,10 @@ export function useReaderFooter(
       try {
         let totalChars = 0;
         const batch = 3;
-        for (let i = 0; i < sections.length; i += batch) {
+        for (let i = 0; i < countedSections.length; i += batch) {
           if (isDisposed()) return;
-          for (let j = i; j < Math.min(i + batch, sections.length); j++) {
-            const s = sections[j];
+          for (let j = i; j < Math.min(i + batch, countedSections.length); j++) {
+            const s = countedSections[j];
             if (!s.createDocument) continue;
             const doc = await s.createDocument();
             totalChars += (doc.body?.textContent?.length || 0);
