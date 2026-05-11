@@ -49,6 +49,10 @@ def get_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> 
     return cast(ReadingProgressRow, dict_from_row(row))
 
 
+def delete_reading_progress(db: sqlite3.Connection, user_id: int, book_id: int) -> None:
+    queries.delete_reading_progress(db, uid=user_id, bid=book_id)
+
+
 def _try_insert(db: sqlite3.Connection, params_base: _ProgressParams) -> ProgressSaveResult | None:
     """First write for (user, book). ON CONFLICT DO NOTHING so a
     simultaneous first-write from another device does not raise

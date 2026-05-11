@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { hasOfflineBook as checkOffline, saveOfflineBook, removeOfflineBook } from "../utils/offline-storage";
+import { hasOfflineBook as checkOffline, saveOfflineBook, removeBookFromLocalStorage, removeOfflineBook } from "../utils/offline-storage";
 import { useIsPwa } from "./useIsPwa";
 
 export function useOfflineBookStatus(bookId: number | undefined) {
@@ -38,7 +38,7 @@ export function useOfflineBookStatus(bookId: number | undefined) {
 
   const evict = useCallback(async () => {
     if (!bookId) return;
-    await removeOfflineBook(bookId);
+    await removeBookFromLocalStorage(bookId);
     setHasOffline(false);
   }, [bookId]);
 

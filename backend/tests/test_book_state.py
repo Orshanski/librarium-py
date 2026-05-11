@@ -39,6 +39,41 @@ def test_set_read(reader_client):
     assert book["isRead"] == 1
 
 
+def test_set_read_clears_reading_progress(reader_client):
+    reader_client.put("/api/reader/progress/3", json={
+        "position": "chapter-2",
+        "lastDevice": "desktop",
+        "fraction": 0.4,
+        "expectedVersion": 0,
+    })
+    assert reader_client.get("/api/reader/progress/3").json()["position"] == "chapter-2"
+
+    resp = reader_client.put("/api/books/3/read", json={"isRead": True})
+    assert_ok(resp)
+
+    progress = reader_client.get("/api/reader/progress/3").json()
+    assert progress["position"] is None
+    assert progress["fraction"] is None
+    assert progress["version"] == 0
+
+
+def test_set_unread_keeps_reading_progress(reader_client):
+    reader_client.put("/api/reader/progress/3", json={
+        "position": "chapter-2",
+        "lastDevice": "desktop",
+        "fraction": 0.4,
+        "expectedVersion": 0,
+    })
+
+    resp = reader_client.put("/api/books/3/read", json={"isRead": False})
+    assert_ok(resp)
+
+    progress = reader_client.get("/api/reader/progress/3").json()
+    assert progress["position"] == "chapter-2"
+    assert progress["fraction"] == 0.4
+    assert progress["version"] == 1
+
+
 def test_set_hidden(reader_client, db):
     resp = reader_client.put("/api/books/3/hidden", json={"isHidden": True})
     assert_ok(resp)
