@@ -137,6 +137,34 @@ describe("foliate FB2 cover zero page", () => {
       expect(book.resolveHref(item.href).index).toBeGreaterThan(1);
     }
   });
+
+  it("does not route whole-book frontmatter TOC entries to cover", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description>
+    <title-info>
+      <book-title>Whole Book Wrapper</book-title>
+      <author><first-name>A</first-name><last-name>B</last-name></author>
+    </title-info>
+  </description>
+  <body>
+    <section>
+      <title><p>Whole Book Wrapper</p></title>
+      <section><title><p>Chapter 1</p></title><p>${"А".repeat(100_000)}</p></section>
+      <section><title><p>Chapter 2</p></title><p>${"Б".repeat(100_000)}</p></section>
+    </section>
+  </body>
+</FictionBook>`;
+
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const textItems = flattenToc(book.toc).filter(item => item.href !== "__cover__");
+
+    expect(book.sections[0]).toMatchObject({ isCover: true });
+    expect(textItems.length).toBeGreaterThan(0);
+    for (const item of textItems) {
+      expect(book.resolveHref(item.href).index).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("foliate FB2 frontmatter merging", () => {

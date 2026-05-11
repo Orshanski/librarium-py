@@ -680,7 +680,7 @@ export const makeFB2 = async blob => {
     // Build TOC from original structure, resolving to render section indices
     const buildTocItems = (titles) =>
         titles?.map(({ title, index, subitems }) => {
-            const sectionIdx = foliateIdToSection.get(String(index)) ?? 0
+            const sectionIdx = foliateIdToSection.get(String(index)) ?? textStartIndex
             return {
                 label: title,
                 href: `${sectionIdx}#${index}`,
@@ -690,7 +690,7 @@ export const makeFB2 = async blob => {
 
     const rawToc = originalToc.map(({ title, titles, topIndex }) => {
         const sectionIdx = topIndex != null
-            ? (foliateIdToSection.get(String(topIndex)) ?? 0)
+            ? (foliateIdToSection.get(String(topIndex)) ?? textStartIndex)
             : textStartIndex
         return {
             label: title,
