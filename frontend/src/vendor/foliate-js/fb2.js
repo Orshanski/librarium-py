@@ -1,7 +1,10 @@
+import * as CFI from './epubcfi.js'
+
 const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
     .replace(/^[\t\n\f\r ]+/, '')
     .replace(/[\t\n\f\r ]+$/, '') : ''
+
 const getElementText = el => normalizeWhitespace(el?.textContent)
 const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
 const getEmbeddedSrcLength = el =>
@@ -374,9 +377,10 @@ export const makeFB2 = async blob => {
             { annotation: ['div', SECTION] }).innerHTML : null,
         subject: $$('title-info genre').map(getElementText),
     }
+    let coverSrc = null
     if ($('coverpage image')) {
-        const src = converter.getImageSrc($('coverpage image'))
-        book.getCover = () => fetch(src).then(res => res.blob())
+        coverSrc = converter.getImageSrc($('coverpage image'))
+        book.getCover = () => fetch(coverSrc).then(res => res.blob())
     } else book.getCover = () => null
 
     // get convert each body
@@ -596,6 +600,32 @@ export const makeFB2 = async blob => {
             }
         })
 
+    const escapeCoverText = value => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+    const coverAuthor = book.metadata.author
+        ?.map(author => author.name).filter(Boolean).join(', ') ?? ''
+    const coverInnerHTML = coverSrc
+        ? `<img src="${coverSrc}" alt=""/>`
+        : `<h1>${escapeCoverText(book.metadata.title ?? '')}</h1>`
+            + `<p>${escapeCoverText(coverAuthor)}</p>`
+    const coverHTML = template(`<section class="cover-page">${coverInnerHTML}</section>`)
+    const coverBlob = new Blob([coverHTML], { type: MIME.XHTML })
+    const coverUrl = URL.createObjectURL(coverBlob)
+    urls.push(coverUrl)
+    renderSections.unshift({
+        ids: [],
+        title: 'Обложка',
+        load: () => coverUrl,
+        createDocument: () => new DOMParser().parseFromString(coverHTML, MIME.XHTML),
+        size: 0,
+        charCount: 0,
+        counted: false,
+        isCover: true,
+        cfi: '__cover__',
+    })
+
     // Step 4: Build foliateId -> render section index map
     const foliateIdToSection = new Map()
     for (let i = 0; i < renderSections.length; i++) {
@@ -617,7 +647,10 @@ export const makeFB2 = async blob => {
     // render-section[0]. If yes, TOC entries pointing to render-section 0
     // are author/copyright/epigraph (preamble items) — drop them, they're
     // not navigable content for the reader's table of contents.
-    const frontmatterExists = renderSections[0]?.el?.classList?.contains('frontmatter') ?? false
+    const textStartIndex = 1
+    const frontmatterExists =
+        renderSections[textStartIndex]?.el?.classList?.contains('frontmatter') ?? false
+    const frontmatterIndex = frontmatterExists ? textStartIndex : -1
 
     // Release DOM references — no longer needed after mapping
     for (const s of renderSections) delete s.el
@@ -625,9 +658,23 @@ export const makeFB2 = async blob => {
     // Step 5: Build book.sections
     const idMap = new Map()
     book.sections = renderSections.map((section, index) => {
-        const { ids, load, createDocument, size, linear, charCount } = section
+        const {
+            ids, load, createDocument, size, linear, charCount,
+            counted, isCover, cfi,
+        } = section
         for (const id of ids) if (id) idMap.set(id, index)
-        return { id: index, load, createDocument, size, linear, charCount }
+        const textIndex = index - 1
+        return {
+            id: index,
+            load,
+            createDocument,
+            size,
+            linear,
+            charCount,
+            counted,
+            isCover,
+            cfi: cfi ?? (textIndex >= 0 ? CFI.fake.fromIndex(textIndex) : undefined),
+        }
     })
 
     // Build TOC from original structure, resolving to render section indices
@@ -644,7 +691,7 @@ export const makeFB2 = async blob => {
     const rawToc = originalToc.map(({ title, titles, topIndex }) => {
         const sectionIdx = topIndex != null
             ? (foliateIdToSection.get(String(topIndex)) ?? 0)
-            : 0
+            : textStartIndex
         return {
             label: title,
             href: topIndex != null ? `${sectionIdx}#${topIndex}` : String(sectionIdx),
@@ -667,15 +714,17 @@ export const makeFB2 = async blob => {
     book.toc = frontmatterExists
         ? rawToc.flatMap(item => {
             const sectionIdx = Number(item.href.split('#')[0])
-            if (sectionIdx === 0) {
+            if (sectionIdx === frontmatterIndex) {
                 return (item.subitems ?? []).filter(sub =>
-                    Number(sub.href.split('#')[0]) > 0)
+                    Number(sub.href.split('#')[0]) > frontmatterIndex)
             }
             return [item]
         })
         : rawToc
+    book.toc = [{ label: 'Обложка', href: '__cover__' }, ...book.toc]
 
     book.resolveHref = href => {
+        if (href === '__cover__') return { index: 0 }
         const [a, b] = href.split('#')
         if (!a) {
             // link from within the page: #someId
@@ -688,7 +737,14 @@ export const makeFB2 = async blob => {
         // TOC link without fragment: just section index
         return { index: Number(a) }
     }
-    book.splitTOCHref = href => href?.split('#')?.map(x => Number(x)) ?? []
+    book.resolveCFI = cfi => {
+        if (cfi === '__cover__') return { index: 0 }
+        const parts = CFI.parse(cfi)
+        const oldIndex = CFI.fake.toIndex((parts.parent ?? parts).shift())
+        return { index: oldIndex + 1, anchor: doc => CFI.toRange(doc, parts) }
+    }
+    book.splitTOCHref = href =>
+        href === '__cover__' ? [0] : href?.split('#')?.map(x => Number(x)) ?? []
     book.getTOCFragment = (doc, id) => doc.querySelector(`[${dataID}="${id}"]`)
 
     book.destroy = () => {
