@@ -1051,6 +1051,7 @@ ${doc.querySelector('parsererror').innerText}`)
             Object.assign(this.sections[coverIndex], {
                 counted: false,
                 isCover: true,
+                isOpening: true,
                 size: 0,
                 charCount: 0,
                 linear: undefined,
@@ -1101,6 +1102,7 @@ ${doc.querySelector('parsererror').innerText}`)
                 charCount: 0,
                 counted: false,
                 isCover: true,
+                isOpening: true,
                 cfi: '__cover__',
             })
             this.syntheticCoverOffset = 1

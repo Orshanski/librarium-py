@@ -31,7 +31,7 @@ describe("foliate FB2 progress sizing", () => {
 
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false });
     expect(book.sections[1].charCount).toBe(0);
     expect(book.sections[1].size).toBeLessThan(1_000);
     expect(book.sections[2].size).toBeGreaterThan(book.sections[1].size);
@@ -56,7 +56,7 @@ describe("foliate FB2 cover zero page", () => {
 
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false, charCount: 0, size: 0 });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, charCount: 0, size: 0 });
     const coverDoc = book.sections[0].createDocument();
     expect(coverDoc.querySelector("img")?.getAttribute("src")).toContain("data:image/jpeg;base64,");
     expect(book.sections[1].isCover).not.toBe(true);
@@ -89,7 +89,7 @@ describe("foliate FB2 cover zero page", () => {
     const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
     const coverDoc = book.sections[0].createDocument();
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false, cfi: "__cover__" });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, cfi: "__cover__" });
     expect(coverDoc.body.textContent).toContain("No Image");
     expect(book.getCover()).toBeNull();
   });
@@ -131,7 +131,7 @@ describe("foliate FB2 cover zero page", () => {
     const textItems = flattenToc(book.toc).filter(item => item.href !== "__cover__");
 
     expect(book.sections[0]).toMatchObject({ isCover: true });
-    expect(book.sections[1].isCover).not.toBe(true);
+    expect(book.sections[1]).toMatchObject({ isCover: undefined, isOpening: true, counted: false });
     expect(textItems.length).toBeGreaterThan(0);
     for (const item of textItems) {
       expect(book.resolveHref(item.href).index).toBeGreaterThan(1);

@@ -78,6 +78,7 @@ export class SectionProgress {
         const { sizes, sizePerLoc, sizePerTimeUnit, sizeTotal } = this
         const section = this.sections[index]
         const isCover = section?.isCover === true
+        const isOpening = isCover || section?.isOpening === true
         const sizeInSection = sizes[index] ?? 0
         const sizeBefore = sizes.slice(0, index).reduce((a, b) => a + b, 0)
         const size = sizeBefore + fractionInSection * sizeInSection
@@ -89,8 +90,9 @@ export class SectionProgress {
         return {
             fraction: sizeTotal > 0 ? nextSize / sizeTotal : 0,
             isCover,
+            isOpening,
             section: {
-                current: isCover ? 0 : countedSectionIndex,
+                current: isOpening ? 0 : countedSectionIndex,
                 total: sizes.filter(size => size > 0).length,
             },
             location: {

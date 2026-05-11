@@ -34,7 +34,7 @@ export function useReaderFooter(
   }, [containerRef, settingsRef]);
 
   const updateFooter = useCallback((
-    location: { fraction: number; isCover?: boolean },
+    location: { fraction: number; isCover?: boolean; isOpening?: boolean },
     tocItem: { label: string } | undefined,
     feet: HTMLElement[] | undefined,
   ) => {
@@ -53,6 +53,19 @@ export function useReaderFooter(
       for (const foot of feet) {
         Object.assign(foot.style, { ...footStyle, textAlign: "center" });
         foot.textContent = "Обложка";
+      }
+      return;
+    }
+    if (location.isOpening) {
+      const label = tocItem?.label && tocItem.label !== "Обложка" ? tocItem.label : "Начало книги";
+      if (feet.length === 1) {
+        Object.assign(feet[0].style, { ...footStyle, textAlign: "center" });
+        feet[0].textContent = label;
+      } else {
+        Object.assign(feet[0].style, { ...footStyle, textAlign: "left" });
+        feet[0].textContent = "";
+        Object.assign(feet[feet.length - 1].style, { ...footStyle, textAlign: "right" });
+        feet[feet.length - 1].textContent = label;
       }
       return;
     }

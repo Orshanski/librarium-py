@@ -120,7 +120,7 @@ describe("foliate EPUB cover zero page", () => {
 
     const book = await makeEPUBFromFixture(epub);
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false, size: 0, charCount: 0 });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, size: 0, charCount: 0 });
     expect(book.sections[0].linear).not.toBe("no");
     expect(book.toc[0]).toEqual({ label: "Обложка", href: "__cover__" });
     expect(book.resolveHref("__cover__")).toEqual({ index: 0 });
@@ -139,7 +139,7 @@ describe("foliate EPUB cover zero page", () => {
 
     const book = await makeEPUBFromFixture(epub);
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false });
     expect(book.sections[0].linear).not.toBe("no");
   });
 
@@ -157,7 +157,7 @@ describe("foliate EPUB cover zero page", () => {
 
     const book = await makeEPUBFromFixture(epub);
 
-    expect(book.sections[0]).toMatchObject({ id: "OEBPS/titlepage.xhtml", isCover: true, counted: false });
+    expect(book.sections[0]).toMatchObject({ id: "OEBPS/titlepage.xhtml", isCover: true, isOpening: true, counted: false });
     expect(book.sections[0].linear).not.toBe("no");
     expect(book.sections[1].id).toBe("OEBPS/chapter1.xhtml");
     expect(book.resolveHref("__cover__")).toEqual({ index: 0 });
@@ -178,7 +178,7 @@ describe("foliate EPUB cover zero page", () => {
 
     const book = await makeEPUBFromFixture(epub);
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false, cfi: "__cover__" });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, cfi: "__cover__" });
     expect(book.sections[1].id).toBe("OEBPS/chapter1.xhtml");
     expect(book.resolveHref("OEBPS/chapter1.xhtml")?.index).toBe(1);
   });
@@ -214,6 +214,6 @@ describe("foliate EPUB cover zero page", () => {
 
     const book = await makeEPUBFromFixture(epub);
 
-    expect(book.sections[0]).toMatchObject({ isCover: true, counted: false, cfi: "__cover__" });
+    expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, cfi: "__cover__" });
   });
 });

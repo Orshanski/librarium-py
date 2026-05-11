@@ -75,4 +75,31 @@ describe("useReaderFooter cover state", () => {
 
     expect(foot.textContent).toBe("1 / 2");
   });
+
+  it("renders opening label instead of cover or numeric page on frontmatter", () => {
+    const leftFoot = document.createElement("div");
+    const rightFoot = document.createElement("div");
+    const container = makeContainer();
+
+    const { result } = renderHook(() => {
+      const containerRef = useRef(container);
+      const settingsRef = useRef(makeSettings());
+      const configRef = useRef({ showFooter: true });
+      return useReaderFooter(containerRef, settingsRef, configRef);
+    });
+
+    result.current.startCharCount([
+      { charCount: 10_000, counted: false, isCover: true },
+      { charCount: 800, counted: false },
+      { charCount: 1600 },
+    ], () => false);
+    result.current.updateFooter(
+      { fraction: 0, isCover: false, isOpening: true },
+      { label: "Обложка" },
+      [leftFoot, rightFoot],
+    );
+
+    expect(leftFoot.textContent).toBe("");
+    expect(rightFoot.textContent).toBe("Начало книги");
+  });
 });

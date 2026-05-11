@@ -7,6 +7,7 @@ export interface ReaderViewElement extends HTMLElement {
       counted?: boolean;
       createDocument?: () => Document | Promise<Document>;
       isCover?: boolean;
+      isOpening?: boolean;
       size?: number;
     }>;
   };
@@ -15,7 +16,7 @@ export interface ReaderViewElement extends HTMLElement {
   goRight: () => Promise<void>;
   goTo: (target: string | number) => Promise<void>;
   goToTextStart?: () => Promise<void>;
-  lastLocation?: { cfi?: string; fraction?: number; isCover?: boolean };
+  lastLocation?: { cfi?: string; fraction?: number; isCover?: boolean; isOpening?: boolean };
   next: () => Promise<void>;
   open: (book: Blob) => Promise<void>;
   prev: () => Promise<void>;

@@ -623,6 +623,7 @@ export const makeFB2 = async blob => {
         charCount: 0,
         counted: false,
         isCover: true,
+        isOpening: true,
         cfi: '__cover__',
     })
 
@@ -664,6 +665,7 @@ export const makeFB2 = async blob => {
         } = section
         for (const id of ids) if (id) idMap.set(id, index)
         const textIndex = index - 1
+        const sectionCounted = index === frontmatterIndex ? false : counted
         return {
             id: index,
             load,
@@ -671,8 +673,9 @@ export const makeFB2 = async blob => {
             size,
             linear,
             charCount,
-            counted,
+            counted: sectionCounted,
             isCover,
+            isOpening: isCover === true || index === frontmatterIndex,
             cfi: cfi ?? (textIndex >= 0 ? CFI.fake.fromIndex(textIndex) : undefined),
         }
     })

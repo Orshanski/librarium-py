@@ -183,4 +183,22 @@ describe("useEbookReaderInstance", () => {
     unmount();
   });
 
+  it("does not persist opening frontmatter locations on pagehide", () => {
+    const onSavePosition = vi.fn();
+    const blob = new Blob([""], { type: "application/epub+zip" });
+    const viewRef: RefObject<ReaderViewElement | null> = { current: null };
+
+    const { unmount } = render(
+      <TestHost blob={blob} viewRef={viewRef} callbacks={{ onSavePosition }} />,
+    );
+
+    if (viewRef.current) {
+      viewRef.current.lastLocation = { cfi: "/6/2", fraction: 0, isCover: false, isOpening: true };
+    }
+    globalThis.dispatchEvent(new Event("pagehide"));
+
+    expect(onSavePosition).not.toHaveBeenCalled();
+    unmount();
+  });
+
 });
