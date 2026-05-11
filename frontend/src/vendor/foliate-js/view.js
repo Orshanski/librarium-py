@@ -5,6 +5,23 @@ import { textWalker } from './text-walker.js'
 
 const SEARCH_PREFIX = 'foliate-search:'
 
+export const prepareCoverDocument = (doc, { placeRight = false } = {}) => {
+    if (!doc?.body) return
+    for (const svg of doc.querySelectorAll('svg[preserveAspectRatio="none"]')) {
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+    }
+    if (!placeRight || doc.querySelector('.foliate-cover-left-spacer')) return
+    const spacer = doc.createElement('div')
+    spacer.className = 'foliate-cover-left-spacer'
+    Object.assign(spacer.style, {
+        breakAfter: 'column',
+        pageBreakAfter: 'always',
+        height: '100vh',
+        minHeight: '100%',
+    })
+    doc.body.prepend(spacer)
+}
+
 const isZip = async file => {
     const arr = new Uint8Array(await file.slice(0, 4).arrayBuffer())
     return arr[0] === 0x50 && arr[1] === 0x4b && arr[2] === 0x03 && arr[3] === 0x04
@@ -345,6 +362,12 @@ export class View extends HTMLElement {
         doc.documentElement.lang ||= this.language.canonical ?? ''
         if (!this.language.isCJK)
             doc.documentElement.dir ||= this.language.direction ?? ''
+
+        if (this.book.sections[index]?.isCover) {
+            prepareCoverDocument(doc, {
+                placeRight: this.renderer?.getAttribute('flow') !== 'scrolled',
+            })
+        }
 
         this.#handleLinks(doc, index)
         this.#cursorAutohider.cloneFor(doc.documentElement)
