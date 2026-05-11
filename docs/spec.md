@@ -15,13 +15,14 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 | Catalog search | Fuzzy in-process via rapidfuzz, custom `token_min_ratio` scorer (LCS coverage + Levenshtein) |
 | Wire DTO | Pydantic v2 with `alias_generator=to_camel`: snake-case Python ↔ camelCase wire |
 | SQL access | aiosql (`.sql` files in `dal/queries/`) |
-| In-app reader | foliate-js (EPUB/FB2 paginator, PDF via PDF.js fixed-layout) |
+| In-app reader | Local fork of foliate-js (EPUB/FB2 paginator), PDF via PDF.js fixed-layout |
 | Frontend | React 19, TypeScript, React Router 7 |
 | Build | Vite 6 |
 | Styling | Inline CSS, theme in `theme.ts`, no framework |
 | Responsive | Desktop/Mobile layout (breakpoint 820px) |
 | Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
-| Tests | pytest (1054 tests), Vitest (354 tests) |
+| Live data | Domain events over SSE + sessionStorage metadata cache |
+| Tests | pytest, Vitest, TypeScript |
 | Quality gate | SonarCloud (coverage tracked from `coverage.xml` / `lcov.info`; current values live on SonarCloud) |
 | CI/CD | GitHub Actions → SSH deploy |
 
@@ -31,10 +32,10 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 Browser → React SPA (:5173 dev / static prod)
            ↓ fetch /api/*  (camelCase wire)
          FastAPI (:8000)
-           ├── Routers (17 modules)
-           ├── Services (22 modules)
-           ├── DAL (12 modules + _parsers.py + queries/ — 102 .sql files)
-           ├── DTOs (14 domain + 4 helpers — Pydantic v2, alias_generator)
+           ├── Routers (API endpoints + SSE event stream)
+           ├── Services (business logic)
+           ├── DAL (domain modules + _parsers.py + aiosql queries/)
+           ├── DTOs (Pydantic v2, alias_generator)
            ├── Parsers (FB2, EPUB)
            ├── Enrichers (PDF, PDF-LLM, PDF-render, cover-fetcher)
            ├── Providers (Litres, Google Books)
@@ -52,6 +53,7 @@ Browser → React SPA (:5173 dev / static prod)
 - Auth — JWT in HTTP-only cookie `librarium_token`, 168h (7-day) TTL with rolling refresh after 84h
 - Roles: `admin` (full access), `reader` (view, rate, shelves, download, in-app reader)
 - CSRF — every non-GET/HEAD/OPTIONS request to `/api/*` must carry `X-Requested-With: XMLHttpRequest` (middleware in `main.py`)
+- Live data — authenticated clients open `/api/events/stream` with EventSource. Backend publishes typed domain events after DB commit; frontend validates envelopes and routes them through the local domain event bus for cache invalidation.
 
 ### File Storage
 
@@ -105,7 +107,7 @@ data/
 
 **reader_settings** — user_id, device_type, settings (JSON) — PK (user_id, device_type). Despite the historical column name `device_type`, the value stored is a per-browser-instance UUID issued via the `device_id` cookie (see `get_or_create_device_id` in `reader_service.py`), not a device class. Settings JSON: font, theme, tap zones, hyphenation, justify, PDF tap zones.
 
-**reading_progress** — user_id, book_id, position (JSON: `{kind: "cfi"|"page", value: ...}`), last_device, last_format, fraction (0..1), last_read_at, version (CAS counter for conflict resolution) — PK (user_id, book_id). Indexed on book_id.
+**reading_progress** — user_id, book_id, position (JSON: `{kind: "cfi"|"page", value: ...}`), last_device, last_format, fraction (0..1), last_read_at, version (CAS counter for conflict resolution) — PK (user_id, book_id). Indexed on book_id. `PUT /api/books/{id}/read` with `isRead=true` deletes this row, so marking a book read resets the reading position.
 
 ### Search
 
@@ -165,7 +167,7 @@ Cover replace goes through `POST /api/books/{id}/cover` (temp upload) + `PUT /ap
 |--------|----------|------|-------------|
 | GET | /api/books/{id}/status | yes | Rating, read, hidden |
 | PUT | /api/books/{id}/rating | yes | Set 1-5 or null |
-| PUT | /api/books/{id}/read | yes | Mark read/unread |
+| PUT | /api/books/{id}/read | yes | Mark read/unread. Marking read also clears server reading progress for that user/book. |
 | PUT | /api/books/{id}/hidden | yes | Hide/unhide |
 
 ### Reader
@@ -246,6 +248,7 @@ Each endpoint excludes its own dimension from the WHERE clause (so the multi-sel
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
+| GET | /api/events/stream | yes | Server-Sent Events stream. Emits `event: domain` envelopes `{eventId, scope, event}` and `:ping` keepalives every 15s. |
 | GET | /api/publishers | reader | Distinct publisher list (for Edit form autocomplete) |
 | GET | /api/health | — | Health check `{"ok": true}` |
 
@@ -254,7 +257,7 @@ Each endpoint excludes its own dimension from the WHERE clause (so the multi-sel
 ```
 backend/
 ├── run.py              # Uvicorn entry (--dev for reload)
-├── requirements.txt    # FastAPI, Uvicorn, lxml, Pillow, pymupdf, pikepdf, anthropic, aiosql, ...
+├── requirements.txt    # FastAPI, Uvicorn, lxml, Pillow, pymupdf, pikepdf, anthropic, rapidfuzz, aiosql, ...
 ├── schema.sql
 ├── scripts/            # One-off scripts (run manually)
 │   ├── create_admin.py             # Initial admin bootstrap
@@ -276,10 +279,10 @@ backend/
     ├── search.py       # Fuzzy search toolkit — see «Catalog search» below
     ├── cover_embedder.py        # Embed cover into FB2/EPUB on export
     ├── pdf_linearize.py         # pikepdf linearize in place (Fast Web View)
-    ├── routers/        # 17 route modules + `_entity_crud.py` (CRUD factory) + `_validators.py` (shared validators / `TempIdStr`)
-    ├── services/       # 22 service modules — business logic between routers and DAL
-    ├── dal/            # 12 domain modules + `_parsers.py` (TypeAdapter for JSON aggregates, pbz2) + queries/ (102 .sql via aiosql)
-    ├── dtos/           # 14 domain DTO modules + 4 helpers (`_aliases.py`, `_refs.py`, `_types.py`, `__init__.py`); Pydantic v2, alias_generator (see Wire format below)
+    ├── routers/        # Route modules + `_entity_crud.py` + `_validators.py`; includes `/api/events/stream`
+    ├── services/       # Business logic between routers and DAL
+    ├── dal/            # Domain modules + `_parsers.py` (TypeAdapter for JSON aggregates, pbz2) + queries/ via aiosql
+    ├── dtos/           # Domain DTO modules + helpers (`_aliases.py`, `_refs.py`, `_types.py`, `__init__.py`); Pydantic v2, alias_generator (see Wire format below)
     ├── parsers/        # Book format parsers (FB2, EPUB)
     ├── enrichers/      # PDF enrichment pipeline
     │   ├── pdf.py             # Main PDF orchestrator (filename → LLM → cover fetch → fallback render)
@@ -367,14 +370,18 @@ frontend/
     ├── App.tsx             # Routes (all behind ProtectedRoute), offline shell routing
     ├── auth.tsx            # AuthContext, useAuth(), ProtectedRoute, offline auth cache
     ├── api/                # API client package (see "API client layer" below)
+    ├── cache/              # SessionStorage metadata cache (namespaces, persistence, invalidation)
+    ├── domain/             # Typed domain events and read-model classifiers
+    ├── sse/                # EventSource bridge: `/api/events/stream` → domain event bus
+    ├── scroll/             # List scroll validity and non-bumping navigation support
     ├── types.ts            # TypeScript interfaces
     ├── theme.ts            # Color palette + layout constants (mobileBreakpoint 820)
     ├── responsive.ts       # ResponsiveProvider, useIsMobile()
     ├── vendor/foliate-js/  # Forked copy of foliate-js — owned code, not upstream vendor
-    ├── hooks/              # 15 custom hooks (book loaders, reader lifecycle/page/footer/settings/position, offline status, online/PWA detection, scroll restore, update banner, session flag)
-    ├── utils/              # 15 utility modules (offline-storage IndexedDB wrapper, book-download, device-info, reader-input/footnotes/footnote-handler, pluralize, sanitize-html …)
-    ├── pages/              # 21 page components (18 root + DesktopReaderPage / DesktopPdfReaderPage / MobileReaderPage)
-    ├── components/         # 35 shared components (logic + types, incl. OfflineShell, CloudBadge, EbookReader, PdfReader, MetadataSearch, …)
+    ├── hooks/              # Reader/book/offline/PWA/cache-aware hooks
+    ├── utils/              # Offline storage, reader sync/input/footnotes, book download, sanitize-html …
+    ├── pages/              # Route-level pages
+    ├── components/         # Shared components (logic + types, incl. OfflineShell, CloudBadge, EbookReader, PdfReader, MetadataSearch, …)
     ├── components/desktop/ # 10 desktop layout components
     └── components/mobile/  # 13 mobile layout components
 ```
@@ -393,6 +400,24 @@ Public `frontend/public/pdfjs/` — PDF.js distribution (cmaps, fonts, worker). 
 - `types.ts` — shared types
 - `index.ts` — barrel re-exports
 - `endpoints/` — 14 typed endpoint modules: `admin`, `auth`, `authors`, `books`, `covers`, `filters`, `metadata`, `reader`, `search`, `series`, `shelves`, `similar`, `tags`, `upload`
+
+### Metadata Cache and Live Invalidation
+
+Metadata/read-model screens use `frontend/src/cache/`, not TanStack Query. The cache is deliberately small and explicit:
+
+- `MetadataCacheStore` stores entries by namespace/key and persists namespaces to `sessionStorage` under `librarium_metadata_cache_*`.
+- `useCachedResource()` returns cached data synchronously, fetches only on miss, aborts stale fetches, and ignores fetch results that started before a namespace invalidation.
+- Book-list entries carry `BookListContext`; domain classifiers decide whether an event can patch rows in place or must invalidate the whole list.
+- The cache is namespaced: `books`, `book/{id}`, `authors`, `author/{id}`, `series`, `series/{id}`, `tags`, `tag/{id}`, `shelves`, `shelf/{id}`, `book-shelves/{id}`, `publishers`, `filter-options/*`, etc.
+
+Invalidation sources:
+
+- Local mutations publish typed domain events immediately after successful API calls.
+- Backend mutations publish the same event types after DB commit via `/api/events/stream` (`EventSource`, `event: domain`).
+- On SSE reconnect after an error or offline gap, the frontend clears the metadata cache and list-scroll validity, because exact missed-event replay is not implemented.
+- `readingProgressChanged` invalidates shelf namespaces; `bookReadChanged` patches cached book read state and invalidates `shelf/reading-now`; marking read also clears the persisted reading position server-side.
+
+Important invariant: list scroll restoration is not owned by metadata cache. Scroll validity uses the separate scroll module/counter so cache invalidation cannot accidentally bump or preserve scroll positions beyond the explicit scroll policy.
 
 ### Responsive Architecture
 
@@ -440,8 +465,10 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 
 - **Flow reader** (EPUB/FB2) — `EbookReader` + `DesktopReaderPage` / `MobileReaderPage`. Paginated columns with font/theme/hyphenation settings, tap zones, TOC highlighting, progress bar.
 - **PDF reader** — `PdfReader` + `DesktopPdfReaderPage`. fixed-layout paginator, tap zones (prev/next/zoom_in/zoom_out), zoom steps, TOC cutoff at depth 3, bottom nav bar with draggable slider + editable page number input. Mobile shows "not supported" stub.
+- **Opening block** (EPUB/FB2) — cover and frontmatter are normal navigable opening sections before the main text, not an overlay. They are marked `counted=false`; cover also has `isCover=true`, and frontmatter/opening positions carry `isOpening=true`.
+- **Opening progress semantics** — cover/frontmatter do not count toward virtual page totals, `fraction`, book size, or saved reading progress. Footer shows `Обложка` on cover, an opening label on non-cover frontmatter, and the first counted text page as `1 / N`. In paginated flow the cover is prepared to appear on the right-hand page, matching a physical book opening.
 - **Position format**: JSON `{kind, value}` — `kind="cfi"` for flow (CFI string), `kind="page"` for PDF (page index).
-- **Progress persistence**: local-first via IndexedDB, debounced save (3s) on relocate, flush on unmount + beforeunload. Background sync with server when online. Per-device settings + per-book progress.
+- **Progress persistence**: local-first via IndexedDB, debounced save (3s) on relocate, flush on unmount + beforeunload. Background sync with server when online. Cover/opening locations are intentionally not persisted. Per-device settings + per-book progress.
 - **Tap zones**: 6-zone desktop grid (corners × top/bottom) + 2 center zones, configurable per-format. PDF gets zoom actions as defaults.
 - **Keyboard**: arrows (prev/next), +/- (zoom) work both on host doc and inside reader iframe.
 
@@ -464,14 +491,14 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 - Browse catalog with filters and sort
 - Search (title, author, series)
 - Rate books (1-5★)
-- Mark as read/unread
+- Mark as read/unread; marking read resets persisted reading position
 - Hide books from library view
 - Create custom shelves
 - System shelves «Лучшее» (auto: 4-5★ books) and «Читаю сейчас» (books with reading progress)
 - Download books (FB2/EPUB/PDF)
 - Similar books recommendations
-- In-app reading (FB2/EPUB flow + PDF fixed-layout)
-- Cross-device progress sync per book
+- In-app reading (FB2/EPUB flow with cover/frontmatter opening block + PDF fixed-layout)
+- Cross-device progress sync per book with CAS conflict handling
 - Per-device reader settings (font, theme, tap zones)
 - Offline reading (PWA): auto-cache on read, manual cache toggle, offline shell
 - Explore by author, series, tag
@@ -493,11 +520,11 @@ Built on a locally-patched foliate-js reader (`src/vendor/foliate-js/`).
 
 Test harness: `conftest.py` (temp DB, admin/reader clients), `seed.py` (factory builder), fixture books (FB2, EPUB, PDF).
 
-93 test files / 1054 tests covering: auth + JWT refresh + CSRF middleware, upload flow (create/rollback/duplicate, format add via PUT and via POST `/add-format`), book detail/list/update/delete, merge entities (authors/series), tag mapping, admin users + settings, parsers (FB2/EPUB), enrichers (PDF-LLM, PDF render, cover-fetcher, PDF linearize), cover embedder + cover proxy + cover commit/discard, catalog filters + filter-options scoping (bv0e), reader settings + progress CAS (accept/conflict/retry-exhausted), similar books, user-book interaction (rating/read/hidden), publishers, SPA fallback, DTO alias roundtrips. Coverage exported via `coverage.xml` for SonarCloud.
+The backend suite covers auth + JWT refresh + CSRF middleware, upload flow (create/rollback/duplicate, format add via PUT and via POST `/add-format`), book detail/list/update/delete, merge entities (authors/series), tag mapping, admin users + settings, parsers (FB2/EPUB), enrichers (PDF-LLM, PDF render, cover-fetcher, PDF linearize), cover embedder + cover proxy + cover commit/discard, catalog filters + filter-options scoping (bv0e), reader settings + progress CAS (accept/conflict/retry-exhausted), clearing progress when marking a book read, similar books, user-book interaction (rating/read/hidden), publishers, SSE event publication, SPA fallback, DTO alias roundtrips. Coverage exported via `coverage.xml` for SonarCloud.
 
 ### Frontend (Vitest)
 
-60 test files / 354 tests covering: smart-filter-bar query construction, book-detail/edit-form, metadata search, mobile filter bar, reader (settings, lifecycle, position, session flag, footnote handler, footnotes, input parsing), PWA detection, online status, update banner, sidebar, ErrorBoundary, FootnotePopup, entity/tag admin panels, sanitize-html, offline-storage IndexedDB (cache, progress, settings, eviction), book-download, device-info, scroll-counter + non-bumping-paths (k96o block B), useScrollRestore. Coverage exported via `lcov.info` for SonarCloud.
+The frontend suite covers smart-filter-bar query construction, book-detail/edit-form, metadata search, mobile filter bar, reader (settings, lifecycle, position, footer, cover/opening persistence, session flag, footnote handler, footnotes, input parsing), PWA detection, online status, update banner, sidebar, ErrorBoundary, FootnotePopup, entity/tag admin panels, sanitize-html, offline-storage IndexedDB (cache, progress, settings, eviction), metadata cache and SSE event validation, book-download, device-info, scroll-counter + non-bumping paths, useScrollRestore. Coverage exported via `lcov.info` for SonarCloud.
 
 ## Offline PWA
 
@@ -516,7 +543,7 @@ Available only in installed PWA mode (`display-mode: standalone`). In regular br
 - **Cloud badge in catalog**: yellow cloud icon on cached book covers (only in PWA mode)
 - **TTL**: 14 days from last access. Expired books evicted on app startup and on offline transition
 - **LRU eviction**: when storage is full (QuotaExceededError), least-recently-accessed non-manual books are evicted
-- **Mark as read → evict**: marking a book as "Прочитано" removes it from cache
+- **Mark as read → evict + reset progress**: marking a book as "Прочитано" removes its offline copy and local `reading_progress`; the backend clears the server `reading_progress` row in the same read-state mutation
 
 ### Offline Shell
 
@@ -528,7 +555,7 @@ User object cached in localStorage on successful login. When offline, `AuthProvi
 
 ### Sync on Reconnect
 
-`online` event triggers sync of all unsynced progress and settings to server. Only marks as synced on `response.ok` — no data loss on 401/500.
+`online` and `visibilitychange` trigger sync of all unsynced progress and settings to server when the reader is not active. Progress sync uses `pushProgressToServerCAS`: accepted/rebased writes update local `serverVersion`; conflict rewinds adopt the server row; failed requests leave local entries unsynced so they retry later. Settings sync is simpler: save to server, then mark the local settings row synced only after success.
 
 ### Update Banner
 
