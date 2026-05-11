@@ -1030,6 +1030,7 @@ ${doc.querySelector('parsererror').innerText}`)
                 createDocument: () => this.loadDocument(item),
                 size: this.getSize(item.href),
                 cfi: this.resources.cfis[index],
+                spineIndex: index,
                 linear,
                 pageSpread: getPageSpread(properties),
                 resolveHref: href => resolveURL(href, item.href),
@@ -1054,6 +1055,10 @@ ${doc.querySelector('parsererror').innerText}`)
                 charCount: 0,
                 linear: undefined,
             })
+            if (coverIndex > 0) {
+                const [coverSection] = this.sections.splice(coverIndex, 1)
+                this.sections.unshift(coverSection)
+            }
         } else {
             let coverPageUrl = null
             let coverImageUrl = null
@@ -1147,9 +1152,10 @@ ${doc.querySelector('parsererror').innerText}`)
     resolveCFI(cfi) {
         if (cfi === '__cover__') return { index: 0 }
         const resolved = this.resources.resolveCFI(cfi)
-        return resolved
-            ? { ...resolved, index: resolved.index + (this.syntheticCoverOffset ?? 0) }
-            : resolved
+        if (!resolved) return resolved
+        const index = this.sections
+            .findIndex(section => section.spineIndex === resolved.index)
+        return { ...resolved, index: index < 0 ? resolved.index : index }
     }
     resolveHref(href) {
         if (href === '__cover__') {
@@ -1159,9 +1165,10 @@ ${doc.querySelector('parsererror').innerText}`)
         const [path, hash] = href.split('#')
         const item = this.resources.getItemByHref(decodeURI(path))
         if (!item) return null
-        const index = this.resources.spine.findIndex(({ idref }) => idref === item.id)
+        const spineIndex = this.resources.spine.findIndex(({ idref }) => idref === item.id)
+        const index = this.sections.findIndex(section => section.spineIndex === spineIndex)
         const anchor = hash ? doc => getHTMLFragment(doc, hash) : () => 0
-        return { index: index + (this.syntheticCoverOffset ?? 0), anchor }
+        return { index: index < 0 ? spineIndex : index, anchor }
     }
     splitTOCHref(href) {
         return href?.split('#') ?? []

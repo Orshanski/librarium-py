@@ -143,6 +143,29 @@ describe("foliate EPUB cover zero page", () => {
     expect(book.sections[0].linear).not.toBe("no");
   });
 
+  it("moves a native cover spine page to zero page when it is not first", async () => {
+    const epub = makeMinimalEpub({
+      guideCoverHref: "titlepage.xhtml",
+      spine: ["chapter1", { id: "titlepage", linear: "no" }, "chapter2"],
+      files: {
+        "chapter1.xhtml": `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter 1</h1><p>Text</p></body></html>`,
+        "titlepage.xhtml": `<html xmlns="http://www.w3.org/1999/xhtml"><body><img src="cover.jpeg"/></body></html>`,
+        "chapter2.xhtml": `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter 2</h1><p>Text</p></body></html>`,
+        "cover.jpeg": "AAAA",
+      },
+    });
+
+    const book = await makeEPUBFromFixture(epub);
+
+    expect(book.sections[0]).toMatchObject({ id: "OEBPS/titlepage.xhtml", isCover: true, counted: false });
+    expect(book.sections[0].linear).not.toBe("no");
+    expect(book.sections[1].id).toBe("OEBPS/chapter1.xhtml");
+    expect(book.resolveHref("__cover__")).toEqual({ index: 0 });
+    expect(book.resolveHref("OEBPS/chapter1.xhtml")?.index).toBe(1);
+    expect(book.resolveHref("OEBPS/chapter2.xhtml")?.index).toBe(2);
+    expect(book.resolveCFI(book.sections[1].cfi).index).toBe(1);
+  });
+
   it("prepends a synthetic cover section when cover metadata is not in the spine", async () => {
     const epub = makeMinimalEpub({
       coverImageHref: "cover.jpeg",
