@@ -10,6 +10,7 @@ import type { LocalProgress } from "../utils/offline-storage";
 vi.mock("../utils/offline-storage", () => ({
   getProgress: vi.fn().mockResolvedValue(null),
   saveProgress: vi.fn().mockResolvedValue(undefined),
+  removeProgress: vi.fn().mockResolvedValue(undefined),
   markProgressSynced: vi.fn().mockResolvedValue(undefined),
   adoptServerProgressLocal: vi.fn().mockResolvedValue(undefined),
 }));
@@ -20,7 +21,7 @@ vi.mock("../utils/reader-sync", () => ({
 }));
 
 import { pushProgressToServerCAS as mockPushCAS } from "../utils/reader-sync";
-import { adoptServerProgressLocal as mockAdoptLocal } from "../utils/offline-storage";
+import { adoptServerProgressLocal as mockAdoptLocal, removeProgress as mockRemoveProgress } from "../utils/offline-storage";
 
 afterEach(() => {
   server.resetHandlers();
@@ -99,5 +100,41 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     expect(mockAdoptLocal).toHaveBeenCalledOnce();
     // initialPosition should be set from server
     expect(result.current.initialPosition).not.toBeNull();
+  });
+
+  it("clears synced local progress when server has no position", async () => {
+    server.use(
+      http.get("/api/reader/progress/42", () => HttpResponse.json({
+        position: null,
+        fraction: null,
+        lastDevice: null,
+        lastFormat: null,
+        version: 0,
+      })),
+    );
+
+    const localProgress: LocalProgress = {
+      bookId: 42,
+      position: '{"kind":"cfi","value":"epubcfi(/6/4!/4/2/2:0)"}',
+      fraction: 0.5,
+      lastFormat: "epub",
+      lastReadAt: Date.now(),
+      serverVersion: 1,
+      synced: true,
+    };
+
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => {
+      result.current.applyLocalProgress(localProgress);
+    });
+    expect(result.current.initialPosition).toBe("epubcfi(/6/4!/4/2/2:0)");
+
+    await act(async () => {
+      await result.current.syncProgressWithServer(42, localProgress);
+    });
+
+    expect(mockRemoveProgress).toHaveBeenCalledWith(42);
+    expect(result.current.initialPosition).toBeNull();
   });
 });

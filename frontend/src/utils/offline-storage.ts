@@ -270,6 +270,11 @@ export async function getProgress(bookId: number): Promise<LocalProgress | null>
   return (await db.get("reading_progress", bookId)) ?? null;
 }
 
+export async function removeProgress(bookId: number): Promise<void> {
+  const db = await initDB();
+  await db.delete("reading_progress", bookId);
+}
+
 export async function getUnsyncedProgress(): Promise<LocalProgress[]> {
   const db = await initDB();
   const all = await db.getAll("reading_progress");

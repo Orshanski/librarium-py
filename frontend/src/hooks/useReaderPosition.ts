@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   LocalProgress,
   getProgress, saveProgress as saveLocalProgress,
-  adoptServerProgressLocal,
+  adoptServerProgressLocal, removeProgress,
 } from "../utils/offline-storage";
 import { pushProgressToServerCAS } from "../utils/reader-sync";
 import { getProgress as apiGetProgress } from "../api/endpoints/reader";
@@ -126,6 +126,10 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
       if (typeof serverProgress?.position !== "string") return;
       const narrowed = { ...serverProgress, position: serverProgress.position };
       await adoptServerProgressRef.current(bookId, narrowed, { resume: false });
+    } else if (localProgress && !serverPosition) {
+      await removeProgress(bookId);
+      setInitialPosition(null);
+      setResumePosition(null);
     }
   }, []);
 
