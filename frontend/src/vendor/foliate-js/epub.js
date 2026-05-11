@@ -960,6 +960,11 @@ const getDisplayOptions = doc => {
     }
 }
 
+const escapeCoverText = value => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+
 export class EPUB {
     parser = new DOMParser()
     #loader
@@ -995,6 +1000,10 @@ ${doc.querySelector('parsererror').innerText}`)
 
         const $encryption = await this.#loadXML('META-INF/encryption.xml')
         await this.#encryption.init($encryption, opf)
+        const { metadata, rendition, media } = getMetadata(opf)
+        this.metadata = metadata
+        this.rendition = rendition
+        this.media = media
 
         this.resources = new Resources({
             opf,
@@ -1028,6 +1037,69 @@ ${doc.querySelector('parsererror').innerText}`)
                     ? this.resources.getItemByID(item.mediaOverlay) : null,
             }
         }).filter(s => s)
+        const coverRef = this.resources.guide
+            ?.find(ref => ref.type.includes('cover'))?.href
+        const coverItem = coverRef ? this.resources.getItemByHref(coverRef) : null
+        const coverIndex = coverItem
+            ? this.sections.findIndex(section => section.id === coverItem.href)
+            : this.sections.findIndex(section =>
+                String(section.id).toLowerCase().includes('cover')
+                || String(section.id).toLowerCase().includes('titlepage'))
+        this.syntheticCoverOffset = 0
+        if (coverIndex >= 0) {
+            Object.assign(this.sections[coverIndex], {
+                counted: false,
+                isCover: true,
+                size: 0,
+                charCount: 0,
+                linear: undefined,
+            })
+        } else {
+            let coverPageUrl = null
+            let coverImageUrl = null
+            let coverPageHTML = null
+            const makeSyntheticCover = async () => {
+                if (coverPageUrl) return coverPageUrl
+                const cover = this.resources.cover
+                const imageHTML = cover?.href
+                    ? `<img src="${
+                        coverImageUrl = URL.createObjectURL(
+                            await this.loadBlob(cover.href))
+                    }" alt=""/>`
+                    : ''
+                const titleHTML = imageHTML
+                    ? ''
+                    : `<h1>${escapeCoverText(metadata?.title ?? '')}</h1>`
+                coverPageHTML = `<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><section class="cover-page">${
+    imageHTML || titleHTML
+}</section></body></html>`
+                coverPageUrl = URL.createObjectURL(
+                    new Blob([coverPageHTML], { type: MIME.XHTML }))
+                return coverPageUrl
+            }
+            this.sections.unshift({
+                id: '__cover__',
+                load: makeSyntheticCover,
+                unload: () => {
+                    if (coverPageUrl) URL.revokeObjectURL(coverPageUrl)
+                    if (coverImageUrl) URL.revokeObjectURL(coverImageUrl)
+                    coverPageUrl = null
+                    coverImageUrl = null
+                    coverPageHTML = null
+                },
+                createDocument: async () => {
+                    await makeSyntheticCover()
+                    return this.parser.parseFromString(coverPageHTML, MIME.XHTML)
+                },
+                size: 0,
+                charCount: 0,
+                counted: false,
+                isCover: true,
+                cfi: '__cover__',
+            })
+            this.syntheticCoverOffset = 1
+        }
 
         const { navPath, ncxPath } = this.resources
         if (navPath) try {
@@ -1048,11 +1120,10 @@ ${doc.querySelector('parsererror').innerText}`)
             console.warn(e)
         }
         this.landmarks ??= this.resources.guide
+        if (this.sections.some(section => section.isCover)) {
+            this.toc = [{ label: 'Обложка', href: '__cover__' }, ...(this.toc ?? [])]
+        }
 
-        const { metadata, rendition, media } = getMetadata(opf)
-        this.metadata = metadata
-        this.rendition = rendition
-        this.media = media
         this.dir = this.resources.pageProgressionDirection
         const displayOptions = getDisplayOptions(
             await this.#loadXML('META-INF/com.apple.ibooks.display-options.xml')
@@ -1074,15 +1145,23 @@ ${doc.querySelector('parsererror').innerText}`)
         return new MediaOverlay(this, this.#loadXML.bind(this))
     }
     resolveCFI(cfi) {
-        return this.resources.resolveCFI(cfi)
+        if (cfi === '__cover__') return { index: 0 }
+        const resolved = this.resources.resolveCFI(cfi)
+        return resolved
+            ? { ...resolved, index: resolved.index + (this.syntheticCoverOffset ?? 0) }
+            : resolved
     }
     resolveHref(href) {
+        if (href === '__cover__') {
+            const index = this.sections.findIndex(section => section.isCover)
+            return { index: index < 0 ? 0 : index }
+        }
         const [path, hash] = href.split('#')
         const item = this.resources.getItemByHref(decodeURI(path))
         if (!item) return null
         const index = this.resources.spine.findIndex(({ idref }) => idref === item.id)
         const anchor = hash ? doc => getHTMLFragment(doc, hash) : () => 0
-        return { index, anchor }
+        return { index: index + (this.syntheticCoverOffset ?? 0), anchor }
     }
     splitTOCHref(href) {
         return href?.split('#') ?? []
