@@ -78,7 +78,7 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
     const nav = createNavigationController(view, {
       onSavePosition: () => {
         const loc = view.lastLocation;
-        if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+        if (loc?.cfi && !loc.isCover) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
       },
       onReady: () => callbacksRef.current?.onReady?.(),
       isDisposed: () => disposed,
@@ -94,8 +94,8 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
     });
 
     const removeRelocateListener = addCustomEventListener<ReaderRelocateDetail>(view, "relocate", (e) => {
-      const { fraction, cfi, tocItem, location } = e.detail;
-      callbacksRef.current?.onRelocate?.({ fraction, cfi, tocItem, location });
+      const { fraction, cfi, isCover, tocItem, location } = e.detail;
+      callbacksRef.current?.onRelocate?.({ fraction, cfi, isCover, tocItem, location });
       footer.updateFooter(fraction, tocItem, view.renderer?.feet);
     });
 
@@ -138,7 +138,7 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
         await (initialPosition
           ? nav.performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
           : nav.enqueueNavigation(
-            () => view.goToTextStart ? view.goToTextStart() : view.goTo(0),
+            () => view.goTo(0),
             { persist: false, allowDuringInit: true },
           ));
         if (!disposed) {

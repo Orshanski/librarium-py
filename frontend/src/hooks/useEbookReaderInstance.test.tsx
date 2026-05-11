@@ -45,13 +45,15 @@ function makeConfig(): EbookReaderInstanceConfig {
  * `viewRef` is accepted from the outside so tests can inspect `viewRef.current`
  * directly after render/unmount.
  */
-function TestHost({ blob, viewRef }: {
+function TestHost({ blob, viewRef, callbacks, initialPosition = null }: {
   blob: Blob;
   viewRef: RefObject<ReaderViewElement | null>;
+  callbacks?: ReaderCallbacks;
+  initialPosition?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const performNavigationRef = useRef<(request: ReaderNavigationRequest) => Promise<void>>(async () => {});
-  const callbacksRef = useRef<ReaderCallbacks | undefined>(undefined);
+  const callbacksRef = useRef<ReaderCallbacks | undefined>(callbacks);
   const onCenterTapRef = useRef<(() => void) | undefined>(undefined);
   const settingsRef = useRef<ReaderSettings>(makeSettings());
   const configRef = useRef<EbookReaderInstanceConfig>(makeConfig());
@@ -60,7 +62,7 @@ function TestHost({ blob, viewRef }: {
 
   useEbookReaderInstance({
     bookBlob: blob,
-    initialPosition: null,
+    initialPosition,
     containerRef,
     viewRef,
     performNavigationRef,
@@ -161,6 +163,24 @@ describe("useEbookReaderInstance", () => {
     // No foliate-view appended anywhere; viewRef stays null.
     expect(container.querySelector("foliate-view")).toBeNull();
     expect(viewRef.current).toBeNull();
+  });
+
+  it("does not persist cover locations on pagehide", () => {
+    const onSavePosition = vi.fn();
+    const blob = new Blob([""], { type: "application/epub+zip" });
+    const viewRef: RefObject<ReaderViewElement | null> = { current: null };
+
+    const { unmount } = render(
+      <TestHost blob={blob} viewRef={viewRef} callbacks={{ onSavePosition }} />,
+    );
+
+    if (viewRef.current) {
+      viewRef.current.lastLocation = { cfi: "__cover__", fraction: 0, isCover: true };
+    }
+    globalThis.dispatchEvent(new Event("pagehide"));
+
+    expect(onSavePosition).not.toHaveBeenCalled();
+    unmount();
   });
 
 });

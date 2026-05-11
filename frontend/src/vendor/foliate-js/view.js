@@ -434,7 +434,7 @@ export class View extends HTMLElement {
     }
     getCFI(index, range) {
         const baseCFI = this.book.sections[index].cfi ?? CFI.fake.fromIndex(index)
-        if (!range) return baseCFI
+        if (!range || baseCFI === '__cover__') return baseCFI
         return CFI.joinIndir(baseCFI, CFI.fromRange(range))
     }
     resolveCFI(cfi) {

@@ -1,6 +1,7 @@
 export interface ReaderRelocateDetail {
   fraction: number;
   cfi: string;
+  isCover?: boolean;
   tocItem?: { label: string; href: string };
   location?: { current: number; total: number };
 }
