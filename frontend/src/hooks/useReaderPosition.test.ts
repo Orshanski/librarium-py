@@ -137,4 +137,40 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     expect(mockRemoveProgress).toHaveBeenCalledWith(42);
     expect(result.current.initialPosition).toBeNull();
   });
+
+  it("clears unsynced local progress with a prior server version when server has no position", async () => {
+    server.use(
+      http.get("/api/reader/progress/42", () => HttpResponse.json({
+        position: null,
+        fraction: null,
+        lastDevice: null,
+        lastFormat: null,
+        version: 0,
+      })),
+    );
+
+    const localProgress: LocalProgress = {
+      bookId: 42,
+      position: '{"kind":"cfi","value":"epubcfi(/6/4!/4/2/2:0)"}',
+      fraction: 0.5,
+      lastFormat: "epub",
+      lastReadAt: Date.now(),
+      serverVersion: 1,
+      synced: false,
+    };
+
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => {
+      result.current.applyLocalProgress(localProgress);
+    });
+
+    await act(async () => {
+      await result.current.syncProgressWithServer(42, localProgress);
+    });
+
+    expect(mockPushCAS).not.toHaveBeenCalled();
+    expect(mockRemoveProgress).toHaveBeenCalledWith(42);
+    expect(result.current.initialPosition).toBeNull();
+  });
 });

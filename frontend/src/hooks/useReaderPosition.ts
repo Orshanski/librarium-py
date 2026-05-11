@@ -120,16 +120,16 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
     const serverVersion = serverProgress?.version ?? 0;
     const localServerVersion = localProgress?.serverVersion ?? 0;
 
-    if (hasUnsyncedLocal && localProgress) {
+    if (localProgress && !serverPosition) {
+      await removeProgress(bookId);
+      setInitialPosition(null);
+      setResumePosition(null);
+    } else if (hasUnsyncedLocal && localProgress) {
       await pushProgressToServerRef.current(localProgress);
     } else if (serverPosition && serverVersion > localServerVersion) {
       if (typeof serverProgress?.position !== "string") return;
       const narrowed = { ...serverProgress, position: serverProgress.position };
       await adoptServerProgressRef.current(bookId, narrowed, { resume: false });
-    } else if (localProgress && !serverPosition) {
-      await removeProgress(bookId);
-      setInitialPosition(null);
-      setResumePosition(null);
     }
   }, []);
 
