@@ -122,8 +122,8 @@ bd close <id>         # Complete work
 ### Rules
 
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Use `bd remember` for project knowledge — NOT memory files
-- Personal feedback (how to work with Alexey) stays in memory files
+- Do NOT use `bd remember` as general/project memory; beads are only for task tracking
+- Store assistant preferences, workflow rules, and reusable knowledge via Hermes memory/skills instead
 - Run `bd prime` for detailed command reference
 
 ## Session Completion
