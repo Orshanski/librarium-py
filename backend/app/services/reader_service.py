@@ -4,11 +4,13 @@ import uuid
 from dataclasses import dataclass
 
 from ..dal import reader as dal
+from ..dal.books import book_exists
 from ..dtos.reader import (
     ProgressAcceptedResponse, ProgressRejectedResponse,
     ProgressSaveResponse, ReadingProgressResponse, ReaderSettingsBody,
     ReadingProgressBody, ReaderSettingsGetResponse,
 )
+from ..exceptions import NotFoundError
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,11 @@ def save_progress(
     book_id: int,
     body: ReadingProgressBody,
 ) -> ProgressSaveEventResult:
+    # Stale tail из IDB: PWA пушит progress для давно удалённой книги.
+    # Без проверки INSERT упадёт FK IntegrityError → 500. Возвращаем 404,
+    # чтобы клиент мог вычистить хвост из локальной очереди.
+    if not book_exists(db, book_id):
+        raise NotFoundError("Book not found")
     previous = dal.get_reading_progress(db, user_id, book_id)
     result = dal.save_reading_progress(
         db, user_id, book_id,

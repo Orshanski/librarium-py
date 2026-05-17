@@ -29,3 +29,18 @@ def test_progress_nonexistent_book_returns_defaults(reader_client):
     assert data["fraction"] is None
     assert data["lastReadAt"] is None
     assert data["version"] == 0
+
+
+def test_progress_put_nonexistent_book_returns_404(reader_client):
+    """PUT /api/reader/progress/{missing_id} должен вернуть 404, а не 500.
+
+    Сценарий: PWA пушит stale progress из IDB по book_id'у удалённой книги.
+    Без проверки FK (reading_progress.book_id REFERENCES books) падает с
+    IntegrityError → 500. Должно быть аккуратное 404, чтобы клиент мог
+    вычистить хвост из локальной очереди.
+    """
+    resp = reader_client.put(
+        "/api/reader/progress/999999",
+        json={"position": "ch1", "lastDevice": "x", "fraction": 0.1},
+    )
+    assert_error(resp, 404)

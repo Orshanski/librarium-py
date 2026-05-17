@@ -11,12 +11,14 @@ vi.mock("./offline-storage", () => ({
   saveProgress: vi.fn().mockResolvedValue(undefined),
   markProgressSynced: vi.fn().mockResolvedValue(undefined),
   adoptServerProgressLocal: vi.fn().mockResolvedValue(undefined),
+  removeProgress: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
   saveProgress as mockSaveProgress,
   markProgressSynced as mockMarkProgressSynced,
   adoptServerProgressLocal as mockAdoptServerProgressLocal,
+  removeProgress as mockRemoveProgress,
 } from "./offline-storage";
 
 const baseProgress: LocalProgress = {
@@ -142,6 +144,26 @@ describe("pushProgressToServerCAS — failed path", () => {
     const result = await pushProgressToServerCAS(baseProgress, { deviceName: "desktop" });
 
     expect(result.status).toBe("failed");
+  });
+});
+
+describe("pushProgressToServerCAS — dropped path (book deleted on server)", () => {
+  it("returns {status: 'dropped'} on HTTP 404 and removes local IDB entry", async () => {
+    server.use(
+      http.put("/api/reader/progress/42", () =>
+        HttpResponse.json({ detail: "Book not found" }, { status: 404 }),
+      ),
+    );
+
+    const result = await pushProgressToServerCAS(baseProgress, { deviceName: "desktop" });
+
+    expect(result.status).toBe("dropped");
+    expect(mockRemoveProgress).toHaveBeenCalledOnce();
+    expect(mockRemoveProgress).toHaveBeenCalledWith(42);
+    // Не трогает остальное: книги нет — нечего marked synced или adopted.
+    expect(mockSaveProgress).not.toHaveBeenCalled();
+    expect(mockMarkProgressSynced).not.toHaveBeenCalled();
+    expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
   });
 });
 

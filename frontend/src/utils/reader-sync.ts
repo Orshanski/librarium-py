@@ -1,6 +1,7 @@
 import type { LocalProgress } from "./offline-storage";
-import { saveProgress, markProgressSynced, adoptServerProgressLocal } from "./offline-storage";
+import { saveProgress, markProgressSynced, adoptServerProgressLocal, removeProgress } from "./offline-storage";
 import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
+import { NotFoundError } from "@/api/errors";
 import { domainEvents } from "@/domain/events";
 
 /**
@@ -11,10 +12,12 @@ import { domainEvents } from "@/domain/events";
  *              so it accepted as a forward advance.
  * - `adopted`: server rejected our rewind; we adopted its current state.
  *              `adoptedPosition` is the position the reader should jump to.
+ * - `dropped`: server returned 404 — the book no longer exists. The local
+ *              row is a stale tail from IDB; we removed it.
  * - `failed`: network error, HTTP error, aborted, etc.
  */
 export interface PushResult {
-  status: "accepted" | "rebased" | "adopted" | "failed";
+  status: "accepted" | "rebased" | "adopted" | "dropped" | "failed";
   adoptedPosition?: string;
   serverVersion?: number;
 }
@@ -97,6 +100,12 @@ export async function pushProgressToServerCAS(
 
     return { status: "failed" };
   } catch (err) {
+    if (err instanceof NotFoundError) {
+      // Book was deleted on the server. The local IDB row is a stale tail —
+      // remove it so the unsynced-progress queue stops re-attempting forever.
+      await removeProgress(progress.bookId);
+      return { status: "dropped" };
+    }
     console.warn("Failed to push progress:", err);
     return { status: "failed" };
   }
