@@ -49,6 +49,21 @@ def test_upload_zip(admin_client):
     assert data["metadata"]["title"] == "Minimal Test Book"
 
 
+def test_upload_zip_with_macos_junk(admin_client):
+    """macOS Archive Utility кладёт AppleDouble под __MACOSX/, FAT/SMB/exFAT — рядом с оригиналом. Оба варианта игнорируем."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.write(FIXTURES / "minimal.fb2", "book.fb2")
+        zf.writestr("__MACOSX/._book.fb2", b"AppleDouble under __MACOSX/")
+        zf.writestr("._book.fb2", b"AppleDouble next to original")
+    buf.seek(0)
+    resp = admin_client.post("/api/upload",
+                             files={"file": ("mac.zip", buf, "application/octet-stream")})
+    data = assert_ok(resp)
+    assert data["format"] == "FB2"
+    assert data["metadata"]["title"] == "Minimal Test Book"
+
+
 def test_create_book_end_to_end(admin_client):
     bid = make_book_via_upload(
         admin_client, FIXTURES / "minimal.fb2",

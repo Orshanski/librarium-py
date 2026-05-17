@@ -25,6 +25,18 @@ def test_zip_without_books_is_400(admin_client):
     assert_error(resp, 400, message_matches="fb2/epub/pdf")
 
 
+def test_zip_only_macos_junk_is_400(admin_client):
+    """ZIP содержит только macOS-мусор без книги — после фильтра пустой → 400 «не содержит книг»."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("__MACOSX/._book.fb2", b"AppleDouble")
+        zf.writestr(".DS_Store", b"Finder")
+    buf.seek(0)
+    resp = admin_client.post("/api/upload",
+                             files={"file": ("junk.zip", buf, "application/octet-stream")})
+    assert_error(resp, 400, message_matches="fb2/epub/pdf")
+
+
 def test_file_size_limit_is_400(admin_client):
     with patch("app.routers.upload.MAX_BOOK_SIZE", 10):
         with open(FIXTURES / "minimal.fb2", "rb") as f:

@@ -39,6 +39,11 @@ def _temp_cover_path(temp_id: str, cover_ext: str) -> str:
     return str(UPLOADS_DIR / f"{temp_id}-cover.{cover_ext}")
 
 
+def _is_macos_junk(name: str) -> bool:
+    """Skip macOS Archive Utility artefacts: __MACOSX/ resource-fork dir + AppleDouble ._* siblings."""
+    return name.startswith("__MACOSX/") or os.path.basename(name).startswith("._")
+
+
 def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
     """Extract single book file from ZIP. Returns (content, ext, filename_hint).
 
@@ -49,7 +54,10 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
         f.write(content)
     try:
         with zipfile.ZipFile(zip_path) as zf:
-            book_files = [n for n in zf.namelist() if n.rsplit(".", 1)[-1].lower() in BOOK_EXTENSIONS]
+            book_files = [
+                n for n in zf.namelist()
+                if not _is_macos_junk(n) and n.rsplit(".", 1)[-1].lower() in BOOK_EXTENSIONS
+            ]
             if len(book_files) == 0:
                 raise BadInputError("ZIP не содержит книг (fb2/epub/pdf)")
             if len(book_files) > 1:
