@@ -6,6 +6,7 @@ import OfflineShell from "./components/OfflineShell";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useIsPwa } from "./hooks/useIsPwa";
 import { useServerEvents } from "./sse/useServerEvents";
+import { metadataCache } from "./cache";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isReadingFlag, clearReadingFlag } from "./utils/readerFlag";
 import { getLastReadBook } from "./utils/offline-storage";
@@ -82,8 +83,13 @@ export default function App() {
   useEffect(() => {
     if (showOffline) {
       wasOfflineRef.current = true;
-    } else if (online && wasOfflineRef.current) {
+    } else if (online && wasOfflineRef.current && !isReading) {
       wasOfflineRef.current = false;
+      // Synchronous safety-clear of the in-memory metadata cache singleton.
+      // Without this, CatalogPage on re-mount would short-circuit useCachedResource
+      // on stale data (cache/useCachedResource.ts:48) and never refetch.
+      // SSE onopen also invalidates later — this clear runs earlier and unconditionally.
+      metadataCache.clear();
       navigate("/", { replace: true });
     }
   }, [showOffline, online, navigate]);
