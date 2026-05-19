@@ -97,3 +97,29 @@ def test_book_shelves_system_has_book_false(reader_client):
     system = [bs for bs in book_shelves if bs["id"] == best_id]
     assert len(system) == 1
     assert system[0]["hasBook"] is False
+
+
+def test_reading_now_shelf_includes_progress_by_book_id(reader_client, reading_now_shelf_id, db):
+    # Seed: reading_progress for book 2 (no user_books row in baseline, not marked is_read),
+    # user 2 (reader from baseline).
+    db.execute(
+        "INSERT INTO reading_progress (user_id, book_id, position, last_format, fraction, last_read_at, version) "
+        "VALUES (2, 2, '/0/0', 'epub', 0.5, '2026-01-01 00:00:00', 1)"
+    )
+    db.commit()
+    response = reader_client.get(f"/api/shelves/{reading_now_shelf_id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "progressByBookId" in payload
+    assert "2" in payload["progressByBookId"]  # JSON keys are strings
+    entry = payload["progressByBookId"]["2"]
+    assert entry["fraction"] == 0.5
+    assert entry["lastFormat"] == "epub"
+    assert "lastReadAt" in entry
+
+
+def test_regular_shelf_omits_progress_by_book_id(reader_client, regular_shelf_id):
+    """Non-reading_now shelves do not carry progressByBookId (None → omitted via exclude_none)."""
+    response = reader_client.get(f"/api/shelves/{regular_shelf_id}")
+    payload = response.json()
+    assert "progressByBookId" not in payload  # omitted on wire

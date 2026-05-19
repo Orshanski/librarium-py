@@ -3,7 +3,13 @@ import sqlite3
 
 from ..dal import shelves as dal
 from ..dtos.catalog import UserSort
-from ..dtos.shelves import BookShelfEntry, ShelfDetailResponse, ShelfSummary, ShelvesListResponse
+from ..dtos.shelves import (
+    BookShelfEntry,
+    ShelfDetailResponse,
+    ShelfProgressEntry,
+    ShelfSummary,
+    ShelvesListResponse,
+)
 from ..exceptions import NotFoundError
 from .book_item_builder import row_to_book_card_item
 
@@ -35,6 +41,24 @@ def get_shelf(
     if not result:
         raise NotFoundError(_NOT_FOUND)
     shelf_row = result["shelf"]
+    # Reading progress is a property of the reading process, not of the book —
+    # so on the reading_now shelf it ships as a dedicated section keyed by
+    # book id, not inline in books[]. Other shelves' DAL rows have no
+    # progress columns, so the map stays None and the field is omitted on
+    # the wire via response_model_exclude_none=True.
+    progress_by_book_id: dict[int, ShelfProgressEntry] | None = None
+    if shelf_row["system_code"] == "reading_now":
+        progress_by_book_id = {}
+        for row in result["books"]:
+            fraction = row.get("fraction")
+            last_format = row.get("last_format")
+            last_read_at = row.get("last_read_at")
+            if fraction is not None and last_format and last_read_at:
+                progress_by_book_id[row["id"]] = ShelfProgressEntry(
+                    fraction=fraction,
+                    last_format=last_format,
+                    last_read_at=last_read_at,
+                )
     return ShelfDetailResponse(
         shelf=ShelfSummary(
             id=shelf_row["id"],
@@ -43,6 +67,7 @@ def get_shelf(
             system_code=shelf_row["system_code"],
         ),
         books=[row_to_book_card_item(r) for r in result["books"]],
+        progress_by_book_id=progress_by_book_id,
     )
 
 
