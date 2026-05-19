@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import BookItem
+from .book_card import BookCardItem
 
 
 class ShelfSummary(BaseModel):
@@ -147,4 +147,4 @@ class ShelfDetailResponse(BaseModel):
     model_config = RESPONSE_CONFIG
 
     shelf: ShelfSummary
-    books: list[BookItem]
+    books: list[BookCardItem]

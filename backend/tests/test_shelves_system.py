@@ -61,10 +61,11 @@ def test_reading_now_shows_book_with_progress(reader_client):
     sid = find_shelf_id(reader_client, "reading_now")
     resp = reader_client.get(f"/api/shelves/{sid}")
     books = resp.json()["books"]
+    # Book with saved progress must appear on reading_now shelf.
+    # Reading progress fields (fraction, lastFormat, lastReadAt) are NOT
+    # part of BookCardItem; they will arrive via a dedicated progressByBookId
+    # section in Phase 4.5.
     assert 2 in book_ids(books)
-    b = next(b for b in books if b["id"] == 2)
-    assert b["fraction"] == 0.25
-    assert b["lastFormat"] == "fb2"
 
 
 def test_reading_now_excludes_read_book(reader_client):

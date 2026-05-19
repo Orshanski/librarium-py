@@ -5,7 +5,7 @@ from ..dal import shelves as dal
 from ..dtos.catalog import UserSort
 from ..dtos.shelves import BookShelfEntry, ShelfDetailResponse, ShelfSummary, ShelvesListResponse
 from ..exceptions import NotFoundError
-from .book_item_builder import row_to_book_item
+from .book_item_builder import row_to_book_card_item
 
 _NOT_FOUND = "Not found"
 
@@ -42,7 +42,7 @@ def get_shelf(
             is_system=bool(shelf_row["is_system"]),
             system_code=shelf_row["system_code"],
         ),
-        books=[row_to_book_item(r) for r in result["books"]],
+        books=[row_to_book_card_item(r) for r in result["books"]],
     )
 
 
