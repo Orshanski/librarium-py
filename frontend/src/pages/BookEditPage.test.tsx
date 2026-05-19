@@ -10,7 +10,7 @@ import { metadataCache } from "@/cache";
 import { domainEvents } from "@/domain/events";
 import BookEditPage from "./BookEditPage";
 
-const mockRawBook = {
+const mockBookDetail = {
   id: 42,
   title: "Тестовая книга",
   authors: [{ id: 1, name: "Автор Тестов" }],
@@ -33,7 +33,7 @@ function setupAllHandlers() {
   server.use(
     http.get("/api/books/:id", () =>
       HttpResponse.json({
-        book: mockRawBook,
+        book: mockBookDetail,
         files: [{ format: "epub", fileSize: 512000 }],
         identifiers: [],
       })
@@ -91,7 +91,7 @@ describe("BookEditPage", () => {
         putBody = await request.json();
         return HttpResponse.json({
           ok: true,
-          book: { ...mockRawBook, title: "Тестовая книга 2" },
+          book: { ...mockBookDetail, title: "Тестовая книга 2" },
           files: [{ format: "epub", fileSize: 512000 }],
           identifiers: [],
         });
@@ -268,7 +268,7 @@ describe("BookEditPage", () => {
       http.get("/api/books/:id", () => {
         bookRequestCount += 1;
         return HttpResponse.json({
-          book: mockRawBook,
+          book: mockBookDetail,
           files: [{ format: "epub", fileSize: 512000 }],
           identifiers: [],
         });
