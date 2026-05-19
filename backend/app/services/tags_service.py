@@ -5,6 +5,7 @@ from ..dal import tags as dal
 from ..dtos.catalog import UserSort
 from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse, TagSummary
 from ..exceptions import NotFoundError
+from .book_item_builder import row_to_book_card_item
 
 
 def tag_cloud(db: sqlite3.Connection, top: int | None) -> TagCloudResponse:
@@ -20,6 +21,9 @@ def get_tag(
     language: list[str] | None,
     sort: UserSort,
 ) -> TagDetailResponse:
+    """Read tag detail with filters/sort. books[] is mapped through
+    row_to_book_card_item — the unified card-level contract (BookCardItem);
+    detail-only fields stay in BookDetailResponse."""
     result = dal.get_tag_by_id(
         db, tag_id, user_id,
         author_ids=author_ids, series_ids=series_ids, language=language, sort=sort,
@@ -27,13 +31,14 @@ def get_tag(
     if not result:
         raise NotFoundError("Not found")
     tag_row = result["tag"]
+    books = [row_to_book_card_item(r) for r in result["books"]]
     return TagDetailResponse(
         tag=TagSummary(
             id=tag_row["id"],
             name=tag_row["name"],
             code=tag_row.get("code"),
         ),
-        books=result["books"],
+        books=books,
     )
 
 

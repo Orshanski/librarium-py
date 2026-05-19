@@ -302,12 +302,15 @@ class SeriesListResponse(BaseModel):
 class TagDetailResponse(BaseModel):
     """Response for GET /api/tags/{id}.
 
-    Wire format (camelCase): {"tag": {...}, "books": [...]}
+    Wire format (camelCase): {"tag": {...}, "books": [...]}.
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     tag: TagSummary
-    books: list[TagDetailBookItem]
+    books: list[BookCardItem]
 
 
 class TagCloudResponse(BaseModel):

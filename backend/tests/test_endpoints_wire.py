@@ -269,8 +269,7 @@ def test_get_tag_wire(admin_client):
     # coverPath may be absent (exclude_none=True) when book has no cover —
     # but if present it must be camelCase, never snake_case
     assert "cover_path" not in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
+    # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
@@ -282,6 +281,25 @@ def test_get_tag_books_no_legacy_fields(admin_client):
     for book in payload["books"]:
         assert_no_legacy_csv_fields(book)
         assert "tag_ids" not in book
+
+
+def test_tag_detail_books_have_unified_card_shape(reader_client, tag_id):
+    """GET /api/tags/{id} books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get(f"/api/tags/{tag_id}")
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
 
 # ---------------------------------------------------------------------------
