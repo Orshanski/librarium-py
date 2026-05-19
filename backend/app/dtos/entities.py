@@ -207,56 +207,6 @@ class EntityBookRow(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class EntityBookItem(BaseModel):
-    """Book item in author-detail and series-detail responses. Snake-case Python
-    fields; serialises to camelCase wire via alias_generator. Accepts snake keys
-    from DAL TypedDicts (populate_by_name=True) for construction in service layer.
-
-    rating/is_read come from the user_books LEFT JOIN in get_author_books /
-    get_series_books and are user-scoped (per current_user)."""
-    model_config = RESPONSE_CONFIG
-
-    id: int
-    title: str
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-    cover_path: str | None = None
-    added_at: str
-    updated_at: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-    rating: int | None = None
-    is_read: int | None = None
-
-
-class TagDetailBookItem(BaseModel):
-    """Book item in tag-detail response. Extends EntityBookItem shape with
-    user-specific rating/is_read from the user_books JOIN in get_tag_books.sql."""
-    model_config = RESPONSE_CONFIG
-
-    id: int
-    title: str
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-    cover_path: str | None = None
-    added_at: str
-    updated_at: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-    rating: int | None = None
-    is_read: int | None = None
-
-
 class AuthorDetailResponse(BaseModel):
     """Response for GET /api/authors/{id}.
 

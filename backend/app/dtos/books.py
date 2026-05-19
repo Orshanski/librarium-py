@@ -126,30 +126,6 @@ class DuplicateHit(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class BookListItem(BaseModel):
-    """Single book item in list/detail responses. Snake-case Python fields;
-    serialises to camelCase wire via alias_generator. Accepts snake keys from
-    DAL TypedDicts (populate_by_name=True) and camel keys from wire."""
-    model_config = RESPONSE_CONFIG
-
-    id: int
-    title: str
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-    cover_path: str | None = None
-    added_at: str
-    updated_at: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-    rating: int | None = None
-    is_read: int | None = None
-
-
 class BookFileItem(BaseModel):
     """Book file (format) item in detail response."""
     model_config = RESPONSE_CONFIG
@@ -214,64 +190,3 @@ class BookListResponse(BaseModel):
 
     books: list[BookCardItem]
     has_more: bool
-
-
-class BookFormatItem(BaseModel):
-    """Формат книги (файл) — элемент `BookItem.formats`. Snake-поля, camel-wire
-    через alias_generator. Заготовка на будущее (BookDetail endpoint): в jmdc
-    для shelves/tags не заполняется."""
-    model_config = RESPONSE_CONFIG
-
-    format: str
-    size: int
-
-
-class BookItem(BaseModel):
-    """Pydantic response DTO для книги в составе ShelfDetailResponse.
-
-    Единственный потребитель — ShelfDetailResponse (shelves.py).
-    Собирается через services.book_item_builder.row_to_book_item().
-
-    Snake-поля Python, camelCase wire через alias_generator=to_camel.
-
-    Опциональные поля endpoint-специфичны:
-    - rating / is_read — только для полки «лучшее»;
-    - fraction / last_format / last_read_at — только для «читаю сейчас».
-    Отсутствующие поля остаются None и вырезаются через
-    response_model_exclude_none=True на уровне роутера.
-
-    formats / isbn — всегда None, зарезервированы для будущего
-    BookDetail-via-shelves сценария.
-    """
-    model_config = RESPONSE_CONFIG
-
-    # Core — всегда присутствуют
-    id: int
-    title: str
-    cover_path: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-    added_at: str
-    updated_at: str
-
-    # Optional — могут отсутствовать в конкретных полях SQL
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-
-    # User-specific (JOIN user_books)
-    rating: int | None = None
-    is_read: bool | None = None
-
-    # Reading progress (только reading_now)
-    fraction: float | None = None
-    last_format: str | None = None
-    last_read_at: str | None = None
-
-    # BookDetail-only (в jmdc не заполняется, на будущее)
-    formats: list[BookFormatItem] | None = None
-    isbn: str | None = None

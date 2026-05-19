@@ -1,8 +1,9 @@
 """Unified DTO for book-in-list across all endpoints.
 
 Single Pydantic class returned by catalog, author detail, series detail, tag
-detail, shelf detail, and search endpoints. Replaces BookListItem,
-EntityBookItem, TagDetailBookItem, BookItem (shelf-list), SearchBookHit.
+detail, shelf detail, and search endpoints. Replaces the previous per-endpoint
+DTOs (BookListItem, EntityBookItem, TagDetailBookItem, BookItem) and the
+shelf-list builder `row_to_book_item`.
 
 Snake-case Python fields; camelCase wire via RESPONSE_CONFIG alias_generator.
 Accepts snake keys from DAL TypedDicts (populate_by_name=True).

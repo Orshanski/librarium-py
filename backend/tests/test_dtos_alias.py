@@ -5,13 +5,11 @@ from pydantic import ValidationError
 from app.dtos.books import (
     BookFileItem,
     BookIdentifierItem,
-    BookItem,
-    BookListItem,
     DuplicateHitItem,
     UpdateBookBody,
 )
 from app.dtos._refs import AuthorRef
-from app.dtos.entities import EntityBookItem, MergeBody, TagDetailBookItem, TagSummary
+from app.dtos.entities import MergeBody, TagSummary
 from app.dtos.shelves import ShelfBookBody, ShelfSummary
 
 
@@ -24,30 +22,6 @@ def test_update_book_body_parses_camel_wire_only():
 def test_update_book_body_rejects_snake_case_in_wire():
     with pytest.raises(ValidationError):
         UpdateBookBody.model_validate({"author_ids": [1, 2]})
-
-
-def test_book_list_item_serialises_camel():
-    item = BookListItem(
-        id=1, title="X", cover_path="/a", authors=[AuthorRef(id=1, name="A")],
-        series=None, series_number=None, tags=[], rating=None, is_read=None,
-        added_at="2020", updated_at="2020", sort_title=None, description=None,
-        language=None, publisher=None, pub_date=None,
-    )
-    wire = item.model_dump(by_alias=True)
-    assert "coverPath" in wire and "cover_path" not in wire
-    assert "addedAt" in wire and "added_at" not in wire
-    assert "isRead" in wire and "is_read" not in wire
-
-
-def test_book_list_item_accepts_snake_for_tests():
-    item = BookListItem.model_validate({
-        "id": 1, "title": "X", "cover_path": "/a", "authors": [],
-        "series": None, "series_number": None, "tags": [], "rating": None,
-        "is_read": None, "added_at": "2020", "updated_at": "2020",
-        "sort_title": None, "description": None, "language": None,
-        "publisher": None, "pub_date": None,
-    })
-    assert item.cover_path == "/a"
 
 
 def test_merge_body_python_snake_wire_camel():
@@ -86,41 +60,6 @@ def test_duplicate_hit_item_serialises_camel():
     item = DuplicateHitItem(id=1, title="X", authors=[AuthorRef(id=1, name="A")])
     wire = item.model_dump(by_alias=True)
     assert wire == {"id": 1, "title": "X", "authors": [{"id": 1, "name": "A"}]}
-
-
-def test_entity_book_item_serialises_camel():
-    item = EntityBookItem(
-        id=1, title="X", sort_title=None, pub_date=None,
-        series=None, series_number=None, cover_path=None,
-        added_at="2020", updated_at="2020",
-        authors=[AuthorRef(id=1, name="A")], tags=[],
-    )
-    wire = item.model_dump(by_alias=True)
-    assert "coverPath" in wire and "cover_path" not in wire
-    assert "addedAt" in wire and "added_at" not in wire
-
-
-def test_tag_detail_book_item_serialises_camel():
-    item = TagDetailBookItem(
-        id=1, title="X", sort_title=None, pub_date=None,
-        series=None, series_number=None, cover_path=None,
-        added_at="2020", updated_at="2020",
-        authors=[], tags=[], rating=None, is_read=None,
-    )
-    wire = item.model_dump(by_alias=True)
-    assert "isRead" in wire and "is_read" not in wire
-
-
-def test_book_item_serialises_camel():
-    """BookItem after unification — snake fields, camel aliases on wire."""
-    item = BookItem(
-        id=1, title="X", cover_path="/a",
-        authors=[AuthorRef(id=1, name="A")], tags=[],
-        added_at="2020", updated_at="2020",
-    )
-    wire = item.model_dump(by_alias=True)
-    assert "coverPath" in wire and "cover_path" not in wire
-    assert "addedAt" in wire and "added_at" not in wire
 
 
 def test_shelf_summary_serialises_camel():
