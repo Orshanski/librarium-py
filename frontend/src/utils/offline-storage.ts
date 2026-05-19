@@ -274,6 +274,34 @@ export async function removeBookFromLocalStorage(bookId: number): Promise<void> 
   ]);
 }
 
+/**
+ * Update only card-level metadata (title, authors, series, seriesNumber,
+ * rating, isRead) of a stored offline book. Binary fields (coverBuffer,
+ * coverType, formats), timestamps (savedAt, lastAccessedAt) and the
+ * manuallyAdded flag are preserved. No-op if the book is not stored.
+ */
+export async function updateOfflineBookMetadata(
+  bookId: number,
+  metadata: Pick<Book, "title" | "authors" | "series" | "seriesNumber" | "rating" | "isRead">,
+): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction("offline_books", "readwrite");
+  const store = tx.objectStore("offline_books");
+  const existing = await store.get(bookId);
+  if (!existing) {
+    await tx.done;
+    return;
+  }
+  existing.title = metadata.title;
+  existing.authors = metadata.authors;
+  existing.series = metadata.series;
+  existing.seriesNumber = metadata.seriesNumber;
+  existing.rating = metadata.rating;
+  existing.isRead = metadata.isRead;
+  await store.put(existing);
+  await tx.done;
+}
+
 export async function touchOfflineBook(bookId: number): Promise<void> {
   const db = await initDB();
   const book = await db.get("offline_books", bookId);

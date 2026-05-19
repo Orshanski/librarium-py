@@ -12,6 +12,7 @@ import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
 import type { Book } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
+import { useRefreshOnReadingNowOnline } from "../hooks/useRefreshOnReadingNowOnline";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
 import { shelfScrollContext } from "@/scroll/contexts";
@@ -70,6 +71,8 @@ export default function ShelfPage() {
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
+  const isReadingNow = shelf?.systemCode === "reading_now";
+  useRefreshOnReadingNowOnline(isReadingNow && navigator.onLine);
 
   async function handleDelete() {
     try {
@@ -106,7 +109,6 @@ export default function ShelfPage() {
   const pageKey = shelfSortConfigKey(shelf.systemCode);
   const cfg = SORT_CONFIG[pageKey];
   const options = cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
-  const isReadingNow = shelf.systemCode === "reading_now";
 
   const shelfOrigin = {
     type: "shelf" as const,
