@@ -15,7 +15,7 @@ from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
-from .book_item_builder import row_to_book_card_item
+from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
 
@@ -139,7 +139,11 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
         raise NotFoundError(_BOOK_NOT_FOUND)
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
-    return BookDetailResponse(book=book, files=files, identifiers=identifiers)
+    return BookDetailResponse(
+        book=row_to_book_detail_item(cast(dict, book)),
+        files=files,
+        identifiers=identifiers,
+    )
 
 
 def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, str]]:

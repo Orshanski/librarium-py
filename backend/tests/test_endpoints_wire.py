@@ -101,6 +101,19 @@ def test_get_book_with_cover_wire(admin_client):
     assert "cover_path" not in book
 
 
+def test_book_detail_includes_card_fields_plus_details(reader_client):
+    """GET /api/books/{id}.book has BookCardItem fields PLUS detail fields."""
+    response = reader_client.get("/api/books/1")
+    assert response.status_code == 200
+    book = response.json()["book"]
+    # Card fields
+    card_expected = {"id", "title", "authors", "series", "seriesNumber", "coverPath", "rating", "isRead"}
+    assert card_expected.issubset(book.keys()), f"missing card keys: {card_expected - book.keys()}"
+    # Detail fields
+    detail_expected = {"description", "publisher", "language", "pubDate", "tags", "sortTitle", "addedAt", "updatedAt"}
+    assert detail_expected.issubset(book.keys()), f"missing detail keys: {detail_expected - book.keys()}"
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/books/{id} — camel body accepted, snake body rejected
 # ---------------------------------------------------------------------------

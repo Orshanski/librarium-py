@@ -8,7 +8,7 @@
 - tags: list[TagRef]         (не CSV-строка)
 - series: SeriesRef | None   (не плоские series_name + series_id)
 """
-from ..dtos.book_card import BookCardItem
+from ..dtos.book_card import BookCardItem, BookDetailItem
 from ..dtos.books import BookItem
 
 
@@ -32,6 +32,42 @@ def row_to_book_card_item(row: dict) -> BookCardItem:
         cover_path=f"/api/covers/{book_id}?t={updated_at}",
         rating=row.get("rating"),
         is_read=bool(is_read_raw) if is_read_raw is not None else False,
+    )
+
+
+def row_to_book_detail_item(row: dict) -> BookDetailItem:
+    """Maps a DAL row (snake_case) into BookDetailItem.
+
+    Mirrors row_to_book_card_item plus 8 detail fields. cover_path is the
+    API URL (`/api/covers/{id}?t=<updated_at>`), consistent with the unified
+    BookCardItem contract — not the raw DB column value.
+
+    Row contract (guaranteed by parse_book_row_aggregates):
+    - authors: list[AuthorRef]
+    - tags: list[TagRef]
+    - series: SeriesRef | None
+    - is_read: int | None (0/1 from SQL, coerced to bool)
+    """
+    book_id = row["id"]
+    updated_at = row["updated_at"]
+    is_read_raw = row.get("is_read")
+    return BookDetailItem(
+        id=book_id,
+        title=row["title"],
+        authors=row.get("authors") or [],
+        series=row.get("series"),
+        series_number=row.get("series_number"),
+        cover_path=f"/api/covers/{book_id}?t={updated_at}",
+        rating=row.get("rating"),
+        is_read=bool(is_read_raw) if is_read_raw is not None else False,
+        sort_title=row.get("sort_title"),
+        description=row.get("description"),
+        language=row.get("language"),
+        publisher=row.get("publisher"),
+        pub_date=row.get("pub_date"),
+        tags=row.get("tags") or [],
+        added_at=row["added_at"],
+        updated_at=updated_at,
     )
 
 

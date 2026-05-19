@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
-from .book_card import BookCardItem
+from .book_card import BookCardItem, BookDetailItem
 
 
 class UpdateBookBody(BaseModel):
@@ -180,12 +180,14 @@ class BookDetailResponse(BaseModel):
     """Response for GET /api/books/{book_id}.
 
     Wire format (camelCase): {"book": {...}, "files": [...], "identifiers": [...]}
-    Pydantic validates DAL TypedDict rows (snake keys) into BookListItem/
-    BookFileItem/BookIdentifierItem via populate_by_name=True on each item.
+    `book` uses the unified BookDetailItem shape (card-level fields plus
+    detail fields). Built in service layer via
+    `services.book_item_builder.row_to_book_detail_item` — `cover_path` is
+    the API URL `/api/covers/{id}?t=<updated_at>`, not the raw DB column.
     """
     model_config = RESPONSE_CONFIG
 
-    book: BookListItem
+    book: BookDetailItem
     files: list[BookFileItem]
     identifiers: list[BookIdentifierItem]
 
