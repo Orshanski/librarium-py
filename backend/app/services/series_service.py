@@ -4,6 +4,7 @@ import sqlite3
 from ..dal import series as dal
 from ..dtos.entities import SeriesDetailResponse, SeriesListResponse
 from ..exceptions import BadInputError, NotFoundError
+from .book_item_builder import row_to_book_card_item
 
 
 def list_series(
@@ -19,11 +20,16 @@ def list_series(
 
 def get_series(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailResponse:
     """Read series detail. user_id is required: books[] now carries per-user
-    rating/is_read via the user_books LEFT JOIN in get_series_books.sql."""
+    rating/is_read via the user_books LEFT JOIN in get_series_books.sql.
+
+    books[] is mapped through row_to_book_card_item — the unified card-level
+    contract (BookCardItem); detail-only fields stay in BookDetailResponse.
+    """
     result = dal.get_series_by_id(db, series_id, user_id)
     if not result:
         raise NotFoundError("Not found")
-    return SeriesDetailResponse(series=result["series"], books=result["books"])
+    books = [row_to_book_card_item(r) for r in result["books"]]
+    return SeriesDetailResponse(series=result["series"], books=books)
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:

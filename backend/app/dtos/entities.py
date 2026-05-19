@@ -281,12 +281,15 @@ class AuthorsListResponse(BaseModel):
 class SeriesDetailResponse(BaseModel):
     """Response for GET /api/series/{id}.
 
-    Wire format (camelCase): {"series": {...}, "books": [...]}
+    Wire format (camelCase): {"series": {...}, "books": [...]}.
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     series: SeriesDetailSummary
-    books: list[EntityBookItem]
+    books: list[BookCardItem]
 
 
 class SeriesListResponse(BaseModel):
