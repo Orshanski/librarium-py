@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { openDB, type IDBPTransaction } from "idb";
+import type { Book } from "../../types";
 import {
   initDB,
   _resetDB,
@@ -25,6 +26,19 @@ import {
   getStorageUsage,
 } from "../offline-storage";
 
+function makeBook(overrides: Partial<Book> & { id: number; title: string }): Book {
+  return {
+    id: overrides.id,
+    title: overrides.title,
+    authors: overrides.authors ?? [],
+    series: overrides.series ?? null,
+    seriesNumber: overrides.seriesNumber ?? null,
+    coverPath: overrides.coverPath ?? "",
+    rating: overrides.rating ?? null,
+    isRead: overrides.isRead ?? false,
+  };
+}
+
 beforeEach(async () => {
   await initDB();   // ensure DB exists
   await _resetDB(); // clear all stores
@@ -32,30 +46,30 @@ beforeEach(async () => {
 });
 
 describe("offline book storage", () => {
-  const meta = { bookId: 1, title: "Test Book", authors: ["Author"] };
+  const book = makeBook({ id: 1, title: "Test Book", authors: [{ id: 10, name: "Author" }] });
   const cover = new Blob(["cover"], { type: "image/jpeg" });
   const files = [{ format: "EPUB", fileBlob: new Blob(["epub"]), fileSize: 4 }];
 
   it("saveOfflineBook + getOfflineBook", async () => {
-    await saveOfflineBook(meta, files, cover);
-    const book = await getOfflineBook(1);
-    expect(book).not.toBeNull();
-    expect(book!.title).toBe("Test Book");
-    expect(book!.authors).toEqual(["Author"]);
-    expect(book!.formats).toHaveLength(1);
-    expect(book!.formats[0].format).toBe("EPUB");
+    await saveOfflineBook(book, files, cover);
+    const stored = await getOfflineBook(1);
+    expect(stored).not.toBeNull();
+    expect(stored!.title).toBe("Test Book");
+    expect(stored!.authors).toEqual([{ id: 10, name: "Author" }]);
+    expect(stored!.formats).toHaveLength(1);
+    expect(stored!.formats[0].format).toBe("EPUB");
   });
 
   it("getOfflineBooks returns all", async () => {
-    await saveOfflineBook(meta, files, cover);
-    await saveOfflineBook({ bookId: 2, title: "Book 2", authors: ["B"] }, files, cover);
+    await saveOfflineBook(book, files, cover);
+    await saveOfflineBook(makeBook({ id: 2, title: "Book 2", authors: [{ id: 11, name: "B" }] }), files, cover);
     const books = await getOfflineBooks();
     expect(books).toHaveLength(2);
     // Verify actual Blob reconstruction (not raw ArrayBuffers)
-    for (const book of books) {
-      expect(book.coverBlob).toBeInstanceOf(Blob);
-      expect(book.coverBlob.size).toBeGreaterThan(0);
-      for (const f of book.formats) {
+    for (const b of books) {
+      expect(b.coverBlob).toBeInstanceOf(Blob);
+      expect(b.coverBlob.size).toBeGreaterThan(0);
+      for (const f of b.formats) {
         expect(f.fileBlob).toBeInstanceOf(Blob);
         expect(f.fileBlob.size).toBeGreaterThan(0);
       }
@@ -64,18 +78,18 @@ describe("offline book storage", () => {
 
   it("hasOfflineBook returns true/false", async () => {
     expect(await hasOfflineBook(1)).toBe(false);
-    await saveOfflineBook(meta, files, cover);
+    await saveOfflineBook(book, files, cover);
     expect(await hasOfflineBook(1)).toBe(true);
   });
 
   it("removeOfflineBook removes from offline storage", async () => {
-    await saveOfflineBook(meta, files, cover);
+    await saveOfflineBook(book, files, cover);
     await removeOfflineBook(1);
     expect(await hasOfflineBook(1)).toBe(false);
   });
 
   it("touchOfflineBook updates lastAccessedAt", async () => {
-    await saveOfflineBook(meta, files, cover);
+    await saveOfflineBook(book, files, cover);
     const before = (await getOfflineBook(1))!.lastAccessedAt;
     await new Promise((r) => setTimeout(r, 10));
     await touchOfflineBook(1);
@@ -84,15 +98,15 @@ describe("offline book storage", () => {
   });
 
   it("saveOfflineBook sets manuallyAdded to false by default", async () => {
-    await saveOfflineBook(meta, files, cover);
-    const book = await getOfflineBook(1);
-    expect(book!.manuallyAdded).toBe(false);
+    await saveOfflineBook(book, files, cover);
+    const stored = await getOfflineBook(1);
+    expect(stored!.manuallyAdded).toBe(false);
   });
 
   it("saveOfflineBook sets manuallyAdded when specified", async () => {
-    await saveOfflineBook({ ...meta, manuallyAdded: true }, files, cover);
-    const book = await getOfflineBook(1);
-    expect(book!.manuallyAdded).toBe(true);
+    await saveOfflineBook(book, files, cover, true);
+    const stored = await getOfflineBook(1);
+    expect(stored!.manuallyAdded).toBe(true);
   });
 });
 
@@ -231,11 +245,11 @@ describe("eviction", () => {
   const files = [{ format: "EPUB", fileBlob: new Blob(["e"]), fileSize: 1 }];
 
   it("evictExpired removes old books", async () => {
-    await saveOfflineBook({ bookId: 1, title: "Old", authors: [] }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "Old" }), files, cover);
     const db = await initDB();
-    const book = await db.get("offline_books", 1);
-    book!.lastAccessedAt = Date.now() - 15 * 24 * 60 * 60 * 1000;
-    await db.put("offline_books", book!);
+    const stored = await db.get("offline_books", 1);
+    stored!.lastAccessedAt = Date.now() - 15 * 24 * 60 * 60 * 1000;
+    await db.put("offline_books", stored!);
 
     const count = await evictExpired(14 * 24 * 60 * 60 * 1000);
     expect(count).toBe(1);
@@ -243,7 +257,7 @@ describe("eviction", () => {
   });
 
   it("evictExpired keeps fresh books", async () => {
-    await saveOfflineBook({ bookId: 1, title: "Fresh", authors: [] }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "Fresh" }), files, cover);
     const count = await evictExpired(14 * 24 * 60 * 60 * 1000);
     expect(count).toBe(0);
     expect(await hasOfflineBook(1)).toBe(true);
@@ -255,8 +269,8 @@ describe("evictLRU", () => {
 
   it("evicts at least one book when called with no target", async () => {
     const files = [{ format: "EPUB", fileBlob: new Blob(["e"]), fileSize: 100 }];
-    await saveOfflineBook({ bookId: 1, title: "A", authors: [] }, files, cover);
-    await saveOfflineBook({ bookId: 2, title: "B", authors: [] }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "A" }), files, cover);
+    await saveOfflineBook(makeBook({ id: 2, title: "B" }), files, cover);
 
     // Make book 1 older
     const db = await initDB();
@@ -273,9 +287,9 @@ describe("evictLRU", () => {
 
   it("evicts multiple books until targetBytes is met", async () => {
     const smallFiles = [{ format: "EPUB", fileBlob: new Blob(["e"]), fileSize: 50 }];
-    await saveOfflineBook({ bookId: 1, title: "A", authors: [] }, smallFiles, cover);
-    await saveOfflineBook({ bookId: 2, title: "B", authors: [] }, smallFiles, cover);
-    await saveOfflineBook({ bookId: 3, title: "C", authors: [] }, smallFiles, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "A" }), smallFiles, cover);
+    await saveOfflineBook(makeBook({ id: 2, title: "B" }), smallFiles, cover);
+    await saveOfflineBook(makeBook({ id: 3, title: "C" }), smallFiles, cover);
 
     // Make books progressively older
     const db = await initDB();
@@ -300,8 +314,8 @@ describe("evictLRU", () => {
 
   it("skips manually-added books", async () => {
     const files = [{ format: "EPUB", fileBlob: new Blob(["e"]), fileSize: 100 }];
-    await saveOfflineBook({ bookId: 1, title: "Manual", authors: [], manuallyAdded: true }, files, cover);
-    await saveOfflineBook({ bookId: 2, title: "Auto", authors: [], manuallyAdded: false }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "Manual" }), files, cover, true);
+    await saveOfflineBook(makeBook({ id: 2, title: "Auto" }), files, cover, false);
 
     // Make manual book older
     const db = await initDB();
@@ -324,8 +338,8 @@ describe("getStorageUsage", () => {
       { format: "EPUB", fileBlob: new Blob(["e"]), fileSize: 200 },
       { format: "PDF", fileBlob: new Blob(["p"]), fileSize: 300 },
     ];
-    await saveOfflineBook({ bookId: 1, title: "A", authors: [] }, files1, cover);
-    await saveOfflineBook({ bookId: 2, title: "B", authors: [] }, files2, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "A" }), files1, cover);
+    await saveOfflineBook(makeBook({ id: 2, title: "B" }), files2, cover);
 
     const usage = await getStorageUsage();
     expect(usage.bookCount).toBe(2);
@@ -344,7 +358,7 @@ describe("removeBookFromLocalStorage", () => {
   const files = [{ format: "EPUB", fileBlob: new Blob(["epub"]), fileSize: 4 }];
 
   it("removes book from offline_books store", async () => {
-    await saveOfflineBook({ bookId: 1, title: "X", authors: ["A"] }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "X", authors: [{ id: 9, name: "A" }] }), files, cover);
     expect(await hasOfflineBook(1)).toBe(true);
     await removeBookFromLocalStorage(1);
     expect(await hasOfflineBook(1)).toBe(false);
@@ -358,8 +372,8 @@ describe("removeBookFromLocalStorage", () => {
   });
 
   it("leaves other books untouched (offline + progress)", async () => {
-    await saveOfflineBook({ bookId: 1, title: "X", authors: [] }, files, cover);
-    await saveOfflineBook({ bookId: 2, title: "Y", authors: [] }, files, cover);
+    await saveOfflineBook(makeBook({ id: 1, title: "X" }), files, cover);
+    await saveOfflineBook(makeBook({ id: 2, title: "Y" }), files, cover);
     await saveProgress(1, { position: "p1", fraction: 0.3, lastFormat: "epub", lastReadAt: Date.now() });
     await saveProgress(2, { position: "p2", fraction: 0.7, lastFormat: "epub", lastReadAt: Date.now() });
 

@@ -42,7 +42,8 @@ export default function BookDetail({
 
   const handleToggleOffline = useCallback(() => {
     toggleOffline(
-      { title: book.title, authors: book.authors.map((a) => a.name), manuallyAdded: true },
+      book,
+      true,
       async () => {
         const data = await getBook(book.id);
         const allFiles = data.files || [];
@@ -57,7 +58,7 @@ export default function BookDetail({
         return getCover(book.id, true);
       },
     );
-  }, [book.id, book.title, book.authors, toggleOffline]);
+  }, [book, toggleOffline]);
 
   async function saveRating(nextRating: number) {
     const previous = rating;
