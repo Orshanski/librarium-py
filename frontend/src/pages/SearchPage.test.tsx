@@ -6,18 +6,21 @@ import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { domainEvents } from "@/domain/events";
 import { registerScrollInvalidationHandlers } from "@/scroll/list-scroll-validity";
-import type { SearchBookHit } from "../api/endpoints/search";
+import type { Book } from "../types";
 import SearchPage from "./SearchPage";
 
-// Shared fixture factory — central place to add fields if SearchBookHit grows.
+// Shared fixture factory — central place to add fields if Book grows.
 // Tests that need a book pass only the overrides they care about.
-function makeSearchHit(overrides: Partial<SearchBookHit> = {}): SearchBookHit {
+function makeSearchHit(overrides: Partial<Book> = {}): Book {
   return {
     id: 1,
     title: "Example Book",
     authors: [],
-    coverPath: null,
+    coverPath: "",
     series: null,
+    seriesNumber: null,
+    rating: null,
+    isRead: false,
     ...overrides,
   };
 }

@@ -14,15 +14,17 @@ const mockRawBook = {
   authors: [{ id: 1, name: "Михаил Булгаков" }],
   series: null,
   seriesNumber: null,
-  tags: [{ id: 1, name: "роман" }, { id: 2, name: "классика" }],
+  coverPath: "/api/covers/42",
   rating: null,
-  language: "ru",
-  coverPath: null,
+  isRead: false,
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  updatedAt: null,
-  isRead: null,
+  tags: [{ id: 1, name: "роман" }, { id: 2, name: "классика" }],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
 
 describe("BookPage", () => {

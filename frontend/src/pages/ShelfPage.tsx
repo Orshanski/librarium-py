@@ -10,8 +10,7 @@ import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
-import type { Book, RawBook } from "../types";
-import { toBook } from "../types";
+import type { Book } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor } from "../config/sort";
@@ -42,11 +41,14 @@ export default function ShelfPage() {
     (signal) => getShelf(shelfId, { sort }, signal),
   );
   const shelf = shelfResource.data?.shelf ?? null;
-  const rawBooks = useMemo(
+  const books = useMemo<Book[]>(
     () => (shelfResource.data?.books || []).filter((book) => !removedBookIds.has(book.id)),
     [shelfResource.data, removedBookIds],
   );
-  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
+  // For the reading_now system shelf, the server returns per-book progress in
+  // a sibling map (not inline on book[]). Use empty object as fallback so the
+  // lookup below always returns undefined for non-reading_now shelves.
+  const progressByBookId = shelfResource.data?.progressByBookId ?? {};
   const loading = shelfResource.loading;
   const scrollContext = useMemo(
     () => shelfScrollContext({
@@ -143,7 +145,10 @@ export default function ShelfPage() {
 
       <BookGrid>
         {books.map((b) => {
-          const readerHref = isReadingNow && b.lastFormat ? `/book/${b.id}/read/${b.lastFormat.toLowerCase()}` : undefined;
+          const progress = progressByBookId[b.id];
+          const readerHref = isReadingNow && progress?.lastFormat
+            ? `/book/${b.id}/read/${progress.lastFormat.toLowerCase()}`
+            : undefined;
           // linkState пробрасывается только для книг, ведущих на /book/:id.
           // Для reader-override (readerHref задан) state для BookPage не нужен.
           const linkState = readerHref ? undefined : { origin: shelfOrigin };
@@ -154,7 +159,7 @@ export default function ShelfPage() {
               width={cardWidth}
               href={readerHref || `/book/${b.id}`}
               onClick={readerHref ? setReadingFlag : undefined}
-              progressPercent={isReadingNow && b.fraction ? Math.round(b.fraction * 100) : undefined}
+              progressPercent={isReadingNow && progress?.fraction ? Math.round(progress.fraction * 100) : undefined}
               hasOffline={offlineBookIds.has(b.id)}
               linkState={linkState}
               onRemove={!shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}

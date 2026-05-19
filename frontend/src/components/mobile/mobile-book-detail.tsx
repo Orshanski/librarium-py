@@ -67,6 +67,8 @@ const SERIES_RAIL_TOKENS = {
 export default function MobileBookDetail({
   book,
   seriesBooks,
+  formats,
+  isbn,
   bookOrigin,
   isAdmin,
   rating,
@@ -87,7 +89,7 @@ export default function MobileBookDetail({
       bookOrigin,
     },
   };
-  const firstFormat = book.formats[0];
+  const firstFormat = formats[0];
 
   return (
     <div>
@@ -109,12 +111,12 @@ export default function MobileBookDetail({
           </div>
           {book.authors.length > 0 && (
             <div style={{ fontSize: 13, color: colors.accent, marginBottom: 8 }}>
-              {book.authors.join(", ")}
+              {book.authors.map((a) => a.name).join(", ")}
             </div>
           )}
           {book.series && (
             <BookSeriesLine
-              seriesName={book.series}
+              seriesName={book.series.name}
               seriesNumber={book.seriesNumber}
               tokens={SERIES_LINE_TOKENS}
             />
@@ -133,7 +135,7 @@ export default function MobileBookDetail({
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         <BookReadDownloadButtons
           bookId={book.id}
-          formats={book.formats}
+          formats={formats}
           readableFormats={MOBILE_READABLE_FORMATS}
         />
         <BookShelfMenu bookId={book.id} compact={true} />
@@ -171,16 +173,16 @@ export default function MobileBookDetail({
 
       {book.description && <BookDescription html={book.description} tokens={DESCRIPTION_TOKENS} />}
 
-      {book.tags.length > 0 && <BookMetaPillList items={book.tags} tokens={PILL_TOKENS} />}
+      {book.tags.length > 0 && <BookMetaPillList items={book.tags.map((t) => t.name)} tokens={PILL_TOKENS} />}
 
-      <BookFacts facts={buildBookFacts(book)} tokens={FACTS_TOKENS} />
+      <BookFacts facts={buildBookFacts(book, isbn)} tokens={FACTS_TOKENS} />
 
       {book.series && (
         <BookSeriesRail
           books={seriesBooks}
           currentBookId={book.id}
           bookOrigin={bookOrigin}
-          seriesName={book.series}
+          seriesName={book.series.name}
           tokens={SERIES_RAIL_TOKENS}
         />
       )}

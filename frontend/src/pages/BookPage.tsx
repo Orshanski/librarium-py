@@ -6,7 +6,7 @@ import BookDetail from "../components/book-detail";
 import type { ListOrigin } from "../components/breadcrumb-origin";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
-import { Book, toBook, RawBook } from "../types";
+import type { Book, BookFormat } from "../types";
 import { getBook, listBooks, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
 import { metadataCache, useCachedResource } from "@/cache";
@@ -33,13 +33,13 @@ function StatusScreen({ title, message, crumb }: Readonly<StatusScreenProps>) {
  * Pulled out of the BookPage useEffect chain so the sort callback isn't
  * nested 5 levels deep (S2004).
  */
-async function fetchSeriesBooks(seriesId: number, signal: AbortSignal): Promise<RawBook[]> {
+async function fetchSeriesBooks(seriesId: number, signal: AbortSignal): Promise<Book[]> {
   const data = await listBooks(
     { seriesIds: [String(seriesId)], pageSize: 50, sort: "addedDesc" },
     signal,
   );
   return (data.books || []).sort(
-    (a: RawBook, b: RawBook) => (a.seriesNumber ?? 0) - (b.seriesNumber ?? 0),
+    (a: Book, b: Book) => (a.seriesNumber ?? 0) - (b.seriesNumber ?? 0),
   );
 }
 
@@ -90,23 +90,30 @@ export default function BookPage() {
   }
 
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
-  const bookData: Book = {
-    ...toBook(book, { fullCover: true, isbn }),
-    formats: files.map((f) => {
-      const sz = f.fileSize ?? 0;
-      return {
-        format: f.format,
-        size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
-      };
-    }),
+  // Backend coverPath is /api/covers/{id}?t=<updated_at>; detail page needs the
+  // full-resolution variant (?full=1). Override the wire coverPath for display.
+  const detailBook = {
+    ...book,
+    coverPath: `/api/covers/${book.id}?full=1&t=${book.updatedAt}`,
   };
-
-  const seriesBooksData: Book[] = seriesBooks.map((b) => toBook(b));
+  const formats: BookFormat[] = files.map((f) => {
+    const sz = f.fileSize ?? 0;
+    return {
+      format: f.format,
+      size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
+    };
+  });
 
   return (
     <>
       <PageHeader title={book.title} breadcrumb={crumb} />
-      <BookDetail book={bookData} seriesBooks={seriesBooksData} bookOrigin={origin} />
+      <BookDetail
+        book={detailBook}
+        seriesBooks={seriesBooks}
+        formats={formats}
+        isbn={isbn}
+        bookOrigin={origin}
+      />
     </>
   );
 }

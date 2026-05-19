@@ -1,6 +1,15 @@
 import { client, type ClientQuery } from "../client";
 import type { OkResponse } from "../types";
-import type { RawBook } from "@/types";
+import type { Book } from "@/types";
+
+/** Reading progress entry for a single book on the reading_now shelf.
+ *  Lives at ShelfDetail.progressByBookId — separate from books[] because
+ *  progress is a property of the reading process, not of the book. */
+export interface ShelfProgressEntry {
+  fraction: number;
+  lastFormat: string;
+  lastReadAt: string;
+}
 
 export interface Shelf {
   id: number;
@@ -30,7 +39,9 @@ export interface ShelvesListResponse {
 
 export interface ShelfDetail {
   shelf: ShelfSummary;
-  books: RawBook[];
+  books: Book[];
+  /** Populated only for reading_now shelf; absent/omitted otherwise. */
+  progressByBookId?: Record<number, ShelfProgressEntry>;
 }
 
 export interface CreateShelfResponse {

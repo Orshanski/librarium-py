@@ -7,19 +7,12 @@ import type { Book } from "../../types";
 const baseBook: Book = {
   id: 7,
   title: "Book 1",
-  authors: ["Author"],
-  series: "Series",
+  authors: [{ id: 1, name: "Author" }],
+  series: { id: 1, name: "Series" },
   seriesNumber: 1,
-  tags: [],
   rating: null,
   isRead: false,
-  language: "ru",
   coverPath: "/cover/7",
-  description: null,
-  publisher: null,
-  pubDate: null,
-  formats: [],
-  isbn: null,
 };
 
 const tokens = {

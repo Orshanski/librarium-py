@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Book } from "../types";
+import type { BookDetail } from "../types";
 
 export interface BookFact {
   label: string;
@@ -39,12 +39,12 @@ function hasValue(value: string | null | undefined): value is string {
   return value !== null && value !== undefined && value !== "";
 }
 
-export function buildBookFacts(book: Book): BookFact[] {
+export function buildBookFacts(book: BookDetail, isbn: string | null): BookFact[] {
   const facts: BookFact[] = [];
   if (hasValue(book.language)) facts.push({ label: "Язык", value: book.language });
   if (hasValue(book.publisher)) facts.push({ label: "Издатель", value: book.publisher });
   if (hasValue(book.pubDate)) facts.push({ label: "Год", value: book.pubDate });
-  if (hasValue(book.isbn)) facts.push({ label: "ISBN", value: book.isbn });
+  if (hasValue(isbn)) facts.push({ label: "ISBN", value: isbn });
   return facts;
 }
 

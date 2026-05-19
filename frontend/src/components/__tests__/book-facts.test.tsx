@@ -1,24 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookFacts, { buildBookFacts } from "../book-facts";
-import type { Book } from "../../types";
+import type { BookDetail } from "../../types";
 
-const book: Book = {
+const book: BookDetail = {
   id: 7,
   title: "Book",
   authors: [],
-  series: "Series",
+  series: { id: 1, name: "Series" },
   seriesNumber: 1,
-  tags: [],
   rating: null,
   isRead: false,
-  language: "ru",
   coverPath: "/cover",
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: "Publisher",
   pubDate: "2001",
-  formats: [],
-  isbn: "isbn",
+  tags: [],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
 
 const gridTokens = {
@@ -45,7 +46,7 @@ const stackTokens = {
 
 describe("buildBookFacts", () => {
   it("builds facts without series and skips empty values", () => {
-    expect(buildBookFacts({ ...book, language: "", publisher: null })).toEqual([
+    expect(buildBookFacts({ ...book, language: "", publisher: null }, "isbn")).toEqual([
       { label: "Год", value: "2001" },
       { label: "ISBN", value: "isbn" },
     ]);
@@ -54,7 +55,7 @@ describe("buildBookFacts", () => {
 
 describe("BookFacts", () => {
   it("renders grid facts", () => {
-    render(<BookFacts facts={buildBookFacts(book)} tokens={gridTokens} />);
+    render(<BookFacts facts={buildBookFacts(book, "isbn")} tokens={gridTokens} />);
 
     expect(screen.getByText("Язык")).toBeInTheDocument();
     expect(screen.getByText("ru")).toBeInTheDocument();
@@ -62,7 +63,7 @@ describe("BookFacts", () => {
   });
 
   it("renders stack facts", () => {
-    render(<BookFacts facts={buildBookFacts(book)} tokens={stackTokens} />);
+    render(<BookFacts facts={buildBookFacts(book, "isbn")} tokens={stackTokens} />);
 
     expect(screen.getByText("Издатель")).toHaveStyle({ textTransform: "uppercase" });
     expect(screen.getByText("Publisher")).toBeInTheDocument();

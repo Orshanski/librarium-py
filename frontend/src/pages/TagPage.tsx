@@ -9,8 +9,7 @@ import BookGrid from "../components/book-grid";
 import TagAdminPanel from "../components/tag-admin-panel";
 import { FilterKey, SelectedFilters, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
-import type { Book, RawBook } from "../types";
-import { toBook } from "../types";
+import type { Book } from "../types";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
 import { colors } from "../theme";
@@ -63,8 +62,7 @@ export default function TagPage() {
     { context: scrollContext },
   );
   const tag = tagOverride ?? tagResource.data?.tag ?? null;
-  const rawBooks = useMemo<RawBook[]>(() => tagResource.data?.books || [], [tagResource.data]);
-  const books = useMemo<Book[]>(() => rawBooks.map((b) => toBook(b)), [rawBooks]);
+  const books = useMemo<Book[]>(() => tagResource.data?.books || [], [tagResource.data]);
   const loading = tagResource.loading;
   const notFound = tagResource.error instanceof NotFoundError || isNaN(tagId);
   useScrollRestore(!loading, scrollContext);

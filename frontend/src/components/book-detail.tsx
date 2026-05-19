@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Book } from "../types";
+import type { Book, BookDetail, BookFormat } from "../types";
 import { useOfflineBookStatus } from "../hooks/useOfflineBookStatus";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
@@ -21,10 +21,14 @@ import { domainEvents } from "@/domain/events";
 export default function BookDetail({
   book,
   seriesBooks,
+  formats,
+  isbn,
   bookOrigin,
 }: Readonly<{
-  book: Book;
+  book: BookDetail;
   seriesBooks: Book[];
+  formats: BookFormat[];
+  isbn: string | null;
   bookOrigin: ListOrigin;
 }>) {
   const navigate = useNavigate();
@@ -38,7 +42,7 @@ export default function BookDetail({
 
   const handleToggleOffline = useCallback(() => {
     toggleOffline(
-      { title: book.title, authors: book.authors, manuallyAdded: true },
+      { title: book.title, authors: book.authors.map((a) => a.name), manuallyAdded: true },
       async () => {
         const data = await getBook(book.id);
         const allFiles = data.files || [];
@@ -82,6 +86,8 @@ export default function BookDetail({
   const detailProps = {
     book,
     seriesBooks,
+    formats,
+    isbn,
     bookOrigin,
     isAdmin,
     rating,

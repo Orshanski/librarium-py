@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import BookEditForm from "./book-edit-form";
-import type { Book } from "../types";
+import type { BookDetail, BookFormat } from "../types";
 import type { BookEditOptions } from "./book-edit-form.types";
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
@@ -15,23 +15,26 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const mockBook: Book = {
+const mockBook: BookDetail = {
   id: 42,
   title: "Тестовая книга",
-  authors: ["Автор Тестов"],
+  authors: [{ id: 1, name: "Автор Тестов" }],
   series: null,
   seriesNumber: null,
-  tags: [],
   rating: null,
   isRead: false,
-  language: "ru",
   coverPath: "/api/covers/42",
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  formats: [{ format: "epub", size: "1 MB" }],
-  isbn: null,
+  tags: [],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
+
+const mockFormats: BookFormat[] = [{ format: "epub", size: "1 MB" }];
 
 const mockOptions: BookEditOptions = {
   authors: [],
@@ -60,7 +63,7 @@ describe("book-edit-form — cancel navigate", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     const bookFileInput = Array.from(fileInputs).find((i) => !i.accept.includes("image"));

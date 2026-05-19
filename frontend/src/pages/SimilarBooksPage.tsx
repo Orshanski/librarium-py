@@ -14,7 +14,7 @@ import { useIsMobile } from "../responsive";
 import { getBook } from "../api/endpoints/books";
 import { getSimilar } from "../api/endpoints/similar";
 import { NotFoundError } from "@/api/errors";
-import type { RawBook } from "../types";
+import type { BookDetail } from "../types";
 
 const EXTERNAL_SOURCE_LABEL_LITRES = "litres.ru";
 
@@ -23,7 +23,7 @@ export default function SimilarBooksPage() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const cardWidth = useBookCardWidth();
-  const [book, setBook] = useState<RawBook | null>(null);
+  const [book, setBook] = useState<BookDetail | null>(null);
   const [similar, setSimilar] = useState<SimilarBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);

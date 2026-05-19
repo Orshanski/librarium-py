@@ -12,19 +12,12 @@ import type { Book } from "../../types";
 const baselineBook: Book = {
   id: 7,
   title: "Война и мир",
-  authors: ["Толстой Л.Н."],
-  series: "Серия",
+  authors: [{ id: 1, name: "Толстой Л.Н." }],
+  series: { id: 1, name: "Серия" },
   seriesNumber: 2,
-  tags: [],
   rating: 4,
   isRead: false,
-  language: "ru",
   coverPath: "/api/covers/7",
-  description: null,
-  publisher: null,
-  pubDate: null,
-  formats: [],
-  isbn: null,
 };
 
 describe("BookCard — golden baseline", () => {

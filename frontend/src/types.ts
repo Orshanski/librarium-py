@@ -1,8 +1,3 @@
-export interface BookFormat {
-  format: string;
-  size: string;
-}
-
 export interface AuthorRef {
   id: number;
   name: string;
@@ -18,82 +13,43 @@ export interface SeriesRef {
   name: string;
 }
 
-export interface Book {
-  id: number;
-  title: string;
-  authors: string[];
-  series: string | null;
-  seriesId?: number | null;
-  seriesNumber: number | null;
-  tags: string[];
-  tagIds?: number[];
-  authorIds?: number[];
-  rating: number | null; // 1-5
-  isRead: boolean;
-  language: string;
-  coverPath: string;
-  description: string | null;
-  publisher: string | null;
-  pubDate: string | null;
-  formats: BookFormat[];
-  isbn: string | null;
-  sortTitle?: string | null;
-  addedAt?: string;
-  updatedAt?: string;
-  fraction?: number | null;
-  lastFormat?: string | null;
-  lastReadAt?: string | null;
+export interface BookFormat {
+  format: string;
+  size: string;
 }
 
-/** Raw book data from API (object arrays for authors/tags/series). */
-export interface RawBook {
+/**
+ * Card-level book contract — same shape across catalog, author, series, tag,
+ * shelf, search responses. Strict subset; detail-only fields live in
+ * BookDetail. Mirrors backend BookCardItem (1:1, camelCase wire).
+ */
+export interface Book {
   id: number;
   title: string;
   authors: AuthorRef[];
   series: SeriesRef | null;
   seriesNumber: number | null;
-  tags: TagRef[];
+  coverPath: string;
   rating: number | null;
-  language: string | null;
-  coverPath: string | null;
+  isRead: boolean;
+}
+
+/**
+ * Detail-page book — card-level fields plus the 8 detail fields (description,
+ * language, publisher, pubDate, tags, sortTitle, addedAt, updatedAt). Mirrors
+ * backend BookDetailItem (BookCardItem subset preserved).
+ *
+ * Note: `formats` (BookFormat[]) and `isbn` are NOT on BookDetail — they come
+ * from sibling fields `files` / `identifiers` on the BookDetailResponse and
+ * are passed to detail/edit components as separate props.
+ */
+export interface BookDetail extends Book {
+  sortTitle: string | null;
   description: string | null;
+  language: string | null;
   publisher: string | null;
   pubDate: string | null;
-  updatedAt: string | null;
-  isRead?: number | null;
-  fraction?: number | null;
-  lastFormat?: string | null;
-  lastReadAt?: string | null;
-}
-
-/** Split a comma-separated string into trimmed non-empty array. */
-export function splitCsv(s: string | null | undefined): string[] {
-  if (!s) return [];
-  return s.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
-/** Convert raw API book to Book type for components. */
-export function toBook(b: RawBook, opts?: { fullCover?: boolean; isbn?: string | null }): Book {
-  return {
-    id: b.id,
-    title: b.title,
-    authors: b.authors.map((a) => a.name),
-    series: b.series?.name ?? null,
-    seriesNumber: b.seriesNumber,
-    tags: b.tags.map((t) => t.name),
-    rating: b.rating ?? null,
-    isRead: !!(b.isRead),
-    language: b.language || "",
-    coverPath: opts?.fullCover
-      ? `/api/covers/${b.id}?full=1&t=${b.updatedAt || ""}`
-      : `/api/covers/${b.id}?t=${b.updatedAt || ""}`,
-    description: b.description ?? null,
-    publisher: b.publisher ?? null,
-    pubDate: b.pubDate ?? null,
-    formats: [],
-    isbn: opts?.isbn ?? null,
-    fraction: b.fraction ?? null,
-    lastFormat: b.lastFormat ?? null,
-    lastReadAt: b.lastReadAt ?? null,
-  };
+  tags: TagRef[];
+  addedAt: string;
+  updatedAt: string;
 }
