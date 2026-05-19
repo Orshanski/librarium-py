@@ -64,3 +64,41 @@ class TestBookCardItemShape:
         })
         assert item.series == SeriesRef(id=5, name="S")
         assert item.rating == 3
+
+
+class TestBookDetailItemShape:
+    def test_extends_book_card_item(self):
+        """BookDetailItem inherits all fields from BookCardItem and adds detail fields."""
+        from app.dtos.book_card import BookDetailItem
+        from app.dtos._refs import TagRef
+        item = BookDetailItem(
+            id=1,
+            title="T",
+            authors=[],
+            series=None,
+            series_number=None,
+            cover_path="/c",
+            rating=None,
+            is_read=False,
+            sort_title="T",
+            description="desc",
+            language="ru",
+            publisher="Pub",
+            pub_date="2020-01-01",
+            tags=[TagRef(id=7, name="fantasy"), TagRef(id=8, name="ru")],
+            added_at="2020-01-01 00:00:00",
+            updated_at="2020-01-01 00:00:00",
+        )
+        # card fields
+        assert item.id == 1
+        assert item.is_read is False
+        # detail fields
+        assert item.description == "desc"
+        assert item.publisher == "Pub"
+        # tags must validate as list[TagRef]
+        assert item.tags == [TagRef(id=7, name="fantasy"), TagRef(id=8, name="ru")]
+        assert all(isinstance(t, TagRef) for t in item.tags)
+
+    def test_book_detail_is_subclass(self):
+        from app.dtos.book_card import BookCardItem, BookDetailItem
+        assert issubclass(BookDetailItem, BookCardItem)
