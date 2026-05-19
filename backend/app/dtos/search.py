@@ -5,17 +5,25 @@ from pydantic import BaseModel
 
 from ._aliases import RESPONSE_CONFIG
 from ._refs import AuthorRef, SeriesRef
+from .book_card import BookCardItem
 
 
 class SearchBookHit(TypedDict):
+    """Internal DAL contract for search book rows.
+
+    Kept as the TypedDict shape for `SearchResults.books` returned by
+    `dal.search_books`. The service layer maps each row through
+    `row_to_book_card_item` before exposing it on the wire — the response
+    DTO uses `BookCardItem` to match the unified card-level contract.
+
+    To be removed in Task 4.3 (cleanup) once the DAL signature is migrated
+    to return raw row dicts.
+    """
     id: int
     title: str
     cover_path: str | None
     authors: list[AuthorRef]
     series: SeriesRef | None
-    # Card-level fields surfaced for BookCardItem-like rendering. To be unified
-    # with BookCardItem in Task 4.2.e — for now we just widen SearchBookHit so
-    # the wire response carries the new keys.
     series_number: float | None
     rating: int | None
     is_read: int | None
@@ -49,11 +57,14 @@ class SearchResponse(BaseModel):
     """Response for GET /api/search.
 
     Wire: {"books": [...], "authors": [...], "series": [...]}.
-    Items serialize snake-keyed TypedDict fields to camelCase via alias_generator:
+    `books[]` follows the unified `BookCardItem` shape (same contract as
+    catalog/author/series/tag/shelf list responses). Author and series hits
+    keep their own TypedDict shapes — they describe entity rows, not cards.
+    Items serialize snake-keyed fields to camelCase via alias_generator:
     cover_path → coverPath, book_count → bookCount.
     """
     model_config = RESPONSE_CONFIG
 
-    books: list[SearchBookHit]
+    books: list[BookCardItem]
     authors: list[SearchAuthorHit]
     series: list[SearchSeriesHit]

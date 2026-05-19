@@ -442,3 +442,22 @@ def test_catalog_books_have_unified_card_shape(reader_client):
         "tags", "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"unexpected detail keys leaked into card: {forbidden & book.keys()}"
+
+
+def test_search_books_have_unified_card_shape(reader_client):
+    """GET /api/search books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get("/api/search", params={"q": "Minimal"})
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
