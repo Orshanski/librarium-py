@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG, to_camel
 from ._refs import AuthorRef, SeriesRef, TagRef
+from .book_card import BookCardItem
 from .catalog import LanguageOptionRow
 
 
@@ -260,12 +261,14 @@ class AuthorDetailResponse(BaseModel):
     """Response for GET /api/authors/{id}.
 
     Wire format (camelCase): {"author": {...}, "books": [...]}.
-    `books[]`: EntityBookItem (snake fields, camel wire).
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     author: AuthorSummary
-    books: list[EntityBookItem]
+    books: list[BookCardItem]
 
 
 class AuthorsListResponse(BaseModel):

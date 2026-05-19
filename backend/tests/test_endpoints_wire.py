@@ -160,21 +160,33 @@ def test_get_author_detail_wire(admin_client):
     assert "books" in payload
     assert len(payload["books"]) > 0
     book = payload["books"][0]
-    # camelCase book fields
+    # camelCase card-level fields present (BookCardItem shape)
     assert "coverPath" in book
     assert "cover_path" not in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
-    # book metadata fields exposed (regression: EntityBookItem must declare these,
-    # иначе FastAPI отфильтрует их из wire несмотря на наличие в DAL row)
-    assert "description" in book
-    assert "language" in book
-    assert "publisher" in book
     # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
     assert_no_legacy_csv_fields(book)
+
+
+def test_author_detail_books_have_unified_card_shape(reader_client):
+    """GET /api/authors/{id} books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get("/api/authors/1")
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
 
 # ---------------------------------------------------------------------------

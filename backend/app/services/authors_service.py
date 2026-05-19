@@ -4,6 +4,7 @@ import sqlite3
 from ..dal import authors as dal
 from ..dtos.entities import AuthorDetailResponse, AuthorsListResponse
 from ..exceptions import BadInputError, NotFoundError
+from .book_item_builder import row_to_book_card_item
 
 
 def list_authors(
@@ -18,11 +19,16 @@ def list_authors(
 
 def get_author(db: sqlite3.Connection, author_id: int, user_id: int) -> AuthorDetailResponse:
     """Read author detail. user_id is required: books[] now carries per-user
-    rating/is_read via the user_books LEFT JOIN in get_author_books.sql."""
+    rating/is_read via the user_books LEFT JOIN in get_author_books.sql.
+
+    books[] is mapped through row_to_book_card_item — the unified card-level
+    contract (BookCardItem); detail-only fields stay in BookDetailResponse.
+    """
     result = dal.get_author_by_id(db, author_id, user_id)
     if not result:
         raise NotFoundError("Not found")
-    return AuthorDetailResponse(author=result["author"], books=result["books"])
+    books = [row_to_book_card_item(r) for r in result["books"]]
+    return AuthorDetailResponse(author=result["author"], books=books)
 
 
 def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
