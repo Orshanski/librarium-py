@@ -53,7 +53,7 @@ def _link_author_book(db, book_id: int, author_id: int) -> None:
 class TestGetAuthorBooksObjects:
     def test_authors_field_is_list_of_author_refs(self, db):
         """books[].authors must be list[AuthorRef], not a CSV string."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -62,7 +62,7 @@ class TestGetAuthorBooksObjects:
 
     def test_tags_field_is_list_of_tag_refs(self, db):
         """books[].tags must be list[TagRef], not a CSV string."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -71,7 +71,7 @@ class TestGetAuthorBooksObjects:
 
     def test_series_field_is_series_ref_or_none(self, db):
         """books[].series must be SeriesRef or None, not a flat series_name column."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         # Author 1 has book 1 (series 1) and book 3 (series 1)
@@ -83,7 +83,7 @@ class TestGetAuthorBooksObjects:
 
     def test_no_series_name_flat_key(self, db):
         """series_name must no longer appear as a flat column in EntityBookRow."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -91,7 +91,7 @@ class TestGetAuthorBooksObjects:
 
     def test_no_series_id_flat_key(self, db):
         """series_id must no longer appear as a flat column in EntityBookRow."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -99,7 +99,7 @@ class TestGetAuthorBooksObjects:
 
     def test_authors_not_csv_string(self, db):
         """authors must never be a raw string."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -107,7 +107,7 @@ class TestGetAuthorBooksObjects:
 
     def test_tags_not_csv_string(self, db):
         """tags must never be a raw string."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -115,7 +115,7 @@ class TestGetAuthorBooksObjects:
 
     def test_book_in_series_has_series_ref(self, db):
         """Book 1 belongs to series 1 (Test Series) — series field must be SeriesRef."""
-        result = dal_authors.get_author_by_id(db, 1)
+        result = dal_authors.get_author_by_id(db, 1, 2)
         assert result is not None
         book1 = next(b for b in result["books"] if b["id"] == 1)
         assert isinstance(book1["series"], SeriesRef)
@@ -131,7 +131,7 @@ class TestGetAuthorBooksObjects:
         _link_author_book(db, 201, 202)
         db.commit()
 
-        result = dal_authors.get_author_by_id(db, 201)
+        result = dal_authors.get_author_by_id(db, 201, 2)
         assert result is not None
         book = next(b for b in result["books"] if b["id"] == 201)
         names = [a.name for a in book["authors"]]
@@ -145,7 +145,7 @@ class TestGetAuthorBooksObjects:
         _link_author_book(db, 210, 210)
         db.commit()
 
-        result = dal_authors.get_author_by_id(db, 210)
+        result = dal_authors.get_author_by_id(db, 210, 2)
         assert result is not None
         book = result["books"][0]
         assert book["tags"] == []
@@ -157,7 +157,7 @@ class TestGetAuthorBooksObjects:
         _link_author_book(db, 211, 211)
         db.commit()
 
-        result = dal_authors.get_author_by_id(db, 211)
+        result = dal_authors.get_author_by_id(db, 211, 2)
         assert result is not None
         book = result["books"][0]
         assert book["series"] is None
@@ -166,7 +166,7 @@ class TestGetAuthorBooksObjects:
 class TestGetSeriesBooksObjects:
     def test_authors_field_is_list_of_author_refs(self, db):
         """books[].authors must be list[AuthorRef], not a CSV string."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -175,7 +175,7 @@ class TestGetSeriesBooksObjects:
 
     def test_tags_field_is_list_of_tag_refs(self, db):
         """books[].tags must be list[TagRef], not a CSV string."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -184,7 +184,7 @@ class TestGetSeriesBooksObjects:
 
     def test_series_field_is_series_ref(self, db):
         """books[].series must be SeriesRef for books in a series."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -194,7 +194,7 @@ class TestGetSeriesBooksObjects:
 
     def test_no_series_name_flat_key(self, db):
         """series_name must no longer appear as a flat column."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -202,7 +202,7 @@ class TestGetSeriesBooksObjects:
 
     def test_no_series_id_flat_key(self, db):
         """series_id must no longer appear as a flat column."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -210,7 +210,7 @@ class TestGetSeriesBooksObjects:
 
     def test_authors_not_csv_string(self, db):
         """authors must never be a raw string."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -218,7 +218,7 @@ class TestGetSeriesBooksObjects:
 
     def test_tags_not_csv_string(self, db):
         """tags must never be a raw string."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         assert len(result["books"]) > 0
         for book in result["books"]:
@@ -233,7 +233,7 @@ class TestGetSeriesBooksObjects:
         _link_author_book(db, 301, 302)
         db.commit()
 
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         book = next(b for b in result["books"] if b["id"] == 301)
         names = [a.name for a in book["authors"]]
@@ -241,7 +241,7 @@ class TestGetSeriesBooksObjects:
 
     def test_series_books_ordered_by_series_number(self, db):
         """Books in a series must be ordered by series_number."""
-        result = dal_series.get_series_by_id(db, 1)
+        result = dal_series.get_series_by_id(db, 1, 2)
         assert result is not None
         books = result["books"]
         # Books 1 (series_number=1) and 3 (series_number=2) in series 1

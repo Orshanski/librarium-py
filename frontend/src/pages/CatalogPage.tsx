@@ -8,7 +8,7 @@ import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
-import { toBook, RawBook } from "../types";
+import type { Book } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
@@ -21,14 +21,14 @@ const INITIAL_SIZE = 30;
 const PAGE_SIZE = 15;
 
 type CatalogCacheEntry = {
-  books: RawBook[];
+  books: Book[];
   hasMore: boolean;
   cursor: number;
 };
 
 type CatalogState = {
   urlKey: string;
-  books: RawBook[];
+  books: Book[];
   hasMore: boolean;
   cursor: number;
   loading: boolean;
@@ -46,7 +46,7 @@ function readCatalogCache(url: string): CatalogCacheEntry | null {
  */
 function mergeNextPage(
   prev: CatalogState,
-  newBooks: RawBook[],
+  newBooks: Book[],
   hasMore: boolean,
   urlKey: string,
 ): CatalogState {
@@ -273,7 +273,7 @@ export default function CatalogPage() {
     navigate("/");
   }
 
-  const bookIds = useMemo(() => books.map((b: RawBook) => b.id), [books]);
+  const bookIds = useMemo(() => books.map((b: Book) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
 
@@ -296,18 +296,15 @@ export default function CatalogPage() {
       )}
 
       <BookGrid>
-        {books.map((b: RawBook) => {
-          const book = toBook(b);
-          return (
-            <BookCard
-              key={book.id}
-              {...bookToBookCardCommonProps(book)}
-              width={cardWidth}
-              hasOffline={offlineBookIds.has(book.id)}
-              linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
-            />
-          );
-        })}
+        {books.map((book: Book) => (
+          <BookCard
+            key={book.id}
+            {...bookToBookCardCommonProps(book)}
+            width={cardWidth}
+            hasOffline={offlineBookIds.has(book.id)}
+            linkState={{ origin: { type: "catalog", url: urlKey, label: "Каталог" } }}
+          />
+        ))}
       </BookGrid>
 
       {hasMore && (

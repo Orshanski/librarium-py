@@ -38,16 +38,12 @@ def test_list_books_wire_format(admin_client):
     assert "books" in payload
     assert len(payload["books"]) > 0
     book = payload["books"][0]
-    # camelCase keys present
+    # camelCase keys present (card shape — BookCardItem)
     assert "coverPath" in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
     assert "isRead" in book
     assert "seriesNumber" in book
     # snake_case keys absent
     assert "cover_path" not in book
-    assert "added_at" not in book
-    assert "updated_at" not in book
     assert "is_read" not in book
     assert "series_number" not in book
     # authors as structured objects
@@ -69,8 +65,6 @@ def test_list_books_no_snake_keys_on_all_books(admin_client):
     for book in books:
         assert "coverPath" in book
         assert "cover_path" not in book
-        assert "addedAt" in book
-        assert "updatedAt" in book
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +99,19 @@ def test_get_book_with_cover_wire(admin_client):
     book = resp.json()["book"]
     assert book["coverPath"] is not None
     assert "cover_path" not in book
+
+
+def test_book_detail_includes_card_fields_plus_details(reader_client):
+    """GET /api/books/{id}.book has BookCardItem fields PLUS detail fields."""
+    response = reader_client.get("/api/books/1")
+    assert response.status_code == 200
+    book = response.json()["book"]
+    # Card fields
+    card_expected = {"id", "title", "authors", "series", "seriesNumber", "coverPath", "rating", "isRead"}
+    assert card_expected.issubset(book.keys()), f"missing card keys: {card_expected - book.keys()}"
+    # Detail fields
+    detail_expected = {"description", "publisher", "language", "pubDate", "tags", "sortTitle", "addedAt", "updatedAt"}
+    assert detail_expected.issubset(book.keys()), f"missing detail keys: {detail_expected - book.keys()}"
 
 
 # ---------------------------------------------------------------------------
@@ -166,21 +173,33 @@ def test_get_author_detail_wire(admin_client):
     assert "books" in payload
     assert len(payload["books"]) > 0
     book = payload["books"][0]
-    # camelCase book fields
+    # camelCase card-level fields present (BookCardItem shape)
     assert "coverPath" in book
     assert "cover_path" not in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
-    # book metadata fields exposed (regression: EntityBookItem must declare these,
-    # иначе FastAPI отфильтрует их из wire несмотря на наличие в DAL row)
-    assert "description" in book
-    assert "language" in book
-    assert "publisher" in book
     # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
     assert_no_legacy_csv_fields(book)
+
+
+def test_author_detail_books_have_unified_card_shape(reader_client):
+    """GET /api/authors/{id} books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get("/api/authors/1")
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
 
 # ---------------------------------------------------------------------------
@@ -215,18 +234,33 @@ def test_get_series_detail_wire(admin_client):
     assert "books" in payload
     assert len(payload["books"]) > 0
     book = payload["books"][0]
+    # camelCase card-level fields present (BookCardItem shape)
     assert "coverPath" in book
     assert "cover_path" not in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
-    # book metadata fields exposed (regression guard).
-    assert "description" in book
-    assert "language" in book
-    assert "publisher" in book
+    # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
     assert_no_legacy_csv_fields(book)
+
+
+def test_series_detail_books_have_unified_card_shape(reader_client):
+    """GET /api/series/{id} books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get("/api/series/1")
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
 
 # ---------------------------------------------------------------------------
@@ -248,8 +282,7 @@ def test_get_tag_wire(admin_client):
     # coverPath may be absent (exclude_none=True) when book has no cover —
     # but if present it must be camelCase, never snake_case
     assert "cover_path" not in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
+    # authors as structured objects
     assert isinstance(book["authors"], list)
     assert len(book["authors"]) > 0
     assert all("id" in a and "name" in a for a in book["authors"])
@@ -261,6 +294,25 @@ def test_get_tag_books_no_legacy_fields(admin_client):
     for book in payload["books"]:
         assert_no_legacy_csv_fields(book)
         assert "tag_ids" not in book
+
+
+def test_tag_detail_books_have_unified_card_shape(reader_client, tag_id):
+    """GET /api/tags/{id} books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get(f"/api/tags/{tag_id}")
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
 
 # ---------------------------------------------------------------------------
@@ -379,3 +431,46 @@ def test_search_books_no_csv_author_fields(admin_client):
         assert "author_ids" not in book
         assert "series_name" not in book
         assert "series_id" not in book
+
+
+def test_catalog_books_have_unified_card_shape(reader_client):
+    """GET /api/books returns BookCardItem (unified card-level shape).
+
+    Catalog list response uses the same card contract as shelves/authors/series/tags
+    list endpoints: minimal card-render fields, no detail-page fields.
+    """
+    response = reader_client.get("/api/books?pageSize=1")
+    assert response.status_code == 200
+    books = response.json()["books"]
+    assert len(books) > 0, "seed must contain at least one book"
+    book = books[0]
+    # Card shape — all expected card keys present, AND no detail-page keys.
+    expected_keys = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected_keys.issubset(book.keys()), f"missing keys: {expected_keys - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"unexpected detail keys leaked into card: {forbidden & book.keys()}"
+
+
+def test_search_books_have_unified_card_shape(reader_client):
+    """GET /api/search books[] follows BookCardItem shape (no detail keys)."""
+    response = reader_client.get("/api/search", params={"q": "Minimal"})
+    assert response.status_code == 200
+    books = response.json().get("books", [])
+    assert len(books) > 0
+    book = books[0]
+    expected = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"

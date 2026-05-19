@@ -4,27 +4,32 @@ import ConfirmDialog from "./confirm-dialog";
 import DesktopBookEditForm from "./desktop/desktop-book-edit-form";
 import { BookEditFormProps, MetadataPayload, NamedOption, TagOption } from "./book-edit-form.types";
 import type { ListOrigin } from "./breadcrumb-origin";
-import { splitCsv } from "../types";
 import { fetchCoverProxy } from "../api/endpoints/metadata";
 import { uploadCover, discardCover } from "../api/endpoints/covers";
 import { uploadTempFile, deleteTempUpload } from "@/api/endpoints/upload";
 import { ApiError, ServerError, ValidationError } from "@/api/errors";
 
-export default function BookEditForm({ book, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
+/** Split a comma-separated string into trimmed non-empty array. */
+function splitCsv(s: string | null | undefined): string[] {
+  if (!s) return [];
+  return s.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+export default function BookEditForm({ book, formats: initialFormats, isbn: initialIsbn, options, onSave, editOrigin }: Readonly<BookEditFormProps>) {
   const navigate = useNavigate();
   const [title, setTitle] = useState(book.title);
-  const [authors, setAuthors] = useState<string[]>(book.authors);
+  const [authors, setAuthors] = useState<string[]>(() => book.authors.map((a) => a.name));
   const [authorSearch, setAuthorSearch] = useState("");
-  const [seriesName, setSeriesName] = useState(book.series || "");
+  const [seriesName, setSeriesName] = useState(book.series?.name ?? "");
   const [seriesNumber, setSeriesNumber] = useState(book.seriesNumber?.toString() || "");
   const [description, setDescription] = useState(book.description || "");
-  const [tags, setTags] = useState<string[]>(book.tags);
+  const [tags, setTags] = useState<string[]>(() => book.tags.map((t) => t.name));
   const [tagSearch, setTagSearch] = useState("");
-  const [language, setLanguage] = useState(book.language);
+  const [language, setLanguage] = useState(book.language ?? "");
   const [publisher, setPublisher] = useState(book.publisher || "");
   const [pubDate, setPubDate] = useState(book.pubDate || "");
-  const [isbn, setIsbn] = useState(book.isbn || "");
-  const [formats, setFormats] = useState(book.formats);
+  const [isbn, setIsbn] = useState(initialIsbn || "");
+  const [formats, setFormats] = useState(initialFormats);
   const [showMetadataSearch, setShowMetadataSearch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);

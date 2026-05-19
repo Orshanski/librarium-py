@@ -1,7 +1,8 @@
 import { openDB, type IDBPDatabase, type IDBPTransaction, type DBSchema } from "idb";
+import type { AuthorRef, Book, SeriesRef } from "../types";
 
 const DB_NAME = "librarium-offline";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 interface OfflineBookFormat {
   format: string;
@@ -17,22 +18,36 @@ interface StoredBookFormat {
   fileSize: number;
 }
 
+/**
+ * On-disk shape. Honest about reality: legacy v4 rows have `authors: string[]`
+ * and no card-level fields (`series`, `seriesNumber`, `rating`, `isRead`).
+ * Writer (`saveOfflineBook`) always writes the full v5 shape; reader
+ * (`storedToOfflineBook`) normalizes legacy → unified `OfflineBook`.
+ */
 interface StoredBook {
   bookId: number;
   title: string;
-  authors: string[];
+  authors: AuthorRef[] | string[];
   coverBuffer: ArrayBuffer;
   coverType: string;
   formats: StoredBookFormat[];
   savedAt: number;
   lastAccessedAt: number;
   manuallyAdded: boolean;
+  series?: SeriesRef | null;
+  seriesNumber?: number | null;
+  rating?: number | null;
+  isRead?: boolean;
 }
 
 export interface OfflineBook {
   bookId: number;
   title: string;
-  authors: string[];
+  authors: AuthorRef[];
+  series: SeriesRef | null;
+  seriesNumber: number | null;
+  rating: number | null;
+  isRead: boolean;
   coverBlob: Blob;
   formats: OfflineBookFormat[];
   savedAt: number;
@@ -117,6 +132,13 @@ export function initDB(): Promise<LibrariumDB> {
         if (oldVersion < 4 && v3Db.objectStoreNames.contains("cached_books")) {
           v3Tx.objectStore("cached_books").name = "offline_books";
         }
+
+        // v4→v5: extended StoredBook with card-level fields (series,
+        // seriesNumber, rating, isRead) and switched authors from string[] to
+        // AuthorRef[]. No store-level schema rewrite needed — IndexedDB doesn't
+        // enforce row shape; storedToOfflineBook() normalizes legacy rows on
+        // read (string[] → AuthorRef[] with synthetic id=0; missing fields →
+        // null/false).
       },
     });
   }
@@ -134,16 +156,34 @@ export async function _resetDB(): Promise<void> {
       tx.objectStore("reader_settings").clear(),
       tx.done,
     ]);
+    // Close the underlying connection so callers that need a fresh open
+    // (e.g. an in-test deleteDB or upgrade-path simulation) aren't blocked.
+    db.close();
   }
   dbPromise = null;
 }
 
 // ── Offline book storage ──
 
+/**
+ * Legacy v4 rows store authors as `string[]`; v5+ stores `AuthorRef[]`. On
+ * read, normalize to `AuthorRef[]`. For legacy strings we synthesize `id: 0`
+ * (acceptable per spec — author links become non-clickable until the book is
+ * re-downloaded with the new server payload).
+ */
+function normalizeAuthors(input: AuthorRef[] | string[] | undefined): AuthorRef[] {
+  if (!input) return [];
+  return input.map((item) => {
+    if (typeof item === "string") return { id: 0, name: item };
+    return item;
+  });
+}
+
 export async function saveOfflineBook(
-  meta: { bookId: number; title: string; authors: string[]; manuallyAdded?: boolean },
+  book: Book,
   files: { format: string; fileBlob: Blob; fileSize: number }[],
   cover: Blob,
+  manuallyAdded = false,
 ): Promise<void> {
   const db = await initDB();
   const now = Date.now();
@@ -153,9 +193,13 @@ export async function saveOfflineBook(
     ...files.map((f) => f.fileBlob.arrayBuffer()),
   ]);
   await db.put("offline_books", {
-    bookId: meta.bookId,
-    title: meta.title,
-    authors: meta.authors,
+    bookId: book.id,
+    title: book.title,
+    authors: book.authors,
+    series: book.series,
+    seriesNumber: book.seriesNumber,
+    rating: book.rating,
+    isRead: book.isRead,
     coverBuffer,
     coverType: cover.type || "image/jpeg",
     formats: files.map((f, i) => ({
@@ -166,7 +210,7 @@ export async function saveOfflineBook(
     })),
     savedAt: now,
     lastAccessedAt: now,
-    manuallyAdded: meta.manuallyAdded ?? false,
+    manuallyAdded,
   });
 }
 
@@ -174,7 +218,11 @@ function storedToOfflineBook(stored: StoredBook): OfflineBook {
   return {
     bookId: stored.bookId,
     title: stored.title,
-    authors: stored.authors,
+    authors: normalizeAuthors(stored.authors),
+    series: stored.series ?? null,
+    seriesNumber: stored.seriesNumber ?? null,
+    rating: stored.rating ?? null,
+    isRead: stored.isRead ?? false,
     coverBlob: new Blob([stored.coverBuffer], { type: stored.coverType }),
     formats: stored.formats.map((f: StoredBookFormat) => ({
       format: f.format,
@@ -224,6 +272,34 @@ export async function removeBookFromLocalStorage(bookId: number): Promise<void> 
     tx.objectStore("reading_progress").delete(bookId),
     tx.done,
   ]);
+}
+
+/**
+ * Update only card-level metadata (title, authors, series, seriesNumber,
+ * rating, isRead) of a stored offline book. Binary fields (coverBuffer,
+ * coverType, formats), timestamps (savedAt, lastAccessedAt) and the
+ * manuallyAdded flag are preserved. No-op if the book is not stored.
+ */
+export async function updateOfflineBookMetadata(
+  bookId: number,
+  metadata: Pick<Book, "title" | "authors" | "series" | "seriesNumber" | "rating" | "isRead">,
+): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction("offline_books", "readwrite");
+  const store = tx.objectStore("offline_books");
+  const existing = await store.get(bookId);
+  if (!existing) {
+    await tx.done;
+    return;
+  }
+  existing.title = metadata.title;
+  existing.authors = metadata.authors;
+  existing.series = metadata.series;
+  existing.seriesNumber = metadata.seriesNumber;
+  existing.rating = metadata.rating;
+  existing.isRead = metadata.isRead;
+  await store.put(existing);
+  await tx.done;
 }
 
 export async function touchOfflineBook(bookId: number): Promise<void> {

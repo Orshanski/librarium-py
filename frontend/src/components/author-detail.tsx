@@ -23,9 +23,9 @@ export default function AuthorDetail({
 
   for (const book of books) {
     if (book.series) {
-      const list = seriesMap.get(book.series) || [];
+      const list = seriesMap.get(book.series.name) || [];
       list.push(book);
-      seriesMap.set(book.series, list);
+      seriesMap.set(book.series.name, list);
     } else {
       standalone.push(book);
     }

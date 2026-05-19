@@ -67,15 +67,14 @@ function autoSaveOfflineBook(bookId: number, id: string, format: string, blob: B
       console.warn("Failed to fetch cover for offline save");
       return;
     }
-    const authors = (bk.authors || []).map((a) => a.name);
     try {
-      await saveOfflineBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
+      await saveOfflineBook(bk, validFiles, cover, false);
     } catch (saveErr: unknown) {
       if (saveErr instanceof DOMException && saveErr.name === "QuotaExceededError") {
         const totalSize = validFiles.reduce((sum, f) => sum + f.fileSize, 0);
         await evictLRU(totalSize);
         try {
-          await saveOfflineBook({ bookId, title: bk.title, authors, manuallyAdded: false }, validFiles, cover);
+          await saveOfflineBook(bk, validFiles, cover, false);
         } catch (retryErr) {
           console.warn("Failed to save offline book after eviction:", retryErr);
         }

@@ -1,6 +1,6 @@
 import { client, type ClientQuery } from "../client";
 import type { OkResponse } from "../types";
-import type { RawBook } from "@/types";
+import type { Book, BookDetail } from "@/types";
 
 export interface BookFileInfo {
   id: number;
@@ -14,7 +14,7 @@ export interface BookIdentifier {
 }
 
 export interface BookDetailResponse {
-  book: RawBook;
+  book: BookDetail;
   files: BookFileInfo[];
   identifiers: BookIdentifier[];
 }
@@ -30,7 +30,7 @@ export interface BookListParams extends ClientQuery {
 }
 
 export interface BookListResponse {
-  books: RawBook[];
+  books: Book[];
   hasMore: boolean;
   nextCursor?: number;
   total?: number;

@@ -4,6 +4,7 @@ import sqlite3
 from ..dal import series as dal
 from ..dtos.entities import SeriesDetailResponse, SeriesListResponse
 from ..exceptions import BadInputError, NotFoundError
+from .book_item_builder import row_to_book_card_item
 
 
 def list_series(
@@ -17,19 +18,30 @@ def list_series(
     return SeriesListResponse(series=result["series"])
 
 
-def get_series(db: sqlite3.Connection, series_id: int) -> SeriesDetailResponse:
-    result = dal.get_series_by_id(db, series_id)
+def get_series(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailResponse:
+    """Read series detail. user_id is required: books[] now carries per-user
+    rating/is_read via the user_books LEFT JOIN in get_series_books.sql.
+
+    books[] is mapped through row_to_book_card_item — the unified card-level
+    contract (BookCardItem); detail-only fields stay in BookDetailResponse.
+    """
+    result = dal.get_series_by_id(db, series_id, user_id)
     if not result:
         raise NotFoundError("Not found")
-    return SeriesDetailResponse(series=result["series"], books=result["books"])
+    books = [row_to_book_card_item(r) for r in result["books"]]
+    return SeriesDetailResponse(series=result["series"], books=books)
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
-    """Переименовать серию. Raises NotFoundError если серия не существует."""
-    result = dal.get_series_by_id(db, series_id)
-    if not result:
+    """Переименовать серию. Raises NotFoundError если серия не существует.
+
+    Existence check уходит на thin queries.series_exists (как в delete_series),
+    а имя читается напрямую через queries.get_series_by_id — без user-scoped
+    запроса get_series_by_id из DAL, который тянет user_books JOIN."""
+    if not dal.queries.series_exists(db, id=series_id):
         raise NotFoundError("Серия не найдена")
-    if result["series"]["name"] == name:
+    row = dal.queries.get_series_by_id(db, id=series_id)
+    if row["name"] == name:
         return False
     dal.rename_series(db, series_id, name)
     return True
@@ -38,7 +50,7 @@ def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
 def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
     if target_id == source_id:
         raise BadInputError("Нельзя объединить с самой собой")
-    if not dal.get_series_by_id(db, source_id):
+    if not dal.queries.series_exists(db, id=source_id):
         return False
     dal.merge_series(db, target_id, source_id)
     return True

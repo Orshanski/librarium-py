@@ -8,34 +8,35 @@ import { setupMobileViewport, teardownViewport } from "@/test/mobile-viewport";
 import { renderWithProviders } from "@/test/render";
 import { domainEvents } from "@/domain/events";
 import BookDetail from "./book-detail";
-import type { Book } from "../types";
+import type { BookDetail as BookDetailType } from "../types";
 
 // console.warn / console.error silencing is provided by the global
 // test/setup.ts beforeEach hook — no per-describe spies needed here.
 
-const mockBook: Book = {
+const mockBook: BookDetailType = {
   id: 7,
   title: "Test Book",
-  authors: ["Test Author"],
+  authors: [{ id: 1, name: "Test Author" }],
   series: null,
   seriesNumber: null,
-  tags: [],
   rating: null,
   isRead: false,
-  language: "ru",
   coverPath: "/api/covers/7",
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  formats: [],
-  isbn: null,
+  tags: [],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
 
 const catalogOrigin = { type: "catalog" as const, url: "/", label: "Каталог" };
 
-function renderBookDetail(book: Book = mockBook) {
+function renderBookDetail(book: BookDetailType = mockBook) {
   return renderWithProviders(
-    <BookDetail book={book} seriesBooks={[]} bookOrigin={catalogOrigin} />
+    <BookDetail book={book} seriesBooks={[]} formats={[]} isbn={null} bookOrigin={catalogOrigin} />
   );
 }
 
@@ -157,7 +158,7 @@ describe("book-detail — cover display", () => {
   });
 
   it("cover img src uses correct /api/covers/:id pattern (no full=1 for display)", () => {
-    const bookWithCover: Book = { ...mockBook, id: 99, coverPath: "/api/covers/99" };
+    const bookWithCover: BookDetailType = { ...mockBook, id: 99, coverPath: "/api/covers/99" };
     renderBookDetail(bookWithCover);
 
     const img = screen.getByRole("img", { name: bookWithCover.title });

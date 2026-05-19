@@ -9,7 +9,7 @@ import BookGrid from "../components/book-grid";
 import { colors, fonts } from "../theme";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
-import { searchAll, searchHitToBook, type SearchResponse } from "../api/endpoints/search";
+import { searchAll, type SearchResponse } from "../api/endpoints/search";
 import { searchScrollContext } from "@/scroll/contexts";
 
 function SearchResults() {
@@ -170,18 +170,15 @@ function SearchResults() {
         <div>
           <h3 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Книги</h3>
           <BookGrid>
-            {books.map((b) => {
-              const book = searchHitToBook(b);
-              return (
-                <BookCard
-                  key={book.id}
-                  {...bookToBookCardCommonProps(book)}
-                  width={cardWidth}
-                  hasOffline={offlineBookIds.has(book.id)}
-                  linkState={searchLinkState}
-                />
-              );
-            })}
+            {books.map((book) => (
+              <BookCard
+                key={book.id}
+                {...bookToBookCardCommonProps(book)}
+                width={cardWidth}
+                hasOffline={offlineBookIds.has(book.id)}
+                linkState={searchLinkState}
+              />
+            ))}
           </BookGrid>
         </div>
       )}

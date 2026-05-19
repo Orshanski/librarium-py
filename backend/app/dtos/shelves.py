@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, SeriesRef, TagRef
-from .books import BookItem
+from .book_card import BookCardItem
 
 
 class ShelfSummary(BaseModel):
@@ -139,12 +139,34 @@ class ShelvesListResponse(BaseModel):
     book_shelves: list[BookShelfEntry] | None = None
 
 
+class ShelfProgressEntry(BaseModel):
+    """Reading progress for a single book on the reading_now shelf.
+
+    Lives on the wire as { fraction, lastFormat, lastReadAt }. Per the spec,
+    progress is a property of the reading process, not of the book — so it
+    arrives in a dedicated section of the shelf response (`progressByBookId`),
+    not inline in books[].
+    """
+    model_config = RESPONSE_CONFIG
+    fraction: float
+    last_format: str
+    last_read_at: str
+
+
 class ShelfDetailResponse(BaseModel):
     """Response for GET /api/shelves/{shelf_id}.
 
     Wire format (camelCase): {"shelf": {...}, "books": [...]}
+
+    For the reading_now system shelf the response additionally carries
+    `progressByBookId` — a map keyed by book id. For other shelves the field
+    is None and omitted from the wire via response_model_exclude_none=True
+    on the route.
     """
     model_config = RESPONSE_CONFIG
 
     shelf: ShelfSummary
-    books: list[BookItem]
+    books: list[BookCardItem]
+    # Map keyed by book_id; populated only for reading_now shelf, None otherwise
+    # (omitted from wire via response_model_exclude_none=True on the route).
+    progress_by_book_id: dict[int, ShelfProgressEntry] | None = None

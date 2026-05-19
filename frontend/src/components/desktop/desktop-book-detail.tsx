@@ -83,6 +83,8 @@ const DESKTOP_ADMIN_DELETE_STYLE = {
 export default function DesktopBookDetail({
   book,
   seriesBooks,
+  formats,
+  isbn,
   bookOrigin,
   isAdmin,
   rating,
@@ -111,7 +113,7 @@ export default function DesktopBookDetail({
           <CoverFrame src={book.coverPath} alt={book.title} tokens={COVER_TOKENS} />
           <BookReadDownloadButtons
             bookId={book.id}
-            formats={book.formats}
+            formats={formats}
             readableFormats={DESKTOP_READABLE_FORMATS}
           />
           <BookShelfMenu bookId={book.id} compact={false} />
@@ -131,14 +133,14 @@ export default function DesktopBookDetail({
               <div data-testid="desktop-book-authors">
                 {book.authors.map((author) => (
                   <span
-                    key={author}
+                    key={author.id}
                     style={{
                       color: colors.accent,
                       fontSize: 16,
                       marginRight: 12,
                     }}
                   >
-                    {author}
+                    {author.name}
                   </span>
                 ))}
               </div>
@@ -169,7 +171,7 @@ export default function DesktopBookDetail({
 
           {book.series && (
             <BookSeriesLine
-              seriesName={book.series}
+              seriesName={book.series.name}
               seriesNumber={book.seriesNumber}
               tokens={SERIES_LINE_TOKENS}
             />
@@ -193,9 +195,9 @@ export default function DesktopBookDetail({
 
           {book.description && <BookDescription html={book.description} tokens={DESCRIPTION_TOKENS} />}
 
-          {book.tags.length > 0 && <BookMetaPillList items={book.tags} tokens={PILL_TOKENS} />}
+          {book.tags.length > 0 && <BookMetaPillList items={book.tags.map((t) => t.name)} tokens={PILL_TOKENS} />}
 
-          <BookFacts facts={buildBookFacts(book)} tokens={FACTS_TOKENS} />
+          <BookFacts facts={buildBookFacts(book, isbn)} tokens={FACTS_TOKENS} />
         </div>
       </div>
 
@@ -204,7 +206,7 @@ export default function DesktopBookDetail({
           books={seriesBooks}
           currentBookId={book.id}
           bookOrigin={bookOrigin}
-          seriesName={book.series}
+          seriesName={book.series.name}
           tokens={SERIES_RAIL_TOKENS}
         />
       )}

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG, to_camel
 from ._refs import AuthorRef, SeriesRef, TagRef
+from .book_card import BookCardItem
 from .catalog import LanguageOptionRow
 
 
@@ -179,7 +180,8 @@ class TagMapResult(TypedDict):
 class EntityBookRow(TypedDict):
     """Book row used by author-detail and series-detail DAL functions
     (get_author_by_id, get_series_by_id). Both queries select identical columns:
-    explicit b.* fields, series as json_object, authors/tags as json_group_array.
+    explicit b.* fields, series as json_object, authors/tags as json_group_array,
+    plus rating and is_read from a LEFT JOIN with user_books for the current user.
     Single TypedDict justified by R-A: identical SELECT shape across both queries."""
     id: int
     title: str
@@ -195,6 +197,8 @@ class EntityBookRow(TypedDict):
     series: SeriesRef | None
     authors: list[AuthorRef]
     tags: list[TagRef]
+    rating: int | None
+    is_read: int | None  # SQLite BOOLEAN stored as 0/1; NULL via LEFT JOIN coalesced to 0.
 
 
 # ---------------------------------------------------------------------------
@@ -203,61 +207,18 @@ class EntityBookRow(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class EntityBookItem(BaseModel):
-    """Book item in author-detail and series-detail responses. Snake-case Python
-    fields; serialises to camelCase wire via alias_generator. Accepts snake keys
-    from DAL TypedDicts (populate_by_name=True) for construction in service layer."""
-    model_config = RESPONSE_CONFIG
-
-    id: int
-    title: str
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-    cover_path: str | None = None
-    added_at: str
-    updated_at: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-
-
-class TagDetailBookItem(BaseModel):
-    """Book item in tag-detail response. Extends EntityBookItem shape with
-    user-specific rating/is_read from the user_books JOIN in get_tag_books.sql."""
-    model_config = RESPONSE_CONFIG
-
-    id: int
-    title: str
-    sort_title: str | None = None
-    description: str | None = None
-    language: str | None = None
-    publisher: str | None = None
-    pub_date: str | None = None
-    series: SeriesRef | None = None
-    series_number: float | None = None
-    cover_path: str | None = None
-    added_at: str
-    updated_at: str
-    authors: list[AuthorRef]
-    tags: list[TagRef]
-    rating: int | None = None
-    is_read: int | None = None
-
-
 class AuthorDetailResponse(BaseModel):
     """Response for GET /api/authors/{id}.
 
     Wire format (camelCase): {"author": {...}, "books": [...]}.
-    `books[]`: EntityBookItem (snake fields, camel wire).
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     author: AuthorSummary
-    books: list[EntityBookItem]
+    books: list[BookCardItem]
 
 
 class AuthorsListResponse(BaseModel):
@@ -270,12 +231,15 @@ class AuthorsListResponse(BaseModel):
 class SeriesDetailResponse(BaseModel):
     """Response for GET /api/series/{id}.
 
-    Wire format (camelCase): {"series": {...}, "books": [...]}
+    Wire format (camelCase): {"series": {...}, "books": [...]}.
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     series: SeriesDetailSummary
-    books: list[EntityBookItem]
+    books: list[BookCardItem]
 
 
 class SeriesListResponse(BaseModel):
@@ -288,12 +252,15 @@ class SeriesListResponse(BaseModel):
 class TagDetailResponse(BaseModel):
     """Response for GET /api/tags/{id}.
 
-    Wire format (camelCase): {"tag": {...}, "books": [...]}
+    Wire format (camelCase): {"tag": {...}, "books": [...]}.
+    `books[]`: BookCardItem — unified card-level shape across all list endpoints.
+    Detail-only fields (description, language, publisher, pubDate, tags, etc.)
+    remain in BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
     tag: TagSummary
-    books: list[TagDetailBookItem]
+    books: list[BookCardItem]
 
 
 class TagCloudResponse(BaseModel):

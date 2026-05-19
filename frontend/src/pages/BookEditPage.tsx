@@ -7,7 +7,7 @@ import { BookEditOptions, BookSavePayload } from "../components/book-edit-form.t
 import type { BookContextOrigin, ListOrigin } from "../components/breadcrumb-origin";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import { colors } from "../theme";
-import { Book, RawBook, toBook } from "../types";
+import type { BookDetail, BookFormat } from "../types";
 import { getBook, updateBook, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
 import { deriveBookChangedFields } from "@/domain/book-changes";
@@ -23,7 +23,7 @@ function arraysEqual(left: unknown[], right: unknown[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
 
-function changedBookEditBody(body: Record<string, unknown>, original: RawBook, originalIsbn: string | null): Record<string, unknown> {
+function changedBookEditBody(body: Record<string, unknown>, original: BookDetail, originalIsbn: string | null): Record<string, unknown> {
   const changed: Record<string, unknown> = {};
   if (body.title !== original.title) changed.title = body.title;
   if ((body.description || "") !== (original.description || "")) changed.description = body.description;
@@ -152,16 +152,19 @@ export default function BookEditPage() {
   const currentBook = book;
 
   const isbn = identifiers.find((i) => i.type === "isbn")?.value || null;
-  const bookData: Book = {
-    ...toBook(currentBook, { fullCover: true, isbn }),
-    formats: files.map((f) => {
-      const sz = f.fileSize ?? 0;
-      return {
-        format: f.format,
-        size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
-      };
-    }),
+  // Detail/edit pages render the full-resolution cover (?full=1). Backend
+  // wire coverPath is the list/card variant; override for display only.
+  const bookData: BookDetail = {
+    ...currentBook,
+    coverPath: `/api/covers/${currentBook.id}?full=1&t=${currentBook.updatedAt}`,
   };
+  const editFormats: BookFormat[] = files.map((f) => {
+    const sz = f.fileSize ?? 0;
+    return {
+      format: f.format,
+      size: sz > 1048576 ? `${(sz / 1048576).toFixed(1)} MB` : `${Math.round(sz / 1024)} KB`,
+    };
+  });
 
   async function handleSave(data: BookSavePayload) {
     const authorIds = data.authors.map((name: string) => {
@@ -214,7 +217,7 @@ export default function BookEditPage() {
   return (
     <>
       <PageHeader title={`Редактирование: ${currentBook.title}`} breadcrumb={crumb} />
-      <BookEditForm book={bookData} options={options} onSave={handleSave} editOrigin={editOrigin} />
+      <BookEditForm book={bookData} formats={editFormats} isbn={isbn} options={options} onSave={handleSave} editOrigin={editOrigin} />
     </>
   );
 }

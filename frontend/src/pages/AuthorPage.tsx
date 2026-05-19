@@ -6,7 +6,7 @@ import { useScrollRestore } from "../hooks/useScrollRestore";
 import { readOriginFromState } from "../components/breadcrumb-origin";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
-import { Book, toBook } from "../types";
+import type { Book } from "../types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { useAuth } from "../auth";
@@ -72,7 +72,7 @@ export default function AuthorPage() {
     };
   }, [authorResource.data]);
   const books = useMemo<Book[]>(
-    () => (authorResource.data?.books || []).map((b) => toBook(b)),
+    () => authorResource.data?.books || [],
     [authorResource.data],
   );
   const loading = authorResource.loading;

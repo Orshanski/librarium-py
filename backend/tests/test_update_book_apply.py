@@ -135,11 +135,14 @@ def test_update_book_delete_nonexistent_format_idempotent(admin_client, caplog):
     assert desc == "updated via idempotent test"
 
 
-def test_update_book_commit_cover_happy(admin_client):
+def test_update_book_commit_cover_happy(admin_client, db):
     """commitCover: true применяет pending cover, temp-cover удалён."""
     test_data = os.environ["DATA_DIR"]
     before = assert_ok(admin_client.get("/api/books/2"))["book"]
-    assert before["coverPath"].endswith("/cover.jpg")
+    # Wire `coverPath` is the API URL `/api/covers/{id}?t=<updated_at>` —
+    # raw DB column lives in `books.cover_path` and is checked separately.
+    db_cover_before = db.execute("SELECT cover_path FROM books WHERE id=2").fetchone()[0]
+    assert db_cover_before.endswith("/cover.jpg")
 
     with open(FIXTURES / "../test_cover.png", "rb") as f:
         upload = admin_client.post(
@@ -151,7 +154,8 @@ def test_update_book_commit_cover_happy(admin_client):
     resp = admin_client.put("/api/books/2", json={"commitCover": True})
     data = assert_ok(resp)
     assert data["ok"] is True
-    assert data["book"]["coverPath"].endswith("/cover.png")
+    db_cover_after = db.execute("SELECT cover_path FROM books WHERE id=2").fetchone()[0]
+    assert db_cover_after.endswith("/cover.png")
     assert data["book"]["coverPath"] != before["coverPath"]
 
     get_resp = admin_client.get("/api/covers/2", params={"full": 1})

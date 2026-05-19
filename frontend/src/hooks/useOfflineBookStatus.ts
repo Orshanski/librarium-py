@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import type { Book } from "../types";
 import { hasOfflineBook as checkOffline, saveOfflineBook, removeBookFromLocalStorage, removeOfflineBook } from "../utils/offline-storage";
 import { useIsPwa } from "./useIsPwa";
 
@@ -16,7 +17,8 @@ export function useOfflineBookStatus(bookId: number | undefined) {
   }, [bookId, isPwa]);
 
   const toggleOffline = useCallback(async (
-    meta: { title: string; authors: string[]; manuallyAdded?: boolean },
+    book: Book,
+    manuallyAdded: boolean,
     fetchFiles: () => Promise<{ format: string; fileBlob: Blob; fileSize: number }[]>,
     fetchCover: () => Promise<Blob>,
   ) => {
@@ -28,7 +30,7 @@ export function useOfflineBookStatus(bookId: number | undefined) {
       setLoading(true);
       try {
         const [files, cover] = await Promise.all([fetchFiles(), fetchCover()]);
-        await saveOfflineBook({ bookId, ...meta }, files, cover);
+        await saveOfflineBook(book, files, cover, manuallyAdded);
         setHasOffline(true);
       } finally {
         setLoading(false);

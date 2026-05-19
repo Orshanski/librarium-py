@@ -163,31 +163,31 @@ class TestSearchBooksFuzzy:
     def test_finds_title_with_punctuation(self):
         """The canonical win: query with no punctuation hits a title with it."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "проект аве мария")
+        res = search_books(_get_db(), "проект аве мария", user_id=2)
         assert _BOOK_PUNCT in _book_ids(res), f"got books={res['books']}"
 
     def test_finds_title_with_different_punctuation(self):
         """Query with a dot omitted still hits."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "три мушкетера часть 1")
+        res = search_books(_get_db(), "три мушкетера часть 1", user_id=2)
         assert _BOOK_DOTPARTS in _book_ids(res)
 
     def test_handles_word_order(self):
         """Query words in reverse order still match."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "мария аве проект")
+        res = search_books(_get_db(), "мария аве проект", user_id=2)
         assert _BOOK_PUNCT in _book_ids(res)
 
     def test_handles_missing_connective(self):
         """Query drops 'и' — still finds 'Война и мир'."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "война мир")
+        res = search_books(_get_db(), "война мир", user_id=2)
         assert _BOOK_CONNECTIVE in _book_ids(res)
 
     def test_handles_simple_typo_in_author(self):
         """Typo in author name still finds their books."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "сандерсн")
+        res = search_books(_get_db(), "сандерсн", user_id=2)
         # Сандерсон wrote books _BOOK_PUNCT and _BOOK_YO
         assert (
             _AUTHOR_SANDERSON in _author_ids(res)
@@ -197,32 +197,32 @@ class TestSearchBooksFuzzy:
     def test_yo_equivalence(self):
         """Query without ё finds a title with ё."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "видящая звезды")
+        res = search_books(_get_db(), "видящая звезды", user_id=2)
         assert _BOOK_YO in _book_ids(res)
 
     def test_apostrophe_in_author(self):
         """Query without apostrophe finds 'Кэти О'Нил'."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "кэти онил")
+        res = search_books(_get_db(), "кэти онил", user_id=2)
         assert _AUTHOR_ONEIL in _author_ids(res)
 
     def test_empty_query_returns_empty_lists(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "")
+        res = search_books(_get_db(), "", user_id=2)
         assert res["books"] == []
         assert res["authors"] == []
         assert res["series"] == []
 
     def test_whitespace_only_query_returns_empty(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "   ")
+        res = search_books(_get_db(), "   ", user_id=2)
         assert res["books"] == []
         assert res["authors"] == []
         assert res["series"] == []
 
     def test_no_match_returns_empty(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "zzzznothingmatches")
+        res = search_books(_get_db(), "zzzznothingmatches", user_id=2)
         assert res["books"] == []
         assert res["authors"] == []
         assert res["series"] == []
@@ -230,13 +230,13 @@ class TestSearchBooksFuzzy:
     def test_limit_applies_to_books(self):
         """Router's `limit` parameter caps books only."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "книга", limit=2)
+        res = search_books(_get_db(), "книга", limit=2, user_id=2)
         assert len(res["books"]) <= 2
 
     def test_results_ordered_by_score_desc(self):
         """Highest-scoring match is first."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "проект аве мария")
+        res = search_books(_get_db(), "проект аве мария", user_id=2)
         if len(res["books"]) >= 2:
             assert res["books"][0]["id"] == _BOOK_PUNCT
 
@@ -312,7 +312,7 @@ class TestSearchBooksObjectsContract:
 
     def test_search_books_returns_authors_as_refs(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "проект", limit=10)
+        res = search_books(_get_db(), "проект", limit=10, user_id=2)
         assert len(res["books"]) >= 1
         book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
         assert isinstance(book["authors"], list)
@@ -320,13 +320,13 @@ class TestSearchBooksObjectsContract:
 
     def test_search_books_returns_series_as_ref_or_none(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "проект", limit=10)
+        res = search_books(_get_db(), "проект", limit=10, user_id=2)
         book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
         assert isinstance(book["series"], (SeriesRef, type(None)))
 
     def test_search_books_no_csv_fields(self):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "проект", limit=10)
+        res = search_books(_get_db(), "проект", limit=10, user_id=2)
         book = next(b for b in res["books"] if b["id"] == _BOOK_PUNCT)
         assert "author_ids" not in book
         assert "series_name" not in book
@@ -334,7 +334,7 @@ class TestSearchBooksObjectsContract:
 
     def test_search_series_returns_authors_as_refs(self, series_with_authors):
         from app.dal.books import search_books
-        res = search_books(_get_db(), "Щедрий", limit=10)
+        res = search_books(_get_db(), "Щедрий", limit=10, user_id=2)
         assert len(res["series"]) >= 1
         s = next(se for se in res["series"] if se["id"] == _SERIES_STELMAH)
         assert isinstance(s["authors"], list)
@@ -346,7 +346,7 @@ class TestSearchBooksObjectsContract:
         """Regression: corellated subquery must produce one entry per author,
         not one per (author, book) pair. Same applies to `book_count`."""
         from app.dal.books import search_books
-        res = search_books(_get_db(), "Дедуп", limit=10)
+        res = search_books(_get_db(), "Дедуп", limit=10, user_id=2)
         s = next(se for se in res["series"] if se["id"] == _SERIES_DEDUP)
         author_ids = [a.id for a in s["authors"]]
         assert author_ids == [_AUTHOR_DEDUP], f"expected single entry, got {s['authors']}"
@@ -401,7 +401,7 @@ def test_search_series_authors_sorted_alphabetically(
     by name. Exercises ORDER BY a.name inside the derived table in search_books_series.sql.
     """
     from app.dal.books import search_books
-    res = search_books(_get_db(), "Order Regression", limit=10)
+    res = search_books(_get_db(), "Order Regression", limit=10, user_id=2)
     s = next((se for se in res["series"] if se["id"] == _SERIES_ORDER), None)
     assert s is not None, "Series not found in search results"
     author_names = [a.name for a in s["authors"]]

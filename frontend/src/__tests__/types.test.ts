@@ -1,51 +1,66 @@
 import { describe, expect, it } from "vitest";
-import { toBook, RawBook } from "../types";
+import type { Book, BookDetail } from "../types";
 
-const baseRaw: RawBook = {
-  id: 1,
-  title: "X",
-  authors: [],
-  series: null,
-  seriesNumber: null,
-  tags: [],
-  rating: null,
-  language: null,
-  coverPath: null,
-  description: null,
-  publisher: null,
-  pubDate: null,
-  updatedAt: null,
-  isRead: null,
-};
-
-describe("toBook", () => {
-  it("authors as objects → Book.authors as names", () => {
-    const raw: RawBook = {
-      ...baseRaw,
+describe("Book type — unified card-level shape", () => {
+  it("Book has only card-level fields (no description/language/etc.)", () => {
+    const book: Book = {
       id: 1,
       title: "X",
-      authors: [{ id: 1, name: "A" }, { id: 2, name: "B" }],
-      updatedAt: "2020",
+      authors: [{ id: 1, name: "A" }],
+      series: null,
+      seriesNumber: null,
+      coverPath: "/cover",
+      rating: null,
+      isRead: false,
     };
-    const b = toBook(raw);
-    expect(b.authors).toEqual(["A", "B"]);
+
+    expect(book.id).toBe(1);
+    expect(book.authors).toEqual([{ id: 1, name: "A" }]);
+    expect(book.series).toBeNull();
   });
 
-  it("series object → Book.series name", () => {
-    const raw: RawBook = { ...baseRaw, series: { id: 5, name: "ВК" } };
-    const b = toBook(raw);
-    expect(b.series).toBe("ВК");
+  it("Book.series accepts SeriesRef object", () => {
+    const book: Book = {
+      id: 2,
+      title: "Y",
+      authors: [],
+      series: { id: 5, name: "Серия" },
+      seriesNumber: 3,
+      coverPath: "/cover",
+      rating: 4,
+      isRead: true,
+    };
+
+    expect(book.series?.name).toBe("Серия");
+    expect(book.series?.id).toBe(5);
   });
 
-  it("series null → Book.series null", () => {
-    const raw: RawBook = { ...baseRaw, series: null };
-    const b = toBook(raw);
-    expect(b.series).toBeNull();
-  });
+  it("BookDetail extends Book with detail-only fields (tags as TagRef[])", () => {
+    const detail: BookDetail = {
+      id: 3,
+      title: "Z",
+      authors: [],
+      series: null,
+      seriesNumber: null,
+      coverPath: "/cover",
+      rating: null,
+      isRead: false,
+      sortTitle: null,
+      description: "Описание",
+      language: "ru",
+      publisher: "Издательство",
+      pubDate: "2024",
+      tags: [{ id: 7, name: "роман" }],
+      addedAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    };
 
-  it("coverPath uses updatedAt timestamp", () => {
-    const raw: RawBook = { ...baseRaw, id: 7, updatedAt: "2025-01-01" };
-    const b = toBook(raw);
-    expect(b.coverPath).toBe("/api/covers/7?t=2025-01-01");
+    // BookDetail satisfies Book contract (structural subset).
+    const asBook: Book = detail;
+    expect(asBook.id).toBe(3);
+
+    // Detail-only fields are accessible.
+    expect(detail.description).toBe("Описание");
+    expect(detail.tags[0].name).toBe("роман");
   });
 });

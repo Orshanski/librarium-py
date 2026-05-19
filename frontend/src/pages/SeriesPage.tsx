@@ -12,7 +12,7 @@ import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
 import { useAuth } from "../auth";
 import { useIsMobile } from "../responsive";
-import { toBook, RawBook } from "../types";
+import type { Book } from "../types";
 import { colors } from "../theme";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { getSeries } from "../api/endpoints/series";
@@ -139,27 +139,24 @@ export default function SeriesPage() {
       )}
 
       <BookGrid>
-        {books.map((b: RawBook) => {
-          const book = toBook(b);
-          return (
-            <BookCard
-              key={book.id}
-              {...bookToBookCardCommonProps(book)}
-              width={cardWidth}
-              hasOffline={offlineBookIds.has(book.id)}
-              linkState={{
-                origin: {
-                  type: "series",
-                  url: location.pathname + location.search,
-                  label: series.name,
-                  ...(stateOrigin && stateOrigin.type !== "book"
-                    ? { parentOrigin: stateOrigin }
-                    : {}),
-                },
-              }}
-            />
-          );
-        })}
+        {books.map((book: Book) => (
+          <BookCard
+            key={book.id}
+            {...bookToBookCardCommonProps(book)}
+            width={cardWidth}
+            hasOffline={offlineBookIds.has(book.id)}
+            linkState={{
+              origin: {
+                type: "series",
+                url: location.pathname + location.search,
+                label: series.name,
+                ...(stateOrigin && stateOrigin.type !== "book"
+                  ? { parentOrigin: stateOrigin }
+                  : {}),
+              },
+            }}
+          />
+        ))}
       </BookGrid>
     </>
   );

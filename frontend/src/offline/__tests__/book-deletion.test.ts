@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { domainEvents } from "@/domain/events";
+import type { Book } from "@/types";
 import {
   _resetDB,
   getProgress,
@@ -15,6 +16,19 @@ import {
   registerOfflineBookDeletionHandler,
 } from "../book-deletion";
 
+function makeBook(id: number, title: string): Book {
+  return {
+    id,
+    title,
+    authors: [],
+    series: null,
+    seriesNumber: null,
+    coverPath: "",
+    rating: null,
+    isRead: false,
+  };
+}
+
 describe("offline book deletion subscriber", () => {
   const cover = new Blob(["cover"], { type: "image/jpeg" });
   const files = [{ format: "EPUB", fileBlob: new Blob(["epub"]), fileSize: 4 }];
@@ -27,8 +41,8 @@ describe("offline book deletion subscriber", () => {
   });
 
   it("removes offline book data and local progress for a deleted book", async () => {
-    await saveOfflineBook({ bookId: 1, title: "Deleted", authors: [] }, files, cover);
-    await saveOfflineBook({ bookId: 2, title: "Kept", authors: [] }, files, cover);
+    await saveOfflineBook(makeBook(1, "Deleted"), files, cover);
+    await saveOfflineBook(makeBook(2, "Kept"), files, cover);
     await saveProgress(1, { position: "p1", fraction: 0.3, lastFormat: "epub", lastReadAt: 1000 });
     await saveProgress(2, { position: "p2", fraction: 0.7, lastFormat: "epub", lastReadAt: 2000 });
 

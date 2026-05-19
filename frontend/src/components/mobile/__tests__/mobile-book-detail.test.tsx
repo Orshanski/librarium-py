@@ -1,38 +1,48 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import type { Book } from "../../../types";
+import type { BookDetail, BookFormat } from "../../../types";
 import type { BookDetailViewProps } from "../../book-detail.types";
 import MobileBookDetail from "../mobile-book-detail";
 
-function makeBook(overrides: Partial<Book> = {}): Book {
+function makeBook(overrides: Partial<BookDetail> = {}): BookDetail {
   return {
     id: 7,
     title: "Гарри Поттер и философский камень",
-    authors: ["Дж. К. Роулинг"],
-    series: "Гарри Поттер",
+    authors: [{ id: 1, name: "Дж. К. Роулинг" }],
+    series: { id: 1, name: "Гарри Поттер" },
     seriesNumber: 1,
-    tags: ["фэнтези"],
     rating: 4,
     isRead: false,
-    language: "ru",
     coverPath: "/api/covers/7",
+    sortTitle: null,
     description: "<p>Описание.</p>",
+    language: "ru",
     publisher: "Росмэн",
     pubDate: "2001",
-    formats: [
-      { format: "EPUB", size: "1.2 MB" },
-      { format: "PDF", size: "5.4 MB" },
-    ],
-    isbn: "978-5-353-00000-0",
+    tags: [{ id: 1, name: "фэнтези" }],
+    addedAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,
   };
 }
 
-function makeProps(book: Book, isAdmin: boolean): BookDetailViewProps {
+const DEFAULT_FORMATS: BookFormat[] = [
+  { format: "EPUB", size: "1.2 MB" },
+  { format: "PDF", size: "5.4 MB" },
+];
+
+function makeProps(
+  book: BookDetail,
+  isAdmin: boolean,
+  formats: BookFormat[] = DEFAULT_FORMATS,
+  isbn: string | null = "978-5-353-00000-0",
+): BookDetailViewProps {
   return {
     book,
     seriesBooks: [],
+    formats,
+    isbn,
     bookOrigin: { type: "catalog", url: "/", label: "Каталог" },
     isAdmin,
     rating: book.rating,
@@ -66,7 +76,17 @@ describe("MobileBookDetail composition", () => {
   });
 
   it("renders authors as a plain comma-separated line", () => {
-    renderMobile(makeProps(makeBook({ authors: ["Автор 1", "Автор 2"] }), false));
+    renderMobile(
+      makeProps(
+        makeBook({
+          authors: [
+            { id: 1, name: "Автор 1" },
+            { id: 2, name: "Автор 2" },
+          ],
+        }),
+        false,
+      ),
+    );
 
     expect(screen.getByText("Автор 1, Автор 2")).toBeInTheDocument();
   });
@@ -100,7 +120,7 @@ describe("MobileBookDetail composition", () => {
   });
 
   it("omits first format line and read/download links when there are no formats", () => {
-    renderMobile(makeProps(makeBook({ formats: [] }), false));
+    renderMobile(makeProps(makeBook(), false, []));
 
     expect(screen.queryByText(/EPUB · /)).toBeNull();
     expect(screen.queryByRole("link", { name: /Читать/ })).toBeNull();

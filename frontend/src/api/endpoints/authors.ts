@@ -1,6 +1,6 @@
 import { client, type ClientQuery } from "../client";
 import type { OkResponse } from "../types";
-import type { RawBook, TagRef } from "@/types";
+import type { Book, TagRef } from "@/types";
 
 export interface Author {
   id: number;
@@ -22,7 +22,7 @@ export interface AuthorListResponse {
 
 export interface AuthorDetailResponse {
   author: Author;
-  books: RawBook[];
+  books: Book[];
 }
 
 export function listAuthors(

@@ -1,5 +1,5 @@
 import { RefObject } from "react";
-import { Book, BookFormat } from "../types";
+import { BookDetail, BookFormat } from "../types";
 import type { BookContextOrigin } from "./breadcrumb-origin";
 
 export interface NamedOption {
@@ -51,14 +51,18 @@ export interface MetadataPayload {
 }
 
 export interface BookEditFormProps {
-  book: Book;
+  book: BookDetail;
+  /** Initial file formats — siblings of book on BookDetailResponse.files. */
+  formats: BookFormat[];
+  /** Initial ISBN — sibling of book on BookDetailResponse.identifiers. */
+  isbn: string | null;
   options?: BookEditOptions;
   onSave?: (data: BookSavePayload) => Promise<void> | void;
   editOrigin?: BookContextOrigin;
 }
 
 export interface BookEditViewProps {
-  book: Book;
+  book: BookDetail;
   title: string;
   authors: string[];
   authorSearch: string;

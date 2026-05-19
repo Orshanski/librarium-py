@@ -6,28 +6,31 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import BookEditForm from "./book-edit-form";
-import type { Book } from "../types";
+import type { BookDetail, BookFormat } from "../types";
 import type { BookEditOptions } from "./book-edit-form.types";
 
 type UserEvent = ReturnType<typeof userEvent.setup>;
 
-const mockBook: Book = {
+const mockBook: BookDetail = {
   id: 42,
   title: "Тестовая книга",
-  authors: ["Автор Тестов"],
+  authors: [{ id: 1, name: "Автор Тестов" }],
   series: null,
   seriesNumber: null,
-  tags: [],
   rating: null,
   isRead: false,
-  language: "ru",
   coverPath: "/api/covers/42",
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  formats: [{ format: "epub", size: "1 MB" }],
-  isbn: null,
+  tags: [],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
+
+const mockFormats: BookFormat[] = [{ format: "epub", size: "1 MB" }];
 
 const mockOptions: BookEditOptions = {
   authors: [],
@@ -124,7 +127,7 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await openMetadataSearchAndApplyResult(user, "Новая книга");
@@ -159,7 +162,7 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await openMetadataSearchAndApplyResult(user, "Книга с обложкой");
@@ -196,7 +199,7 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await openMetadataSearchAndApplyResult(user, "Книга с ошибкой обложки");
@@ -238,7 +241,7 @@ describe("book-edit-form — metadata", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await openMetadataSearchAndApplyResult(user, "Книга без обложки");
@@ -279,7 +282,7 @@ describe("book-edit-form — covers", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await uploadCoverFile(user);
@@ -306,7 +309,7 @@ describe("book-edit-form — covers", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await uploadCoverFile(user);
@@ -333,7 +336,7 @@ describe("book-edit-form — covers", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     await uploadCoverFile(user);
@@ -374,7 +377,7 @@ describe("book-edit-form — books", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -402,9 +405,9 @@ describe("book-edit-form — books", () => {
       }),
     );
 
-    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }] };
+    const twoFormats: BookFormat[] = [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }];
     renderWithProviders(
-      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={twoFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -435,9 +438,9 @@ describe("book-edit-form — books", () => {
       }),
     );
 
-    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "fb2", size: "500 KB" }] };
+    const twoFormats: BookFormat[] = [{ format: "epub", size: "1 MB" }, { format: "fb2", size: "500 KB" }];
     renderWithProviders(
-      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={twoFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     // Sanity: оба формата видны в списке формат-items (не dropzone-подсказка).
@@ -470,7 +473,7 @@ describe("book-edit-form — books", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={parentOnSave} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -498,7 +501,7 @@ describe("book-edit-form — books", () => {
     };
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={parentOnSave} />,
     );
 
     const saveBtn = screen.getByRole("button", { name: /сохранить/i });
@@ -525,7 +528,7 @@ describe("book-edit-form — books", () => {
     };
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={options} onSave={parentOnSave} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={options} onSave={parentOnSave} />,
     );
 
     const authorField = screen.getByTestId("book-edit-token-field-authors");
@@ -560,7 +563,7 @@ describe("book-edit-form — books", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={parentOnSave} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -587,7 +590,7 @@ describe("book-edit-form — books", () => {
     });
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={parentOnSave} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={parentOnSave} />,
     );
     const saveBtn = screen.getByRole("button", { name: /сохранить/i });
     await user.click(saveBtn);
@@ -611,7 +614,7 @@ describe("book-edit-form — books", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -638,7 +641,7 @@ describe("book-edit-form — books", () => {
     );
 
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
     const cancelBtn = screen.getByRole("button", { name: /^отмена$/i });
     await user.click(cancelBtn);
@@ -664,7 +667,7 @@ describe("book-edit-form — books", () => {
 
     // mockBook.formats содержит EPUB.
     renderWithProviders(
-      <BookEditForm book={mockBook} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={mockFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
@@ -694,9 +697,9 @@ describe("book-edit-form — books", () => {
     );
 
     // Используем книгу с двумя форматами — кнопка удаления рендерится только если formats.length > 1.
-    const twoFormats = { ...mockBook, formats: [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }] };
+    const twoFormats: BookFormat[] = [{ format: "epub", size: "1 MB" }, { format: "pdf", size: "2 MB" }];
     renderWithProviders(
-      <BookEditForm book={twoFormats} options={mockOptions} onSave={vi.fn()} />,
+      <BookEditForm book={mockBook} formats={twoFormats} isbn={null} options={mockOptions} onSave={vi.fn()} />,
     );
 
     // Шаг 1: пометить оригинальный EPUB на удаление.

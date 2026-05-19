@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { colors, fonts } from "../theme";
+import type { Book } from "../types";
 import { getOfflineBooks, getProgress, type OfflineBook } from "../utils/offline-storage";
 import { setReadingFlag } from "../utils/readerFlag";
 import { useIsMobile } from "../responsive";
 import BookCard from "./book-card";
+import { bookToBookCardCommonProps } from "./book-card-tokens";
 import BookGrid from "./book-grid";
 import { useBookCardWidth } from "./use-book-card-width";
 
@@ -190,13 +192,24 @@ function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<Offl
 
   if (coverUrl == null) return null;
 
+  // OfflineBook теперь несёт card-level поля (series, authors[].id и т.д.).
+  // Конструируем view-Book с coverPath = blob URL — для оффлайна обложка
+  // локальный ресурс; bookToBookCardCommonProps читает coverPath только в src.
+  const viewBook: Book = {
+    id: book.bookId,
+    title: book.title,
+    authors: book.authors,
+    series: book.series,
+    seriesNumber: book.seriesNumber,
+    coverPath: coverUrl,
+    rating: book.rating,
+    isRead: book.isRead,
+  };
+
   return (
     <BookCard
-      src={coverUrl}
-      alt={book.title}
+      {...bookToBookCardCommonProps(viewBook)}
       width={cardWidth}
-      title={book.title}
-      authors={book.authors}
       progressPercent={progressPercent}
       hasOffline
       href={`/book/${book.bookId}/read/${pickReaderFormat(book)}`}

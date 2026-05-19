@@ -8,21 +8,23 @@ import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
 import BookPage from "./BookPage";
 
-const mockRawBook = {
+const mockBookDetail = {
   id: 42,
   title: "Мастер и Маргарита",
   authors: [{ id: 1, name: "Михаил Булгаков" }],
   series: null,
   seriesNumber: null,
-  tags: [{ id: 1, name: "роман" }, { id: 2, name: "классика" }],
+  coverPath: "/api/covers/42",
   rating: null,
-  language: "ru",
-  coverPath: null,
+  isRead: false,
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  updatedAt: null,
-  isRead: null,
+  tags: [{ id: 1, name: "роман" }, { id: 2, name: "классика" }],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
 
 describe("BookPage", () => {
@@ -35,7 +37,7 @@ describe("BookPage", () => {
     server.use(
       http.get("/api/books/:id", () =>
         HttpResponse.json({
-          book: mockRawBook,
+          book: mockBookDetail,
           files: [{ format: "epub", fileSize: 1048576 }],
           identifiers: [],
         })
@@ -55,7 +57,7 @@ describe("BookPage", () => {
   });
 
   it("happy with series: loads series books when book has series.id", async () => {
-    const bookWithSeries = { ...mockRawBook, series: { id: 5, name: "Серия" } };
+    const bookWithSeries = { ...mockBookDetail, series: { id: 5, name: "Серия" } };
 
     server.use(
       http.get("/api/books/:id", ({ params }) => {
@@ -74,7 +76,7 @@ describe("BookPage", () => {
         if (url.searchParams.get("seriesIds") === "5") {
           return HttpResponse.json({
             books: [
-              { ...mockRawBook, id: 43, title: "Другая книга серии", series: { id: 5, name: "Серия" } },
+              { ...mockBookDetail, id: 43, title: "Другая книга серии", series: { id: 5, name: "Серия" } },
             ],
             hasMore: false,
           });
@@ -103,7 +105,7 @@ describe("BookPage", () => {
       http.get("/api/books/:id", async () => {
         await inFlight;
         return HttpResponse.json({
-          book: mockRawBook,
+          book: mockBookDetail,
           files: [],
           identifiers: [],
         });
@@ -154,7 +156,7 @@ describe("BookPage", () => {
       http.get("/api/books/:id", () => {
         requestCount += 1;
         return HttpResponse.json({
-          book: mockRawBook,
+          book: mockBookDetail,
           files: [{ format: "epub", fileSize: 1048576 }],
           identifiers: [],
         });

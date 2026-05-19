@@ -24,7 +24,7 @@ def tag_cloud(
     return tags_service.tag_cloud(db, top)
 
 
-@router.get("/{tag_id}", response_model=TagDetailResponse, response_model_exclude_none=True)  # exclude_none: optional fields are endpoint-specific extras (rating, is_read) absent for some query paths
+@router.get("/{tag_id}", response_model=TagDetailResponse)
 def get_tag(
     tag_id: int,
     user: Annotated[CurrentUser, Depends(get_current_user)],

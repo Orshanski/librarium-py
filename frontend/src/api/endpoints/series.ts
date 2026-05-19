@@ -1,6 +1,6 @@
 import { client, type ClientQuery } from "../client";
 import type { OkResponse } from "../types";
-import type { RawBook, AuthorRef } from "@/types";
+import type { Book, AuthorRef } from "@/types";
 
 export interface Series {
   id: number;
@@ -23,7 +23,7 @@ export interface SeriesListResponse {
 
 export interface SeriesDetailResponse {
   series: Series;
-  books: RawBook[];
+  books: Book[];
 }
 
 export function listSeries(

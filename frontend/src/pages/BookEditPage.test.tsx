@@ -10,28 +10,30 @@ import { metadataCache } from "@/cache";
 import { domainEvents } from "@/domain/events";
 import BookEditPage from "./BookEditPage";
 
-const mockRawBook = {
+const mockBookDetail = {
   id: 42,
   title: "Тестовая книга",
   authors: [{ id: 1, name: "Автор Тестов" }],
   series: null,
   seriesNumber: null,
-  tags: [],
+  coverPath: "/api/covers/42",
   rating: null,
-  language: "ru",
-  coverPath: null,
+  isRead: false,
+  sortTitle: null,
   description: null,
+  language: "ru",
   publisher: null,
   pubDate: null,
-  updatedAt: null,
-  isRead: null,
+  tags: [],
+  addedAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
 };
 
 function setupAllHandlers() {
   server.use(
     http.get("/api/books/:id", () =>
       HttpResponse.json({
-        book: mockRawBook,
+        book: mockBookDetail,
         files: [{ format: "epub", fileSize: 512000 }],
         identifiers: [],
       })
@@ -89,7 +91,7 @@ describe("BookEditPage", () => {
         putBody = await request.json();
         return HttpResponse.json({
           ok: true,
-          book: { ...mockRawBook, title: "Тестовая книга 2" },
+          book: { ...mockBookDetail, title: "Тестовая книга 2" },
           files: [{ format: "epub", fileSize: 512000 }],
           identifiers: [],
         });
@@ -266,7 +268,7 @@ describe("BookEditPage", () => {
       http.get("/api/books/:id", () => {
         bookRequestCount += 1;
         return HttpResponse.json({
-          book: mockRawBook,
+          book: mockBookDetail,
           files: [{ format: "epub", fileSize: 512000 }],
           identifiers: [],
         });

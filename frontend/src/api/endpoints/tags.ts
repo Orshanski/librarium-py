@@ -1,5 +1,5 @@
 import { client, type ClientQuery } from "../client";
-import type { RawBook } from "@/types";
+import type { Book } from "@/types";
 
 export interface CloudTag {
   id: number;
@@ -28,7 +28,7 @@ export interface TagSummary {
 
 export interface TagBooksResponse {
   tag: TagSummary;
-  books: RawBook[];
+  books: Book[];
 }
 
 export interface MapTagResponse {
