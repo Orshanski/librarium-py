@@ -65,10 +65,10 @@ _JSON_OBJECT_BASE_COLUMNS = {
 }
 
 # Entity-detail pages (get_author_by_id / get_series_by_id).
-# get_author_by_id has been extended with rating/is_read via user_books JOIN
-# (Task 2.1); get_series_by_id is still on the base shape until Task 2.2 lands.
+# Both queries carry rating/is_read via user_books LEFT JOIN
+# (Task 2.1 for authors, Task 2.2 for series).
 EXPECTED_AUTHOR_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
-EXPECTED_SERIES_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS
+EXPECTED_SERIES_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
 
 # books.get_books / get_book_by_id: JSON-object shape + user-specific columns.
 EXPECTED_GET_BOOKS_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
@@ -114,7 +114,7 @@ class TestAuthorDetailSnapshot:
 
 class TestSeriesDetailSnapshot:
     def test_series_1_books_by_series_number(self, db):
-        result = series_dal.get_series_by_id(db, 1)
+        result = series_dal.get_series_by_id(db, 1, 2)
         assert result is not None
         books = result["books"]
         # Books 1 (num 1) and 3 (num 2) belong to series 1
@@ -125,7 +125,7 @@ class TestSeriesDetailSnapshot:
         """Series detail page — authors of each book must be alphabetically sorted.
         Book 100 (series_number=10) is inserted with authors Smith then Brown;
         json_group_array enforces ORDER BY a.name → [Brown, Smith]."""
-        result = series_dal.get_series_by_id(db_with_multi_author, 1)
+        result = series_dal.get_series_by_id(db_with_multi_author, 1, 2)
         assert result is not None
         # series 1 now has books 1 (num 1), 3 (num 2), 100 (num 10) — ordered by series_number
         book_ids = [b["id"] for b in result["books"]]

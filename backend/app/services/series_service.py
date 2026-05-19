@@ -17,22 +17,25 @@ def list_series(
     return SeriesListResponse(series=result["series"])
 
 
-def get_series(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailResponse:  # noqa: ARG001
-    """Read series detail. ``user_id`` is accepted for shared-router-factory
-    parity with ``authors_service.get_author``; it will be wired into the
-    user_books JOIN in Task 2.2 (series detail SQL). Currently unused."""
-    result = dal.get_series_by_id(db, series_id)
+def get_series(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailResponse:
+    """Read series detail. user_id is required: books[] now carries per-user
+    rating/is_read via the user_books LEFT JOIN in get_series_books.sql."""
+    result = dal.get_series_by_id(db, series_id, user_id)
     if not result:
         raise NotFoundError("Not found")
     return SeriesDetailResponse(series=result["series"], books=result["books"])
 
 
 def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
-    """Переименовать серию. Raises NotFoundError если серия не существует."""
-    result = dal.get_series_by_id(db, series_id)
-    if not result:
+    """Переименовать серию. Raises NotFoundError если серия не существует.
+
+    Existence check уходит на thin queries.series_exists (как в delete_series),
+    а имя читается напрямую через queries.get_series_by_id — без user-scoped
+    запроса get_series_by_id из DAL, который тянет user_books JOIN."""
+    if not dal.queries.series_exists(db, id=series_id):
         raise NotFoundError("Серия не найдена")
-    if result["series"]["name"] == name:
+    row = dal.queries.get_series_by_id(db, id=series_id)
+    if row["name"] == name:
         return False
     dal.rename_series(db, series_id, name)
     return True
@@ -41,7 +44,7 @@ def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
 def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
     if target_id == source_id:
         raise BadInputError("Нельзя объединить с самой собой")
-    if not dal.get_series_by_id(db, source_id):
+    if not dal.queries.series_exists(db, id=source_id):
         return False
     dal.merge_series(db, target_id, source_id)
     return True

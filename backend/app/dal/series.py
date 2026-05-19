@@ -41,12 +41,12 @@ def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | 
     return {"series": cast(list[SeriesRow], rows)}
 
 
-def get_series_by_id(db: sqlite3.Connection, series_id: int) -> SeriesDetailRow | None:
+def get_series_by_id(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailRow | None:
     s = dict_from_row(queries.get_series_by_id(db, id=series_id))
     if not s:
         return None
 
-    rows = dicts_from_rows(queries.get_series_books(db, id=series_id))
+    rows = dicts_from_rows(queries.get_series_books(db, id=series_id, user_id=user_id))
     for r in rows:
         parse_book_row_aggregates(r)
 

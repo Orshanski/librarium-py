@@ -53,3 +53,23 @@ def test_get_author_books_null_when_no_user_book_row(db, current_user_id):
     book = result["books"][0]
     assert book["rating"] is None
     assert book["is_read"] in (False, 0, None)
+
+
+def test_get_series_books_returns_rating_and_is_read(db, current_user_id):
+    """get_series_by_id must include rating and is_read in books[] rows."""
+    from app.dal import series as dal_series
+    db.execute("INSERT INTO series (id, name, sort_name) VALUES (300, 'S', 'S')")
+    db.execute(
+        "INSERT INTO books (id, title, sort_title, language, series_id, series_number, added_at, updated_at) "
+        "VALUES (301, 'B', 'B', 'en', 300, 1.0, '2020-01-01 00:00:00', '2020-01-01 00:00:00')"
+    )
+    db.execute(
+        "INSERT INTO user_books (user_id, book_id, rating, is_read) VALUES (?, 301, 5, 0)",
+        (current_user_id,),
+    )
+    db.commit()
+
+    result = dal_series.get_series_by_id(db, 300, current_user_id)
+    book = result["books"][0]
+    assert book["rating"] == 5
+    assert book["is_read"] in (False, 0)
