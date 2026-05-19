@@ -13,6 +13,12 @@ class SearchBookHit(TypedDict):
     cover_path: str | None
     authors: list[AuthorRef]
     series: SeriesRef | None
+    # Card-level fields surfaced for BookCardItem-like rendering. To be unified
+    # with BookCardItem in Task 4.2.e — for now we just widen SearchBookHit so
+    # the wire response carries the new keys.
+    series_number: float | None
+    rating: int | None
+    is_read: int | None
 
 
 class SearchAuthorHit(TypedDict):

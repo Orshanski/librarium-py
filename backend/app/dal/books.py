@@ -153,7 +153,7 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     queries.delete_book(db, id=book_id)
 
 
-def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
+def search_books(db: sqlite3.Connection, query: str, limit: int = 50, *, user_id: int) -> SearchResults:
     """Fuzzy UI search across books, authors, and series.
 
     Uses a custom rapidfuzz-compatible scorer (`token_min_ratio` in
@@ -187,7 +187,7 @@ def search_books(db: sqlite3.Connection, query: str, limit=50) -> SearchResults:
     }
 
     # Books: full outer fetch, fuzzy-rank against title + authors + series.
-    book_rows = dicts_from_rows(queries.search_books_books(db))
+    book_rows = dicts_from_rows(queries.search_books_books(db, user_id=user_id))
     for r in book_rows:
         parse_book_row_aggregates(r)
     book_choices = {
