@@ -17,7 +17,10 @@ def list_series(
     return SeriesListResponse(series=result["series"])
 
 
-def get_series(db: sqlite3.Connection, series_id: int) -> SeriesDetailResponse:
+def get_series(db: sqlite3.Connection, series_id: int, user_id: int) -> SeriesDetailResponse:  # noqa: ARG001
+    """Read series detail. ``user_id`` is accepted for shared-router-factory
+    parity with ``authors_service.get_author``; it will be wired into the
+    user_books JOIN in Task 2.2 (series detail SQL). Currently unused."""
     result = dal.get_series_by_id(db, series_id)
     if not result:
         raise NotFoundError("Not found")

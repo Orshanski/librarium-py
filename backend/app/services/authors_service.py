@@ -16,19 +16,25 @@ def list_authors(
     return AuthorsListResponse(authors=result["authors"])
 
 
-def get_author(db: sqlite3.Connection, author_id: int) -> AuthorDetailResponse:
-    result = dal.get_author_by_id(db, author_id)
+def get_author(db: sqlite3.Connection, author_id: int, user_id: int) -> AuthorDetailResponse:
+    """Read author detail. user_id is required: books[] now carries per-user
+    rating/is_read via the user_books LEFT JOIN in get_author_books.sql."""
+    result = dal.get_author_by_id(db, author_id, user_id)
     if not result:
         raise NotFoundError("Not found")
     return AuthorDetailResponse(author=result["author"], books=result["books"])
 
 
 def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
-    """Переименовать автора. Raises NotFoundError если автор не существует."""
-    result = dal.get_author_by_id(db, author_id)
-    if not result:
+    """Переименовать автора. Raises NotFoundError если автор не существует.
+
+    Existence check уходит на thin queries.author_exists (как в delete_author),
+    а имя читается напрямую через queries.get_author_by_id — без user-scoped
+    запроса get_author_by_id из DAL, который тянет user_books JOIN."""
+    if not dal.queries.author_exists(db, id=author_id):
         raise NotFoundError("Автор не найден")
-    if result["author"]["name"] == name:
+    row = dal.queries.get_author_by_id(db, id=author_id)
+    if row["name"] == name:
         return False
     dal.rename_author(db, author_id, name)
     return True
@@ -37,7 +43,7 @@ def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
 def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
     if target_id == source_id:
         raise BadInputError("Нельзя объединить с самим собой")
-    if not dal.get_author_by_id(db, source_id):
+    if not dal.queries.author_exists(db, id=source_id):
         return False
     dal.merge_authors(db, target_id, source_id)
     return True

@@ -65,7 +65,10 @@ _JSON_OBJECT_BASE_COLUMNS = {
 }
 
 # Entity-detail pages (get_author_by_id / get_series_by_id).
-EXPECTED_ENTITY_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS
+# get_author_by_id has been extended with rating/is_read via user_books JOIN
+# (Task 2.1); get_series_by_id is still on the base shape until Task 2.2 lands.
+EXPECTED_AUTHOR_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
+EXPECTED_SERIES_DETAIL_COLUMNS = _JSON_OBJECT_BASE_COLUMNS
 
 # books.get_books / get_book_by_id: JSON-object shape + user-specific columns.
 EXPECTED_GET_BOOKS_COLUMNS = _JSON_OBJECT_BASE_COLUMNS | {"rating", "is_read"}
@@ -88,14 +91,14 @@ EXPECTED_SHELF_DEFAULT_COLUMNS = EXPECTED_BOOKS_FULL_COLUMNS
 
 class TestAuthorDetailSnapshot:
     def test_author_1_shape_and_order(self, db):
-        result = authors_dal.get_author_by_id(db, 1)
+        result = authors_dal.get_author_by_id(db, 1, 2)
         assert result is not None
         books = result["books"]
         # Test Author (id=1) is tied to books 1 and 3
         assert {b["id"] for b in books} == {1, 3}
         assert len(books) == 2
         # Exact column set — guards against accidental SELECT drift.
-        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
+        assert set(books[0].keys()) == EXPECTED_AUTHOR_DETAIL_COLUMNS
         # Outer order (b.added_at DESC): book 3 (2025-01-03) before book 1 (2025-01-01)
         assert [b["id"] for b in books] == [3, 1]
 
@@ -103,7 +106,7 @@ class TestAuthorDetailSnapshot:
         # Author 101 (Smith) — their page should show the multi-author book.
         # get_author_by_id uses json_group_array: authors arrive as list[AuthorRef]
         # ordered alphabetically by name → [Brown, Smith].
-        result = authors_dal.get_author_by_id(db_with_multi_author, 101)
+        result = authors_dal.get_author_by_id(db_with_multi_author, 101, 2)
         assert result is not None
         multi_book = next(b for b in result["books"] if b["id"] == 100)
         assert [a.name for a in multi_book["authors"]] == ["Brown", "Smith"]
@@ -116,7 +119,7 @@ class TestSeriesDetailSnapshot:
         books = result["books"]
         # Books 1 (num 1) and 3 (num 2) belong to series 1
         assert [b["id"] for b in books] == [1, 3]  # ORDER BY b.series_number
-        assert set(books[0].keys()) == EXPECTED_ENTITY_DETAIL_COLUMNS
+        assert set(books[0].keys()) == EXPECTED_SERIES_DETAIL_COLUMNS
 
     def test_series_1_book_authors_alphabetical(self, db_with_multi_author):
         """Series detail page — authors of each book must be alphabetically sorted.

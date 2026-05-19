@@ -12,7 +12,7 @@ registered here because authors and series differ in query-param signatures.
 
 Dynamic naming: factory резолвит service-функции через `getattr` по
 entity_label:
-    get_<entity_label>(db, id)
+    get_<entity_label>(db, id, user_id)
     rename_<entity_label>(db, id, name)
     merge_<entity_label>s(db, target, source)  # authors → merge_authors (plural)
         or merge_<entity_label>(db, target, source)  # series → merge_series
@@ -50,11 +50,13 @@ def register_entity_crud(
 
     Parameters:
       - ``service``: entity service module (e.g. ``authors_service``). Must expose
-        ``get_<label>(db, id)``, ``rename_<label>(db, id, name)``,
+        ``get_<label>(db, id, user_id)``, ``rename_<label>(db, id, name)``,
         ``merge_<label>s(db, target, source)`` (plural for authors) or
         ``merge_<label>(db, target, source)`` (series; singular=plural),
         ``delete_<label>(db, id)``. Service functions raise custom domain
         exceptions (NotFoundError, BadInputError) — middleware handles HTTP maps.
+        ``get_<label>`` takes a ``user_id`` because the detail page books[] carry
+        per-user rating/is_read via LEFT JOIN with user_books.
       - ``logger``: caller's module logger for info lines on rename/merge/delete.
       - ``entity_label``: singular noun used in log lines (``"author"``, ``"series"``).
       - ``detail_response_model``: optional Pydantic model class for the GET
@@ -81,7 +83,7 @@ def register_entity_crud(
         user: Annotated[CurrentUser, Depends(get_current_user)],
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
-        return get_fn(db, entity_id)
+        return get_fn(db, entity_id, user.user_id)
 
     @router.put("/{entity_id}", response_model=OkResponse)
     def rename_entity(

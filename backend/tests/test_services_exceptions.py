@@ -24,7 +24,7 @@ from app.services import (
 class TestAuthorsService:
     def test_get_author_missing_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
-            authors_service.get_author(db, 999999)
+            authors_service.get_author(db, 999999, 2)
 
     def test_merge_self_raises_bad_input(self, db):
         with pytest.raises(BadInputError, match="Нельзя объединить с самим собой"):
@@ -46,7 +46,7 @@ class TestAuthorsService:
 class TestSeriesService:
     def test_get_series_missing_raises_not_found(self, db):
         with pytest.raises(NotFoundError, match="Not found"):
-            series_service.get_series(db, 999999)
+            series_service.get_series(db, 999999, 2)
 
     def test_merge_self_raises_bad_input(self, db):
         """Feminine 'самой собой' — не 'самим собой'."""

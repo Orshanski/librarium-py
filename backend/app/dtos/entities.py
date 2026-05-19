@@ -179,7 +179,8 @@ class TagMapResult(TypedDict):
 class EntityBookRow(TypedDict):
     """Book row used by author-detail and series-detail DAL functions
     (get_author_by_id, get_series_by_id). Both queries select identical columns:
-    explicit b.* fields, series as json_object, authors/tags as json_group_array.
+    explicit b.* fields, series as json_object, authors/tags as json_group_array,
+    plus rating and is_read from a LEFT JOIN with user_books for the current user.
     Single TypedDict justified by R-A: identical SELECT shape across both queries."""
     id: int
     title: str
@@ -195,6 +196,8 @@ class EntityBookRow(TypedDict):
     series: SeriesRef | None
     authors: list[AuthorRef]
     tags: list[TagRef]
+    rating: int | None
+    is_read: int | None  # SQLite BOOLEAN stored as 0/1; NULL via LEFT JOIN coalesced to 0.
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +209,10 @@ class EntityBookRow(TypedDict):
 class EntityBookItem(BaseModel):
     """Book item in author-detail and series-detail responses. Snake-case Python
     fields; serialises to camelCase wire via alias_generator. Accepts snake keys
-    from DAL TypedDicts (populate_by_name=True) for construction in service layer."""
+    from DAL TypedDicts (populate_by_name=True) for construction in service layer.
+
+    rating/is_read come from the user_books LEFT JOIN in get_author_books /
+    get_series_books and are user-scoped (per current_user)."""
     model_config = RESPONSE_CONFIG
 
     id: int
@@ -223,6 +229,8 @@ class EntityBookItem(BaseModel):
     updated_at: str
     authors: list[AuthorRef]
     tags: list[TagRef]
+    rating: int | None = None
+    is_read: int | None = None
 
 
 class TagDetailBookItem(BaseModel):

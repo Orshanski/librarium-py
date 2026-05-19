@@ -39,12 +39,12 @@ def list_author_options(db: sqlite3.Connection, *, user_id: int, filters: Catalo
     return dicts_from_rows(db.execute(final_sql, params).fetchall())
 
 
-def get_author_by_id(db: sqlite3.Connection, author_id: int) -> AuthorDetailRow | None:
+def get_author_by_id(db: sqlite3.Connection, author_id: int, user_id: int) -> AuthorDetailRow | None:
     author = dict_from_row(queries.get_author_by_id(db, id=author_id))
     if not author:
         return None
 
-    rows = dicts_from_rows(queries.get_author_books(db, id=author_id))
+    rows = dicts_from_rows(queries.get_author_books(db, id=author_id, user_id=user_id))
     for r in rows:
         parse_book_row_aggregates(r)
 
