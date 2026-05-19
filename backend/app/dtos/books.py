@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from ._aliases import BODY_CONFIG, RESPONSE_CONFIG
 from ._refs import AuthorRef, TagRef, SeriesRef
 from ._types import FormatCode, TempIdStr
+from .book_card import BookCardItem
 
 
 class UpdateBookBody(BaseModel):
@@ -200,10 +201,16 @@ class BookListResponse(BaseModel):
     Wire format (camelCase): {"books": [...], "hasMore": bool}
     `books` contains at most `page_size` rows; `hasMore` signals that more
     rows exist beyond the current cursor.
+
+    Items use the unified BookCardItem shape (card-level fields only) —
+    the same contract is returned by shelves/authors/series/tags list
+    endpoints. Detail-only fields (description, language, publisher,
+    pubDate, isbn, tags, formats, sortTitle, addedAt, updatedAt) live in
+    BookDetailResponse for GET /api/books/{id}.
     """
     model_config = RESPONSE_CONFIG
 
-    books: list[BookListItem]
+    books: list[BookCardItem]
     has_more: bool
 
 

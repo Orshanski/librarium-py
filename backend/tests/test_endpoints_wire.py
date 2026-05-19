@@ -38,16 +38,12 @@ def test_list_books_wire_format(admin_client):
     assert "books" in payload
     assert len(payload["books"]) > 0
     book = payload["books"][0]
-    # camelCase keys present
+    # camelCase keys present (card shape — BookCardItem)
     assert "coverPath" in book
-    assert "addedAt" in book
-    assert "updatedAt" in book
     assert "isRead" in book
     assert "seriesNumber" in book
     # snake_case keys absent
     assert "cover_path" not in book
-    assert "added_at" not in book
-    assert "updated_at" not in book
     assert "is_read" not in book
     assert "series_number" not in book
     # authors as structured objects
@@ -69,8 +65,6 @@ def test_list_books_no_snake_keys_on_all_books(admin_client):
     for book in books:
         assert "coverPath" in book
         assert "cover_path" not in book
-        assert "addedAt" in book
-        assert "updatedAt" in book
 
 
 # ---------------------------------------------------------------------------
@@ -379,3 +373,27 @@ def test_search_books_no_csv_author_fields(admin_client):
         assert "author_ids" not in book
         assert "series_name" not in book
         assert "series_id" not in book
+
+
+def test_catalog_books_have_unified_card_shape(reader_client):
+    """GET /api/books returns BookCardItem (unified card-level shape).
+
+    Catalog list response uses the same card contract as shelves/authors/series/tags
+    list endpoints: minimal card-render fields, no detail-page fields.
+    """
+    response = reader_client.get("/api/books?pageSize=1")
+    assert response.status_code == 200
+    books = response.json()["books"]
+    assert len(books) > 0, "seed must contain at least one book"
+    book = books[0]
+    # Card shape — all expected card keys present, AND no detail-page keys.
+    expected_keys = {
+        "id", "title", "authors", "series", "seriesNumber",
+        "coverPath", "rating", "isRead",
+    }
+    assert expected_keys.issubset(book.keys()), f"missing keys: {expected_keys - book.keys()}"
+    forbidden = {
+        "description", "publisher", "language", "pubDate", "isbn",
+        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+    }
+    assert forbidden.isdisjoint(book.keys()), f"unexpected detail keys leaked into card: {forbidden & book.keys()}"

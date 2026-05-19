@@ -15,6 +15,7 @@ from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
+from .book_item_builder import row_to_book_card_item
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
 
@@ -374,5 +375,6 @@ def list_books(
         filters=filters,
     )
     has_more = len(rows) > page_size
-    books = rows[:page_size] if has_more else rows
+    page = rows[:page_size] if has_more else rows
+    books = [row_to_book_card_item(r) for r in page]
     return BookListResponse(books=books, has_more=has_more)
