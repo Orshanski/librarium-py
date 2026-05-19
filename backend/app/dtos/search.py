@@ -9,15 +9,19 @@ from .book_card import BookCardItem
 
 
 class SearchBookHit(TypedDict):
-    """Internal DAL contract for search book rows.
+    """DAL-internal row shape for search book results.
 
-    Kept as the TypedDict shape for `SearchResults.books` returned by
-    `dal.search_books`. The service layer maps each row through
-    `row_to_book_card_item` before exposing it on the wire — the response
+    Describes the narrow 9-column row produced by `search_books_books.sql`
+    (id, title, cover_path, series_number, updated_at, series, authors,
+    rating, is_read) and consumed by `dal.search_books` as the type of
+    `SearchResults.books`. The service layer maps each row through
+    `row_to_book_card_item` before exposing it on the wire; the response
     DTO uses `BookCardItem` to match the unified card-level contract.
 
-    To be removed in Task 4.3 (cleanup) once the DAL signature is migrated
-    to return raw row dicts.
+    Kept (not collapsed into `BookListRow`) on purpose: the search SELECT is
+    deliberately narrow and does not fetch description/language/publisher/
+    pub_date/sort_title/added_at/tags. Reusing the wider `BookListRow`
+    (16 fields) here would be a structural lie about what the DAL returns.
     """
     id: int
     title: str
