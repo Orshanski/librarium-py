@@ -139,7 +139,7 @@ export default function BookCard(props: Readonly<BookCardProps>) {
     border: props.border,
   });
   const inner = (
-    <div style={INNER_DIV_STYLE}>
+    <div style={{ ...INNER_DIV_STYLE, width: props.width }}>
       <CoverFrame src={props.src} alt={props.alt} tokens={frameTokens}>
         {renderProgress(props.progressPercent)}
         {renderRemoveButton(props.onRemove)}

@@ -8,6 +8,7 @@ export interface CardTitleMetaTokens {
   seriesSize?: number;
   seriesEllipsis?: boolean;
   titleClamp?: number;
+  authorsClamp?: number;
   titleFontWeight?: number;
   titleMarginBottom?: number;
 }
@@ -55,7 +56,10 @@ export default function CardTitleMeta({
     color: colors.textDim,
     overflow: "hidden",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    display: "-webkit-box",
+    WebkitLineClamp: tokens.authorsClamp ?? 2,
+    WebkitBoxOrient: "vertical",
+    wordBreak: "break-word",
   };
 
   const seriesBaseStyle: CSSProperties = {

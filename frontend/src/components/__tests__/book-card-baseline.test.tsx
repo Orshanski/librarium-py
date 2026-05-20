@@ -34,4 +34,23 @@ describe("BookCard — golden baseline", () => {
     );
     expect(container.firstChild).toMatchSnapshot();
   });
+
+  // Регрессия librarium-py-68oo: длинные nowrap-тексты authors/series раздували
+  // inline-block link wrapper за пределы ширины карточки. Inner div теперь
+  // несёт width={props.width} — это якорит блочный контекст для ellipsis.
+  it("inner container is constrained to props.width", () => {
+    const longBook: Book = {
+      ...baselineBook,
+      authors: [{ id: 1, name: "Очень-длинное-нерпереносимое-имя-автора-без-пробелов" }],
+      series: { id: 1, name: "Очень длинное название серии расследований механического сыщика" },
+    };
+    const { container } = render(
+      <MemoryRouter>
+        <BookCard {...bookToBookCardCommonProps(longBook)} width={130} />
+      </MemoryRouter>,
+    );
+    const innerDiv = container.querySelector("a > div") as HTMLElement;
+    expect(innerDiv).toBeTruthy();
+    expect(innerDiv.style.width).toBe("130px");
+  });
 });
