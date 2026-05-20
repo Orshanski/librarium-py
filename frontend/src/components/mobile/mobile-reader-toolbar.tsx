@@ -1,9 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { colors, fonts } from "../../theme";
 import type { ReaderToolbarProps } from "../../types/reader-toolbar";
-import type { ReaderSettings } from "../../types/reader-settings";
+import type { ReaderSettings, ReaderTheme } from "../../types/reader-settings";
 import { FONT_OPTIONS } from "../../constants/reader-defaults";
 import { flattenToc } from "../../utils/reader-toc";
+
+const THEME_LABELS: Record<ReaderTheme, string> = {
+  dark: "Тёмная",
+  warm: "Тёплая",
+  light: "Светлая",
+};
 
 export default function MobileReaderToolbar({
   bookTitle,
@@ -15,7 +21,8 @@ export default function MobileReaderToolbar({
   onTocSelect,
   onClose,
   maxTocDepth,
-}: ReaderToolbarProps) {
+}: Readonly<ReaderToolbarProps>) {
+  const panelId = useId();
   const [panel, setPanel] = useState<null | "toc" | "settings">(null);
   const [localFontSize, setLocalFontSize] = useState(settings.fontSize);
   const [localLineSpacing, setLocalLineSpacing] = useState(settings.lineSpacing);
@@ -104,7 +111,10 @@ export default function MobileReaderToolbar({
         </button>
 
         {/* Title — tap to open TOC */}
-        <span
+        <button
+          type="button"
+          aria-expanded={panel === "toc"}
+          aria-controls={panelId}
           onClick={() => setPanel(panel === "toc" ? null : "toc")}
           style={{
             flex: 1,
@@ -115,16 +125,23 @@ export default function MobileReaderToolbar({
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             cursor: "pointer",
+            background: "none",
+            border: "none",
+            padding: 0,
+            textAlign: "left",
+            minWidth: 0,
           }}
         >
           {bookTitle}
-        </span>
+        </button>
 
         <span style={{ fontSize: 17, color: colors.textDim, whiteSpace: "nowrap" }}>
           {progressPct}%
         </span>
 
         <button
+          aria-expanded={panel === "settings"}
+          aria-controls={panelId}
           onClick={() => setPanel(panel === "settings" ? null : "settings")}
           style={btnStyle}
         >
@@ -134,21 +151,26 @@ export default function MobileReaderToolbar({
 
       {/* Bottom sheet overlay */}
       {panel !== null && (
-        <div
+        <button
+          type="button"
+          aria-label="Закрыть"
           onClick={() => setPanel(null)}
           style={{
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.4)",
             zIndex: 300,
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
           }}
         />
       )}
 
-      {/* Bottom sheet panel */}
+      {/* Bottom sheet panel — sibling of backdrop, click events don't bubble to it */}
       {panel !== null && (
         <div
-          onClick={(e) => e.stopPropagation()}
+          id={panelId}
           style={{
             position: "fixed",
             bottom: 0,
@@ -183,11 +205,19 @@ export default function MobileReaderToolbar({
               {flattenToc(tocItems, 0, maxTocDepth).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
-                  <div
-                    key={i}
+                  <button
+                    key={`${item.href}-${i}`}
+                    type="button"
                     data-active={isActive || undefined}
+                    aria-current={isActive || undefined}
                     onClick={() => { onTocSelect(item.href); setPanel(null); }}
                     style={{
+                      display: "block",
+                      width: "100%",
+                      background: "none",
+                      border: "none",
+                      fontFamily: "inherit",
+                      textAlign: "left",
                       padding: "12px 4px",
                       fontSize: 14,
                       color: isActive ? colors.accent : colors.textSecondary,
@@ -198,7 +228,7 @@ export default function MobileReaderToolbar({
                     }}
                   >
                     {item.label}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -221,7 +251,7 @@ export default function MobileReaderToolbar({
                       borderColor: settings.theme === t ? colors.accent : colors.border,
                     }}
                   >
-                    {t === "dark" ? "Тёмная" : t === "warm" ? "Тёплая" : "Светлая"}
+                    {THEME_LABELS[t]}
                   </button>
                 ))}
               </div>
