@@ -13,10 +13,14 @@ from ..cover_embedder import embed_cover
 from ..dal import books as books_dal
 from ..dal.books import update_cover_path
 from ..exceptions import BadInputError, NotFoundError
-from ..fs_utils import move_with_rollback
+from ..fs_utils import assert_within, move_with_rollback, safe_extension
 from ..logging_utils import safe as safe_log
 from . import thumb
 from .temp_cleanup import cleanup_old_uploads
+
+# Whitelist для cover-форматов: дублирует router-валидацию как defense-in-depth.
+# Любой новый caller upload_temp обязан пройти ext-чек на этом уровне.
+_COVER_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
 
 log = logging.getLogger("librarium.services.covers")
 
@@ -60,6 +64,10 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     if not books_dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
 
+    # Defense-in-depth: ext-whitelist на уровне сервиса. Router уже валидирует
+    # через safe_extension, но любой будущий caller должен пройти ту же проверку.
+    ext = safe_extension(f"x.{ext}", _COVER_EXTS, default="jpg")
+
     # Self-healing orphan GC: снести brew-старые temp'ы до того как положим
     # свой. Без scheduler/cron — пользовательский upload-поток сам себя
     # обслуживает.
@@ -77,11 +85,11 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     except Exception:
         raise BadInputError("Файл не является изображением или повреждён")
 
-    # Clean old temp covers for this book
+    # Clean old temp covers for this book — все пути под UPLOADS_DIR.
     for old in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
-        os.remove(old)
+        os.remove(assert_within(UPLOADS_DIR, old))
 
-    temp_path = str(UPLOADS_DIR / f"{book_id}-cover.{ext}")
+    temp_path = assert_within(UPLOADS_DIR, UPLOADS_DIR / f"{book_id}-cover.{ext}")
     with open(temp_path, "wb") as f:
         f.write(content)
 
