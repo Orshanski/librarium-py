@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { colors } from "../theme";
 
 export interface ComboboxOption {
@@ -20,12 +20,14 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function Combobox({
+  id,
   value,
   onChange,
   onSelect,
   options,
   placeholder,
 }: Readonly<{
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   onSelect?: (value: string) => void;
@@ -36,6 +38,7 @@ export default function Combobox({
   const [highlighted, setHighlighted] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
 
   const q = value.toLowerCase();
   const filtered = options.filter((o) => o.value.toLowerCase().includes(q));
@@ -90,7 +93,13 @@ export default function Combobox({
   return (
     <div style={{ position: "relative" }}>
       <input
+        id={id}
         ref={inputRef}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        aria-activedescendant={highlighted >= 0 && open ? `${listboxId}-${highlighted}` : undefined}
         style={inputStyle}
         value={value}
         onChange={(e) => {
@@ -104,7 +113,9 @@ export default function Combobox({
       />
       {open && filtered.length > 0 && (
         <div
+          id={listboxId}
           ref={listRef}
+          role="listbox"
           style={{
             position: "absolute",
             top: "100%",
@@ -122,6 +133,9 @@ export default function Combobox({
           {filtered.map((o, i) => (
             <div
               key={o.value}
+              id={`${listboxId}-${i}`}
+              role="option"
+              aria-selected={i === highlighted}
               onMouseDown={() => doSelect(o.value)}
               onMouseEnter={() => setHighlighted(i)}
               style={{
