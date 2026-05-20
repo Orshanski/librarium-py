@@ -2,9 +2,28 @@
 from contextlib import contextmanager
 import os
 import shutil
-from typing import Iterable, Iterator
+from pathlib import Path
+from typing import Iterable, Iterator, Union
 
 from .exceptions import BadInputError
+
+
+def assert_within(base: Union[str, Path], candidate: Union[str, Path]) -> str:
+    """Гарантировать что `candidate` после resolve() остаётся внутри `base`.
+
+    Защита от path-traversal: даже если в build'е пути затесался '../', '/',
+    symlink или другой escape — этот guard поднимет BadInputError до того,
+    как путь дойдёт до open/read/write/remove.
+
+    Возвращает абсолютный resolved-путь как str.
+    """
+    base_resolved = Path(base).resolve()
+    candidate_resolved = Path(candidate).resolve()
+    try:
+        candidate_resolved.relative_to(base_resolved)
+    except ValueError as exc:
+        raise BadInputError(f"Path escapes allowed root: {candidate}") from exc
+    return str(candidate_resolved)
 
 
 def safe_extension(filename: str, allowed: Iterable[str], default: str | None = None) -> str:
