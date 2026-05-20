@@ -10,8 +10,11 @@ from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.covers import CoverUploadResponse
 from ..exceptions import BadInputError
+from ..fs_utils import safe_extension
 from ..services import cover_service
 from ._validators import TempIdStr
+
+_COVER_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
 
 log = logging.getLogger("librarium.covers")
 
@@ -42,8 +45,7 @@ async def upload_cover(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
     file: Annotated[UploadFile, File()],
 ) -> CoverUploadResponse:
-    parts = (file.filename or "cover.jpg").rsplit(".", 1)
-    ext = parts[-1].lower() if len(parts) > 1 else "jpg"
+    ext = safe_extension(file.filename or "cover.jpg", _COVER_EXTS, default="jpg")
 
     file.file.seek(0, 2)
     size = file.file.tell()

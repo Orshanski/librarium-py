@@ -4,9 +4,18 @@ import uuid
 from app.services.reader_service import get_or_create_device_id
 
 
-def test_get_or_create_device_id_existing_returns_same():
-    result = get_or_create_device_id("abc-123")
-    assert result == "abc-123"
+def test_get_or_create_device_id_existing_uuid_returns_same():
+    existing = "11111111-1111-4111-8111-111111111111"
+    result = get_or_create_device_id(existing)
+    assert result == existing
+
+
+def test_get_or_create_device_id_invalid_replaced_with_uuid():
+    # Любой не-UUID payload (включая attacker-supplied данные с CR/LF и т.п.)
+    # отбрасывается и заменяется свежим device id.
+    result = get_or_create_device_id("not-a-uuid")
+    assert result != "not-a-uuid"
+    uuid.UUID(result)
 
 
 def test_get_or_create_device_id_none_generates_uuid():

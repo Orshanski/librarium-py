@@ -2,6 +2,7 @@ import os
 import zipfile
 import logging
 from lxml import etree
+from .. import xml_safe
 from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
@@ -18,9 +19,9 @@ COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 def _load_opf(zf: zipfile.ZipFile) -> tuple[etree._Element, str]:
     """Возвращает (opf_tree, cover_dir). Читает META-INF/container.xml → opf_path → opf_tree.
     Исключения: KeyError / IndexError / etree.XMLSyntaxError — любая malformed EPUB уйдёт в caller."""
-    container = etree.fromstring(zf.read("META-INF/container.xml"))
+    container = xml_safe.fromstring(zf.read("META-INF/container.xml"))
     opf_path = container.xpath("n:rootfiles/n:rootfile/@full-path", namespaces=NS)[0]
-    opf = etree.fromstring(zf.read(opf_path))
+    opf = xml_safe.fromstring(zf.read(opf_path))
     cover_dir = os.path.dirname(opf_path)
     return opf, cover_dir
 

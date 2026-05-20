@@ -11,7 +11,9 @@ from pathlib import Path
 from lxml import etree
 from PIL import Image
 
+from . import xml_safe
 from .exceptions import BadInputError
+from .logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.cover_embedder")
 
@@ -33,7 +35,7 @@ def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
     If no <coverpage> exists, creates one in <title-info> and adds
     a <binary> element at the end of the root.
     """
-    tree = etree.parse(str(file_path))
+    tree = xml_safe.parse(file_path)
     root = tree.getroot()
     b64_text = base64.b64encode(cover_bytes).decode("ascii")
 
@@ -96,11 +98,11 @@ def embed_cover_epub(file_path: Path, cover_bytes: bytes) -> None:
     and metadata.
     """
     with zipfile.ZipFile(str(file_path), "r") as zf:
-        container = etree.fromstring(zf.read("META-INF/container.xml"))
+        container = xml_safe.fromstring(zf.read("META-INF/container.xml"))
         opf_path = container.xpath(
             "n:rootfiles/n:rootfile/@full-path", namespaces=EPUB_NS
         )[0]
-        opf = etree.fromstring(zf.read(opf_path))
+        opf = xml_safe.fromstring(zf.read(opf_path))
         cover_dir = os.path.dirname(opf_path)
 
         # Search for existing cover using 3 methods
@@ -218,7 +220,7 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
 
     book_dir = LIBRARY_DIR / str(book_id)
     if not book_dir.is_dir():
-        log.warning("Book directory not found: %s", book_dir)
+        log.warning("Book directory not found: %s", safe_log(book_dir))
         return
 
     # Find cover file
@@ -230,7 +232,7 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
 
     if cover_file is None:
         log.warning("No cover file found for book %d", book_id)
-        return
+        return  # book_id is int — safe to log directly
 
     cover_bytes = (book_dir / cover_file).read_bytes()
     jpeg_bytes = to_jpeg(cover_bytes)
@@ -240,13 +242,13 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
         fmt = bf["format"].upper()
         file_path = LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}"
         if not file_path.exists():
-            log.warning("File not found: %s", file_path)
+            log.warning("File not found: %s", safe_log(file_path))
             continue
         if fmt == "FB2":
-            log.info("Embedding cover into FB2: %s", file_path)
+            log.info("Embedding cover into FB2: %s", safe_log(file_path))
             embed_cover_fb2(file_path, jpeg_bytes)
         elif fmt == "EPUB":
-            log.info("Embedding cover into EPUB: %s", file_path)
+            log.info("Embedding cover into EPUB: %s", safe_log(file_path))
             embed_cover_epub(file_path, jpeg_bytes)
         else:
-            log.debug("Skipping format %s for book %d", fmt, book_id)
+            log.debug("Skipping format %s for book %d", safe_log(fmt), book_id)

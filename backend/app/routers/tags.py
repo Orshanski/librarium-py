@@ -9,6 +9,7 @@ from ..database import db_session
 from ..dtos.catalog import UserSort
 from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
 from ..events import EventScope, publish_domain_event_after_commit
+from ..logging_utils import safe as safe_log
 from ..services import tags_service
 
 log = logging.getLogger("librarium.tags")
@@ -55,6 +56,6 @@ def map_tag(
     action = "renamed" if result.renamed else "merged"
     log.info(
         "Tag %s: %d → %s (target=%d) by user_id=%s",
-        action, tag_id, body.name, result.target_id, user.user_id,
+        action, tag_id, safe_log(body.name), result.target_id, user.user_id,
     )
     return result

@@ -10,6 +10,7 @@ from ..dtos import IdResponse, OkResponse
 from ..dtos.catalog import UserSort
 from ..dtos.shelves import ShelfBody, ShelfBookBody, ShelfDetailResponse, ShelvesListResponse
 from ..events import EventScope, publish_domain_event_after_commit
+from ..logging_utils import safe as safe_log
 from ..services import shelves_service
 
 log = logging.getLogger("librarium.shelves")
@@ -34,7 +35,7 @@ def create_shelf(body: ShelfBody, user: Annotated[CurrentUser, Depends(get_curre
         event_type="shelfCreated",
         payload={"shelfId": shelf_id, "name": body.name},
     )
-    log.info("Created shelf=%s by user_id=%s", body.name, user.user_id)
+    log.info("Created shelf=%s by user_id=%s", safe_log(body.name), user.user_id)
     return IdResponse(id=shelf_id)
 
 

@@ -1,6 +1,7 @@
 import base64
 import logging
 from lxml import etree
+from .. import xml_safe
 from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ def _read_fb2_tree(file_path: str) -> etree._Element:
     Исключения: OSError (FS-ошибки), etree.XMLSyntaxError (malformed XML) — пробрасываются наверх."""
     with open(file_path, "rb") as f:
         raw = f.read()
-    return etree.fromstring(raw)
+    return xml_safe.fromstring(raw)
 
 
 def _extract_title(tree: etree._Element) -> str:

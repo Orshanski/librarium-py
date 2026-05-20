@@ -13,6 +13,7 @@ from ..dtos.books import (
 )
 from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
 from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
@@ -190,7 +191,7 @@ def _resolve_delete_formats(
         if row is None:
             log.info(
                 "idempotent delete skipped: book=%d format=%s not present",
-                book_id, fmt_code,
+                book_id, safe_log(fmt_code),
             )
             continue
         resolved.append((fmt_code, row))

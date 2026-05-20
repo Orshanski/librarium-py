@@ -22,9 +22,18 @@ class ProgressSaveEventResult:
 def get_or_create_device_id(cookie_value: str | None) -> str:
     """Resolve device id from cookie or generate a new one.
 
-    Pure function — cookie write-back stays in router.
+    Pure function — cookie write-back stays in router. Cookie value is
+    validated as UUID before reuse: any non-UUID payload (attacker-supplied
+    garbage, accidental truncation, header-injection sequences) is rejected
+    and replaced with a fresh device id.
     """
-    return cookie_value or str(uuid.uuid4())
+    if cookie_value:
+        try:
+            uuid.UUID(cookie_value)
+            return cookie_value
+        except (ValueError, AttributeError):
+            pass
+    return str(uuid.uuid4())
 
 
 def get_settings(db: sqlite3.Connection, user_id: int, device_id: str) -> ReaderSettingsGetResponse:

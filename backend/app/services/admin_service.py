@@ -13,6 +13,7 @@ from ..dtos.admin import (
     UpdateUserBody, UpdateSettingsBody, UserUpdateData,
 )
 from ..exceptions import BadInputError
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.services.admin")
 
@@ -30,7 +31,7 @@ def list_users(db: sqlite3.Connection) -> AdminUsersListResponse:
 def create_user(db: sqlite3.Connection, username: str, password: str, role: str,
                 display_name: str | None, email: str | None, actor_id: int) -> int:
     uid = users_dal.create_user(db, username, password, role, display_name, email)
-    log.info("Created user=%s role=%s by user_id=%s", username, role, actor_id)
+    log.info("Created user=%s role=%s by user_id=%s", safe_log(username), safe_log(role), actor_id)
     return uid
 
 

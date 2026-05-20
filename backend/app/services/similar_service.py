@@ -6,6 +6,7 @@ from ..dal import books as books_dal
 from ..dal import similar as similar_dal
 from ..dtos.similar import SimilarResponse
 from ..exceptions import BadInputError, ForbiddenError, NotFoundError, UpstreamError
+from ..logging_utils import safe as safe_log
 from ..providers.litres import fetch_similar, find_litres_id
 
 log = logging.getLogger("librarium.services.similar")
@@ -41,5 +42,5 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> SimilarResponse:
         raise
     except Exception as e:
         # Third-party/network errors — graceful degrade (UX decision, legacy).
-        log.warning("Similar books error for book_id=%d: %s", book_id, e)
+        log.warning("Similar books error for book_id=%d: %s", book_id, safe_log(e))
         return SimilarResponse(books=[], source=_SOURCE, error="service_unavailable")
