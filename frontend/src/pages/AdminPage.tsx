@@ -200,14 +200,16 @@ function UserCard({
       {editMode === "name" && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Отображаемое имя</label>
-            <input
-              autoFocus
-              style={{ ...inputStyle, maxWidth: 320 }}
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { onSaveName(user.id, nameValue); closeEdit(); } if (e.key === "Escape") closeEdit(); }}
-            />
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Отображаемое имя</span>
+              <input
+                autoFocus
+                style={{ ...inputStyle, maxWidth: 320 }}
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { onSaveName(user.id, nameValue); closeEdit(); } if (e.key === "Escape") closeEdit(); }}
+              />
+            </label>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -227,26 +229,30 @@ function UserCard({
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: 1, marginBottom: 8 }}>
-              <label style={labelStyle}>Новый пароль</label>
-              <input
-                autoFocus
-                type="password"
-                autoComplete="new-password"
-                style={inputStyle}
-                value={passValue}
-                onChange={(e) => setPassValue(e.target.value)}
-              />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>Новый пароль</span>
+                <input
+                  autoFocus
+                  type="password"
+                  autoComplete="new-password"
+                  style={inputStyle}
+                  value={passValue}
+                  onChange={(e) => setPassValue(e.target.value)}
+                />
+              </label>
             </div>
             <div style={{ flex: 1, marginBottom: 8 }}>
-              <label style={labelStyle}>Повторите</label>
-              <input
-                type="password"
-                autoComplete="new-password"
-                style={inputStyle}
-                value={passConfirm}
-                onChange={(e) => setPassConfirm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && passValue && passValue === passConfirm) { onSavePassword(user.id, passValue); closeEdit(); } if (e.key === "Escape") closeEdit(); }}
-              />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>Повторите</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  style={inputStyle}
+                  value={passConfirm}
+                  onChange={(e) => setPassConfirm(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && passValue && passValue === passConfirm) { onSavePassword(user.id, passValue); closeEdit(); } if (e.key === "Escape") closeEdit(); }}
+                />
+              </label>
             </div>
           </div>
           <PasswordMatch pass={passValue} confirm={passConfirm} />
@@ -267,20 +273,22 @@ function UserCard({
       {editMode === "role" && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
           <div style={{ marginBottom: 16, maxWidth: 200 }}>
-            <label style={labelStyle}>Роль</label>
-            <select
-              autoFocus
-              style={selectStyle}
-              value={roleValue}
-              onChange={(e) => setRoleValue(e.target.value as "admin" | "reader")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { onSaveRole(user.id, roleValue); closeEdit(); }
-                if (e.key === "Escape") closeEdit();
-              }}
-            >
-              <option value="reader" style={selectOptionStyle}>reader</option>
-              <option value="admin" style={selectOptionStyle}>admin</option>
-            </select>
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Роль</span>
+              <select
+                autoFocus
+                style={selectStyle}
+                value={roleValue}
+                onChange={(e) => setRoleValue(e.target.value as "admin" | "reader")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { onSaveRole(user.id, roleValue); closeEdit(); }
+                  if (e.key === "Escape") closeEdit();
+                }}
+              >
+                <option value="reader" style={selectOptionStyle}>reader</option>
+                <option value="admin" style={selectOptionStyle}>admin</option>
+              </select>
+            </label>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -311,6 +319,15 @@ interface NewUserState {
   password: string;
   passwordConfirm: string;
   role: "admin" | "reader";
+}
+
+// ─── Pure handlers (no closures) ────────────────────
+async function savePassword(id: number, pass: string) {
+  try {
+    await updateUser(id, { password: pass });
+  } catch (e: unknown) {
+    alert(e instanceof Error ? e.message : "Ошибка смены пароля");
+  }
 }
 
 // ─── Main Page ──────────────────────────────────────
@@ -351,14 +368,6 @@ export default function AdminPage() {
       setUsers(users.map((u) => u.id === id ? { ...u, display_name: name } : u));
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Ошибка сохранения имени");
-    }
-  }
-
-  async function savePassword(id: number, pass: string) {
-    try {
-      await updateUser(id, { password: pass });
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Ошибка смены пароля");
     }
   }
 
@@ -461,37 +470,49 @@ export default function AdminPage() {
               </h3>
               <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Логин</label>
-                  <input style={inputStyle} placeholder="username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Логин</span>
+                    <input style={inputStyle} placeholder="username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
+                  </label>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Отображаемое имя</label>
-                  <input style={inputStyle} placeholder="Как показывать" value={newUser.displayName} onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })} />
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Отображаемое имя</span>
+                    <input style={inputStyle} placeholder="Как показывать" value={newUser.displayName} onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })} />
+                  </label>
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Email</label>
-                <input style={inputStyle} type="email" placeholder="user@example.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
+                <label style={{ display: "block" }}>
+                  <span style={labelStyle}>Email</span>
+                  <input style={inputStyle} type="email" placeholder="user@example.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
+                </label>
               </div>
               <div style={{ display: "flex", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Пароль</label>
-                  <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Пароль</span>
+                    <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+                  </label>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Повторите</label>
-                  <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.passwordConfirm} onChange={(e) => setNewUser({ ...newUser, passwordConfirm: e.target.value })} />
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Повторите</span>
+                    <input style={inputStyle} type="password" autoComplete="new-password" value={newUser.passwordConfirm} onChange={(e) => setNewUser({ ...newUser, passwordConfirm: e.target.value })} />
+                  </label>
                 </div>
                 <div style={{ flex: "1 1 100px", minWidth: 100 }}>
-                  <label style={labelStyle}>Роль</label>
-                  <select
-                    style={selectStyle}
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
-                  >
-                    <option value="reader" style={selectOptionStyle}>reader</option>
-                    <option value="admin" style={selectOptionStyle}>admin</option>
-                  </select>
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Роль</span>
+                    <select
+                      style={selectStyle}
+                      value={newUser.role}
+                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as "admin" | "reader" })}
+                    >
+                      <option value="reader" style={selectOptionStyle}>reader</option>
+                      <option value="admin" style={selectOptionStyle}>admin</option>
+                    </select>
+                  </label>
                 </div>
               </div>
               <PasswordMatch pass={newUser.password} confirm={newUser.passwordConfirm} />
@@ -517,12 +538,14 @@ export default function AdminPage() {
         <div style={{ marginBottom: 48 }}>
           <h2 style={sectionTitleStyle}>Приложение</h2>
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Название библиотеки</label>
-            <input
-              style={{ ...inputStyle, maxWidth: 320 }}
-              value={settings.app_name || ""}
-              onChange={(e) => setSettings({ ...settings, app_name: e.target.value })}
-            />
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Название библиотеки</span>
+              <input
+                style={{ ...inputStyle, maxWidth: 320 }}
+                value={settings.app_name || ""}
+                onChange={(e) => setSettings({ ...settings, app_name: e.target.value })}
+              />
+            </label>
           </div>
         </div>
 
@@ -530,6 +553,7 @@ export default function AdminPage() {
         <div style={{ marginBottom: 48 }}>
           <h2 style={sectionTitleStyle}>
             Почта
+            {" "}
             <span
               style={{
                 display: "inline-flex",
@@ -550,22 +574,30 @@ export default function AdminPage() {
           </h2>
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>SMTP хост</label>
-              <input style={inputStyle} placeholder="smtp.gmail.com" value={settings.smtp_host || ""} onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })} />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>SMTP хост</span>
+                <input style={inputStyle} placeholder="smtp.gmail.com" value={settings.smtp_host || ""} onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })} />
+              </label>
             </div>
             <div style={{ flex: "1 1 100px", minWidth: 100 }}>
-              <label style={labelStyle}>Порт</label>
-              <input style={inputStyle} value={settings.smtp_port || "587"} onChange={(e) => setSettings({ ...settings, smtp_port: e.target.value })} />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>Порт</span>
+                <input style={inputStyle} value={settings.smtp_port || "587"} onChange={(e) => setSettings({ ...settings, smtp_port: e.target.value })} />
+              </label>
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Пользователь</label>
-              <input style={inputStyle} placeholder="user@gmail.com" value={settings.smtp_user || ""} onChange={(e) => setSettings({ ...settings, smtp_user: e.target.value })} />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>Пользователь</span>
+                <input style={inputStyle} placeholder="user@gmail.com" value={settings.smtp_user || ""} onChange={(e) => setSettings({ ...settings, smtp_user: e.target.value })} />
+              </label>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Пароль</label>
-              <input style={inputStyle} type="password" autoComplete="off" value={settings.smtp_pass || ""} onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })} />
+              <label style={{ display: "block" }}>
+                <span style={labelStyle}>Пароль</span>
+                <input style={inputStyle} type="password" autoComplete="off" value={settings.smtp_pass || ""} onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })} />
+              </label>
             </div>
           </div>
           <button
