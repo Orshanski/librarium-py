@@ -54,7 +54,7 @@ export default function AuthorPage() {
     `author/${authorId}`,
     "detail",
     (signal) => (
-      !id || isNaN(authorId)
+      !id || Number.isNaN(authorId)
         ? Promise.reject(new NotFoundError(404, "Not found"))
         : getAuthor(authorId, signal)
     ),
@@ -76,7 +76,7 @@ export default function AuthorPage() {
     [authorResource.data],
   );
   const loading = authorResource.loading;
-  const notFound = authorResource.error instanceof NotFoundError || !id || isNaN(authorId);
+  const notFound = authorResource.error instanceof NotFoundError || !id || Number.isNaN(authorId);
   useScrollRestore(!loading, scrollContext);
 
   if (loading) {

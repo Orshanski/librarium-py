@@ -55,7 +55,7 @@ export default function TagPage() {
     `tag/${tagId}`,
     location.pathname + location.search,
     (signal) => {
-      if (isNaN(tagId)) return Promise.reject(new NotFoundError(404, "Not found"));
+      if (Number.isNaN(tagId)) return Promise.reject(new NotFoundError(404, "Not found"));
       const apiParams = { ...selectedToApiParams(selected), sort };
       return getTag(tagId, apiParams, signal);
     },
@@ -64,7 +64,7 @@ export default function TagPage() {
   const tag = tagOverride ?? tagResource.data?.tag ?? null;
   const books = useMemo<Book[]>(() => tagResource.data?.books || [], [tagResource.data]);
   const loading = tagResource.loading;
-  const notFound = tagResource.error instanceof NotFoundError || isNaN(tagId);
+  const notFound = tagResource.error instanceof NotFoundError || Number.isNaN(tagId);
   useScrollRestore(!loading, scrollContext);
 
   function updateParams(updates: Record<string, string[] | undefined>) {
