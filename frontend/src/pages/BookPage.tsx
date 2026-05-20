@@ -62,7 +62,7 @@ export default function BookPage() {
     `book/${bookId}`,
     "detail",
     (signal) => (
-      !id || isNaN(bookId)
+      !id || Number.isNaN(bookId)
         ? Promise.reject(new NotFoundError(404, "Not found"))
         : getBook(bookId, signal)
     ),
@@ -79,7 +79,7 @@ export default function BookPage() {
   );
   const seriesBooks = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
   const loading = bookResource.loading;
-  const notFound = bookResource.error instanceof NotFoundError || !id || isNaN(bookId);
+  const notFound = bookResource.error instanceof NotFoundError || !id || Number.isNaN(bookId);
 
   if (loading) {
     return <StatusScreen title="..." message="Загрузка..." crumb={crumb} />;

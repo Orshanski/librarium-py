@@ -47,7 +47,7 @@ export default function SeriesPage() {
     `series/${seriesId}`,
     "detail",
     (signal) => (
-      !id || isNaN(seriesId)
+      !id || Number.isNaN(seriesId)
         ? Promise.reject(new NotFoundError(404, "Not found"))
         : getSeries(seriesId, signal)
     ),
@@ -56,7 +56,7 @@ export default function SeriesPage() {
   const series = seriesResource.data?.series ?? null;
   const books = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
   const loading = seriesResource.loading;
-  const notFoundState = seriesResource.error instanceof NotFoundError || !id || isNaN(seriesId);
+  const notFoundState = seriesResource.error instanceof NotFoundError || !id || Number.isNaN(seriesId);
   useScrollRestore(!loading, scrollContext);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);

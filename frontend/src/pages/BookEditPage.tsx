@@ -63,7 +63,7 @@ export default function BookEditPage() {
     `book/${bookId}`,
     "detail",
     (signal) => (
-      !id || isNaN(bookId)
+      !id || Number.isNaN(bookId)
         ? Promise.reject(new NotFoundError(404, "Not found"))
         : getBook(bookId, signal)
     ),
@@ -187,7 +187,7 @@ export default function BookEditPage() {
       pubDate: data.pubDate,
       isbn: data.isbn,
       seriesId,
-      seriesNumber: data.seriesNumber ? parseFloat(data.seriesNumber) : null,
+      seriesNumber: data.seriesNumber ? Number.parseFloat(data.seriesNumber) : null,
       authorIds,
       tagIds,
       addFormats: data.addFormats,

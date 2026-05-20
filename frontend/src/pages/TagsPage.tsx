@@ -15,7 +15,7 @@ function shuffled<T extends { name: string }>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
     let h = 0;
-    for (let j = 0; j < copy[i].name.length; j++) h = ((h << 5) - h + copy[i].name.charCodeAt(j)) | 0;
+    for (let j = 0; j < copy[i].name.length; j++) h = ((h << 5) - h + (copy[i].name.codePointAt(j) ?? 0)) | 0;
     const j = Math.abs(h) % (i + 1);
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
