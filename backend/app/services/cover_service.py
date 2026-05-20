@@ -14,6 +14,7 @@ from ..dal import books as books_dal
 from ..dal.books import update_cover_path
 from ..exceptions import BadInputError, NotFoundError
 from ..fs_utils import move_with_rollback
+from ..logging_utils import safe as safe_log
 from . import thumb
 from .temp_cleanup import cleanup_old_uploads
 
@@ -212,7 +213,7 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
             converted.close()
         return thumb_path
     except Exception as e:
-        log.warning("Failed to generate thumbnail for book=%d: %s", book_id, e)
+        log.warning("Failed to generate thumbnail for book=%d: %s", book_id, safe_log(e))
         return None
 
 

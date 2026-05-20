@@ -10,6 +10,8 @@ import tempfile
 
 import pikepdf
 
+from .logging_utils import safe as safe_log
+
 log = logging.getLogger(__name__)
 
 
@@ -43,5 +45,5 @@ def linearize_pdf_in_place(path: str) -> bool:
                 os.remove(tmp_path)
             raise
     except Exception as e:
-        log.warning("Failed to linearize %s: %s", path, e)
+        log.warning("Failed to linearize %s: %s", safe_log(path), safe_log(e))
         return False

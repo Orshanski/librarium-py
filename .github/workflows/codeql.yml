@@ -33,6 +33,14 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
+          config: |
+            paths-ignore:
+              - 'backend/tests/**'
+              - 'frontend/src/**/*.test.ts'
+              - 'frontend/src/**/*.test.tsx'
+              - 'frontend/src/**/__tests__/**'
+              - 'frontend/src/test/**'
+              - 'frontend/public/pdfjs/**'
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
