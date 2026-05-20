@@ -27,6 +27,7 @@ const removeButtonStyle: React.CSSProperties = {
 };
 
 export default function BookEditTokenField({
+  id,
   values,
   searchValue,
   options,
@@ -36,6 +37,7 @@ export default function BookEditTokenField({
   onAdd,
   onRemove,
 }: Readonly<{
+  id?: string;
   values: string[];
   searchValue: string;
   options: ComboboxOption[];
@@ -51,6 +53,7 @@ export default function BookEditTokenField({
   return (
     <div data-testid={testId}>
       <Combobox
+        id={id}
         value={searchValue}
         onChange={onSearchChange}
         onSelect={onAdd}

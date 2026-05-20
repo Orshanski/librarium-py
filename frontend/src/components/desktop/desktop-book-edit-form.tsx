@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { colors } from "../../theme";
 import MetadataSearch from "../metadata-search";
 import Combobox from "../combobox";
@@ -79,7 +80,18 @@ export default function DesktopBookEditForm({
   onDeleteFormat,
   onSaveForm,
   onCancel,
-}: BookEditViewProps) {
+}: Readonly<BookEditViewProps>) {
+  const titleId = useId();
+  const authorsId = useId();
+  const seriesId = useId();
+  const seriesNumberId = useId();
+  const descriptionId = useId();
+  const tagsId = useId();
+  const languageId = useId();
+  const pubDateId = useId();
+  const publisherId = useId();
+  const isbnId = useId();
+
   return (
     <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
       <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -157,7 +169,15 @@ export default function DesktopBookEditForm({
         </div>
 
         <div
+          role="button"
+          tabIndex={0}
           onClick={onChooseFile}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onChooseFile();
+            }
+          }}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDropFile}
@@ -186,13 +206,14 @@ export default function DesktopBookEditForm({
 
       <div style={{ width: 520, flexShrink: 0 }}>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Название</label>
-          <input style={inputStyle} value={title} onChange={(e) => onSetTitle(e.target.value)} />
+          <label style={labelStyle} htmlFor={titleId}>Название</label>
+          <input id={titleId} style={inputStyle} value={title} onChange={(e) => onSetTitle(e.target.value)} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Авторы</label>
+          <label style={labelStyle} htmlFor={authorsId}>Авторы</label>
           <BookEditTokenField
+            id={authorsId}
             values={authors}
             searchValue={authorSearch}
             options={allAuthors}
@@ -206,8 +227,9 @@ export default function DesktopBookEditForm({
 
         <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Серия</label>
+            <label style={labelStyle} htmlFor={seriesId}>Серия</label>
             <Combobox
+              id={seriesId}
               value={seriesName}
               onChange={onSetSeriesName}
               options={seriesOptions}
@@ -215,8 +237,9 @@ export default function DesktopBookEditForm({
             />
           </div>
           <div style={{ width: 80 }}>
-            <label style={labelStyle}>Номер</label>
+            <label style={labelStyle} htmlFor={seriesNumberId}>Номер</label>
             <input
+              id={seriesNumberId}
               type="number"
               step="0.1"
               style={inputStyle}
@@ -227,8 +250,9 @@ export default function DesktopBookEditForm({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Описание</label>
+          <label style={labelStyle} htmlFor={descriptionId}>Описание</label>
           <textarea
+            id={descriptionId}
             style={{ ...inputStyle, minHeight: 120, resize: "vertical" }}
             value={description}
             onChange={(e) => onSetDescription(e.target.value)}
@@ -236,8 +260,9 @@ export default function DesktopBookEditForm({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Жанры / теги</label>
+          <label style={labelStyle} htmlFor={tagsId}>Жанры / теги</label>
           <BookEditTokenField
+            id={tagsId}
             values={tags}
             searchValue={tagSearch}
             options={allTags.map((t) => ({ value: t.name, hint: String(t.bookCount) }))}
@@ -251,8 +276,9 @@ export default function DesktopBookEditForm({
 
         <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Язык</label>
+            <label style={labelStyle} htmlFor={languageId}>Язык</label>
             <Combobox
+              id={languageId}
               value={language}
               onChange={onSetLanguage}
               options={languageOptions}
@@ -260,15 +286,16 @@ export default function DesktopBookEditForm({
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Год</label>
-            <input style={inputStyle} value={pubDate} onChange={(e) => onSetPubDate(e.target.value)} />
+            <label style={labelStyle} htmlFor={pubDateId}>Год</label>
+            <input id={pubDateId} style={inputStyle} value={pubDate} onChange={(e) => onSetPubDate(e.target.value)} />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Издатель</label>
+            <label style={labelStyle} htmlFor={publisherId}>Издатель</label>
             <Combobox
+              id={publisherId}
               value={publisher}
               onChange={onSetPublisher}
               options={publisherOptions}
@@ -276,8 +303,8 @@ export default function DesktopBookEditForm({
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>ISBN</label>
-            <input style={inputStyle} value={isbn} onChange={(e) => onSetIsbn(e.target.value)} />
+            <label style={labelStyle} htmlFor={isbnId}>ISBN</label>
+            <input id={isbnId} style={inputStyle} value={isbn} onChange={(e) => onSetIsbn(e.target.value)} />
           </div>
         </div>
 
