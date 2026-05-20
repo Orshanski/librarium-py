@@ -20,6 +20,12 @@ const THUMB_SIZE = 24;
 const BAR_PADDING_X = 16;
 const BAR_PADDING_Y = 14;
 
+function pickInputWidth(totalPages: number): number {
+  if (totalPages >= 10000) return 70;
+  if (totalPages >= 1000) return 60;
+  return 52;
+}
+
 export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: Readonly<PdfNavBarProps>) {
   // All hooks must be called before any early returns.
   const [inputValue, setInputValue] = useState(String(currentPage + 1));
@@ -86,7 +92,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: Reado
   };
 
   const commitInput = () => {
-    const n = parseInt(inputValue, 10);
+    const n = Number.parseInt(inputValue, 10);
     if (!Number.isFinite(n)) {
       setInputValue(String(currentPage + 1));
       return;
@@ -130,12 +136,12 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: Reado
   if (totalPages <= 1) return null;
 
   // Clamp displayPage — totalPages may change mid-drag.
-  const rawDisplayPage = dragPage !== null ? dragPage : currentPage;
+  const rawDisplayPage = dragPage ?? currentPage;
   const displayPage = Math.max(0, Math.min(totalPages - 1, rawDisplayPage));
   const fraction = displayPage / (totalPages - 1);
   const fillPercent = fraction * 100;
 
-  const inputWidth = totalPages >= 10000 ? 70 : totalPages >= 1000 ? 60 : 52;
+  const inputWidth = pickInputWidth(totalPages);
 
   return (
     <div
@@ -175,7 +181,7 @@ export default function PdfNavBar({ currentPage, totalPages, onGoToPage }: Reado
           inputMode="numeric"
           value={inputValue}
           aria-label={`Номер страницы, 1–${totalPages}`}
-          onChange={(e) => setInputValue(e.target.value.replace(/[^0-9]/g, ""))}
+          onChange={(e) => setInputValue(e.target.value.replace(/\D/g, ""))}
           onFocus={(e) => { setIsFocused(true); e.target.select(); }}
           onBlur={() => {
             setIsFocused(false);
