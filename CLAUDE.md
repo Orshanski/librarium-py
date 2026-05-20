@@ -89,6 +89,7 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 - **Never work in main.** Always create a feature branch.
 - **TDD:** tests first, then implementation.
 - CI/CD triggers only on push to `main` on GitHub. Local branch work does not deploy.
+- **НИКОГДА не запускать тесты параллельно.** Backend pytest и frontend vitest — строго последовательно, по одному прогону за раз. Несколько pytest одновременно — запрещено. Параллельный запуск даёт ложные failures из-за общего state (SQLite, temp-файлы, auth-кэш) и делает coverage недостоверным: упавшие из-за гонок тесты не покрывают свои code paths. Если в выводе видны db-locks, shutil-races или рандомные 401 — первое подозрение всегда «опять запустил параллельно».
 
 ## SonarCloud (local scan)
 
