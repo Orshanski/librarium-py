@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { colors, fonts } from "../../theme";
 import type { ReaderToolbarProps } from "../../types/reader-toolbar";
 import { flattenToc } from "../../utils/reader-toc";
@@ -33,9 +33,10 @@ export default function DesktopReaderToolbar({
   hideStyles,
   tapZonesKey,
   availableActions,
-}: ReaderToolbarProps) {
+}: Readonly<ReaderToolbarProps>) {
   const [showToc, setShowToc] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const tocPanelId = useId();
 
   const tocRef = useRef<HTMLDivElement>(null);
   const tocListRef = useRef<HTMLDivElement>(null);
@@ -98,7 +99,10 @@ export default function DesktopReaderToolbar({
 
         {/* Book title — tap to open TOC */}
         <div ref={tocRef} style={{ position: "relative" }}>
-          <span
+          <button
+            type="button"
+            aria-expanded={showToc}
+            aria-controls={tocPanelId}
             onClick={() => { setShowToc((v) => !v); setShowSettings(false); }}
             style={{
               display: "block",
@@ -110,12 +114,16 @@ export default function DesktopReaderToolbar({
               whiteSpace: "nowrap",
               cursor: "pointer",
               maxWidth: 400,
+              background: "none",
+              border: "none",
+              padding: 0,
+              textAlign: "left",
             }}
           >
             {bookTitle}
-          </span>
+          </button>
           {showToc && (
-            <div ref={tocListRef} style={{
+            <div id={tocPanelId} ref={tocListRef} style={{
               position: "absolute", top: "100%", right: 0, marginTop: 4,
               background: colors.sidebar, border: `1px solid ${colors.border}`,
               borderRadius: 8, padding: "16px", zIndex: 200,
@@ -128,11 +136,19 @@ export default function DesktopReaderToolbar({
               {flattenToc(tocItems, 0, maxTocDepth).map((item, i) => {
                 const isActive = item.href === currentTocHref;
                 return (
-                <div
-                  key={i}
+                <button
+                  key={`${item.href}-${i}`}
+                  type="button"
                   data-active={isActive || undefined}
+                  aria-current={isActive || undefined}
                   onClick={() => { onTocSelect(item.href); setShowToc(false); }}
                   style={{
+                    display: "block",
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    fontFamily: "inherit",
+                    textAlign: "left",
                     padding: "8px 4px",
                     fontSize: 13,
                     color: isActive ? colors.accent : colors.textSecondary,
@@ -141,11 +157,11 @@ export default function DesktopReaderToolbar({
                     borderBottom: `1px solid ${colors.border}`,
                     paddingLeft: (item.depth ?? 0) * 16 + 4,
                   }}
-                  onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.color = colors.text; }}
-                  onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary; }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = colors.text; }}
+                  onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = colors.textSecondary; }}
                 >
                   {item.label}
-                </div>
+                </button>
                 );
               })}
             </div>
