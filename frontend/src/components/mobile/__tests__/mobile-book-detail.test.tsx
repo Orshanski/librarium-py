@@ -96,7 +96,7 @@ describe("MobileBookDetail composition", () => {
 
     expect(screen.queryByRole("link", { name: "Читать PDF" })).toBeNull();
     expect(screen.getByRole("link", { name: "Читать EPUB" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Скачать PDF/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Скачать PDF/ })).toBeInTheDocument();
   });
 
   it("mentions series once in the top block and not in BookFacts", () => {

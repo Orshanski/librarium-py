@@ -112,13 +112,11 @@ describe("DesktopBookDetail composition", () => {
     );
   });
 
-  it("links download formats to the download API", () => {
+  it("renders download formats as buttons so the app does not navigate away", () => {
     renderDesktop(makeProps(makeBook(), false));
 
-    expect(screen.getByRole("link", { name: /Скачать PDF/ })).toHaveAttribute(
-      "href",
-      "/api/books/7/download?format=PDF",
-    );
+    expect(screen.getByRole("button", { name: /Скачать PDF/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Скачать PDF/ })).toBeNull();
   });
 
   it("renders admin actions only for admins", () => {

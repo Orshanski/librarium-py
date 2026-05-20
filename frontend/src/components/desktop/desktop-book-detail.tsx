@@ -113,6 +113,7 @@ export default function DesktopBookDetail({
           <CoverFrame src={book.coverPath} alt={book.title} tokens={COVER_TOKENS} />
           <BookReadDownloadButtons
             bookId={book.id}
+            bookTitle={book.title}
             formats={formats}
             readableFormats={DESKTOP_READABLE_FORMATS}
           />

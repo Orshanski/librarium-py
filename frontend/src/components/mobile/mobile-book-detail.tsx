@@ -135,6 +135,7 @@ export default function MobileBookDetail({
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         <BookReadDownloadButtons
           bookId={book.id}
+          bookTitle={book.title}
           formats={formats}
           readableFormats={MOBILE_READABLE_FORMATS}
         />
