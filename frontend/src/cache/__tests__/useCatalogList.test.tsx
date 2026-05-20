@@ -81,4 +81,24 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loading").textContent).toBe("false");
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("fetches and stores the first page with context when cache is empty", async () => {
+    const spy = vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 1, title: "Fresh" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+    expect(screen.getByTestId("loading").textContent).toBe("true");
+
+    await screen.findByText("Fresh");
+    expect(spy).toHaveBeenCalledTimes(1);
+    const callArg = spy.mock.calls[0][0];
+    expect(callArg).toMatchObject({ sort: "addedDesc", cursor: 0, pageSize: 30 });
+
+    const stored = store.get<CatalogEntry>("books", "/");
+    expect(stored?.books[0]?.title).toBe("Fresh");
+    expect(stored?.cursor).toBe(1);
+    expect(stored?.hasMore).toBe(false);
+  });
 });
