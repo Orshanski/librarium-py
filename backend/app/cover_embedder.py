@@ -237,10 +237,20 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
     cover_bytes = (book_dir / cover_file).read_bytes()
     jpeg_bytes = to_jpeg(cover_bytes)
 
+    from .services.book_file_writer import _safe_ext
+
     files = get_book_files(db, book_id)
     for bf in files:
         fmt = bf["format"].upper()
-        file_path = LIBRARY_DIR / str(book_id) / f"book.{fmt.lower()}"
+        # Defense-in-depth: format из DB row, в normal flow это FB2/EPUB/PDF
+        # (валидируется через _safe_ext при upload), но если когда-то проскочит
+        # кривое значение через bug — путь поедет за пределы LIBRARY_DIR.
+        try:
+            ext_safe = _safe_ext(fmt.lower())
+        except BadInputError:
+            log.warning("Skipping book %d with invalid format %s", book_id, safe_log(fmt))
+            continue
+        file_path = LIBRARY_DIR / str(book_id) / f"book.{ext_safe}"
         if not file_path.exists():
             log.warning("File not found: %s", safe_log(file_path))
             continue

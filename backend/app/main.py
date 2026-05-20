@@ -128,9 +128,18 @@ if FRONTEND_DIST.exists():
 
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
-        file_path = (FRONTEND_DIST / path).resolve()
-        if file_path.is_file() and str(file_path).startswith(str(FRONTEND_DIST.resolve())):
-            response = FileResponse(str(file_path))
+        # Containment через relative_to (не startswith — у того parallel-prefix
+        # bypass: /foo/bar".startswith("/foo/ba") = True для соседней папки).
+        frontend_root = FRONTEND_DIST.resolve()
+        candidate = (FRONTEND_DIST / path).resolve()
+        try:
+            candidate.relative_to(frontend_root)
+            inside = True
+        except ValueError:
+            inside = False
+
+        if inside and candidate.is_file():
+            response = FileResponse(str(candidate))
             if path == "version.txt":
                 response.headers["Cache-Control"] = "no-store"
             return response

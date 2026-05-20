@@ -152,11 +152,14 @@ def _commit(db: sqlite3.Connection, book_id: int) -> bool:
     if not temp_file:
         return False
 
-    ext = temp_file.rsplit(".", 1)[-1]
-    src = str(UPLOADS_DIR / temp_file)
-    dst = os.path.join(book_dir, f"cover.{ext}")
+    # Defense-in-depth: ext-whitelist даже на temp_file, который сам прошёл
+    # валидацию в upload_temp — если UPLOADS_DIR будет скомпрометирован любым
+    # другим путём, glob может вернуть имя с traversal-ext.
+    ext = safe_extension(temp_file, _COVER_EXTS, default="jpg")
+    src = assert_within(UPLOADS_DIR, UPLOADS_DIR / temp_file)
+    dst = assert_within(LIBRARY_DIR, os.path.join(book_dir, f"cover.{ext}"))
     old = find_cover(book_dir)
-    old_path = os.path.join(book_dir, old) if old else None
+    old_path = assert_within(LIBRARY_DIR, os.path.join(book_dir, old)) if old else None
 
     old_bak = _backup_existing(old_path) if old_path is not None else None
 
