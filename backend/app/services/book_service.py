@@ -15,7 +15,7 @@ from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
-from .book_file_writer import prepare_book_format_path, register_and_linearize
+from .book_file_writer import _safe_ext, prepare_book_format_path, register_and_linearize
 from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
@@ -209,7 +209,12 @@ def _apply_delete_formats(
     """
     backed_up: list[tuple[str, str]] = []
     for fmt_code, row in resolved_deletes:
-        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{fmt_code.lower()}")
+        # Defense-in-depth: fmt_code came through DAL-existence filter, но если
+        # в book_files.format когда-то проникнет кривое значение (через bug
+        # вверх по pipeline), путь поедет за пределы LIBRARY_DIR. Whitelist
+        # ловит это до os.rename.
+        ext_safe = _safe_ext(fmt_code)
+        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{ext_safe}")
         if os.path.isfile(file_path):
             bak_path = file_path + ".bak"
             os.rename(file_path, bak_path)
