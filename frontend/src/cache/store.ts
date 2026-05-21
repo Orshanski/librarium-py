@@ -112,6 +112,34 @@ export class MetadataCacheStore {
         },
       };
     });
+
+    this.hydratePersistedNamespaces();
+    const namespace = `author/${payload.authorId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    // invariant: namespace ⇒ entity-id binding
+    // namespace author/{id} гарантирует принадлежность записи именно этому автору —
+    // проверка author.id === payload.authorId избыточна (та же гарантия, что в applyShelfRename).
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as { author?: { name?: unknown; sortName?: unknown } } & Record<string, unknown>;
+      const author = value.author;
+      if (author) {
+        ns.entries.set(key, {
+          ...entry,
+          value: {
+            ...value,
+            author: { ...author, name: payload.name, ...sortNamePatch(payload.sortName) },
+          },
+        });
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
@@ -128,6 +156,7 @@ export class MetadataCacheStore {
 
   applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
     const { shelfId, bookId, hasBook, book } = payload;
+    this.hydratePersistedNamespaces();
     const namespace = `shelf/${shelfId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
@@ -179,15 +208,17 @@ export class MetadataCacheStore {
 
   applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
     const { shelfId, name } = payload;
+    this.hydratePersistedNamespaces();
     const namespace = `shelf/${shelfId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
+    // invariant: namespace ⇒ entity-id binding
+    // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
+    // именно этой полке, дополнительная проверка shelf.id не нужна.
     for (const [key, entry] of ns.entries) {
-      const value = entry.value as Record<string, unknown>;
-      const shelf = (value as { shelf?: { name?: unknown } }).shelf;
-      // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
-      // именно этой полке, дополнительная проверка shelf.id не нужна.
+      const value = entry.value as { shelf?: { name?: unknown } } & Record<string, unknown>;
+      const shelf = value.shelf;
       if (shelf) {
         ns.entries.set(key, { ...entry, value: { ...value, shelf: { ...shelf, name } } });
         changed = true;

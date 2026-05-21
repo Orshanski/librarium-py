@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MetadataCacheStore } from "../store";
+import type { BookListContext } from "@/domain/read-models";
 
 describe("MetadataCacheStore", () => {
   let store: MetadataCacheStore;
@@ -173,6 +174,89 @@ describe("MetadataCacheStore", () => {
     const row = store.get<{ books: { authors: { sortName?: string }[]; series: { sortName?: string } }[] }>("tag/1", "detail")?.books[0];
     expect(row?.authors[0].sortName).toBe("Old Sort");
     expect(row?.series.sortName).toBe("Series Sort");
+  });
+
+  const authorSevenContext: BookListContext = {
+    kind: "book-list",
+    key: "/authors/7",
+    source: "author-detail",
+    authorId: 7,
+    sort: "authorAsc",
+  };
+  const authorEightContext: BookListContext = {
+    kind: "book-list",
+    key: "/authors/8",
+    source: "author-detail",
+    authorId: 8,
+    sort: "authorAsc",
+  };
+
+  it("applyAuthorRename обновляет author.name и author.sortName в записи детали", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: authorSevenContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New Sort" });
+
+    const entry = store.get<{ author: { id: number; name: string; sortName: string } }>("author/7", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.author.name).toBe("New");
+    expect(entry?.author.sortName).toBe("New Sort");
+  });
+
+  it("applyAuthorRename не перезаписывает sortName, если он отсутствует в payload", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: authorSevenContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+
+    const entry = store.get<{ author: { sortName?: string } }>("author/7", "detail");
+    expect(entry?.author.sortName).toBe("Old Sort");
+  });
+
+  it("applyAuthorRename не трогает записи других авторов", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old" },
+      books: [],
+    }, { context: authorSevenContext });
+    store.set("author/8", "detail", {
+      author: { id: 8, name: "Untouched" },
+      books: [],
+    }, { context: authorEightContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+
+    const other = store.get<{ author: { name: string } }>("author/8", "detail");
+    expect(other?.author.name).toBe("Untouched");
+  });
+
+  it("applyAuthorRename патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_author/7",
+      JSON.stringify({
+        detail: {
+          value: { author: { id: 7, name: "Old", sortName: "Old Sort" }, books: [] },
+          context: {
+            kind: "book-list",
+            key: "/authors/7",
+            source: "author-detail",
+            authorId: 7,
+            sort: "authorAsc",
+          },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyAuthorRename({ authorId: 7, name: "New", sortName: "New Sort" });
+
+    const entry = hydrated.get<{ author: { name: string; sortName: string } }>("author/7", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.author.name).toBe("New");
+    expect(entry?.author.sortName).toBe("New Sort");
   });
 
   it("persists and hydrates namespace entries from sessionStorage", () => {
@@ -479,5 +563,42 @@ describe("MetadataCacheStore", () => {
     store.applyShelfRename({ shelfId: 42, name: "New" });
 
     expect(handler).toHaveBeenCalled();
+  });
+
+  it("applyShelfRename патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_shelf/42",
+      JSON.stringify({
+        "/api/shelves/42": {
+          value: { shelf: { id: 42, name: "Old Name" }, books: [{ id: 1, title: "Book A" }] },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyShelfRename({ shelfId: 42, name: "New Name" });
+
+    const entry = hydrated.get<{ shelf: { name: string } }>("shelf/42", "/api/shelves/42");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.shelf.name).toBe("New Name");
+  });
+
+  it("applyShelfMembershipChange патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_shelf/42",
+      JSON.stringify({
+        "/api/shelves/42": {
+          value: { shelf: { id: 42, name: "My Shelf" }, books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }] },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const entry = hydrated.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.books).toHaveLength(1);
+    expect(entry?.books[0].id).toBe(2);
   });
 });

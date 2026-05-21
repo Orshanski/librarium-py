@@ -50,7 +50,6 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
     }),
     bus.subscribe("authorRenamed", (payload) => {
       store.invalidate("authors");
-      store.invalidate(`author/${payload.authorId}`);
       store.invalidate("filter-options/authors");
       store.invalidate("series");
       invalidateBookDetails(store);
