@@ -2,44 +2,18 @@
 
 ## Project Overview
 
-**Librarium** — personal family web library, self-hosted Calibre-Web replacement. Python (FastAPI) + React (TypeScript) + SQLite.
+**Librarium** — personal family web library, self-hosted Calibre-Web replacement.
+Python (FastAPI) + React (TypeScript) + SQLite.
 
-## Commands
-
-```bash
-# Backend
-cd backend && source venv/bin/activate
-python run.py              # Production server :8000
-python run.py --dev        # Dev server with reload
-
-# Frontend
-cd frontend
-npm run dev                # Dev server :5173 (proxy /api → :8000)
-npm run build              # Production build → dist/
-```
+Stack-специфичные инструкции — в `backend/CLAUDE.md` и `frontend/CLAUDE.md` (грузятся
+автоматически, когда работа идёт в соответствующей подпапке).
 
 ## Architecture
 
 - **Backend:** FastAPI, Uvicorn, SQLite (WAL), JWT auth (bcrypt + PyJWT)
-- **Search:** LIKE substring search (title, author, series). No FTS5.
-- **Frontend:** React 19, TypeScript, Vite, React Router 7, inline CSS, responsive (desktop/mobile)
+- **Frontend:** React 19, TypeScript, Vite, React Router 7, inline CSS
 - **Pattern:** React SPA → fetch /api/* → FastAPI routers → DAL → SQLite
 - **Auth:** JWT in HTTP-only cookie, roles: admin / reader
-- **Styling:** Inline CSS objects, theme in `frontend/src/theme.ts`
-
-### Key Directories
-
-- `backend/app/routers/` — API route modules
-- `backend/app/dal/` — data access modules
-- `backend/app/parsers/` — FB2, EPUB, PDF metadata extraction
-- `backend/app/providers/` — Litres.ru, Google Books metadata search
-- `backend/tests/` — pytest (auth, upload, delete, merge, parsers)
-- `frontend/src/pages/` — page components
-- `frontend/src/components/` — shared components (logic + types)
-- `frontend/src/components/desktop/` — desktop layout components
-- `frontend/src/components/mobile/` — mobile layout components
-- `frontend/src/responsive.ts` — ResponsiveProvider, useIsMobile() (breakpoint 768px)
-- `data/` — SQLite DB, library files, thumbs, uploads (not in git)
 
 ### Data Flow
 
@@ -48,21 +22,14 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
                                                                     → filesystem (data/)
 ```
 
-## Vendored Code
-
-- **`frontend/src/vendor/foliate-js/` — полный форк, не upstream vendor copy.** Upstream больше не тянется, апдейты от оригинального maintainer'а не забираются. Код под `vendor/foliate-js/` — такой же owned code, как и всё остальное во frontend. Править можно наравне с остальным проектным кодом. Не воспринимать как third-party или "untouchable vendor".
-
-## Code Rules
-
-- **No `any` in TypeScript.** Never use `as any` or `any` type. Extend interfaces, add optional fields, or create union types instead.
-- **Validate API inputs.** Use Pydantic `Field(ge=..., le=...)` for numeric ranges. Don't trust client data.
-- **DB constraints.** Add UNIQUE indexes for business rules, don't rely only on application logic.
+`data/` — SQLite DB, library files, thumbs, uploads (gitignored).
 
 ## Development Process
 
 ### Порядок разработки (ОБЯЗАТЕЛЬНЫЙ)
 
-**Правило: после любого артефакта — ревью.** Артефакт = спека, план, код. Код-ревью дополнительно запускается после коммита (проверка кода относительно спеки + findings).
+**Правило: после любого артефакта — ревью.** Артефакт = спека, план, код. Код-ревью
+дополнительно запускается после коммита (проверка кода относительно спеки + findings).
 
 1. **Спека.** Написать design-doc в `project_documentation/specs/YYYY-MM-DD-<topic>-design.md` (директория в gitignore — не коммитится).
 2. **Ревью спеки.** Запустить ревьюера, показать Alexey ВСЕ findings.
@@ -90,21 +57,6 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 - **TDD:** tests first, then implementation.
 - CI/CD triggers only on push to `main` on GitHub. Local branch work does not deploy.
 - **НИКОГДА не запускать тесты параллельно.** Backend pytest и frontend vitest — строго последовательно, по одному прогону за раз. Несколько pytest одновременно — запрещено. Параллельный запуск даёт ложные failures из-за общего state (SQLite, temp-файлы, auth-кэш) и делает coverage недостоверным: упавшие из-за гонок тесты не покрывают свои code paths. Если в выводе видны db-locks, shutil-races или рандомные 401 — первое подозрение всегда «опять запустил параллельно».
-
-## SonarCloud (local scan)
-
-Repo is private — SonarCloud branch automation does not run. Local scans only.
-
-**Always use the wrapper:**
-
-```bash
-./scripts/sonar-scan.sh
-```
-
-It sources `~/.zshrc` for `SONAR_TOKEN` and runs from repo root. A naive `sonar-scanner -Dsonar.token=$SONAR_TOKEN` from a non-interactive shell sends an **empty** token and uploads garbage analysis. Do not run the bare command.
-
-To read existing findings without re-scan: use `mcp__sonarqube__search_sonar_issues_in_projects`. SonarCloud has the latest data from the last successful scan.
-
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker

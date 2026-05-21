@@ -1,0 +1,21 @@
+{
+  "venvPath": "backend",
+  "venv": "venv",
+  "pythonVersion": "3.13",
+  "stubPath": "backend/typings",
+  "include": ["backend/app"],
+  "exclude": [
+    "backend/venv",
+    "**/__pycache__",
+    "backend/scripts",
+    "backend/migrations",
+    "backend/typings",
+    "backend/tests",
+    "frontend",
+    "data",
+    "node_modules"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "error",
+  "reportTypedDictNotRequiredAccess": "warning"
+}
