@@ -564,4 +564,41 @@ describe("MetadataCacheStore", () => {
 
     expect(handler).toHaveBeenCalled();
   });
+
+  it("applyShelfRename патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_shelf/42",
+      JSON.stringify({
+        "/api/shelves/42": {
+          value: { shelf: { id: 42, name: "Old Name" }, books: [{ id: 1, title: "Book A" }] },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyShelfRename({ shelfId: 42, name: "New Name" });
+
+    const entry = hydrated.get<{ shelf: { name: string } }>("shelf/42", "/api/shelves/42");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.shelf.name).toBe("New Name");
+  });
+
+  it("applyShelfMembershipChange патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_shelf/42",
+      JSON.stringify({
+        "/api/shelves/42": {
+          value: { shelf: { id: 42, name: "My Shelf" }, books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }] },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const entry = hydrated.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.books).toHaveLength(1);
+    expect(entry?.books[0].id).toBe(2);
+  });
 });

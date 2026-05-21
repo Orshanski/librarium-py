@@ -155,6 +155,7 @@ export class MetadataCacheStore {
 
   applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
     const { shelfId, bookId, hasBook, book } = payload;
+    this.hydratePersistedNamespaces();
     const namespace = `shelf/${shelfId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
@@ -206,6 +207,7 @@ export class MetadataCacheStore {
 
   applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
     const { shelfId, name } = payload;
+    this.hydratePersistedNamespaces();
     const namespace = `shelf/${shelfId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
