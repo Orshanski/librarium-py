@@ -274,6 +274,52 @@ describe("useCatalogList", () => {
     expect(callArg).toMatchObject({ cursor: 0, pageSize: 30 });
   });
 
+  it("calls loadMore when <main> scrolls near the bottom", async () => {
+    const main = document.querySelector("main")!;
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const spy = vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 2, title: "B2" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+
+    Object.defineProperty(main, "scrollTop", { value: 700, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+    Object.defineProperty(main, "scrollHeight", { value: 1100, configurable: true });
+    main.dispatchEvent(new Event("scroll"));
+
+    await screen.findByText("B2");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("triggers loadMore via the 300ms overflow check when content fits the viewport", async () => {
+    const main = document.querySelector("main")!;
+    Object.defineProperty(main, "scrollHeight", { value: 100, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const spy = vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 2, title: "B2" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+
+    await screen.findByText("B2");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it("loadMore rejection after invalidation does not reset a successor's loadingMore", async () => {
     const seeded: CatalogEntry = {
       books: [{ id: 1, title: "B1" } as Book],

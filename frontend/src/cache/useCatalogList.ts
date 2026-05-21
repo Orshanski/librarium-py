@@ -152,6 +152,29 @@ export function useCatalogList(
       });
   }, [store, params.urlKey, params.context, loadingMore]);
 
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return undefined;
+
+    function onScroll() {
+      if (main!.scrollTop + main!.clientHeight >= main!.scrollHeight - 300) {
+        loadMore();
+      }
+    }
+    function check() {
+      if (main!.scrollHeight <= main!.clientHeight) {
+        loadMore();
+      }
+    }
+
+    main.addEventListener("scroll", onScroll, { passive: true });
+    const timer = setTimeout(check, 300);
+    return () => {
+      main.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+  }, [loadMore]);
+
   return {
     books: entry?.books ?? [],
     loading,
