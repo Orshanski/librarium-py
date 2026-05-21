@@ -320,6 +320,65 @@ describe("useCatalogList", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  it("re-runs overflow check after initial fetch completes (race #1)", async () => {
+    const main = document.querySelector("main")!;
+    Object.defineProperty(main, "scrollHeight", { value: 100, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+    const initial = deferred<{ books: Book[]; hasMore: boolean }>();
+    const spy = vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValueOnce({ books: [{ id: 2, title: "B2" } as Book], hasMore: false });
+
+    render(<Harness store={store} params={baseParams} />);
+
+    // Initial fetch is slow. The one-shot 300ms timer fires while entry is still undefined
+    // and the loadMore call is a no-op. Wait past it.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // Initial fetch resolves — entry populated, tiny content that doesn't fill the viewport.
+    initial.resolve({ books: [{ id: 1, title: "B1" } as Book], hasMore: true });
+    await screen.findByText("B1");
+
+    // Without the fix: no second timer would fire because loadMore identity didn't change.
+    // With the fix: loading flip true→false rebinds loadMore → new scroll-effect bind → fresh
+    // 300ms timer → check() fires → loadMore → second fetch.
+    await screen.findByText("B2");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("synchronous double-trigger does not start two parallel fetches (race #2)", async () => {
+    const main = document.querySelector("main")!;
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+
+    const pending = deferred<{ books: Book[]; hasMore: boolean }>();
+    const spy = vi.spyOn(booksApi, "listBooks").mockReturnValueOnce(pending.promise);
+
+    render(<Harness store={store} params={baseParams} />);
+
+    Object.defineProperty(main, "scrollTop", { value: 700, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+    Object.defineProperty(main, "scrollHeight", { value: 1100, configurable: true });
+
+    // Two synchronous scroll events before React can commit the loadingMore state.
+    main.dispatchEvent(new Event("scroll"));
+    main.dispatchEvent(new Event("scroll"));
+
+    // Without the fix: both would pass the React-state guard and call listBooks twice.
+    // With the fix: the ref-based guard rejects the second call atomically.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    pending.resolve({ books: [{ id: 2, title: "B2" } as Book], hasMore: false });
+    await screen.findByText("B2");
+  });
+
   it("loadMore rejection after invalidation does not reset a successor's loadingMore", async () => {
     const seeded: CatalogEntry = {
       books: [{ id: 1, title: "B1" } as Book],

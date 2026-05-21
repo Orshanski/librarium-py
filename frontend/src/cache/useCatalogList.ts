@@ -76,6 +76,12 @@ export function useCatalogList(
   const [loading, setLoading] = useState<boolean>(entry === undefined);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
+  // Atomic guard for the loadMore re-entry check. Refs update synchronously, so two scroll
+  // events firing back-to-back before React commits setLoadingMore(true) cannot both pass —
+  // the second observes loadingMoreRef.current === true and bails. The React state
+  // (loadingMore) remains as the source of truth for spinner rendering.
+  const loadingMoreRef = useRef(false);
+
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -122,6 +128,7 @@ export function useCatalogList(
   // detects a version mismatch deliberately skips its own setLoadingMore(false) — this effect
   // owns that transition, so the next loadMore is not blocked by the stale guard.
   useEffect(() => {
+    loadingMoreRef.current = false;
     setLoadingMore(false);
   }, [invalidationVersion]);
 
@@ -130,27 +137,41 @@ export function useCatalogList(
   // (applyBookUpdate / etc.) that may land during the round-trip — they'd otherwise be
   // overwritten by a stale `current` snapshot. `params.sort`/`authorIds`/etc. are intentionally
   // omitted from deps: `params.urlKey` already encodes them.
+  //
+  // `loading` is in deps so that when the initial fetch resolves (loading flips true→false),
+  // loadMore's identity changes — the scroll-effect rebinds and re-arms the 300ms overflow
+  // check against the freshly populated entry. Without this, a slow initial fetch + tall
+  // viewport leaves the user stuck (one-shot 300ms timer fired against an undefined entry).
   const loadMore = useCallback(() => {
     const current = store.get<CatalogEntry>("books", params.urlKey);
-    if (!current || !current.hasMore || loadingMore) return;
+    if (!current || !current.hasMore || loadingMoreRef.current) return;
     const startedAtInvalidationVersion = store.invalidationVersion("books");
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
-        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
+        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) {
+          loadingMoreRef.current = false;
+          return;
+        }
         const baseline = store.get<CatalogEntry>("books", params.urlKey);
-        if (!baseline) return;
+        if (!baseline) {
+          loadingMoreRef.current = false;
+          return;
+        }
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
         store.set("books", params.urlKey, next, { context: params.context });
+        loadingMoreRef.current = false;
         if (mountedRef.current) setLoadingMore(false);
       })
       .catch((err: unknown) => {
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
         if (!mountedRef.current) return;
         console.warn("Failed to load more books:", err);
+        loadingMoreRef.current = false;
         setLoadingMore(false);
       });
-  }, [store, params.urlKey, params.context, loadingMore]);
+  }, [store, params.urlKey, params.context, loading]);
 
   useEffect(() => {
     const main = document.querySelector("main");
