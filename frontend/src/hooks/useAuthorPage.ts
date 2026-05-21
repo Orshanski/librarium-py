@@ -11,6 +11,8 @@ import type { Author } from "@/api/endpoints/authors";
 import { NotFoundError } from "@/api/errors";
 import type { Book } from "@/types";
 
+const EMPTY_BOOKS: Book[] = [];
+
 export interface AuthorData {
   id: number;
   name: string;
@@ -86,7 +88,7 @@ export function useAuthorPage(): UseAuthorPageResult {
     };
   }, [authorResource.data]);
 
-  const books: Book[] = authorResource.data?.books ?? [];
+  const books: Book[] = authorResource.data?.books ?? EMPTY_BOOKS;
 
   const loading = authorResource.loading;
   const notFound = authorResource.error instanceof NotFoundError || isInvalidId;

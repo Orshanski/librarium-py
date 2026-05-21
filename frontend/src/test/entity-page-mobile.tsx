@@ -22,6 +22,7 @@ import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { metadataCache } from "@/cache";
 import {
   setupDesktopViewport,
   setupMobileViewport,
@@ -62,6 +63,7 @@ export function describeMobileGearAbsent(c: EntityPageMobileCase): void {
   describe(`${c.label} — mobile`, () => {
     beforeEach(() => {
       sessionStorage.clear();
+      metadataCache.clear();
       setupMobileViewport();
     });
     afterEach(() => teardownViewport());
@@ -109,6 +111,7 @@ export function describeAdminPanelVanishesOnResize(c: EntityPageMobileCase): voi
   describe(`${c.label} — resize desktop→mobile с открытой админ-панелью`, () => {
     beforeEach(() => {
       sessionStorage.clear();
+      metadataCache.clear();
       // Подменяем matchMedia ДО render — ResponsiveProvider зарегистрирует listener на нашем stub'е.
       setupDesktopViewport();
     });

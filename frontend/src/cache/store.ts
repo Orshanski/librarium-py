@@ -118,11 +118,12 @@ export class MetadataCacheStore {
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
+    // invariant: namespace ⇒ entity-id binding
     // namespace author/{id} гарантирует принадлежность записи именно этому автору —
     // проверка author.id === payload.authorId избыточна (та же гарантия, что в applyShelfRename).
     for (const [key, entry] of ns.entries) {
-      const value = entry.value as Record<string, unknown>;
-      const author = (value as { author?: { name?: unknown; sortName?: unknown } }).author;
+      const value = entry.value as { author?: { name?: unknown; sortName?: unknown } } & Record<string, unknown>;
+      const author = value.author;
       if (author) {
         ns.entries.set(key, {
           ...entry,
@@ -212,11 +213,12 @@ export class MetadataCacheStore {
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
+    // invariant: namespace ⇒ entity-id binding
+    // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
+    // именно этой полке, дополнительная проверка shelf.id не нужна.
     for (const [key, entry] of ns.entries) {
-      const value = entry.value as Record<string, unknown>;
-      const shelf = (value as { shelf?: { name?: unknown } }).shelf;
-      // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
-      // именно этой полке, дополнительная проверка shelf.id не нужна.
+      const value = entry.value as { shelf?: { name?: unknown } } & Record<string, unknown>;
+      const shelf = value.shelf;
       if (shelf) {
         ns.entries.set(key, { ...entry, value: { ...value, shelf: { ...shelf, name } } });
         changed = true;

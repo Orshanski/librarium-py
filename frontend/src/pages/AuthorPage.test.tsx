@@ -27,10 +27,6 @@ describe("AuthorPage", () => {
     unregisterCacheHandlers?.();
     unregisterCacheHandlers = undefined;
     domainEvents.clear();
-    // Cache между основным describe и сиблингами-хелперами (describeMobileGearAbsent/...) —
-    // их beforeEach чистит только sessionStorage+viewport, не кеш. Защищаем от прокидывания
-    // обновлённых имён через метаданные (rename-тест пишет "New" в author/42).
-    metadataCache.clear();
   });
 
   it("renders author title and books when data is fetched successfully", async () => {
