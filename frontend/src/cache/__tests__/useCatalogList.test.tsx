@@ -120,4 +120,32 @@ describe("useCatalogList", () => {
     const stored = store.get<CatalogEntry>("books", "/");
     expect(stored?.books[0]?.title).toBe("Fresh");
   });
+
+  it("does not corrupt the new urlKey when initial fetch for the previous urlKey completes", async () => {
+    const first = deferred<{ books: Book[]; hasMore: boolean }>();
+    vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ books: [{ id: 2, title: "Second" } as Book], hasMore: false });
+
+    const { rerender } = render(<Harness store={store} params={baseParams} />);
+    expect(screen.getByTestId("loading").textContent).toBe("true");
+
+    const newCtx = { ...CTX, key: "/?sort=titleAsc", sort: "titleAsc" as const };
+    rerender(
+      <Harness
+        store={store}
+        params={{ ...baseParams, urlKey: "/?sort=titleAsc", sort: "titleAsc", context: newCtx }}
+      />,
+    );
+
+    first.resolve({ books: [{ id: 1, title: "First" } as Book], hasMore: false });
+    await screen.findByText("Second");
+
+    // New key must show its own data only.
+    expect(screen.queryByText("First")).toBeNull();
+    const newEntry = store.get<CatalogEntry>("books", "/?sort=titleAsc");
+    expect(newEntry?.books.map((b) => b.title)).toEqual(["Second"]);
+    // The previous urlKey may legitimately receive its own data — valid cache entry for that URL.
+    // We only assert it does NOT contaminate the new key.
+  });
 });
