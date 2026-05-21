@@ -154,6 +154,10 @@ export function useCatalogList(
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
+        // Defensive: in the current store model every entry-removal path also bumps
+        // invalidationVersion, so this branch is unreachable. Keep it: if someone later adds
+        // a non-invalidating entry-removal (e.g. targeted store.delete), this guard prevents
+        // a NaN cursor. If you add such a path, also add a test driving this branch.
         const baseline = store.get<CatalogEntry>("books", params.urlKey);
         if (!baseline) return;
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
