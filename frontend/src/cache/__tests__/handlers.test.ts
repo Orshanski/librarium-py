@@ -285,7 +285,9 @@ describe("metadata cache handlers", () => {
 
     domainEvents.publish("seriesRenamed", { seriesId: 2, name: "New" });
     expect(store.get("filter-options/series", "all")).toBeUndefined();
-    expect(store.get("series/2", "detail")).toBeUndefined();
+    const seriesEntry = store.get<{ series: { id: number; name: string } }>("series/2", "detail");
+    expect(seriesEntry).not.toBeUndefined();
+    expect(seriesEntry?.series.name).toBe("New");
     expect(store.get("search", "old-series")).toBeUndefined();
 
     store.set("author/2", "series-books", { books: [{ id: 20, series: { id: 2, name: "New" } }], hasMore: false }, {

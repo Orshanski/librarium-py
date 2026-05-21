@@ -74,7 +74,6 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
     }),
     bus.subscribe("seriesRenamed", (payload) => {
       store.invalidate("series");
-      store.invalidate(`series/${payload.seriesId}`);
       store.invalidate("filter-options/series");
       invalidateBookDetails(store);
       store.applySeriesRename(payload);
