@@ -4,6 +4,8 @@ import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { authorScrollContext } from "@/scroll/contexts";
 import { useScrollRestore } from "./useScrollRestore";
+import { usePathnameWithSearch } from "./usePathnameWithSearch";
+import { useEntityScrollContext } from "./useEntityScrollContext";
 import { readOriginFromState } from "@/components/breadcrumb-origin";
 import type { ListOrigin } from "@/components/breadcrumb-origin";
 import { getAuthor } from "@/api/endpoints/authors";
@@ -44,13 +46,10 @@ export function useAuthorPage(): UseAuthorPageResult {
   const location = useLocation();
 
   const authorId = Number(id);
-  const pathnameWithSearch = location.pathname + location.search;
+  const pathnameWithSearch = usePathnameWithSearch();
   const isInvalidId = !id || Number.isNaN(authorId);
 
-  const scrollContext = useMemo(
-    () => authorScrollContext(pathnameWithSearch, authorId),
-    [pathnameWithSearch, authorId],
-  );
+  const scrollContext = useEntityScrollContext(authorScrollContext, pathnameWithSearch, authorId);
 
   const parentOriginForBookLink = useMemo<ListOrigin | undefined>(() => {
     const stateOrigin = readOriginFromState(location.state);

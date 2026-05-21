@@ -1,11 +1,12 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { useMemo, useCallback, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary, type ShelfProgressEntry } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor, type SortOption } from "../config/sort";
 import { shelfScrollContext } from "@/scroll/contexts";
 import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { useScrollRestore } from "./useScrollRestore";
+import { usePathnameWithSearch } from "./usePathnameWithSearch";
 import { useRefreshOnReadingNowOnline } from "./useRefreshOnReadingNowOnline";
 import type { Book } from "@/types";
 
@@ -25,13 +26,12 @@ export interface UseShelfPageResult {
 
 export function useShelfPage(shelfId: number): UseShelfPageResult {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const navigate = useNavigate();
 
   // Fallback default until first fetch — real default-per-page determined after load
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
 
-  const locationKey = location.pathname + location.search;
+  const locationKey = usePathnameWithSearch();
 
   const shelfResource = useCachedResource(
     metadataCache,
