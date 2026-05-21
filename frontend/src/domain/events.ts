@@ -1,4 +1,5 @@
 import type { BookDetailResponse } from "@/api/endpoints/books";
+import type { Book } from "@/types";
 
 type MinimalBook = {
   id: number;
@@ -50,7 +51,7 @@ export type DomainEventMap = {
   shelfCreated: { shelfId: number; name: string };
   shelfRenamed: { shelfId: number; name: string };
   shelfDeleted: { shelfId: number };
-  shelfMembershipChanged: { shelfId: number; bookId: number; hasBook: boolean };
+  shelfMembershipChanged: { shelfId: number; bookId: number; hasBook: boolean; book?: Book };
   readingProgressChanged: {
     bookId: number;
     hadPosition: boolean;
