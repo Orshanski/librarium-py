@@ -66,6 +66,8 @@ export function SidebarContent({
     (signal) => listShelves(undefined, signal).then((data) => data.shelves),
   );
   const shelves: Shelf[] = shelvesResource.data ?? [];
+  const shelvesLoading = shelvesResource.loading;
+  const shelvesError = shelvesResource.error;
 
   async function createShelf() {
     if (!newShelfName.trim()) return;
@@ -154,6 +156,17 @@ export function SidebarContent({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {shelvesLoading && shelves.length === 0 && (
+              <div style={{ ...linkBase, color: colors.textDim, cursor: "default" }}>Загрузка...</div>
+            )}
+            {shelvesError && !shelvesLoading && (
+              <div
+                role="alert"
+                style={{ ...linkBase, color: colors.danger, cursor: "default" }}
+              >
+                Не удалось загрузить полки
+              </div>
+            )}
             {shelves.map((shelf) => (
               <Link
                 key={shelf.id}

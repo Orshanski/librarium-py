@@ -65,7 +65,8 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   }, [shelfResource.data, shelfId, locationKey, scrollContext]);
 
   const isReadingNow = shelf?.systemCode === "reading_now";
-  useRefreshOnReadingNowOnline(isReadingNow && navigator.onLine);
+  // Хук сам подписан на online/offline и срабатывает при isReadingNow && online.
+  useRefreshOnReadingNowOnline(isReadingNow);
 
   // Derived sort config — мемоизируем, чтобы массив options был стабилен по ссылке
   // (PageHeader получает его как проп; стабильная ссылка важна, если позже появится React.memo).
