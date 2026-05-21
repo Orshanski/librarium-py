@@ -233,6 +233,32 @@ describe("MetadataCacheStore", () => {
     expect(other?.author.name).toBe("Untouched");
   });
 
+  it("applyAuthorRename патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_author/7",
+      JSON.stringify({
+        detail: {
+          value: { author: { id: 7, name: "Old", sortName: "Old Sort" }, books: [] },
+          context: {
+            kind: "book-list",
+            key: "/authors/7",
+            source: "author-detail",
+            authorId: 7,
+            sort: "authorAsc",
+          },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applyAuthorRename({ authorId: 7, name: "New", sortName: "New Sort" });
+
+    const entry = hydrated.get<{ author: { name: string; sortName: string } }>("author/7", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.author.name).toBe("New");
+    expect(entry?.author.sortName).toBe("New Sort");
+  });
+
   it("persists and hydrates namespace entries from sessionStorage", () => {
     store.set("authors", "/authors", { authors: [{ id: 1, name: "Frank Herbert" }] });
 

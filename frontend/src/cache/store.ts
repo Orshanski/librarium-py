@@ -113,13 +113,16 @@ export class MetadataCacheStore {
       };
     });
 
+    this.hydratePersistedNamespaces();
     const namespace = `author/${payload.authorId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
+    // namespace author/{id} гарантирует принадлежность записи именно этому автору —
+    // проверка author.id === payload.authorId избыточна (та же гарантия, что в applyShelfRename).
     for (const [key, entry] of ns.entries) {
       const value = entry.value as Record<string, unknown>;
-      const author = (value as { author?: { id?: unknown; name?: unknown; sortName?: unknown } }).author;
+      const author = (value as { author?: { name?: unknown; sortName?: unknown } }).author;
       if (author) {
         ns.entries.set(key, {
           ...entry,
