@@ -199,6 +199,33 @@ describe("useCatalogList", () => {
     expect(stored?.books.map((b) => b.id)).toEqual([1, 2]);
   });
 
+  it("re-runs the fetch on context change alone and uses the new context for the write", async () => {
+    const first = deferred<{ books: Book[]; hasMore: boolean }>();
+    vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ books: [{ id: 2, title: "Second" } as Book], hasMore: false });
+
+    const ctxA = CTX;
+    const ctxB = { ...CTX };  // distinct identity, same shape
+
+    const { rerender } = render(
+      <Harness store={store} params={{ ...baseParams, context: ctxA }} />,
+    );
+    expect(screen.getByTestId("loading").textContent).toBe("true");
+
+    // Same urlKey, only context identity changes.
+    rerender(
+      <Harness store={store} params={{ ...baseParams, context: ctxB }} />,
+    );
+
+    first.resolve({ books: [{ id: 1, title: "First" } as Book], hasMore: false });
+    await screen.findByText("Second");
+
+    expect(screen.queryByText("First")).toBeNull();
+    const stored = store.get<CatalogEntry>("books", "/");
+    expect(stored?.books.map((b) => b.title)).toEqual(["Second"]);
+  });
+
   it("loadMore does not write after invalidation; loadingMore is reset", async () => {
     const seeded: CatalogEntry = {
       books: [{ id: 1, title: "B1" } as Book],
