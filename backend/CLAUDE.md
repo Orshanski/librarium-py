@@ -31,6 +31,16 @@ pytest                     # Тесты — ВСЕГДА последовате�
   динамически из `*.sql` файлов. Pyright не видит их без stub'а
   (`backend/typings/aiosql/`); если правишь stub — проверь, что
   `Queries.__getattr__ → Any` сохранён.
+- **Логирование user-provided значений — defense-in-depth cast.**
+  Параметры из path/body/query (даже когда Pydantic валидирует их как
+  `int`/`str` через type-аннотацию или `Field(ge=, le=)`) при попадании
+  в `log.info`/`log.warning`/`log.error` оборачивай в явный `int(x)` /
+  `str(x)`. Pydantic-валидация не видна CodeQL и SonarCloud
+  taint-tracker'ам — без cast'а они поднимают `py/log-injection`. Cast
+  — no-op runtime (`int(int)` → тот же int, `str` от `%s` идентичен
+  `%s` от int), но обрывает taint-flow для статанализа. Пример —
+  `app/routers/shelves.py:90-95` (`log.warning(..., int(shelf_id),
+  int(body.book_id), str(user.user_id))`).
 
 ## Type Checking (pyright)
 
