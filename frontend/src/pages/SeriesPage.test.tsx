@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
+import { domainEvents } from "@/domain/events";
 import { Routes, Route } from "react-router-dom";
 import SeriesPage from "./SeriesPage";
 import {
@@ -13,9 +15,18 @@ import {
 } from "@/test/entity-page-mobile";
 
 describe("SeriesPage", () => {
+  let unregisterCacheHandlers: (() => void) | undefined;
+
   beforeEach(() => {
     sessionStorage.clear();
     metadataCache.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  afterEach(() => {
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
+    domainEvents.clear();
   });
 
   it("renders series title and books when data is fetched successfully", async () => {
@@ -144,6 +155,132 @@ describe("SeriesPage", () => {
 
     expect(screen.getAllByText("Foundation").length).toBeGreaterThan(0);
     expect(requestCount).toBe(1);
+  });
+
+  it("обновляет заголовок при seriesRenamed без перехода в Загрузка...", async () => {
+    server.use(
+      http.get("/api/series/:id", () =>
+        HttpResponse.json({
+          series: { id: 42, name: "Old", sortName: "Old", bookCount: 0, authors: [] },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/series/:id" element={<SeriesPage />} />
+      </Routes>,
+      { initialEntries: ["/series/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Old").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("seriesRenamed", { seriesId: 42, name: "New" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("New").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
+  });
+
+  it("переходит на /series/{targetId} при seriesMerged с sourceId равным seriesId", async () => {
+    server.use(
+      http.get("/api/series/:id", ({ params }) =>
+        HttpResponse.json({
+          series: { id: Number(params.id), name: `Series ${params.id}`, sortName: `S${params.id}`, bookCount: 0, authors: [] },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/series/:id" element={<SeriesPage />} />
+      </Routes>,
+      { initialEntries: ["/series/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Series 42").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("seriesMerged", { sourceId: 42, targetId: 99 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Series 99").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Серия не найдена")).not.toBeInTheDocument();
+  });
+
+  it("остаётся на странице при seriesMerged с targetId равным seriesId (refetch)", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/series/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          series: { id: 42, name: "Series 42", sortName: "S42", bookCount: 0, authors: [] },
+          books: [],
+        });
+      })
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/series/:id" element={<SeriesPage />} />
+      </Routes>,
+      { initialEntries: ["/series/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Series 42").length).toBeGreaterThan(0);
+    });
+    expect(requestCount).toBe(1);
+
+    await act(async () => {
+      domainEvents.publish("seriesMerged", { sourceId: 99, targetId: 42 });
+    });
+
+    await waitFor(() => {
+      expect(requestCount).toBe(2);
+    });
+  });
+
+  it("переходит на /series при seriesDeleted нашей серии", async () => {
+    server.use(
+      http.get("/api/series/:id", ({ params }) =>
+        HttpResponse.json({
+          series: { id: Number(params.id), name: `Series ${params.id}`, sortName: `S${params.id}`, bookCount: 0, authors: [] },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/series/:id" element={<SeriesPage />} />
+        <Route path="/series" element={<div>Список серий</div>} />
+      </Routes>,
+      { initialEntries: ["/series/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Series 42").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("seriesDeleted", { seriesId: 42 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Список серий")).toBeInTheDocument();
+    });
   });
 });
 
