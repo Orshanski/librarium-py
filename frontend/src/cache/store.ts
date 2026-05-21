@@ -155,6 +155,34 @@ export class MetadataCacheStore {
         },
       };
     });
+
+    this.hydratePersistedNamespaces();
+    const namespace = `series/${payload.seriesId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    // invariant: namespace ⇒ entity-id binding
+    // namespace series/{id} гарантирует принадлежность записи именно этой серии —
+    // проверка series.id === payload.seriesId избыточна (тот же приём, что в applyAuthorRename).
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as { series?: { name?: unknown; sortName?: unknown } } & Record<string, unknown>;
+      const series = value.series;
+      if (series) {
+        ns.entries.set(key, {
+          ...entry,
+          value: {
+            ...value,
+            series: { ...series, name: payload.name, ...sortNamePatch(payload.sortName) },
+          },
+        });
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
   }
 
   applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
