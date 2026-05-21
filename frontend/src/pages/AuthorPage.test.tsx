@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
+import { domainEvents } from "@/domain/events";
 import { Routes, Route } from "react-router-dom";
 import AuthorPage from "./AuthorPage";
 import {
@@ -13,8 +15,18 @@ import {
 } from "@/test/entity-page-mobile";
 
 describe("AuthorPage", () => {
+  let unregisterCacheHandlers: (() => void) | undefined;
+
   beforeEach(() => {
     sessionStorage.clear();
+    metadataCache.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  afterEach(() => {
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
+    domainEvents.clear();
     metadataCache.clear();
   });
 
@@ -142,6 +154,131 @@ describe("AuthorPage", () => {
 
     expect(screen.getByText("Foundation")).toBeInTheDocument();
     expect(requestCount).toBe(1);
+  });
+
+  it("обновляет заголовок при authorRenamed без перехода в Загрузка...", async () => {
+    server.use(
+      http.get("/api/authors/:id", () =>
+        HttpResponse.json({
+          author: { id: 42, name: "Old", sortName: "Old", bookCount: 0, tags: [] },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+      </Routes>,
+      { initialEntries: ["/authors/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Old").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("authorRenamed", { authorId: 42, name: "New" });
+    });
+
+    expect(screen.getAllByText("New").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
+  });
+
+  it("переходит на /authors/{targetId} при authorMerged с sourceId равным authorId", async () => {
+    server.use(
+      http.get("/api/authors/:id", ({ params }) =>
+        HttpResponse.json({
+          author: { id: Number(params.id), name: `Author ${params.id}`, sortName: `A${params.id}`, bookCount: 0, tags: [] },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+      </Routes>,
+      { initialEntries: ["/authors/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Author 42").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("authorMerged", { sourceId: 42, targetId: 99 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Author 99").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Автор не найден")).not.toBeInTheDocument();
+  });
+
+  it("остаётся на странице при authorMerged с targetId равным authorId (refetch)", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/authors/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          author: { id: 42, name: "Author 42", sortName: "A42", bookCount: requestCount, tags: [] },
+          books: [],
+        });
+      })
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+      </Routes>,
+      { initialEntries: ["/authors/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Author 42").length).toBeGreaterThan(0);
+    });
+    expect(requestCount).toBe(1);
+
+    await act(async () => {
+      domainEvents.publish("authorMerged", { sourceId: 99, targetId: 42 });
+    });
+
+    await waitFor(() => {
+      expect(requestCount).toBe(2);
+    });
+  });
+
+  it("переходит на /authors при authorDeleted нашего автора", async () => {
+    server.use(
+      http.get("/api/authors/:id", ({ params }) =>
+        HttpResponse.json({
+          author: { id: Number(params.id), name: `Author ${params.id}`, sortName: `A${params.id}`, bookCount: 0, tags: [] },
+          books: [],
+        })
+      ),
+      http.get("/api/authors", () => HttpResponse.json({ authors: [] }))
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+        <Route path="/authors" element={<div>Список авторов</div>} />
+      </Routes>,
+      { initialEntries: ["/authors/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Author 42").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("authorDeleted", { authorId: 42 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Список авторов")).toBeInTheDocument();
+    });
   });
 });
 
