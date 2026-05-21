@@ -87,9 +87,12 @@ def add_book(shelf_id: int, body: ShelfBookBody, user: Annotated[CurrentUser, De
         else:
             # Аномалия: changed=True означает что книга только что прошла add — карточка обязана быть.
             # Тихо опускаем поле, frontend откатится к инвалидации; пишем warning для мониторинга.
+            # int()/str() — defense-in-depth для taint-tracker'а CodeQL (py/log-injection):
+            # Pydantic уже валидирует shelf_id и body.book_id как int, но статанализ
+            # не моделирует Pydantic-валидацию, поэтому явный cast обрывает taint-flow.
             log.warning(
                 "shelfMembershipChanged add без карточки книги: shelf_id=%d book_id=%d user_id=%s",
-                shelf_id, body.book_id, user.user_id,
+                int(shelf_id), int(body.book_id), str(user.user_id),
             )
         publish_domain_event_after_commit(
             db,
