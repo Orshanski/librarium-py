@@ -469,4 +469,16 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loadingMore").textContent).toBe("false");
     expect(screen.queryByText("Stale")).toBeNull();
   });
+
+  it("renders empty without throwing when the initial fetch fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(booksApi, "listBooks").mockRejectedValue(new Error("boom"));
+
+    render(<Harness store={store} params={baseParams} />);
+
+    await waitFor(() => expect(screen.getByTestId("loading").textContent).toBe("false"));
+    expect(screen.queryByRole("list")?.children.length ?? 0).toBe(0);
+    expect(screen.getByTestId("loadingMore").textContent).toBe("false");
+    expect(warn).toHaveBeenCalled();
+  });
 });
