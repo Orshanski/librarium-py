@@ -16,6 +16,8 @@ frontend/dist/
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
 .env
 backend/.env
 backend/scripts/linearize_existing_pdfs.py
