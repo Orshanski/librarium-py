@@ -5,12 +5,55 @@
 токены. Ловит `cd dir && git push ...` без false-positive на тексте
 в кавычках (`commit -m "... git push ..."`).
 
+Распознаёт push и в форме `git -C <path> push`, `git --git-dir=... push`
+и т.п. — для каждого вхождения `git` находит первый «не-флаг» токен
+после него (subcommand) и сравнивает его с `push`.
+
 stdin: JSON tool-input от Claude Code.
 stdout: либо пусто (пропуск), либо JSON hookSpecificOutput.
 """
 import json
 import shlex
 import sys
+
+# git-уровневые опции, требующие отдельный аргумент-значение (когда без `=`).
+GIT_OPTS_WITH_SEPARATE_ARG = {
+    "-C",
+    "-c",
+    "--git-dir",
+    "--work-tree",
+    "--exec-path",
+    "--namespace",
+    "--super-prefix",
+    "--list-cmds",
+}
+
+
+def find_subcommand(tokens: list[str], git_idx: int) -> str | None:
+    """Вернуть subcommand (первый не-флаг токен после `git` на git_idx)."""
+    i = git_idx + 1
+    while i < len(tokens):
+        t = tokens[i]
+        if not t.startswith("-"):
+            return t
+        # `--foo=bar` — значение приклеено, отдельный аргумент не нужен.
+        if "=" in t:
+            i += 1
+            continue
+        # Опция с отдельным аргументом — пропустить два токена.
+        if t in GIT_OPTS_WITH_SEPARATE_ARG:
+            i += 2
+            continue
+        # Boolean-флаг — пропустить один.
+        i += 1
+    return None
+
+
+def is_push_command(tokens: list[str]) -> bool:
+    return any(
+        t == "git" and find_subcommand(tokens, i) == "push"
+        for i, t in enumerate(tokens)
+    )
 
 
 def main() -> int:
@@ -25,10 +68,7 @@ def main() -> int:
     except ValueError:
         return 0
 
-    hit = any(
-        tokens[i] == "git" and tokens[i + 1] == "push"
-        for i in range(len(tokens) - 1)
-    )
+    hit = is_push_command(tokens)
 
     if not hit:
         return 0
