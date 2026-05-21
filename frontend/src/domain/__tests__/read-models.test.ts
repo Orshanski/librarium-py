@@ -3,6 +3,7 @@ import {
   classifyAuthorRenameForBookList,
   classifyBookUpdateForBookList,
   classifyReadingProgressForContext,
+  classifySeriesRenameForBookList,
   classifyShelfMembershipForContext,
   type BookListContext,
 } from "../read-models";
@@ -45,6 +46,84 @@ describe("read-model validity", () => {
     };
     expect(classifyAuthorRenameForBookList(authorDetailByAuthor)).toBe("patchable");
     expect(classifyAuthorRenameForBookList(authorDetailAdded)).toBe("patchable");
+  });
+
+  it("classifySeriesRenameForBookList: series-detail patchable независимо от сортировки", () => {
+    const seriesDetailByNumber: BookListContext = {
+      kind: "book-list",
+      key: "/series/4",
+      source: "series-detail",
+      seriesId: 4,
+      sort: "seriesNumber",
+    };
+    const seriesDetailByAuthor: BookListContext = {
+      kind: "book-list",
+      key: "/series/4",
+      source: "series-detail",
+      seriesId: 4,
+      sort: "authorAsc",
+    };
+    expect(classifySeriesRenameForBookList(seriesDetailByNumber)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(seriesDetailByAuthor)).toBe("patchable");
+  });
+
+  it("classifySeriesRenameForBookList: search structural", () => {
+    const searchCtx: BookListContext = {
+      kind: "book-list",
+      key: "search:foo",
+      source: "search",
+      sort: "addedDesc",
+      query: "foo",
+    };
+    expect(classifySeriesRenameForBookList(searchCtx)).toBe("structural");
+  });
+
+  it("classifySeriesRenameForBookList: catalog/tag-detail/author-detail/shelf-* patchable", () => {
+    const catalog: BookListContext = {
+      kind: "book-list",
+      key: "/catalog",
+      source: "catalog",
+      sort: "addedDesc",
+    };
+    const tagDetail: BookListContext = {
+      kind: "book-list",
+      key: "/tags/3",
+      source: "tag-detail",
+      tagId: 3,
+      sort: "titleAsc",
+    };
+    const authorDetailCtx: BookListContext = {
+      kind: "book-list",
+      key: "/authors/7",
+      source: "author-detail",
+      authorId: 7,
+      sort: "addedDesc",
+    };
+    const shelfRegular: BookListContext = {
+      kind: "book-list",
+      key: "/shelves/5",
+      source: "shelf-regular",
+      shelfId: 5,
+      sort: "addedDesc",
+    };
+    const shelfBest: BookListContext = {
+      kind: "book-list",
+      key: "/shelves/best",
+      source: "shelf-best",
+      sort: "ratingDesc",
+    };
+    const shelfReadingNow: BookListContext = {
+      kind: "book-list",
+      key: "/shelves/reading-now",
+      source: "shelf-reading-now",
+      sort: "lastReadDesc",
+    };
+    expect(classifySeriesRenameForBookList(catalog)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(tagDetail)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(authorDetailCtx)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(shelfRegular)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(shelfBest)).toBe("patchable");
+    expect(classifySeriesRenameForBookList(shelfReadingNow)).toBe("patchable");
   });
 
   it("treats rating as structural for rating-sorted lists and best shelf", () => {

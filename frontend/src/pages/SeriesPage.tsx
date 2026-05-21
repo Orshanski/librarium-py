@@ -1,9 +1,6 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { useScrollRestore } from "../hooks/useScrollRestore";
-import { readOriginFromState } from "../components/breadcrumb-origin";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -15,55 +12,30 @@ import { useIsMobile } from "../responsive";
 import type { Book } from "../types";
 import { colors } from "../theme";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
-import { getSeries } from "../api/endpoints/series";
-import type { Series } from "../api/endpoints/series";
-import { NotFoundError } from "@/api/errors";
-import { seriesScrollContext } from "@/scroll/contexts";
-import { metadataCache, useCachedResource } from "@/cache";
+import { useSeriesPage } from "../hooks/useSeriesPage";
 
 export default function SeriesPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
+  const {
+    series,
+    books,
+    loading,
+    notFound,
+    crumb,
+    pathnameWithSearch,
+    parentOriginForBookLink,
+    navigateAfterDelete,
+  } = useSeriesPage();
+
   const [showAdmin, setShowAdmin] = useState(false);
-
-  const seriesId = Number(id);
-  const scrollContext = useMemo(
-    () => seriesScrollContext(location.pathname + location.search, seriesId),
-    [location.pathname, location.search, seriesId],
-  );
-
-  const stateOrigin = readOriginFromState(location.state);
-  const crumb =
-    stateOrigin && stateOrigin.type !== "book"
-      ? { label: stateOrigin.label, href: stateOrigin.url }
-      : { label: "Серии", href: "/series" };
-
-  const seriesResource = useCachedResource(
-    metadataCache,
-    `series/${seriesId}`,
-    "detail",
-    (signal) => (
-      !id || Number.isNaN(seriesId)
-        ? Promise.reject(new NotFoundError(404, "Not found"))
-        : getSeries(seriesId, signal)
-    ),
-    { context: scrollContext },
-  );
-  const series = seriesResource.data?.series ?? null;
-  const books = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
-  const loading = seriesResource.loading;
-  const notFoundState = seriesResource.error instanceof NotFoundError || !id || Number.isNaN(seriesId);
-  useScrollRestore(!loading, scrollContext);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
 
-  if (notFoundState) {
+  if (notFound) {
     return (
       <>
         <PageHeader title="Серия не найдена" breadcrumb={crumb} />
@@ -118,23 +90,20 @@ export default function SeriesPage() {
         infoSlot={infoSlot}
       />
 
-      {!isMobile && showAdmin && series && (
+      {!isMobile && showAdmin && (
         <EntityAdminPanel
           entityType="series"
           entityId={series.id}
           currentName={series.name}
           bookCount={series.bookCount}
-          onRenamed={(newName) => {
-            if (seriesResource.data) {
-              metadataCache.set(`series/${series.id}`, "detail", {
-                ...seriesResource.data,
-                series: { ...seriesResource.data.series, name: newName },
-              }, { context: scrollContext });
-            }
+          onRenamed={() => setShowAdmin(false)}
+          onMerged={() => setShowAdmin(false)}
+          onDeleted={() => {
             setShowAdmin(false);
+            // Страховка поверх подписки хука на seriesDeleted: основная навигация — через подписку,
+            // эта строка защищает от изменений порядка publish/callback в EntityAdminPanel.
+            navigateAfterDelete();
           }}
-          onMerged={() => globalThis.location.reload()}
-          onDeleted={() => navigate("/series")}
         />
       )}
 
@@ -148,11 +117,9 @@ export default function SeriesPage() {
             linkState={{
               origin: {
                 type: "series",
-                url: location.pathname + location.search,
+                url: pathnameWithSearch,
                 label: series.name,
-                ...(stateOrigin && stateOrigin.type !== "book"
-                  ? { parentOrigin: stateOrigin }
-                  : {}),
+                ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
               },
             }}
           />

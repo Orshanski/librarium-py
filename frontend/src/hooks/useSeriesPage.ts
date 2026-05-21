@@ -2,128 +2,109 @@ import { useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
-import { authorScrollContext } from "@/scroll/contexts";
+import { seriesScrollContext } from "@/scroll/contexts";
 import { useScrollRestore } from "./useScrollRestore";
 import { usePathnameWithSearch } from "./usePathnameWithSearch";
 import { useEntityScrollContext } from "./useEntityScrollContext";
 import { readOriginFromState } from "@/components/breadcrumb-origin";
 import type { ListOrigin } from "@/components/breadcrumb-origin";
-import { getAuthor } from "@/api/endpoints/authors";
-import type { Author } from "@/api/endpoints/authors";
+import { getSeries } from "@/api/endpoints/series";
+import type { Series } from "@/api/endpoints/series";
 import { NotFoundError } from "@/api/errors";
 import type { Book } from "@/types";
 
 const EMPTY_BOOKS: Book[] = [];
 
-export interface AuthorData {
-  id: number;
-  name: string;
-  sortName: string;
-  bookCount: number;
-  tags: string[];
-}
-
-export interface AuthorCrumb {
+export interface SeriesCrumb {
   label: string;
   href: string;
 }
 
-export interface UseAuthorPageResult {
-  authorId: number;
-  author: AuthorData | null;
+export interface UseSeriesPageResult {
+  seriesId: number;
+  series: Series | null;
   books: Book[];
   loading: boolean;
   notFound: boolean;
-  crumb: AuthorCrumb;
+  crumb: SeriesCrumb;
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
   navigateAfterDelete: () => void;
 }
 
-export function useAuthorPage(): UseAuthorPageResult {
+export function useSeriesPage(): UseSeriesPageResult {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const authorId = Number(id);
+  const seriesId = Number(id);
   const pathnameWithSearch = usePathnameWithSearch();
-  const isInvalidId = !id || Number.isNaN(authorId);
+  const isInvalidId = !id || Number.isNaN(seriesId);
 
-  const scrollContext = useEntityScrollContext(authorScrollContext, pathnameWithSearch, authorId);
+  const scrollContext = useEntityScrollContext(seriesScrollContext, pathnameWithSearch, seriesId);
 
   const parentOriginForBookLink = useMemo<ListOrigin | undefined>(() => {
     const stateOrigin = readOriginFromState(location.state);
     return stateOrigin && stateOrigin.type !== "book" ? stateOrigin : undefined;
   }, [location.state]);
 
-  const crumb = useMemo<AuthorCrumb>(
+  const crumb = useMemo<SeriesCrumb>(
     () => parentOriginForBookLink
       ? { label: parentOriginForBookLink.label, href: parentOriginForBookLink.url }
-      : { label: "Авторы", href: "/authors" },
+      : { label: "Серии", href: "/series" },
     [parentOriginForBookLink],
   );
 
-  const authorResource = useCachedResource(
+  const seriesResource = useCachedResource(
     metadataCache,
-    `author/${authorId}`,
+    `series/${seriesId}`,
     "detail",
     (signal) => (
       isInvalidId
         ? Promise.reject(new NotFoundError(404, "Not found"))
-        : getAuthor(authorId, signal)
+        : getSeries(seriesId, signal)
     ),
     { context: scrollContext },
   );
 
-  const author = useMemo<AuthorData | null>(() => {
-    const raw: Author | undefined = authorResource.data?.author;
-    if (!raw) return null;
-    return {
-      id: raw.id,
-      name: raw.name,
-      sortName: raw.sortName ?? "",
-      bookCount: authorResource.data?.books?.length ?? 0,
-      tags: raw.tags?.map((t) => t.name) ?? [],
-    };
-  }, [authorResource.data]);
+  const series: Series | null = seriesResource.data?.series ?? null;
+  const books: Book[] = seriesResource.data?.books ?? EMPTY_BOOKS;
 
-  const books: Book[] = authorResource.data?.books ?? EMPTY_BOOKS;
-
-  const loading = authorResource.loading;
-  const notFound = authorResource.error instanceof NotFoundError || isInvalidId;
+  const loading = seriesResource.loading;
+  const notFound = seriesResource.error instanceof NotFoundError || isInvalidId;
 
   useScrollRestore(!loading, scrollContext);
 
-  // Подписки на authorMerged/authorDeleted покрывают и локальный, и удалённый (SSE) сценарий.
+  // Подписки на seriesMerged/seriesDeleted покрывают и локальный, и удалённый (SSE) сценарий.
   // Инвариант порядка: handler из registerMetadataCacheHandlers зарегистрирован первым, наша
   // подписка — позже; Set обходится в порядке регистрации; store.invalidate синхронен,
   // React-рендер от useCachedResource асинхронный → navigate уходит до возврата страницы
-  // в состояние «Автор не найден». Если этот порядок изменится, инвариант сломается.
+  // в состояние «Серия не найдена». Если этот порядок изменится, инвариант сломается.
   useEffect(() => {
     if (isInvalidId) return undefined;
-    const unsubscribeMerged = domainEvents.subscribe("authorMerged", (payload) => {
-      if (payload.sourceId === authorId) {
-        navigate(`/authors/${payload.targetId}`);
+    const unsubscribeMerged = domainEvents.subscribe("seriesMerged", (payload) => {
+      if (payload.sourceId === seriesId) {
+        navigate(`/series/${payload.targetId}`);
       }
     });
-    const unsubscribeDeleted = domainEvents.subscribe("authorDeleted", (payload) => {
-      if (payload.authorId === authorId) {
-        navigate("/authors");
+    const unsubscribeDeleted = domainEvents.subscribe("seriesDeleted", (payload) => {
+      if (payload.seriesId === seriesId) {
+        navigate("/series");
       }
     });
     return () => {
       unsubscribeMerged();
       unsubscribeDeleted();
     };
-  }, [authorId, navigate]);
+  }, [seriesId, navigate]);
 
   const navigateAfterDelete = useCallback(() => {
-    navigate("/authors");
+    navigate("/series");
   }, [navigate]);
 
   return {
-    authorId,
-    author,
+    seriesId,
+    series,
     books,
     loading,
     notFound,

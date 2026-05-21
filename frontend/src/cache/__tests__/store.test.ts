@@ -233,6 +233,99 @@ describe("MetadataCacheStore", () => {
     expect(other?.author.name).toBe("Untouched");
   });
 
+  const seriesNineContext: BookListContext = {
+    kind: "book-list",
+    key: "/series/9",
+    source: "series-detail",
+    seriesId: 9,
+    sort: "seriesNumber",
+  };
+  const seriesTenContext: BookListContext = {
+    kind: "book-list",
+    key: "/series/10",
+    source: "series-detail",
+    seriesId: 10,
+    sort: "seriesNumber",
+  };
+
+  it("applySeriesRename обновляет series.name и series.sortName в записи детали", () => {
+    store.set("series/9", "detail", {
+      series: { id: 9, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: seriesNineContext });
+
+    store.applySeriesRename({ seriesId: 9, name: "New", sortName: "New Sort" });
+
+    const entry = store.get<{ series: { id: number; name: string; sortName: string } }>("series/9", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.series.name).toBe("New");
+    expect(entry?.series.sortName).toBe("New Sort");
+  });
+
+  it("applySeriesRename не перезаписывает sortName, если он отсутствует в payload", () => {
+    store.set("series/9", "detail", {
+      series: { id: 9, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: seriesNineContext });
+
+    store.applySeriesRename({ seriesId: 9, name: "New" });
+
+    const entry = store.get<{ series: { sortName?: string } }>("series/9", "detail");
+    expect(entry?.series.sortName).toBe("Old Sort");
+  });
+
+  it("applySeriesRename не трогает записи других серий", () => {
+    store.set("series/9", "detail", {
+      series: { id: 9, name: "Old" },
+      books: [],
+    }, { context: seriesNineContext });
+    store.set("series/10", "detail", {
+      series: { id: 10, name: "Untouched" },
+      books: [],
+    }, { context: seriesTenContext });
+
+    store.applySeriesRename({ seriesId: 9, name: "New" });
+
+    const other = store.get<{ series: { name: string } }>("series/10", "detail");
+    expect(other?.series.name).toBe("Untouched");
+  });
+
+  it("applySeriesRename патчит persisted namespace, который ещё не материализован в памяти", () => {
+    sessionStorage.setItem(
+      "librarium_metadata_cache_series/9",
+      JSON.stringify({
+        detail: {
+          value: { series: { id: 9, name: "Old", sortName: "Old Sort" }, books: [] },
+          context: {
+            kind: "book-list",
+            key: "/series/9",
+            source: "series-detail",
+            seriesId: 9,
+            sort: "seriesNumber",
+          },
+        },
+      }),
+    );
+    const hydrated = new MetadataCacheStore();
+
+    hydrated.applySeriesRename({ seriesId: 9, name: "New", sortName: "New Sort" });
+
+    const entry = hydrated.get<{ series: { name: string; sortName: string } }>("series/9", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.series.name).toBe("New");
+    expect(entry?.series.sortName).toBe("New Sort");
+  });
+
+  it("applySeriesRename обновляет запись без context (например, без books)", () => {
+    store.set("series/9", "detail", { series: { id: 9, name: "Old" } });
+
+    store.applySeriesRename({ seriesId: 9, name: "New" });
+
+    const entry = store.get<{ series: { name: string } }>("series/9", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.series.name).toBe("New");
+  });
+
   it("applyAuthorRename патчит persisted namespace, который ещё не материализован в памяти", () => {
     sessionStorage.setItem(
       "librarium_metadata_cache_author/7",
