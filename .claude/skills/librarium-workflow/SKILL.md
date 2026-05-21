@@ -1,66 +1,144 @@
 ---
 name: librarium-workflow
-description: Use this skill when Alexey requests development work on librarium-py — implementing a feature, fixing a bug, refactoring code, or working on a beads task. Triggers on phrases like "реализуй X", "давай делать X", "фикс бага Y", "начнём фичу", "сделай задачу <bd-id>", "начни эпик", "сделай рефакторинг", "implement X", "fix bug Y". Activates the strict 16-step process from root CLAUDE.md: spec → review → plan → review → branch → TDD → impl → manual test → commit → code review → merge/push by explicit command. NOT for: config/hook/docs changes, trivial text edits, ad-hoc exploration, type-cleanup runs, or anything where Alexey already explicitly skipped the spec/plan step. Only for code changes in backend/app or frontend/src that warrant durable spec+plan artefacts.
+description: ОБЯЗАТЕЛЬНО используй этот скилл КАЖДЫЙ РАЗ, когда Alexey запускает разработческую работу в librarium-py — фича, баг, рефакторинг, beads-задача. **Главный триггер — beads:** "посмотрим задачи", "выведи задачи", "что в задачах", "что в работе", "возьми тикет", "сделай задачу <bd-id>", упоминание номера тикета (`38w.3`, `ttjy.1`), "bd ready", "bd show", "claim". Также триггерится на фразы (RU/EN): "реализуй <X>", "давай делать <X>", "фикс бага <Y>", "начнём фичу", "начни эпик", "сделай рефакторинг <Z>", "implement <X>", "fix bug <Y>", "let's build <X>". NOT для: правок config/hooks/CLAUDE.md, type-cleanup (pyright sweeps), правок документации, ad-hoc exploration без планируемого merge, прогона тестов, обновления зависимостей, или когда Alexey явно сказал "без спеки". При сомнении — спросить Alexey: "это разработка через workflow или одноразовая правка?"
 ---
 
 # Librarium Development Workflow
 
-Полный референс — в корневом `CLAUDE.md`, секция «Порядок разработки».
-Этот скилл — actionable чек-лист поверх него.
+Полный референс процесса — в корневом `CLAUDE.md`, секция
+«Порядок разработки». Этот скилл — actionable чек-лист поверх него
+с pre-flight checks, развилкой «фича vs баг», и recipe'ями для
+запуска ревьюера и tests.
+
+**Why:** Alexey не разработчик, проверяет код плохо — но строго
+следит за процессом. Пропущенная спека = недопонимание задачи =
+переделка → потеря времени и доверия. Скрипт — не бюрократия, а
+страховка.
 
 ## Announce при активации
 
-Скажи Alexey одной строкой: «Использую librarium-workflow — иду по
-шагам (1) спека → (2) ревью → … → (16) пуш».
+Сначала ОДНОЙ строкой: «Использую librarium-workflow». Дальше —
+покажи Alexey текущее состояние (на какой ветке, что есть, чего нет)
+и спроси, с какого шага начинаем.
+
+**Модели для subagent'ов:**
+
+- **Разработка** (реализация, рефакторинг, написание тестов, type
+  cleanup) — `model: "sonnet"`.
+- **Ревью** (спека, план, код) — `model: "opus"`. Opus лучше ловит
+  слабые места, противоречия и edge cases — это его сильная
+  сторона; разменивать её на скорость в ревью не стоит.
+
+## Развилка: фича или баг?
+
+- **Фича / большой рефакторинг** → полный путь: `superpowers:brainstorming` →
+  спека → ревью спеки → `superpowers:writing-plans` → ревью плана →
+  реализация через `superpowers:subagent-driven-development` (или
+  `superpowers:executing-plans`).
+- **Баг / небольшой фикс с понятным поведением** → можно пропустить
+  brainstorming и упростить спеку до 1-2 абзацев («что сломано,
+  как должно быть, ограничения»), но **ревью спеки + план через
+  `superpowers:writing-plans` + ревью плана — всё равно**. Спросить
+  Alexey, если не уверен.
+- **Эпик из нескольких задач** → одна общая спека + несколько
+  под-планов или отдельных задач.
 
 ## Pre-flight checks (перед стартом)
 
-1. **Ветка.** `git branch --show-current`. Если `main` — **СТОП**.
-   Создать feature branch ПЕРЕД любой правкой кода.
-2. **Чистый ли main.** `git status --short`. Любые хвосты —
-   закоммитить или спросить Alexey, прежде чем создавать ветку.
-3. **Спека есть?** Если нет — `superpowers:brainstorming`, потом
-   спека в `project_documentation/specs/YYYY-MM-DD-<topic>-design.md`.
-4. **План есть?** Если нет — `superpowers:writing-plans`, файл в
-   `project_documentation/plans/YYYY-MM-DD-<topic>.md`.
+Выполни **до** любой правки кода:
 
-## Чек-лист (создать bd-задачу для тикета, если ещё нет)
+1. **bd-задача.** `bd ready` (что доступно) или `bd show <id>` (если
+   ID известен). Если задачи нет — создать (`bd create -t <title>`)
+   ДО старта работы. В начале: `bd update <id> --claim`.
+2. **Ветка.** `git branch --show-current`. Если `main` — **СТОП**,
+   создать feature/chore-branch.
+3. **Чистый main.** `git status --short`. Любые хвосты — закоммитить
+   или спросить Alexey, прежде чем создавать ветку. Особо проверить
+   `.beads/issues.jsonl` — его легко забыть.
+4. **Спека есть?** Проверь `project_documentation/specs/` на свежие
+   файлы. Если нет — `superpowers:brainstorming` (для фичи) или
+   сразу draft (для бага).
+5. **План есть?** Проверь `project_documentation/plans/`. Если
+   нет — `superpowers:writing-plans` после фикса спеки.
 
-Идти строго по порядку. После каждого артефакта — ревью, ВСЕ findings
-показывать Alexey без фильтрации.
+## Recipe: запуск ревьюера
 
-| # | Шаг | Кто |
+Ревьюер — это subagent. После каждого артефакта (спека, план, код)
+запускай `Agent` с типом `general-purpose`:
+
+```
+Agent({
+  subagent_type: "general-purpose",
+  model: "opus",
+  description: "Ревью спеки/плана/кода",
+  prompt: "Прочитай <путь к артефакту>. Найди ВСЕ проблемы:
+  unclear scope, missing edge cases, нарушения CLAUDE.md правил,
+  breaking changes, missed tests. Каждая находка: серьёзность
+  (blocker/major/minor), файл:строка, что не так, что предложить.
+  НЕ запускай тесты, НЕ исправляй сам — только findings."
+})
+```
+
+**Никогда** не давать ревьюеру задачу «прогнать тесты» — это
+наша обязанность, не его. Ревьюер только читает и думает.
+
+## Чек-лист (16 шагов)
+
+Идти строго по порядку. После каждого артефакта — ревью, **ВСЕ
+findings** показывать Alexey без фильтрации (приоритет — за ним).
+
+| # | Шаг | Кто / чем |
 |---|---|---|
-| 1 | Спека (design-doc) | Claude |
-| 2 | Ревью спеки → ВСЕ findings | Reviewer + Alexey |
+| 1 | Спека (design-doc) — `superpowers:brainstorming` для фичи | Claude |
+| 2 | Ревью спеки → ВСЕ findings | Subagent (Opus) + Alexey |
 | 3 | Фикс спеки + утверждение | Claude + Alexey |
-| 4 | План (TDD-детализация) | Claude |
-| 5 | Ревью плана → ВСЕ findings | Reviewer + Alexey |
+| 4 | План — `superpowers:writing-plans` (TDD-детализация) | Claude |
+| 5 | Ревью плана → ВСЕ findings | Subagent (Opus) + Alexey |
 | 6 | Фикс плана + утверждение | Claude + Alexey |
 | 7 | Feature branch от main | Claude |
-| 8 | Тесты ПЕРЕД реализацией | Claude (TDD) |
-| 9 | Реализация → тесты green | Claude |
+| 8 | **Тесты ПЕРЕД реализацией** (TDD: red) — `superpowers:test-driven-development` | Subagent (Sonnet) |
+| 9 | Реализация → тесты green — `superpowers:subagent-driven-development` / `superpowers:executing-plans` | Subagent (Sonnet) |
 | 10 | Ручное тестирование | **Alexey** (ждать!) |
-| 11 | Коммит **после** одобрения | Claude |
-| 12 | Спек-ревью кода (соответствие коду) | Reviewer + Alexey |
-| 13 | Код-ревью (качество кода) | Reviewer + Alexey |
-| 14 | Фикс findings + пересдача тестов | Claude |
+| 11 | Коммит **после** одобрения Alexey | Claude |
+| 12 | Спек-ревью кода (соответствие спеке) | Subagent (Opus) + Alexey |
+| 13 | Код-ревью (качество кода) — `superpowers:requesting-code-review` | Subagent (Opus) + Alexey |
+| 14 | Фикс findings + повторный прогон тестов | Claude |
 | 15 | Мерж — **только** по явной команде | Alexey говорит «мержи» |
 | 16 | Пуш — **только** по явной команде | Alexey говорит «пуш» |
 
+**После мержа (всегда):** `bd close <id>` — закрыть тикет. Это не
+часть 16 шагов, а cleanup, но обязательный — иначе beads-доска
+переполняется in-progress'ами.
+
 ## Жёсткие запреты
 
-- Работать в main.
-- Прыгать на код без спеки/плана.
-- Мерж без явной команды («окей», «ок», «продолжай» — **не команды**).
-- Пуш без явной команды (мерж ≠ пуш, отдельные разрешения).
-- Параллельный pytest/vitest — backend и frontend последовательно,
-  по одному прогону за раз.
-- Pre-existing findings из ревью «отложить» — фиксим в том же тикете.
+- **Не работать в main.** Always create a feature branch first.
+- **Не прыгать на код без спеки + плана.** Даже если задача кажется
+  простой — спека/план занимают 10 минут, а спасают часы.
+- **TDD: тесты ПЕРЕД кодом, не наоборот.** Самое частое нарушение.
+  Если ловишь себя на «допишу тесты после» — стоп, переписать.
+- **Мерж без явной команды Alexey запрещён.** «Окей», «ок»,
+  «продолжай», «нормально», «ага» — **не команды**. Команда —
+  «мержи», «мерж», «да, мерж».
+- **Пуш — отдельная команда от мержа.** Мерж ≠ пуш. Нельзя
+  делать `git push` сразу после merge без отдельного разрешения.
+- **Параллельный pytest/vitest запрещён.** Backend и frontend
+  тесты — последовательно, по одному прогону за раз. Параллель
+  даёт ложные failures из-за shared state (SQLite, temp-файлы,
+  auth-кэш) и кривое coverage.
+- **Pre-existing findings не «откладывать».** Если ревью нашло
+  что-то старое — фиксим в том же тикете, не «потом отдельным
+  заходом» (отдельный заход не случится).
+- **Findings показывать ВСЕ, без фильтрации.** Решение «отложить
+  minor» — за Alexey, не за Claude.
 
 ## Когда отойти от скрипта
 
-Если задача очевидно тривиальна (тайпо, ренейм одной переменной,
-правка комментария) — спроси Alexey: «достаточно ли просто фикс +
-коммит, без спеки/плана?». **Не решай сам.** Решение пропустить
-шаги — за Alexey.
+Тривиальная правка — это **тайпо в комменте, переименование одной
+локальной переменной, форматирование**. Не «маленький рефакторинг»,
+не «всего три строки», не «явно понятно что делать». Если хочешь
+пропустить шаги — **спроси Alexey прямо**: «эту задачу делаем
+через workflow или одноразовым фиксом?». Не решай сам.
+
+При сомнении — `superpowers:brainstorming` короткой формой
+(одна-две минуты) лучше, чем «прыгнул в код, переделал три раза».
