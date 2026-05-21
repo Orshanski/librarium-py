@@ -45,6 +45,7 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const progressByBookId = shelfResource.data?.progressByBookId ?? {};
   const loading = shelfResource.loading;
 
+  // scrollContext мемоизирован — зависимость в useEffect ниже опирается на стабильность ссылки.
   const scrollContext = useMemo(
     () => shelfScrollContext({
       key: locationKey,
@@ -66,10 +67,13 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const isReadingNow = shelf?.systemCode === "reading_now";
   useRefreshOnReadingNowOnline(isReadingNow && navigator.onLine);
 
-  // Derived sort config — computable even when shelf is null (hooks must be unconditional)
-  const pageKey = shelf ? shelfSortConfigKey(shelf.systemCode) : "shelf_regular";
-  const cfg = SORT_CONFIG[pageKey];
-  const options = cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
+  // Derived sort config — мемоизируем, чтобы массив options был стабилен по ссылке
+  // (PageHeader получает его как проп; стабильная ссылка важна, если позже появится React.memo).
+  const options = useMemo<SortOption[] | undefined>(() => {
+    const pageKey = shelf ? shelfSortConfigKey(shelf.systemCode) : "shelf_regular";
+    const cfg = SORT_CONFIG[pageKey];
+    return cfg.options.length > 0 ? sortOptionsFor(pageKey) : undefined;
+  }, [shelf?.systemCode]);
 
   const handleDeleteShelf = useCallback(async () => {
     try {
