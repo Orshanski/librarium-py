@@ -289,6 +289,6 @@ class TestDeleteTagDAL:
         from app.dal.tags import delete_tag
         from app.exceptions import BadInputError
         import pytest
-        # tag_id=1 has books в seed (per test_tag_mapping test_known_mapping context)
+        # Seed (tests/seed.py): tag 1 → books {1, 3, 5} — см. TestMergeTagDAL.
         with pytest.raises(BadInputError):
             delete_tag(db, tag_id=1)

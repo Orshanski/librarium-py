@@ -6,7 +6,6 @@ import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
-from ..exceptions import BadInputError, NotFoundError
 from ..dtos.entities import (
     FilterOptionRow,
     TagCloudEntry,
@@ -14,6 +13,7 @@ from ..dtos.entities import (
     TagDetailRow,
     TagMapResult,
 )
+from ..exceptions import BadInputError, NotFoundError
 from ._parsers import parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
