@@ -6,6 +6,7 @@ import aiosql
 
 from ..database import dicts_from_rows, dict_from_row
 from ..dtos.catalog import CatalogFilters
+from ..exceptions import BadInputError, NotFoundError
 from ..dtos.entities import (
     FilterOptionRow,
     TagCloudEntry,
@@ -207,3 +208,23 @@ def merge_tag(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     if source_name:
         queries.insert_tag_mapping(db, raw=source_name, tid=target_id)
     queries.delete_tag_by_id(db, source=source_id)
+
+
+def delete_tag(db: sqlite3.Connection, tag_id: int) -> None:
+    """Delete tag if it has no books.
+
+    Raises:
+        NotFoundError: тег не существует.
+        BadInputError: у тега есть книги (cascade-удаление запрещено).
+
+    Структурно симметрично dal.delete_series/dal.delete_author: проверки
+    в DAL, service делает чистую делегацию. Дополнительный шаг —
+    зачистка tag_mappings перед удалением тега (без cascade-FK).
+    """
+    if not queries.tag_exists(db, id=tag_id):
+        raise NotFoundError("Тег не найден")
+    count = queries.count_tag_books(db, id=tag_id)["c"]
+    if count > 0:
+        raise BadInputError("Нельзя удалить тег с книгами")
+    queries.delete_tag_mappings_by_target(db, target=tag_id)
+    queries.delete_tag_by_id(db, source=tag_id)

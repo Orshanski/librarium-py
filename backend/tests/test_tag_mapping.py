@@ -259,3 +259,36 @@ class TestMergeTagDAL:
         row = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = 'Фэнтези'").fetchone()
         assert row is not None
         assert row["tag_id"] == 2
+
+
+class TestDeleteTagDAL:
+    def test_delete_removes_tag(self, admin_client, db):
+        from app.dal.tags import delete_tag
+        # Seed: создать тег без книг
+        db.execute("INSERT INTO tags (name) VALUES ('TempForDeleteTest')")
+        tag_id = db.execute("SELECT id FROM tags WHERE name = 'TempForDeleteTest'").fetchone()["id"]
+        delete_tag(db, tag_id=tag_id)
+        assert db.execute("SELECT id FROM tags WHERE id = ?", (tag_id,)).fetchone() is None
+
+    def test_delete_cleans_tag_mappings(self, admin_client, db):
+        from app.dal.tags import delete_tag
+        db.execute("INSERT INTO tags (name) VALUES ('TempWithMapping')")
+        tag_id = db.execute("SELECT id FROM tags WHERE name = 'TempWithMapping'").fetchone()["id"]
+        db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('raw_temp', ?)", (tag_id,))
+        delete_tag(db, tag_id=tag_id)
+        assert db.execute("SELECT raw_tag FROM tag_mappings WHERE tag_id = ?", (tag_id,)).fetchone() is None
+
+    def test_delete_raises_not_found_for_missing_tag(self, admin_client, db):
+        from app.dal.tags import delete_tag
+        from app.exceptions import NotFoundError
+        import pytest
+        with pytest.raises(NotFoundError):
+            delete_tag(db, tag_id=99999)
+
+    def test_delete_raises_bad_input_when_books_present(self, admin_client, db):
+        from app.dal.tags import delete_tag
+        from app.exceptions import BadInputError
+        import pytest
+        # tag_id=1 has books в seed (per test_tag_mapping test_known_mapping context)
+        with pytest.raises(BadInputError):
+            delete_tag(db, tag_id=1)
