@@ -385,3 +385,36 @@ class TestTagServiceCRUD:
         tag_id = db.execute("SELECT id FROM tags WHERE name = 'TempForServiceTest'").fetchone()["id"]
         delete_tag(db, tag_id=tag_id)
         assert db.execute("SELECT id FROM tags WHERE id = ?", (tag_id,)).fetchone() is None
+
+
+class TestDTOTightening:
+    """Verify RenameBody and MergeBody reject invalid inputs.
+
+    Уровень DTO — тестируем через любой существующий endpoint, использующий
+    эти модели. Для RenameBody — series/authors rename. Для MergeBody —
+    series/authors merge. Tag endpoints добавляются в Task 9, тесты на DTO
+    через tag-endpoint появятся там же."""
+
+    def test_rename_series_rejects_empty_name(self, admin_client):
+        resp = admin_client.put("/api/series/1", json={"name": ""})
+        assert resp.status_code == 422
+
+    def test_rename_series_rejects_whitespace_only_name(self, admin_client):
+        resp = admin_client.put("/api/series/1", json={"name": "   "})
+        assert resp.status_code == 422
+
+    def test_rename_authors_rejects_empty_name(self, admin_client):
+        resp = admin_client.put("/api/authors/1", json={"name": ""})
+        assert resp.status_code == 422
+
+    def test_merge_series_rejects_zero_source_id(self, admin_client):
+        resp = admin_client.post("/api/series/1/merge", json={"sourceId": 0})
+        assert resp.status_code == 422
+
+    def test_merge_series_rejects_negative_source_id(self, admin_client):
+        resp = admin_client.post("/api/series/1/merge", json={"sourceId": -5})
+        assert resp.status_code == 422
+
+    def test_merge_authors_rejects_zero_source_id(self, admin_client):
+        resp = admin_client.post("/api/authors/1/merge", json={"sourceId": 0})
+        assert resp.status_code == 422

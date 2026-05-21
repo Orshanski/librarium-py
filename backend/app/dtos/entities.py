@@ -9,27 +9,27 @@ from .book_card import BookCardItem
 from .catalog import LanguageOptionRow
 
 
-class RenameBody(BaseModel):
-    model_config = BODY_CONFIG
-    name: str
-
-
-class MergeBody(BaseModel):
-    model_config = BODY_CONFIG
-    source_id: int
-
-
-MAP_BODY_CONFIG = ConfigDict(
+STRIP_BODY_CONFIG = ConfigDict(
     str_strip_whitespace=True,
     populate_by_name=False,
     alias_generator=to_camel,
     extra="forbid",
 )
-"""BODY_CONFIG + str_strip_whitespace=True для MapBody."""
+"""BODY_CONFIG + str_strip_whitespace=True. Used by MapBody, RenameBody."""
+
+
+class RenameBody(BaseModel):
+    model_config = STRIP_BODY_CONFIG
+    name: str = Field(..., min_length=1)
+
+
+class MergeBody(BaseModel):
+    model_config = BODY_CONFIG
+    source_id: int = Field(..., ge=1)
 
 
 class MapBody(BaseModel):
-    model_config = MAP_BODY_CONFIG
+    model_config = STRIP_BODY_CONFIG
     name: str = Field(..., min_length=1)
 
 
