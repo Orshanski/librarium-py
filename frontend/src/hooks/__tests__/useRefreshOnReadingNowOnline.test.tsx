@@ -72,4 +72,25 @@ describe("useRefreshOnReadingNowOnline", () => {
 
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it("вызывается повторно при цикле online→offline→online (нестабильное соединение)", () => {
+    setOnline(true);
+    const spy = vi.spyOn(refreshModule, "refreshOfflineSnapshots").mockResolvedValue();
+    renderHook(({ on }: { on: boolean }) => useRefreshOnReadingNowOnline(on), {
+      initialProps: { on: true },
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      setOnline(false);
+      fireOnlineEvent("offline");
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      setOnline(true);
+      fireOnlineEvent("online");
+    });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
 });

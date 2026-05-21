@@ -159,7 +159,7 @@ export function SidebarContent({
             {shelvesLoading && shelves.length === 0 && (
               <div style={{ ...linkBase, color: colors.textDim, cursor: "default" }}>Загрузка...</div>
             )}
-            {shelvesError && !shelvesLoading && (
+            {shelvesError && !shelvesLoading && shelves.length === 0 && (
               <div
                 role="alert"
                 style={{ ...linkBase, color: colors.danger, cursor: "default" }}
