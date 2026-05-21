@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import aiosql
 
@@ -32,7 +32,8 @@ def create_user(db: sqlite3.Connection, username: str, password: str, role="read
 
 
 def update_user(db: sqlite3.Connection, user_id: int, data: UserUpdateData) -> None:
-    sets, params = [], {"id": user_id}
+    sets: list[str] = []
+    params: dict[str, Any] = {"id": user_id}
     if "displayName" in data:
         sets.append("display_name = :dn")
         params["dn"] = data["displayName"]

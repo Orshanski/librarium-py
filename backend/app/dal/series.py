@@ -19,7 +19,7 @@ def list_series_options(db: sqlite3.Connection, *, user_id: int, filters: Catalo
     where, params = build_book_where(filters, user_id=user_id, exclude="seriesIds")
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.list_series_options.sql.replace("{where_clause}", where)
-    return dicts_from_rows(db.execute(final_sql, params).fetchall())
+    return cast(list[FilterOptionRow], dicts_from_rows(db.execute(final_sql, params).fetchall()))
 
 
 def get_series(db: sqlite3.Connection, *, user_id: int, author_ids: list[int] | None = None, tag_ids: list[int] | None = None, language: list[str] | None = None) -> SeriesList:
@@ -50,7 +50,7 @@ def get_series_by_id(db: sqlite3.Connection, series_id: int, user_id: int) -> Se
     for r in rows:
         parse_book_row_aggregates(r)
 
-    return {"series": s, "books": cast(list[EntityBookRow], rows)}
+    return cast(SeriesDetailRow, {"series": s, "books": cast(list[EntityBookRow], rows)})
 
 
 def get_or_create_series(db: sqlite3.Connection, name: str) -> int:

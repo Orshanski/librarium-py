@@ -1,7 +1,7 @@
 import os
 import zipfile
 import logging
-from lxml import etree
+from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from .. import xml_safe
 from . import ParsedMetadata, normalize_language
 

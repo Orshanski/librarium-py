@@ -11,7 +11,7 @@ DoS, сетевые запросы во внутренние ресурсы че
 from pathlib import Path
 from typing import Union
 
-from lxml import etree
+from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 
 
 def _make_parser() -> etree.XMLParser:

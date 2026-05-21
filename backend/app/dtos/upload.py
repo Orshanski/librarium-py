@@ -44,7 +44,7 @@ class CreateBookBody(BaseModel):
     model_config = BODY_CONFIG
 
     temp_id: TempIdStr
-    metadata: CreateBookMetadataIn = Field(default_factory=CreateBookMetadataIn)
+    metadata: CreateBookMetadataIn = Field(default_factory=CreateBookMetadataIn)  # pyright: ignore[reportArgumentType]
 
 
 class AddFormatBody(BaseModel):

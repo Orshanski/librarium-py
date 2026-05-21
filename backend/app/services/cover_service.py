@@ -5,7 +5,7 @@ import os
 import sqlite3
 import zipfile
 
-from lxml import etree
+from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from PIL import Image
 
 from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
@@ -211,7 +211,7 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
         try:
             ratio = _THUMB_HEIGHT / original.height
             new_size = (int(original.width * ratio), _THUMB_HEIGHT)
-            resized = original.resize(new_size, Image.LANCZOS)
+            resized = original.resize(new_size, Image.Resampling.LANCZOS)
         finally:
             original.close()
         try:

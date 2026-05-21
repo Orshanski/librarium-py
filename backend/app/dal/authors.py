@@ -36,7 +36,7 @@ def list_author_options(db: sqlite3.Connection, *, user_id: int, filters: Catalo
     where, params = build_book_where(filters, user_id=user_id, exclude="authorIds")
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.list_author_options.sql.replace("{where_clause}", where)
-    return dicts_from_rows(db.execute(final_sql, params).fetchall())
+    return cast(list[FilterOptionRow], dicts_from_rows(db.execute(final_sql, params).fetchall()))
 
 
 def get_author_by_id(db: sqlite3.Connection, author_id: int, user_id: int) -> AuthorDetailRow | None:
@@ -48,7 +48,7 @@ def get_author_by_id(db: sqlite3.Connection, author_id: int, user_id: int) -> Au
     for r in rows:
         parse_book_row_aggregates(r)
 
-    return {"author": author, "books": cast(list[EntityBookRow], rows)}
+    return cast(AuthorDetailRow, {"author": author, "books": cast(list[EntityBookRow], rows)})
 
 
 def _generate_sort_name(name: str) -> str:
