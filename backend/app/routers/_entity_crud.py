@@ -49,11 +49,14 @@ def register_entity_crud(
 ) -> None:
     """Register 4 shared CRUD endpoints on ``router``.
 
-    Required service functions:
+    Required service functions (всегда, независимо от ``register_get``):
       - ``rename_<label>(db, id, name) → bool``
       - ``merge_<label>s(db, target, source) → bool`` (plural for authors) or
         ``merge_<label>(db, target, source) → bool`` (series; singular=plural)
       - ``delete_<label>(db, id) → None``
+      - ``get_<label>_name(db, id) → str`` — re-read из БД после успешного
+        rename для unified payload события ``*Renamed``. Raises NotFoundError
+        если запись пропала между rename и re-read.
       Service functions raise custom domain exceptions (NotFoundError,
       BadInputError) — middleware handles HTTP maps.
 
@@ -71,9 +74,10 @@ def register_entity_crud(
         no annotation is added (backward compat for tests/routers that call
         the factory without a model).
       - ``register_get``: when False, GET /{entity_id} is not registered, and
-        ``get_<entity_label>`` is not required from the service module. Used by
-        tags router which has a custom filtered GET. Default True preserves
-        existing authors/series behavior.
+        ``get_<entity_label>`` (the GET handler service-function) is not required.
+        ``get_<entity_label>_name`` is still required (re-read for *Renamed
+        payload). Used by tags router which has a custom filtered GET. Default
+        True preserves existing authors/series behavior.
     """
     rename_fn = getattr(service, f"rename_{entity_label}")
     # authors → merge_authors (plural); series → merge_series (singular == plural).
