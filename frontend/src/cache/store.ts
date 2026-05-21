@@ -1,4 +1,4 @@
-import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList } from "@/domain/read-models";
+import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList } from "@/domain/read-models";
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
 
@@ -144,7 +144,10 @@ export class MetadataCacheStore {
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
     this.updateBookListEntries((entry) => {
-      if (!entry.context || entry.context.source === "search") return { delete: true };
+      if (!entry.context) return { delete: true };
+      if (classifySeriesRenameForBookList(entry.context) === "structural") {
+        return { delete: true };
+      }
       return {
         value: {
           ...entry.value,

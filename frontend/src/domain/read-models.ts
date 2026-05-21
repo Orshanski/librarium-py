@@ -106,6 +106,17 @@ export function classifyAuthorRenameForBookList(context: BookListContext): Valid
   return context.sort === "authorAsc" || context.sort === "authorDesc" ? "structural" : "patchable";
 }
 
+export function classifySeriesRenameForBookList(context: BookListContext): ValidityDecision {
+  if (context.source === "search") return "structural";
+  // На странице серии (series-detail) все строки списка — этой же серии;
+  // rename имени серии не меняет порядок строк (сортировка seriesNumber — по числовому
+  // полю книги, не зависит от имени серии).
+  if (context.source === "series-detail") return "patchable";
+  // В BookListSort нет сортировок по имени серии (seriesAsc/seriesDesc отсутствуют),
+  // поэтому переименование серии в принципе не может сломать сортировку никакой записи.
+  return "patchable";
+}
+
 export function classifyShelfMembershipForContext(
   context: { source: BookListSource; shelfId?: number },
   event: { shelfId: number },
