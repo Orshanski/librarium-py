@@ -246,7 +246,7 @@ describe("ShelfPage", () => {
     });
   });
 
-  it("does not carry locally removed book ids across shelf navigation", async () => {
+  it("removed books do not reappear when navigating between shelves", async () => {
     const user = userEvent.setup();
     server.use(
       http.get("/api/shelves/:id", ({ params }) => {
