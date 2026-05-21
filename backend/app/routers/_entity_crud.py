@@ -45,12 +45,14 @@ def register_entity_crud(
     logger: logging.Logger,
     entity_label: str,
     detail_response_model: type[Any] | None = None,
+    register_get: bool = True,
 ) -> None:
     """Register 4 shared CRUD endpoints on ``router``.
 
     Parameters:
       - ``service``: entity service module (e.g. ``authors_service``). Must expose
-        ``get_<label>(db, id, user_id)``, ``rename_<label>(db, id, name)``,
+        ``get_<label>(db, id, user_id)`` (only when ``register_get=True``),
+        ``rename_<label>(db, id, name)``,
         ``merge_<label>s(db, target, source)`` (plural for authors) or
         ``merge_<label>(db, target, source)`` (series; singular=plural),
         ``delete_<label>(db, id)``. Service functions raise custom domain
@@ -63,8 +65,11 @@ def register_entity_crud(
         /{entity_id} response_model annotation (L4 Response DTOs). When None,
         no annotation is added (backward compat for tests/routers that call
         the factory without a model).
+      - ``register_get``: when False, GET /{entity_id} is not registered, and
+        ``get_<entity_label>`` is not required from the service module. Used by
+        tags router which has a custom filtered GET. Default True preserves
+        existing authors/series behavior.
     """
-    get_fn = getattr(service, f"get_{entity_label}")
     rename_fn = getattr(service, f"rename_{entity_label}")
     # authors → merge_authors (plural); series → merge_series (singular == plural).
     merge_fn = (
@@ -73,17 +78,19 @@ def register_entity_crud(
     )
     delete_fn = getattr(service, f"delete_{entity_label}")
 
-    get_kwargs: dict[str, Any] = {}
-    if detail_response_model is not None:
-        get_kwargs["response_model"] = detail_response_model
+    if register_get:
+        get_fn = getattr(service, f"get_{entity_label}")
+        get_kwargs: dict[str, Any] = {}
+        if detail_response_model is not None:
+            get_kwargs["response_model"] = detail_response_model
 
-    @router.get("/{entity_id}", **get_kwargs)
-    def get_entity(
-        entity_id: int,
-        user: Annotated[CurrentUser, Depends(get_current_user)],
-        db: Annotated[sqlite3.Connection, Depends(db_session)],
-    ):
-        return get_fn(db, entity_id, user.user_id)
+        @router.get("/{entity_id}", **get_kwargs)
+        def get_entity(
+            entity_id: int,
+            user: Annotated[CurrentUser, Depends(get_current_user)],
+            db: Annotated[sqlite3.Connection, Depends(db_session)],
+        ):
+            return get_fn(db, entity_id, user.user_id)
 
     @router.put("/{entity_id}", response_model=OkResponse)
     def rename_entity(

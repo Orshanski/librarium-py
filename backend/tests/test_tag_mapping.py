@@ -418,3 +418,90 @@ class TestDTOTightening:
     def test_merge_authors_rejects_zero_source_id(self, admin_client):
         resp = admin_client.post("/api/authors/1/merge", json={"sourceId": 0})
         assert resp.status_code == 422
+
+
+class TestRegisterGetParameter:
+    """Когда `register_get=False`, фабрика не регистрирует GET и не требует
+    `get_<entity_label>` от service-модуля.
+
+    Тест строится на новом APIRouter + минимальный мок-service, чтобы
+    проверить именно factory-поведение в изоляции (не зацепить existing
+    series/authors GET handlers)."""
+
+    def test_register_get_false_skips_get_endpoint(self, admin_client):
+        from fastapi import APIRouter
+        from fastapi.routing import APIRoute
+        from app.routers._entity_crud import register_entity_crud
+        import logging
+
+        class MockService:
+            @staticmethod
+            def rename_tag(db, id, name):
+                return True
+
+            @staticmethod
+            def merge_tag(db, target, source):
+                return True
+
+            @staticmethod
+            def delete_tag(db, id):
+                return None
+
+            @staticmethod
+            def get_tag_name(db, id):
+                return "stub"
+
+        router = APIRouter()
+        register_entity_crud(
+            router,
+            service=MockService,
+            logger=logging.getLogger("test"),
+            entity_label="tag",
+            register_get=False,
+        )
+        # Routes registered должны быть только PUT, POST .../merge, DELETE — без GET /{entity_id}
+        methods_paths = {(r.path, tuple(sorted(r.methods))) for r in router.routes if isinstance(r, APIRoute)}
+        assert ("/{entity_id}", ("PUT",)) in methods_paths
+        assert ("/{entity_id}/merge", ("POST",)) in methods_paths
+        assert ("/{entity_id}", ("DELETE",)) in methods_paths
+        # GET /{entity_id} НЕ зарегистрирован
+        assert not any(path == "/{entity_id}" and "GET" in methods for path, methods in methods_paths)
+
+    def test_register_get_true_includes_get_endpoint(self, admin_client):
+        """Default register_get=True сохраняет existing behavior (series/authors call-sites)."""
+        from fastapi import APIRouter
+        from fastapi.routing import APIRoute
+        from app.routers._entity_crud import register_entity_crud
+        import logging
+
+        class MockService:
+            @staticmethod
+            def get_tag(db, id, user_id):
+                return {"id": id}
+
+            @staticmethod
+            def rename_tag(db, id, name):
+                return True
+
+            @staticmethod
+            def merge_tag(db, target, source):
+                return True
+
+            @staticmethod
+            def delete_tag(db, id):
+                return None
+
+            @staticmethod
+            def get_tag_name(db, id):
+                return "stub"
+
+        router = APIRouter()
+        register_entity_crud(
+            router,
+            service=MockService,
+            logger=logging.getLogger("test"),
+            entity_label="tag",
+            # register_get default = True
+        )
+        methods_paths = {(r.path, tuple(sorted(r.methods))) for r in router.routes if isinstance(r, APIRoute)}
+        assert any(path == "/{entity_id}" and "GET" in methods for path, methods in methods_paths)
