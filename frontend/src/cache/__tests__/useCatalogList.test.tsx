@@ -418,4 +418,55 @@ describe("useCatalogList", () => {
     await screen.findByText("Second");
     expect(screen.getByTestId("loadingMore").textContent).toBe("false");
   });
+
+  it("loadMore stale success after invalidation does not reset a successor's loadingMore guard", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const staleSuccess = deferred<{ books: Book[]; hasMore: boolean }>();
+    const successor = deferred<{ books: Book[]; hasMore: boolean }>();
+    const thirdGuard = deferred<{ books: Book[]; hasMore: boolean }>();
+    const spy = vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(staleSuccess.promise)
+      .mockReturnValueOnce(successor.promise)
+      .mockReturnValueOnce(thirdGuard.promise);
+
+    render(<Harness store={store} params={baseParams} />);
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    // Invalidate while the first loadMore is in flight. Reset effect clears loadingMore.
+    await act(async () => {
+      store.invalidate("books");
+      // Reseed so successor's `current = store.get(...)` is defined.
+      store.set("books", "/", seeded, { context: CTX });
+    });
+
+    // Successor loadMore starts on the next click.
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    // The stale (pre-invalidate) success now resolves. Its `.then` version check rejects → must NOT
+    // reset the ref/state of the successor.
+    staleSuccess.resolve({ books: [{ id: 2, title: "Stale" } as Book], hasMore: false });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    // Ref-guard discriminator: a third click MUST be rejected. If the stale .then stomped
+    // loadingMoreRef.current = false, this click would pass the guard and start a parallel
+    // fetch against the same cursor — exactly the bug the regression check is pinning.
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    // Successor resolves cleanly.
+    successor.resolve({ books: [{ id: 3, title: "Real" } as Book], hasMore: false });
+    await screen.findByText("Real");
+    expect(screen.getByTestId("loadingMore").textContent).toBe("false");
+    expect(screen.queryByText("Stale")).toBeNull();
+  });
 });

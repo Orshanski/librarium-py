@@ -124,9 +124,12 @@ export function useCatalogList(
     return () => controller.abort();
   }, [store, params.urlKey, params.context, invalidationVersion]);
 
-  // Reset loadingMore whenever the books bucket is invalidated. The loadMore .then() that
-  // detects a version mismatch deliberately skips its own setLoadingMore(false) — this effect
-  // owns that transition, so the next loadMore is not blocked by the stale guard.
+  // Reset loadingMore whenever the books bucket is invalidated. This effect OWNS both
+  // setLoadingMore(false) AND loadingMoreRef.current = false on invalidation. The
+  // loadMore .then()/.catch() early-return branches (version mismatch / missing baseline)
+  // do NOT touch either — otherwise a stale resolution after a successor loadMore has
+  // started would stomp the successor's guard and allow a parallel duplicate fetch.
+  // Only the natural-completion success branch in .then resets both.
   useEffect(() => {
     loadingMoreRef.current = false;
     setLoadingMore(false);
@@ -150,15 +153,9 @@ export function useCatalogList(
     setLoadingMore(true);
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
-        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) {
-          loadingMoreRef.current = false;
-          return;
-        }
+        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
         const baseline = store.get<CatalogEntry>("books", params.urlKey);
-        if (!baseline) {
-          loadingMoreRef.current = false;
-          return;
-        }
+        if (!baseline) return;
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
         store.set("books", params.urlKey, next, { context: params.context });
         loadingMoreRef.current = false;
