@@ -151,7 +151,9 @@ export class MetadataCacheStore {
           const books = booksField as BookListRow[];
           const alreadyPresent = books.some((row) => row.id === book.id);
           if (!alreadyPresent) {
-            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as BookListRow] } });
+            // Book structurally satisfies BookListRow ({id: number} + extras), но Record<string, unknown> и
+            // конкретный interface Book не overlap-ятся в строгом смысле — TS требует unknown-промежуток.
+            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as unknown as BookListRow] } });
             changed = true;
           }
         }
