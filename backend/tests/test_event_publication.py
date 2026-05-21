@@ -688,11 +688,31 @@ def test_add_book_to_shelf_publishes_user_scoped_event(reader_client, captured_d
 
     assert_ok(reader_client.post(f"/api/shelves/{shelf_id}/books", json={"bookId": 1}))
 
-    _assert_single_user_event(
-        captured_domain_events,
-        "shelfMembershipChanged",
-        {"shelfId": shelf_id, "bookId": 1, "hasBook": True},
+    assert len(captured_domain_events) == 1
+    event_record = captured_domain_events[0]
+    assert event_record["scope"] == {"kind": "user", "userId": 2}
+    assert event_record["event"]["type"] == "shelfMembershipChanged"
+
+    payload = event_record["event"]["payload"]
+    assert payload["shelfId"] == shelf_id
+    assert payload["bookId"] == 1
+    assert payload["hasBook"] is True
+
+    book = payload["book"]
+    assert book["id"] == 1
+    assert isinstance(book["title"], str)
+    assert isinstance(book["authors"], list)
+    # Каждый элемент authors[] — это сериализованный AuthorRef со shape {id: int, name: str}
+    assert all(
+        isinstance(a, dict) and isinstance(a.get("id"), int) and isinstance(a.get("name"), str)
+        for a in book["authors"]
     )
+    assert "series" in book  # SeriesRef | None — field present, value may be None
+    assert "seriesNumber" in book  # float | None — field present, value may be None
+    assert isinstance(book["coverPath"], str)
+    assert book["coverPath"].startswith("/api/covers/1")
+    assert "rating" in book  # int | None — field present (user-scoped)
+    assert isinstance(book["isRead"], bool)  # user-scoped field present
 
 
 def test_remove_book_from_shelf_publishes_user_scoped_event(reader_client, captured_domain_events):

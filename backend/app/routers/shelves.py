@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 import logging
 import sqlite3
 
@@ -11,7 +11,7 @@ from ..dtos.catalog import UserSort
 from ..dtos.shelves import ShelfBody, ShelfBookBody, ShelfDetailResponse, ShelvesListResponse
 from ..events import EventScope, publish_domain_event_after_commit
 from ..logging_utils import safe as safe_log
-from ..services import shelves_service
+from ..services import book_service, shelves_service
 
 log = logging.getLogger("librarium.shelves")
 router = APIRouter(prefix="/api/shelves", tags=["shelves"])
@@ -80,11 +80,22 @@ def delete_shelf(shelf_id: int, user: Annotated[CurrentUser, Depends(get_current
 def add_book(shelf_id: int, body: ShelfBookBody, user: Annotated[CurrentUser, Depends(get_current_user)], db: Annotated[sqlite3.Connection, Depends(db_session)]):
     changed = shelves_service.add_book_changed(db, shelf_id, user.user_id, body.book_id)
     if changed:
+        payload: dict[str, Any] = {"shelfId": shelf_id, "bookId": body.book_id, "hasBook": True}
+        card = book_service.get_book_card_item_or_none(db, body.book_id, user.user_id)
+        if card is not None:
+            payload["book"] = card.model_dump(by_alias=True)
+        else:
+            # Аномалия: changed=True означает что книга только что прошла add — карточка обязана быть.
+            # Тихо опускаем поле, frontend откатится к инвалидации; пишем warning для мониторинга.
+            log.warning(
+                "shelfMembershipChanged add без карточки книги: shelf_id=%d book_id=%d user_id=%s",
+                shelf_id, body.book_id, user.user_id,
+            )
         publish_domain_event_after_commit(
             db,
             scope=EventScope(kind="user", user_id=user.user_id),
             event_type="shelfMembershipChanged",
-            payload={"shelfId": shelf_id, "bookId": body.book_id, "hasBook": True},
+            payload=payload,
         )
     return OkResponse()
 

@@ -303,4 +303,181 @@ describe("MetadataCacheStore", () => {
     expect(sessionStorage.getItem("librarium_metadata_cache_books")).toBeNull();
     expect(sessionStorage.getItem("librarium_scroll_state")).toBe("[]");
   });
+
+  it("applyShelfMembershipChange remove-case фильтрует книгу из массива", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }],
+    });
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const result = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
+    expect(result?.books).toHaveLength(1);
+    expect(result?.books[0].id).toBe(2);
+  });
+
+  it("applyShelfMembershipChange add-case с book добавляет карточку", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+
+    store.applyShelfMembershipChange({
+      shelfId: 42,
+      bookId: 3,
+      hasBook: true,
+      book: { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false },
+    });
+
+    const result = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
+    expect(result?.books).toHaveLength(2);
+    expect(result?.books[1].id).toBe(3);
+  });
+
+  it("applyShelfMembershipChange add-case dedup при повторном применении (длина массива не меняется)", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    const book = { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false };
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true, book });
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true, book });
+
+    const result = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
+    expect(result?.books).toHaveLength(2);
+  });
+
+  it("applyShelfMembershipChange add-case без book инвалидирует запись полки", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true });
+
+    expect(store.get("shelf/42", "/api/shelves/42")).toBeUndefined();
+  });
+
+  it("applyShelfMembershipChange не трогает другие namespaces", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "Shelf 42" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    store.set("shelf/43", "/api/shelves/43", {
+      shelf: { id: 43, name: "Shelf 43" },
+      books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }],
+    });
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const other = store.get<{ books: { id: number }[] }>("shelf/43", "/api/shelves/43");
+    expect(other?.books).toHaveLength(2);
+  });
+
+  it("applyShelfMembershipChange обновляет все entries под разными URL-ключами в одном namespace", () => {
+    store.set("shelf/42", "/api/shelves/42?sort=addedDesc", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }],
+    });
+    store.set("shelf/42", "/api/shelves/42?sort=titleAsc", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }],
+    });
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const entry1 = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42?sort=addedDesc");
+    const entry2 = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42?sort=titleAsc");
+    expect(entry1?.books).toHaveLength(1);
+    expect(entry2?.books).toHaveLength(1);
+  });
+
+  it("applyShelfMembershipChange сохраняет в sessionStorage после правки", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }, { id: 2, title: "Book B" }],
+    });
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    const raw = sessionStorage.getItem("librarium_metadata_cache_shelf/42");
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as Record<string, { value: { books: { id: number }[] } }>;
+    expect(parsed["/api/shelves/42"].value.books).toHaveLength(1);
+    expect(parsed["/api/shelves/42"].value.books[0].id).toBe(2);
+  });
+
+  it("applyShelfRename обновляет shelf.name во всех записях namespace", () => {
+    store.set("shelf/42", "/api/shelves/42?sort=addedDesc", {
+      shelf: { id: 42, name: "Old Name" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    // Запись без поля books (например, другой shape)
+    store.set("shelf/42", "/api/shelves/42/meta", {
+      shelf: { id: 42, name: "Old Name" },
+    });
+
+    store.applyShelfRename({ shelfId: 42, name: "New Name" });
+
+    const entry1 = store.get<{ shelf: { name: string } }>("shelf/42", "/api/shelves/42?sort=addedDesc");
+    const entry2 = store.get<{ shelf: { name: string } }>("shelf/42", "/api/shelves/42/meta");
+    expect(entry1?.shelf.name).toBe("New Name");
+    expect(entry2?.shelf.name).toBe("New Name");
+  });
+
+  it("applyShelfRename не трогает другие namespaces", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "Shelf 42" },
+      books: [],
+    });
+    store.set("shelf/43", "/api/shelves/43", {
+      shelf: { id: 43, name: "Shelf 43" },
+      books: [],
+    });
+
+    store.applyShelfRename({ shelfId: 42, name: "Renamed" });
+
+    const other = store.get<{ shelf: { name: string } }>("shelf/43", "/api/shelves/43");
+    expect(other?.shelf.name).toBe("Shelf 43");
+  });
+
+  it("applyShelfMembershipChange уведомляет подписчиков namespace", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    const handler = vi.fn();
+    store.subscribe("shelf/42", handler);
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    expect(handler).toHaveBeenCalled();
+  });
+
+  it("applyShelfMembershipChange add без book инкрементирует invalidationVersion", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    const before = store.invalidationVersion("shelf/42");
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true });
+
+    expect(store.invalidationVersion("shelf/42")).toBe(before + 1);
+  });
+
+  it("applyShelfRename уведомляет подписчиков namespace", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "Old" },
+      books: [],
+    });
+    const handler = vi.fn();
+    store.subscribe("shelf/42", handler);
+
+    store.applyShelfRename({ shelfId: 42, name: "New" });
+
+    expect(handler).toHaveBeenCalled();
+  });
 });

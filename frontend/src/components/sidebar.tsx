@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useAuth } from "../auth";
 import { colors, layout } from "../theme";
 import { listShelves, createShelf as apiCreateShelf, type Shelf } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey } from "../config/sort";
 import { domainEvents } from "@/domain/events";
+import { metadataCache, useCachedResource } from "@/cache";
 
 function shelfHref(shelf: Shelf): string {
   const key = shelfSortConfigKey(shelf.systemCode);
@@ -51,34 +52,34 @@ export function SidebarContent({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [shelves, setShelves] = useState<Shelf[]>([]);
   const [showNewShelf, setShowNewShelf] = useState(false);
   const [newShelfName, setNewShelfName] = useState("");
   const me = { name: user?.displayName || user?.username || "", role: user?.role || "" };
 
-  const fetchShelves = useCallback(() => {
-    listShelves()
-      .then((data) => setShelves(data.shelves))
-      .catch((err) => console.warn("Failed to fetch shelves:", err));
-  }, []);
-
-  useEffect(() => {
-    fetchShelves();
-    const handler = () => fetchShelves();
-    globalThis.addEventListener("shelves-changed", handler);
-    return () => globalThis.removeEventListener("shelves-changed", handler);
-  }, [fetchShelves]);
+  // Список полок — реактивный через store. Любой shelf*-event (включая SSE
+  // с другого устройства) инвалидирует namespace 'shelves' через handlers,
+  // useCachedResource перезагружает данные, Sidebar перерисовывается автоматически.
+  const shelvesResource = useCachedResource(
+    metadataCache,
+    "shelves",
+    "all",
+    (signal) => listShelves(undefined, signal).then((data) => data.shelves),
+  );
+  const shelves: Shelf[] = shelvesResource.data ?? [];
+  const shelvesLoading = shelvesResource.loading;
+  const shelvesError = shelvesResource.error;
 
   async function createShelf() {
     if (!newShelfName.trim()) return;
     try {
       const name = newShelfName.trim();
       const { id } = await apiCreateShelf(name);
-      setShelves([...shelves, { id, name, isSystem: false, bookCount: 0 }]);
       setNewShelfName("");
       setShowNewShelf(false);
+      // publish → handler инвалидирует 'shelves' в store → useCachedResource refetch.
+      // Локальный оптимистичный setShelves удалён намеренно: согласовано с «store first»,
+      // короткая пауза до refetch (~RTT) принята как компромисс.
       domainEvents.publish("shelfCreated", { shelfId: id, name });
-      globalThis.dispatchEvent(new Event("shelves-changed"));
       onNavigate?.();
     } catch (err) {
       console.warn("Failed to create shelf:", err);
@@ -155,6 +156,17 @@ export function SidebarContent({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {shelvesLoading && shelves.length === 0 && (
+              <div style={{ ...linkBase, color: colors.textDim, cursor: "default" }}>Загрузка...</div>
+            )}
+            {shelvesError && !shelvesLoading && shelves.length === 0 && (
+              <div
+                role="alert"
+                style={{ ...linkBase, color: colors.danger, cursor: "default" }}
+              >
+                Не удалось загрузить полки
+              </div>
+            )}
             {shelves.map((shelf) => (
               <Link
                 key={shelf.id}

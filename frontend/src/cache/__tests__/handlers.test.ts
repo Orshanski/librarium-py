@@ -1,7 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { domainEvents } from "@/domain/events";
+import type { DomainEventMap } from "@/domain/events";
+import type { Book } from "@/types";
 import { MetadataCacheStore } from "../store";
 import { registerMetadataCacheHandlers } from "../handlers";
+
+function makeBook(id: number, title: string): Book {
+  return {
+    id,
+    title,
+    authors: [],
+    series: null,
+    seriesNumber: null,
+    coverPath: "",
+    rating: null,
+    isRead: false,
+  };
+}
 
 describe("metadata cache handlers", () => {
   let store: MetadataCacheStore;
@@ -77,7 +92,6 @@ describe("metadata cache handlers", () => {
       files: [],
       identifiers: [],
     });
-    store.set("shelf/best", "default", { books: [{ id: 10 }], hasMore: false });
 
     domainEvents.publish("bookRatingChanged", { bookId: 10, rating: 5 });
 
@@ -87,9 +101,7 @@ describe("metadata cache handlers", () => {
       rating: 5,
       isRead: false,
     });
-    expect(store.get("shelf/best", "default")).toBeUndefined();
 
-    store.set("shelf/reading-now", "default", { books: [{ id: 10 }], hasMore: false });
     domainEvents.publish("bookReadChanged", { bookId: 10, isRead: true });
 
     expect(store.get<{ books: { isRead: boolean }[] }>("books", "rating")?.books[0].isRead).toBe(true);
@@ -98,7 +110,6 @@ describe("metadata cache handlers", () => {
       rating: 5,
       isRead: true,
     });
-    expect(store.get("shelf/reading-now", "default")).toBeUndefined();
   });
 
   it("invalidates stale book detail when book update has no fresh detail", () => {
@@ -179,14 +190,59 @@ describe("metadata cache handlers", () => {
 
   it("invalidates shelves summary on shelf membership changes", () => {
     store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
-    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 10 }] });
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 10 }, { id: 99 }] });
     store.set("book-shelves/10", "all", { shelves: [{ id: 3 }] });
 
     domainEvents.publish("shelfMembershipChanged", { shelfId: 3, bookId: 10, hasBook: false });
 
     expect(store.get("shelves", "all")).toBeUndefined();
-    expect(store.get("shelf/3", "detail")).toBeUndefined();
     expect(store.get("book-shelves/10", "all")).toBeUndefined();
+
+    const shelfEntry = store.get<{ shelf: { id: number }; books: { id: number }[] }>("shelf/3", "detail");
+    expect(shelfEntry).not.toBeUndefined();
+    expect(shelfEntry?.books.some((b) => b.id === 10)).toBe(false);
+    expect(shelfEntry?.books.some((b) => b.id === 99)).toBe(true);
+  });
+
+  it("shelfMembershipChanged hasBook=true с полем book добавляет карточку в shelf/{id} entry", () => {
+    store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+    store.set("book-shelves/20", "all", { shelves: [] });
+
+    const payload: DomainEventMap["shelfMembershipChanged"] = {
+      shelfId: 3,
+      bookId: 20,
+      hasBook: true,
+      book: makeBook(20, "New"),
+    };
+    domainEvents.publish("shelfMembershipChanged", payload);
+
+    const shelfEntry = store.get<{ shelf: { id: number }; books: { id: number; title: string }[] }>("shelf/3", "detail");
+    expect(shelfEntry).not.toBeUndefined();
+    expect(shelfEntry?.books.some((b) => b.id === 20)).toBe(true);
+    expect(shelfEntry?.books.find((b) => b.id === 20)?.title).toBe("New");
+    // Сопутствующие инвалидации сохраняются независимо от ветки hasBook.
+    expect(store.get("shelves", "all")).toBeUndefined();
+    expect(store.get("book-shelves/20", "all")).toBeUndefined();
+  });
+
+  it("shelfMembershipChanged hasBook=true без book инвалидирует shelf/{id}", () => {
+    store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+    store.set("book-shelves/20", "all", { shelves: [] });
+    const beforeInvalidation = store.invalidationVersion("shelf/3");
+
+    const payload: DomainEventMap["shelfMembershipChanged"] = {
+      shelfId: 3,
+      bookId: 20,
+      hasBook: true,
+    };
+    domainEvents.publish("shelfMembershipChanged", payload);
+
+    expect(store.get("shelf/3", "detail")).toBeUndefined();
+    expect(store.invalidationVersion("shelf/3")).toBe(beforeInvalidation + 1);
+    expect(store.get("shelves", "all")).toBeUndefined();
+    expect(store.get("book-shelves/20", "all")).toBeUndefined();
   });
 
   it("handles author, series, tag, shelf, rating, read, and progress events", () => {
@@ -247,9 +303,12 @@ describe("metadata cache handlers", () => {
     domainEvents.publish("shelfCreated", { shelfId: 5, name: "New shelf" });
     expect(store.get("shelves", "all")).toBeUndefined();
 
-    store.set("shelf/4", "detail", { shelf: { id: 4, name: "Shelf" } });
+    store.set("shelf/4", "detail", { shelf: { id: 4, name: "Shelf" }, books: [] });
     domainEvents.publish("shelfRenamed", { shelfId: 4, name: "Renamed" });
-    expect(store.get("shelf/4", "detail")).toBeUndefined();
+    const renamedShelf = store.get<{ shelf: { id: number; name: string }; books: unknown[] }>("shelf/4", "detail");
+    expect(renamedShelf).not.toBeUndefined();
+    expect(renamedShelf?.shelf.name).toBe("Renamed");
+    expect(store.get("shelves", "all")).toBeUndefined();
 
     store.set("books", "rating", { books: [{ id: 10, rating: 1, isRead: false }], hasMore: false }, {
       context: { kind: "book-list", key: "rating", source: "catalog", sort: "addedDesc" },
@@ -264,7 +323,6 @@ describe("metadata cache handlers", () => {
     expect(store.get<{ books: { isRead: boolean }[] }>("books", "rating")?.books[0].isRead).toBe(true);
     expect(store.get<{ book: { isRead: boolean } }>("book/10", "detail")?.book.isRead).toBe(true);
 
-    store.set("shelf/reading-now", "default", { books: [{ id: 10 }], hasMore: false });
     store.set("shelf/2", "/shelves/2?sort=lastReadDesc", { books: [{ id: 10, fraction: 0.2 }], hasMore: false }, {
       context: {
         kind: "book-list",
@@ -281,7 +339,6 @@ describe("metadata cache handlers", () => {
       hasPosition: true,
       lastReadAtChanged: true,
     });
-    expect(store.get("shelf/reading-now", "default")).toBeUndefined();
     expect(store.get("shelf/2", "/shelves/2?sort=lastReadDesc")).toBeUndefined();
     expect(store.get("shelf/7", "/shelves/7")).toBeUndefined();
   });

@@ -44,7 +44,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`book-shelves/${payload.bookId}`);
     }),
     bus.subscribe("shelfMembershipChanged", (payload) => {
-      store.invalidate(`shelf/${payload.shelfId}`);
+      store.applyShelfMembershipChange(payload);
       store.invalidate(`book-shelves/${payload.bookId}`);
       store.invalidate("shelves");
     }),
@@ -108,7 +108,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
     }),
     bus.subscribe("shelfRenamed", (payload) => {
       store.invalidate("shelves");
-      store.invalidate(`shelf/${payload.shelfId}`);
+      store.applyShelfRename(payload);
     }),
     bus.subscribe("shelfDeleted", (payload) => {
       store.invalidate("shelves");
@@ -117,14 +117,18 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidateNamespacePrefix("book-shelves/");
     }),
     bus.subscribe("bookRatingChanged", (payload) => {
+      // applyBookUpdate проходит по всем книгосписковым entries; для записей с
+      // source=shelf-best классификатор classifyBookUpdateForBookList помечает
+      // изменение rating как структурное и удаляет entry. Отдельная инвалидация
+      // фиксированного ключа shelf/best не нужна — туда никто не пишет.
       store.applyBookUpdate({ book: { id: payload.bookId, rating: payload.rating }, changedFields: ["rating"] });
       patchCachedBookDetail(store, payload.bookId, { rating: payload.rating });
-      store.invalidate("shelf/best");
     }),
     bus.subscribe("bookReadChanged", (payload) => {
+      // Аналогично: source=shelf-reading-now + изменение read — структурное
+      // удаление через applyBookUpdate. Фиксированный shelf/reading-now мёртв.
       store.applyBookUpdate({ book: { id: payload.bookId, isRead: payload.isRead }, changedFields: ["read"] });
       patchCachedBookDetail(store, payload.bookId, { isRead: payload.isRead });
-      store.invalidate("shelf/reading-now");
     }),
     bus.subscribe("bookHiddenChanged", (payload) => {
       store.invalidateBookLists();

@@ -15,6 +15,7 @@ from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
+from ..dtos.book_card import BookCardItem
 from .book_file_writer import _safe_ext, prepare_book_format_path, register_and_linearize
 from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
@@ -145,6 +146,19 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
         files=files,
         identifiers=identifiers,
     )
+
+
+def get_book_card_item_or_none(db: sqlite3.Connection, book_id: int, user_id: int) -> BookCardItem | None:
+    """Return a BookCardItem for book_id/user_id, or None if the book is absent.
+
+    Used by the shelves router to embed the card in the shelfMembershipChanged payload
+    after a successful add — avoids a direct DAL import in the router layer.
+    """
+    row = dal.get_book_by_id(db, book_id, user_id)
+    if row is None:
+        return None
+    # sqlite3.Row is dict-like but not dict; cast satisfies row_to_book_card_item's dict parameter.
+    return row_to_book_card_item(cast(dict, row))
 
 
 def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, str]]:
