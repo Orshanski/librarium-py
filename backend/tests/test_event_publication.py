@@ -702,6 +702,11 @@ def test_add_book_to_shelf_publishes_user_scoped_event(reader_client, captured_d
     assert book["id"] == 1
     assert isinstance(book["title"], str)
     assert isinstance(book["authors"], list)
+    # Каждый элемент authors[] — это сериализованный AuthorRef со shape {id: int, name: str}
+    assert all(
+        isinstance(a, dict) and isinstance(a.get("id"), int) and isinstance(a.get("name"), str)
+        for a in book["authors"]
+    )
     assert "series" in book  # SeriesRef | None — field present, value may be None
     assert "seriesNumber" in book  # float | None — field present, value may be None
     assert isinstance(book["coverPath"], str)
