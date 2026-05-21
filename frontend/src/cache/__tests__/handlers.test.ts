@@ -179,14 +179,46 @@ describe("metadata cache handlers", () => {
 
   it("invalidates shelves summary on shelf membership changes", () => {
     store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
-    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 10 }] });
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 10 }, { id: 99 }] });
     store.set("book-shelves/10", "all", { shelves: [{ id: 3 }] });
 
     domainEvents.publish("shelfMembershipChanged", { shelfId: 3, bookId: 10, hasBook: false });
 
     expect(store.get("shelves", "all")).toBeUndefined();
-    expect(store.get("shelf/3", "detail")).toBeUndefined();
     expect(store.get("book-shelves/10", "all")).toBeUndefined();
+
+    const shelfEntry = store.get<{ shelf: { id: number }; books: { id: number }[] }>("shelf/3", "detail");
+    expect(shelfEntry).not.toBeUndefined();
+    expect(shelfEntry?.books.some((b) => b.id === 10)).toBe(false);
+    expect(shelfEntry?.books.some((b) => b.id === 99)).toBe(true);
+  });
+
+  it("shelfMembershipChanged hasBook=true с полем book добавляет карточку в shelf/{id} entry", () => {
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+
+    domainEvents.publish("shelfMembershipChanged", {
+      shelfId: 3,
+      bookId: 20,
+      hasBook: true,
+      book: { id: 20, title: "New" } as never,
+    });
+
+    const shelfEntry = store.get<{ shelf: { id: number }; books: { id: number; title: string }[] }>("shelf/3", "detail");
+    expect(shelfEntry).not.toBeUndefined();
+    expect(shelfEntry?.books.some((b) => b.id === 20)).toBe(true);
+    expect(shelfEntry?.books.find((b) => b.id === 20)?.title).toBe("New");
+  });
+
+  it("shelfMembershipChanged hasBook=true без book инвалидирует shelf/{id}", () => {
+    store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+
+    domainEvents.publish("shelfMembershipChanged", {
+      shelfId: 3,
+      bookId: 20,
+      hasBook: true,
+    });
+
+    expect(store.get("shelf/3", "detail")).toBeUndefined();
   });
 
   it("handles author, series, tag, shelf, rating, read, and progress events", () => {
@@ -247,9 +279,12 @@ describe("metadata cache handlers", () => {
     domainEvents.publish("shelfCreated", { shelfId: 5, name: "New shelf" });
     expect(store.get("shelves", "all")).toBeUndefined();
 
-    store.set("shelf/4", "detail", { shelf: { id: 4, name: "Shelf" } });
+    store.set("shelf/4", "detail", { shelf: { id: 4, name: "Shelf" }, books: [] });
     domainEvents.publish("shelfRenamed", { shelfId: 4, name: "Renamed" });
-    expect(store.get("shelf/4", "detail")).toBeUndefined();
+    const renamedShelf = store.get<{ shelf: { id: number; name: string }; books: unknown[] }>("shelf/4", "detail");
+    expect(renamedShelf).not.toBeUndefined();
+    expect(renamedShelf?.shelf.name).toBe("Renamed");
+    expect(store.get("shelves", "all")).toBeUndefined();
 
     store.set("books", "rating", { books: [{ id: 10, rating: 1, isRead: false }], hasMore: false }, {
       context: { kind: "book-list", key: "rating", source: "catalog", sort: "addedDesc" },

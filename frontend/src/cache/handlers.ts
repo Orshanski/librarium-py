@@ -44,7 +44,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`book-shelves/${payload.bookId}`);
     }),
     bus.subscribe("shelfMembershipChanged", (payload) => {
-      store.invalidate(`shelf/${payload.shelfId}`);
+      store.applyShelfMembershipChange(payload);
       store.invalidate(`book-shelves/${payload.bookId}`);
       store.invalidate("shelves");
     }),
@@ -108,7 +108,7 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
     }),
     bus.subscribe("shelfRenamed", (payload) => {
       store.invalidate("shelves");
-      store.invalidate(`shelf/${payload.shelfId}`);
+      store.applyShelfRename(payload);
     }),
     bus.subscribe("shelfDeleted", (payload) => {
       store.invalidate("shelves");
