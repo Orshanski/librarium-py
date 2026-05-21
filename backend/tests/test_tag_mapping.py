@@ -205,3 +205,18 @@ class TestUploadMapping:
         tags = resp.json()["metadata"]["tags"]
         assert "sf_fantasy" not in tags
         assert "Фэнтези" in tags
+
+
+class TestRenameTagDAL:
+    def test_rename_changes_name(self, admin_client, db):
+        from app.dal.tags import rename_tag
+        rename_tag(db, tag_id=1, name="Новое фэнтези")
+        row = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
+        assert row["name"] == "Новое фэнтези"
+
+    def test_rename_does_not_affect_other_tags(self, admin_client, db):
+        from app.dal.tags import rename_tag
+        original_name_2 = db.execute("SELECT name FROM tags WHERE id = 2").fetchone()["name"]
+        rename_tag(db, tag_id=1, name="Какое-то новое имя")
+        new_name_2 = db.execute("SELECT name FROM tags WHERE id = 2").fetchone()["name"]
+        assert new_name_2 == original_name_2

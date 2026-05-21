@@ -177,3 +177,9 @@ def tag_exists(db: sqlite3.Connection, tag_id: int) -> bool:
 def get_tag_name(db: sqlite3.Connection, tag_id: int) -> str | None:
     row = queries.get_tag_name_by_id(db, id=tag_id)
     return row["name"] if row else None
+
+
+def rename_tag(db: sqlite3.Connection, tag_id: int, name: str) -> None:
+    """Rename tag to `name`. Caller is responsible for normalization and
+    existence checks — DAL is the thin SQL layer (симметрично dal.rename_series)."""
+    queries.update_tag_name(db, name=name, id=tag_id)
