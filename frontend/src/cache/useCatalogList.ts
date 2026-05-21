@@ -85,7 +85,7 @@ export function useCatalogList(
   useEffect(() => {
     if (entry !== undefined) {
       setLoading(false);
-      return undefined;
+      return;
     }
     const controller = new AbortController();
     const startedAtInvalidationVersion = store.invalidationVersion("books");
@@ -94,10 +94,11 @@ export function useCatalogList(
       .then((data) => {
         if (controller.signal.aborted) return;
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
+        const books = data.books ?? [];
         const next: CatalogEntry = {
-          books: data.books ?? [],
+          books,
           hasMore: data.hasMore ?? false,
-          cursor: (data.books ?? []).length,
+          cursor: books.length,
         };
         store.set("books", params.urlKey, next, { context: params.context });
         setLoading(false);

@@ -92,6 +92,7 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loading").textContent).toBe("true");
 
     await screen.findByText("Fresh");
+    expect(screen.getByTestId("loading").textContent).toBe("false");
     expect(spy).toHaveBeenCalledTimes(1);
     const callArg = spy.mock.calls[0][0];
     expect(callArg).toMatchObject({ sort: "addedDesc", cursor: 0, pageSize: 30 });
