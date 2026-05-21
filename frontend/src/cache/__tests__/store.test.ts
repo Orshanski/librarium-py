@@ -442,4 +442,42 @@ describe("MetadataCacheStore", () => {
     const other = store.get<{ shelf: { name: string } }>("shelf/43", "/api/shelves/43");
     expect(other?.shelf.name).toBe("Shelf 43");
   });
+
+  it("applyShelfMembershipChange уведомляет подписчиков namespace", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    const handler = vi.fn();
+    store.subscribe("shelf/42", handler);
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 1, hasBook: false });
+
+    expect(handler).toHaveBeenCalled();
+  });
+
+  it("applyShelfMembershipChange add без book инкрементирует invalidationVersion", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "My Shelf" },
+      books: [{ id: 1, title: "Book A" }],
+    });
+    const before = store.invalidationVersion("shelf/42");
+
+    store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true });
+
+    expect(store.invalidationVersion("shelf/42")).toBe(before + 1);
+  });
+
+  it("applyShelfRename уведомляет подписчиков namespace", () => {
+    store.set("shelf/42", "/api/shelves/42", {
+      shelf: { id: 42, name: "Old" },
+      books: [],
+    });
+    const handler = vi.fn();
+    store.subscribe("shelf/42", handler);
+
+    store.applyShelfRename({ shelfId: 42, name: "New" });
+
+    expect(handler).toHaveBeenCalled();
+  });
 });

@@ -132,12 +132,14 @@ export class MetadataCacheStore {
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
+    let invalidated = false;
+    const keysToDelete: string[] = [];
     for (const [key, entry] of ns.entries) {
       const value = entry.value as Record<string, unknown>;
+      const booksField = (value as { books?: unknown }).books;
       if (!hasBook) {
-        // Remove case: filter bookId from books array if present
-        if (Array.isArray((value as { books?: unknown }).books)) {
-          const books = (value as { books: BookListRow[] }).books;
+        if (Array.isArray(booksField)) {
+          const books = booksField as BookListRow[];
           const filtered = books.filter((row) => row.id !== bookId);
           if (filtered.length !== books.length) {
             ns.entries.set(key, { ...entry, value: { ...value, books: filtered } });
@@ -145,23 +147,29 @@ export class MetadataCacheStore {
           }
         }
       } else if (book !== undefined) {
-        // Add case with book: append with dedup
-        if (Array.isArray((value as { books?: unknown }).books)) {
-          const books = (value as { books: BookListRow[] }).books;
+        if (Array.isArray(booksField)) {
+          const books = booksField as BookListRow[];
           const alreadyPresent = books.some((row) => row.id === book.id);
           if (!alreadyPresent) {
-            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as unknown as BookListRow] } });
+            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as BookListRow] } });
             changed = true;
           }
         }
       } else {
-        // Add case without book: invalidate this entry
-        ns.entries.delete(key);
-        changed = true;
+        // Add без карточки — нет данных для точечной правки, инвалидируем запись.
+        // Накапливаем ключи, удаляем после итерации; delete внутри for-of по Map работает,
+        // но паттерн хрупкий — копим явный список.
+        keysToDelete.push(key);
       }
+    }
+    for (const key of keysToDelete) {
+      ns.entries.delete(key);
+      changed = true;
+      invalidated = true;
     }
     if (changed) {
       ns.version += 1;
+      if (invalidated) ns.invalidationVersion += 1;
       this.persist(namespace);
       this.notify(namespace);
     }
@@ -175,8 +183,10 @@ export class MetadataCacheStore {
     let changed = false;
     for (const [key, entry] of ns.entries) {
       const value = entry.value as Record<string, unknown>;
-      const shelf = (value as { shelf?: { id?: unknown; name?: unknown } }).shelf;
-      if (shelf && shelf.id === shelfId) {
+      const shelf = (value as { shelf?: { name?: unknown } }).shelf;
+      // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
+      // именно этой полке, дополнительная проверка shelf.id не нужна.
+      if (shelf) {
         ns.entries.set(key, { ...entry, value: { ...value, shelf: { ...shelf, name } } });
         changed = true;
       }
