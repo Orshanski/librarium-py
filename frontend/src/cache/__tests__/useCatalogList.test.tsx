@@ -250,6 +250,30 @@ describe("useCatalogList", () => {
     expect(screen.queryByText("Stale")).toBeNull();
   });
 
+  it("refetches after invalidation when entry is removed", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "Old" } as Book],
+      hasMore: false,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const spy = vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 2, title: "Fresh" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+    expect(screen.getByText("Old")).toBeInTheDocument();
+    expect(spy).not.toHaveBeenCalled();
+
+    store.invalidateBookLists();
+
+    await screen.findByText("Fresh");
+    expect(spy).toHaveBeenCalledTimes(1);
+    const callArg = spy.mock.calls[0][0];
+    expect(callArg).toMatchObject({ cursor: 0, pageSize: 30 });
+  });
+
   it("loadMore rejection after invalidation does not reset a successor's loadingMore", async () => {
     const seeded: CatalogEntry = {
       books: [{ id: 1, title: "B1" } as Book],
