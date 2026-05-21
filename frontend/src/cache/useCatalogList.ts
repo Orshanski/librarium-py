@@ -1,5 +1,5 @@
 // frontend/src/cache/useCatalogList.ts
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import type { Book } from "@/types";
 import type { BookListContext } from "@/domain/read-models";
@@ -30,6 +30,13 @@ type CatalogEntry = {
 };
 
 const INITIAL_SIZE = 30;
+const PAGE_SIZE = 15;
+
+function mergeNextPage(prev: CatalogEntry, newBooks: Book[], hasMore: boolean): CatalogEntry {
+  const ids = new Set(prev.books.map((b) => b.id));
+  const merged = [...prev.books, ...newBooks.filter((b) => !ids.has(b.id))];
+  return { books: merged, hasMore, cursor: merged.length };
+}
 
 function buildApiParams(
   params: CatalogListParams,
@@ -67,6 +74,7 @@ export function useCatalogList(
   );
 
   const [loading, setLoading] = useState<boolean>(entry === undefined);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
   // Deps: urlKey covers all URL-derived fields (sort + ids + languages). `entry === undefined`
   // catches invalidation that removed a populated entry. `invalidationVersion` is a separate
@@ -103,11 +111,35 @@ export function useCatalogList(
     return () => controller.abort();
   }, [store, params.urlKey, params.context, entry === undefined, invalidationVersion]);
 
+  // loadMore intentionally re-reads `baseline` from the store inside `.then(...)` rather than
+  // closing over the snapshot captured at click time. This preserves domain patches
+  // (applyBookUpdate / etc.) that may land during the round-trip — they'd otherwise be
+  // overwritten by a stale `current` snapshot. `params.sort`/`authorIds`/etc. are intentionally
+  // omitted from deps: `params.urlKey` already encodes them.
+  const loadMore = useCallback(() => {
+    const current = store.get<CatalogEntry>("books", params.urlKey);
+    if (!current || !current.hasMore || loading || loadingMore) return;
+    setLoadingMore(true);
+    listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
+      .then((data) => {
+        const baseline = store.get<CatalogEntry>("books", params.urlKey);
+        if (!baseline) return;
+        const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
+        store.set("books", params.urlKey, next, { context: params.context });
+        setLoadingMore(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.warn("Failed to load more books:", err);
+        setLoadingMore(false);
+      });
+  }, [store, params.urlKey, params.context, loading, loadingMore]);
+
   return {
     books: entry?.books ?? [],
     loading,
-    loadingMore: false,
+    loadingMore,
     hasMore: entry?.hasMore ?? false,
-    loadMore: () => {},
+    loadMore,
   };
 }

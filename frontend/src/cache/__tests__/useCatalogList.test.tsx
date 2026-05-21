@@ -149,4 +149,49 @@ describe("useCatalogList", () => {
     const newEntry = store.get<CatalogEntry>("books", "/?sort=titleAsc");
     expect(newEntry?.books.map((b) => b.title)).toEqual(["Second"]);
   });
+
+  it("loadMore fetches next page with cursor, merges and writes back", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book, { id: 2, title: "B2" } as Book],
+      hasMore: true,
+      cursor: 2,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const spy = vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 3, title: "B3" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await screen.findByText("B3");
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 2, pageSize: 15 }),
+    );
+    const stored = store.get<CatalogEntry>("books", "/");
+    expect(stored?.books.map((b) => b.id)).toEqual([1, 2, 3]);
+    expect(stored?.cursor).toBe(3);
+    expect(stored?.hasMore).toBe(false);
+  });
+
+  it("loadMore dedups by id, prev wins", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "Original" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    vi.spyOn(booksApi, "listBooks").mockResolvedValue({
+      books: [{ id: 1, title: "Duplicate" } as Book, { id: 2, title: "New" } as Book],
+      hasMore: false,
+    });
+
+    render(<Harness store={store} params={baseParams} />);
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await screen.findByText("New");
+
+    expect(screen.getByText("Original")).toBeInTheDocument();
+    expect(screen.queryByText("Duplicate")).toBeNull();
+  });
 });
