@@ -50,21 +50,19 @@ pyright                    # Полный прогон
   lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`,
   PyMuPDF `fitz`.
 
-## SonarCloud (local scan)
+## SonarCloud
 
-Repo is private — SonarCloud branch automation does not run. Local scans only.
-
-**Always use the wrapper:**
+Прогон только локальный — через wrapper:
 
 ```bash
 ./scripts/sonar-scan.sh
 ```
 
-It sources `~/.zshrc` for `SONAR_TOKEN` and runs from repo root. A naive
-`sonar-scanner -Dsonar.token=$SONAR_TOKEN` from a non-interactive shell
-sends an **empty** token and uploads garbage analysis. Do not run the
-bare command.
+Wrapper подтягивает `SONAR_TOKEN` из `~/.zshrc` и запускает scanner из
+корня репо. Голый `sonar-scanner -Dsonar.token=$SONAR_TOKEN` из
+non-interactive shell отправляет пустой токен и загружает мусорный
+анализ в SonarCloud — не вызывать напрямую.
 
-To read existing findings without re-scan: use
-`mcp__sonarqube__search_sonar_issues_in_projects`. SonarCloud has the
-latest data from the last successful scan.
+Чтобы посмотреть существующие findings без перепрогона —
+`mcp__sonarqube__search_sonar_issues_in_projects`. SonarCloud держит
+данные последнего успешного скана.

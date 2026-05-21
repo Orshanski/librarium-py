@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./data/**)",
+      "Read(./backend/venv/**)",
+      "Read(./frontend/node_modules/**)",
+      "Read(./frontend/dist/**)",
+      "Read(./**/__pycache__/**)",
+      "Read(./.scannerwork/**)",
+      "Read(./**/*.pyc)",
+      "Read(./**/*.tsbuildinfo)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -7,6 +19,10 @@
           {
             "type": "command",
             "command": "cmd=$(jq -re \".tool_input.command\" 2>/dev/null) || exit 0; case \"$cmd\" in *sonar-scanner*) case \"$cmd\" in *scripts/sonar-scan.sh*|*\"source ~/.zshrc\"*|*\"source $HOME/.zshrc\"*) exit 0 ;; *) printf \"Use ./scripts/sonar-scan.sh — bare sonar-scanner sends an empty token to SonarCloud. See CLAUDE.md > SonarCloud.\\n\" >&2; exit 2 ;; esac ;; *) exit 0 ;; esac"
+          },
+          {
+            "type": "command",
+            "command": "cmd=$(jq -re \".tool_input.command\" 2>/dev/null) || exit 0; case \"$cmd\" in *\"git push\"*) printf '{\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"git push требует явного разрешения Alexey\"}\\n'; exit 0 ;; *) exit 0 ;; esac"
           }
         ]
       }
