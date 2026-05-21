@@ -22,7 +22,7 @@
           },
           {
             "type": "command",
-            "command": "cmd=$(jq -re \".tool_input.command\" 2>/dev/null) || exit 0; case \"$cmd\" in *\"git push\"*) printf '{\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"git push требует явного разрешения Alexey\"}\\n'; exit 0 ;; *) exit 0 ;; esac"
+            "command": ".claude/hooks/push-reflection.sh"
           }
         ]
       }
