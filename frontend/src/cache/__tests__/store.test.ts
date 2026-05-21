@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MetadataCacheStore } from "../store";
+import type { BookListContext } from "@/domain/read-models";
 
 describe("MetadataCacheStore", () => {
   let store: MetadataCacheStore;
@@ -173,6 +174,63 @@ describe("MetadataCacheStore", () => {
     const row = store.get<{ books: { authors: { sortName?: string }[]; series: { sortName?: string } }[] }>("tag/1", "detail")?.books[0];
     expect(row?.authors[0].sortName).toBe("Old Sort");
     expect(row?.series.sortName).toBe("Series Sort");
+  });
+
+  const authorSevenContext: BookListContext = {
+    kind: "book-list",
+    key: "/authors/7",
+    source: "author-detail",
+    authorId: 7,
+    sort: "authorAsc",
+  };
+  const authorEightContext: BookListContext = {
+    kind: "book-list",
+    key: "/authors/8",
+    source: "author-detail",
+    authorId: 8,
+    sort: "authorAsc",
+  };
+
+  it("applyAuthorRename обновляет author.name и author.sortName в записи детали", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: authorSevenContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New Sort" });
+
+    const entry = store.get<{ author: { id: number; name: string; sortName: string } }>("author/7", "detail");
+    expect(entry).not.toBeUndefined();
+    expect(entry?.author.name).toBe("New");
+    expect(entry?.author.sortName).toBe("New Sort");
+  });
+
+  it("applyAuthorRename не перезаписывает sortName, если он отсутствует в payload", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old", sortName: "Old Sort" },
+      books: [],
+    }, { context: authorSevenContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+
+    const entry = store.get<{ author: { sortName?: string } }>("author/7", "detail");
+    expect(entry?.author.sortName).toBe("Old Sort");
+  });
+
+  it("applyAuthorRename не трогает записи других авторов", () => {
+    store.set("author/7", "detail", {
+      author: { id: 7, name: "Old" },
+      books: [],
+    }, { context: authorSevenContext });
+    store.set("author/8", "detail", {
+      author: { id: 8, name: "Untouched" },
+      books: [],
+    }, { context: authorEightContext });
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+
+    const other = store.get<{ author: { name: string } }>("author/8", "detail");
+    expect(other?.author.name).toBe("Untouched");
   });
 
   it("persists and hydrates namespace entries from sessionStorage", () => {

@@ -112,6 +112,30 @@ export class MetadataCacheStore {
         },
       };
     });
+
+    const namespace = `author/${payload.authorId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as Record<string, unknown>;
+      const author = (value as { author?: { id?: unknown; name?: unknown; sortName?: unknown } }).author;
+      if (author) {
+        ns.entries.set(key, {
+          ...entry,
+          value: {
+            ...value,
+            author: { ...author, name: payload.name, ...sortNamePatch(payload.sortName) },
+          },
+        });
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
