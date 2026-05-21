@@ -78,8 +78,8 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const handleDeleteShelf = useCallback(async () => {
     try {
       await deleteShelf(shelfId);
+      // publish → handler инвалидирует 'shelves' в store → Sidebar реактивен через useCachedResource.
       domainEvents.publish("shelfDeleted", { shelfId });
-      globalThis.dispatchEvent(new Event("shelves-changed"));
       navigate("/");
     } catch (err) {
       console.warn("Failed to delete shelf:", err);
