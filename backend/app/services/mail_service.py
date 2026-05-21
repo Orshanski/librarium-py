@@ -56,16 +56,17 @@ def send_test_email(db: sqlite3.Connection, user_id: int) -> None:
     smtp_user = settings_dal.get_setting(db, "smtp_user")
     smtp_pass = settings_dal.get_setting(db, "smtp_pass")
 
-    if not host or not smtp_user:
+    if not host or not smtp_user or not smtp_pass:
         raise BadInputError("SMTP не настроен")
 
     db_user = users_dal.get_user_by_id(db, user_id)
-    if not db_user or not db_user.get("email"):
+    user_email = db_user.get("email") if db_user else None
+    if not user_email:
         raise BadInputError("У вас не указан email")
 
     server = None
     try:
-        msg = build_email("smtp_test.html", "Librarium — тест SMTP", smtp_user, db_user["email"])
+        msg = build_email("smtp_test.html", "Librarium — тест SMTP", smtp_user, user_email)
         if port == _SMTP_SSL_PORT:
             server = smtplib.SMTP_SSL(host, port, timeout=_SMTP_TIMEOUT)
         else:

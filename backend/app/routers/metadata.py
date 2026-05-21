@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 import logging
 from urllib.parse import urlparse
 
@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from ..auth import CurrentUser, get_current_user
-from ..dtos.metadata import MetadataSearchResponse
+from ..dtos.metadata import MetadataResultDict, MetadataSearchResponse
 from ..exceptions import BadInputError, ForbiddenError, UpstreamError
 from ..providers import search_metadata
 from ..ssrf import is_safe_url
@@ -42,7 +42,7 @@ def search(user: Annotated[CurrentUser, Depends(get_current_user)], q: str = "",
     except Exception:
         log.exception("Metadata search failed")
         return MetadataSearchResponse(results=[])
-    return MetadataSearchResponse(results=[r.to_dict() for r in results])
+    return MetadataSearchResponse(results=cast(list[MetadataResultDict], [r.to_dict() for r in results]))
 
 
 def _is_allowed_domain(url: str) -> bool:
@@ -72,7 +72,7 @@ def _fetch_cover_content(url: str) -> Response:
             location = resp.headers.get("Location", "")
             if not location:
                 raise UpstreamError("Upstream fetch failed")
-            current_url = requests.compat.urljoin(current_url, location)
+            current_url = requests.compat.urljoin(current_url, location)  # pyright: ignore[reportAttributeAccessIssue]  # requests stubs miss compat
             continue
 
         if resp.status_code != 200:

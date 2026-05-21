@@ -79,7 +79,7 @@ def save_progress(
         current = dal.get_reading_progress(db, user_id, book_id)
         response = ProgressAcceptedResponse(
             accepted=True,
-            version=result["version"],
+            version=result["version"],  # pyright: ignore[reportTypedDictNotRequiredAccess]
             rebased=result.get("rebased", False),
         )
         return ProgressSaveEventResult(

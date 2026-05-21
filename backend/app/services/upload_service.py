@@ -6,9 +6,10 @@ import uuid
 import zipfile
 from contextlib import ExitStack
 from pathlib import Path
+from typing import cast
 
 from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
-from ..dtos.books import BookCreateData, DuplicateHit
+from ..dtos.books import BookCreateData, DuplicateHit, DuplicateHitItem
 from ..dtos.upload import CreateBookMetadataIn, CreateBookMetadataOut, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
@@ -135,7 +136,7 @@ def _build_upload_response(
             isbn=meta.isbn or "",
             cover_url=cover_url,
         ),
-        duplicate=duplicate,
+        duplicate=cast(DuplicateHitItem | None, duplicate),
     )
 
 

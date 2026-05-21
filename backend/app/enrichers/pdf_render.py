@@ -1,4 +1,5 @@
 import logging
+from typing import Any, cast
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def render_cover(pdf_path: str, zoom: float = COVER_ZOOM) -> tuple[bytes | None,
                 pix = page.get_pixmap(matrix=matrix)
                 # Skip blank pages (very few unique colors)
                 try:
-                    if pix.color_count() < MIN_COVER_COLORS:
+                    if cast(Any, pix.color_count()) < MIN_COVER_COLORS:
                         continue
                 except Exception:
                     pass  # color_count may not be available on all builds

@@ -12,10 +12,13 @@ Both expect rows post `parse_book_row_aggregates`:
 - tags:    list[TagRef]      (parsed JSON, not CSV)
 - series:  SeriesRef | None  (parsed JSON, not flat series_id/series_name)
 """
+from collections.abc import Mapping
+from typing import Any
+
 from ..dtos.book_card import BookCardItem, BookDetailItem
 
 
-def row_to_book_card_item(row: dict) -> BookCardItem:
+def row_to_book_card_item(row: Mapping[str, Any]) -> BookCardItem:
     """Maps a DAL row (snake_case) into BookCardItem.
 
     Row contract (guaranteed by parse_book_row_aggregates):
@@ -38,7 +41,7 @@ def row_to_book_card_item(row: dict) -> BookCardItem:
     )
 
 
-def row_to_book_detail_item(row: dict) -> BookDetailItem:
+def row_to_book_detail_item(row: Mapping[str, Any]) -> BookDetailItem:
     """Maps a DAL row (snake_case) into BookDetailItem.
 
     Mirrors row_to_book_card_item plus 8 detail fields. cover_path is the

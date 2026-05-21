@@ -10,6 +10,8 @@ Handler'ы зарегистрированы на custom типы, не на buil
 Handler'ы синхронные. FastAPI/Starlette принимает оба варианта и оборачивает
 sync в threadpool. Async здесь не нужен — ни один handler не делает await.
 """
+from typing import Any, cast
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -49,10 +51,10 @@ def _upstream(request: Request, exc: UpstreamError) -> JSONResponse:
 
 def register_error_handlers(app: FastAPI) -> None:
     """Register canonical domain exception handlers on the given app."""
-    app.add_exception_handler(BadInputError, _bad_input)
-    app.add_exception_handler(NotFoundError, _not_found)
-    app.add_exception_handler(ConflictError, _conflict)
-    app.add_exception_handler(ForbiddenError, _forbidden)
-    app.add_exception_handler(AuthError, _auth)
-    app.add_exception_handler(RateLimitError, _rate_limit)
-    app.add_exception_handler(UpstreamError, _upstream)
+    app.add_exception_handler(BadInputError, cast(Any, _bad_input))
+    app.add_exception_handler(NotFoundError, cast(Any, _not_found))
+    app.add_exception_handler(ConflictError, cast(Any, _conflict))
+    app.add_exception_handler(ForbiddenError, cast(Any, _forbidden))
+    app.add_exception_handler(AuthError, cast(Any, _auth))
+    app.add_exception_handler(RateLimitError, cast(Any, _rate_limit))
+    app.add_exception_handler(UpstreamError, cast(Any, _upstream))

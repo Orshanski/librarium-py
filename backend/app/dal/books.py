@@ -1,7 +1,7 @@
 import re
 import sqlite3
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import aiosql
 from rapidfuzz import process
@@ -73,11 +73,14 @@ def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = N
 
 
 def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:
-    return dicts_from_rows(queries.get_book_files(db, book_id=book_id))
+    return cast(list[BookFileRow], dicts_from_rows(queries.get_book_files(db, book_id=book_id)))
 
 
 def get_book_identifiers(db: sqlite3.Connection, book_id: int) -> list[BookIdentifierRow]:
-    return dicts_from_rows(queries.get_book_identifiers(db, book_id=book_id))
+    return cast(
+        list[BookIdentifierRow],
+        dicts_from_rows(queries.get_book_identifiers(db, book_id=book_id)),
+    )
 
 
 def get_all_publishers(db: sqlite3.Connection) -> list[str]:
@@ -120,16 +123,17 @@ SCALAR_UPDATE_FIELDS = (
 
 def update_book(db: sqlite3.Connection, book_id: int, data: BookUpdateData) -> None:
     sets = ["updated_at = CURRENT_TIMESTAMP"]
-    params = {"id": book_id}
+    params: dict[str, Any] = {"id": book_id}
 
     for key in SCALAR_UPDATE_FIELDS:
         if key in data:
             sets.append(f"{key} = :{key}")
-            params[key] = data[key]
+            params[key] = data[key]  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
     if "title" in data:
+        title = cast(str, data["title"])
         sets.append("sort_title = :sort_title")
-        params["sort_title"] = data.get("sort_title") or _sort_title(data["title"])
+        params["sort_title"] = data.get("sort_title") or _sort_title(title)
 
     db.execute(f"UPDATE books SET {', '.join(sets)} WHERE id = :id", params)
 
@@ -225,7 +229,7 @@ def search_books(db: sqlite3.Connection, query: str, limit: int = 50, *, user_id
     series_by_id = {r["id"]: r for r in series_rows}
     series = [series_by_id[sid] for _, _, sid in series_matches]
 
-    return {"books": books, "authors": authors, "series": series}
+    return cast(SearchResults, {"books": books, "authors": authors, "series": series})
 
 
 def book_exists(db: sqlite3.Connection, book_id: int) -> bool:
@@ -242,7 +246,7 @@ def add_book_file(db: sqlite3.Connection, book_id: int, fmt: str, file_path: str
 
 def get_book_file(db: sqlite3.Connection, book_id: int, fmt: str) -> BookFileLookup | None:
     row = queries.get_book_file(db, book_id=book_id, format=fmt)
-    return dict_from_row(row)
+    return cast(BookFileLookup | None, dict_from_row(row))
 
 
 def delete_book_file(db: sqlite3.Connection, file_id: int) -> None:

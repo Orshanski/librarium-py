@@ -8,7 +8,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-from lxml import etree
+from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from PIL import Image
 
 from . import xml_safe

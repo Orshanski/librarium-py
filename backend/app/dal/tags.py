@@ -26,7 +26,7 @@ def get_tag_cloud(db: sqlite3.Connection, top: int | None = None) -> list[TagClo
     params = {"top": top} if top else {}
     # SQL-safe: {limit_clause} from whitelist-source.
     final_sql = queries.get_tag_cloud.sql.replace("{limit_clause}", limit_clause)
-    return dicts_from_rows(db.execute(final_sql, params).fetchall())
+    return cast(list[TagCloudEntry], dicts_from_rows(db.execute(final_sql, params).fetchall()))
 
 
 def list_tag_options(db: sqlite3.Connection, *, user_id: int, filters: CatalogFilters) -> list[FilterOptionRow]:
@@ -34,7 +34,7 @@ def list_tag_options(db: sqlite3.Connection, *, user_id: int, filters: CatalogFi
     where, params = build_book_where(filters, user_id=user_id, exclude="tagIds")
     # SQL-safe: {where_clause} from whitelist-source (build_book_where).
     final_sql = queries.list_tag_options.sql.replace("{where_clause}", where)
-    return dicts_from_rows(db.execute(final_sql, params).fetchall())
+    return cast(list[FilterOptionRow], dicts_from_rows(db.execute(final_sql, params).fetchall()))
 
 
 def get_tag_by_id(

@@ -1,7 +1,7 @@
 """Shared WHERE clause builder and filter options for book queries."""
 import sqlite3
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple, cast
 
 import aiosql
 
@@ -61,7 +61,7 @@ def build_book_where(
         params["uid"] = user_id
 
     for dim in _LIST_DIMENSIONS:
-        values = effective.get(dim.key)
+        values = cast(list[Any] | None, effective.get(dim.key))
         if not values:
             continue
         ph = ",".join(f":{dim.prefix}{i}" for i in range(len(values)))
@@ -85,4 +85,4 @@ def list_language_options(db: sqlite3.Connection, *, user_id: int, filters: Cata
     # SQL-safe: {where_clause} substituted from whitelist-source
     # (build_book_where output). Runtime data via bind params.
     final_sql = queries.list_language_options.sql.replace("{where_clause}", where)
-    return dicts_from_rows(db.execute(final_sql, params).fetchall())
+    return cast(list[LanguageOptionRow], dicts_from_rows(db.execute(final_sql, params).fetchall()))

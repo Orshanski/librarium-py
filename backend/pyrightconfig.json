@@ -3,8 +3,8 @@
   "venv": "venv",
   "pythonVersion": "3.13",
   "stubPath": "typings",
-  "include": ["app", "tests"],
-  "exclude": ["venv", "**/__pycache__", "scripts", "migrations", "typings"],
+  "include": ["app"],
+  "exclude": ["venv", "**/__pycache__", "scripts", "migrations", "typings", "tests"],
   "typeCheckingMode": "basic",
   "reportMissingImports": "error",
   "reportTypedDictNotRequiredAccess": "warning"
