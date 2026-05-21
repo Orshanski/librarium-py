@@ -18,6 +18,8 @@ frontend/dist/
 !.claude/hooks/**
 !.claude/skills/
 !.claude/skills/**
+# Перебивает whitelist выше — .DS_Store не должен попадать в репо нигде
+**/.DS_Store
 .env
 backend/.env
 backend/scripts/linearize_existing_pdfs.py
