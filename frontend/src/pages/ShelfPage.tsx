@@ -10,7 +10,6 @@ import { useBookCardWidth } from "../components/use-book-card-width";
 import BookGrid from "../components/book-grid";
 import { colors } from "../theme";
 import { setReadingFlag } from "../utils/readerFlag";
-import type { Book } from "../types";
 import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { useRefreshOnReadingNowOnline } from "../hooks/useRefreshOnReadingNowOnline";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary } from "@/api/endpoints/shelves";
@@ -26,14 +25,10 @@ export default function ShelfPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const [removedBookIds, setRemovedBookIds] = useState<Set<number>>(() => new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Fallback default до первого fetch — реальный default-per-page определяется ниже после load'а
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
-  useEffect(() => {
-    setRemovedBookIds(new Set());
-  }, [shelfId]);
 
   const shelfResource = useCachedResource(
     metadataCache,
@@ -42,10 +37,7 @@ export default function ShelfPage() {
     (signal) => getShelf(shelfId, { sort }, signal),
   );
   const shelf = shelfResource.data?.shelf ?? null;
-  const books = useMemo<Book[]>(
-    () => (shelfResource.data?.books || []).filter((book) => !removedBookIds.has(book.id)),
-    [shelfResource.data, removedBookIds],
-  );
+  const books = shelfResource.data?.books ?? [];
   // For the reading_now system shelf, the server returns per-book progress in
   // a sibling map (not inline on book[]). Use empty object as fallback so the
   // lookup below always returns undefined for non-reading_now shelves.
@@ -89,7 +81,6 @@ export default function ShelfPage() {
     try {
       await removeBookFromShelf(shelfId, bookId);
       domainEvents.publish("shelfMembershipChanged", { shelfId, bookId, hasBook: false });
-      setRemovedBookIds((prev) => new Set(prev).add(bookId));
     } catch (err) {
       console.warn("Failed to remove book from shelf:", err);
     }
