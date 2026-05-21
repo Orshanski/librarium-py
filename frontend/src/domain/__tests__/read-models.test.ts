@@ -28,6 +28,25 @@ describe("read-model validity", () => {
     expect(classifyAuthorRenameForBookList(catalogAdded)).toBe("patchable");
   });
 
+  it("treats author rename as patchable for author-detail regardless of sort", () => {
+    const authorDetailByAuthor: BookListContext = {
+      kind: "book-list",
+      key: "/authors/3",
+      source: "author-detail",
+      authorId: 3,
+      sort: "authorAsc",
+    };
+    const authorDetailAdded: BookListContext = {
+      kind: "book-list",
+      key: "/authors/3",
+      source: "author-detail",
+      authorId: 3,
+      sort: "addedDesc",
+    };
+    expect(classifyAuthorRenameForBookList(authorDetailByAuthor)).toBe("patchable");
+    expect(classifyAuthorRenameForBookList(authorDetailAdded)).toBe("patchable");
+  });
+
   it("treats rating as structural for rating-sorted lists and best shelf", () => {
     expect(classifyBookUpdateForBookList({ ...catalogAdded, sort: "ratingDesc" }, ["rating"])).toBe("structural");
     expect(classifyBookUpdateForBookList(bestShelf, ["rating"])).toBe("structural");

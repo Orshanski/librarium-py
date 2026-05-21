@@ -99,6 +99,10 @@ function isContextAffectedByMembership(
 
 export function classifyAuthorRenameForBookList(context: BookListContext): ValidityDecision {
   if (context.source === "search") return "structural";
+  // На странице автора (author-detail) все строки списка — этого же автора;
+  // rename главного автора не меняет порядок строк между собой, rename соавтора
+  // не сдвигает строки по выбранной сортировке. Безопасно патчить.
+  if (context.source === "author-detail") return "patchable";
   return context.sort === "authorAsc" || context.sort === "authorDesc" ? "structural" : "patchable";
 }
 
