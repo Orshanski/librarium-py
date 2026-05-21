@@ -84,12 +84,10 @@ export function useCatalogList(
     };
   }, []);
 
-  // Deps: urlKey covers all URL-derived fields (sort + ids + languages). `entry === undefined`
-  // catches invalidation that removed a populated entry. `invalidationVersion` is a separate
-  // signal so React re-renders and the effect re-runs even when the entry was already undefined
-  // (cold-mount SSE race: a stale in-flight fetch is dropped via the version guard below, and
-  // the effect needs to re-fire to start a fresh fetch — otherwise the spinner would stick
-  // forever because the snapshot identity didn't change).
+  // Deps: urlKey covers all URL-derived fields (sort + ids + languages). `invalidationVersion`
+  // covers every path that removes/clears the entry (invalidate, bookCreated, structural patches —
+  // they all bump it) AND the cold-mount race where entry stays undefined across an invalidate.
+  // Task 7's regression pin verifies refetch-on-invalidation; Task 3's race test verifies cold-mount.
   useEffect(() => {
     if (entry !== undefined) {
       setLoading(false);
@@ -118,7 +116,7 @@ export function useCatalogList(
         setLoading(false);
       });
     return () => controller.abort();
-  }, [store, params.urlKey, params.context, entry === undefined, invalidationVersion]);
+  }, [store, params.urlKey, params.context, invalidationVersion]);
 
   // Reset loadingMore whenever the books bucket is invalidated. The loadMore .then() that
   // detects a version mismatch deliberately skips its own setLoadingMore(false) — this effect
