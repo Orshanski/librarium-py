@@ -147,8 +147,10 @@ export function useCatalogList(
         if (mountedRef.current) setLoadingMore(false);
       })
       .catch((err: unknown) => {
+        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
+        if (!mountedRef.current) return;
         console.warn("Failed to load more books:", err);
-        if (mountedRef.current) setLoadingMore(false);
+        setLoadingMore(false);
       });
   }, [store, params.urlKey, params.context, loadingMore]);
 

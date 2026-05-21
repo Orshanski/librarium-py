@@ -1,5 +1,5 @@
 // frontend/src/cache/__tests__/useCatalogList.test.tsx
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import * as booksApi from "@/api/endpoints/books";
 import { MetadataCacheStore } from "../store";
@@ -248,5 +248,45 @@ describe("useCatalogList", () => {
     await screen.findByText("Refetched");
     expect(screen.getByTestId("loadingMore").textContent).toBe("false");
     expect(screen.queryByText("Stale")).toBeNull();
+  });
+
+  it("loadMore rejection after invalidation does not reset a successor's loadingMore", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const failing = deferred<{ books: Book[]; hasMore: boolean }>();
+    const second = deferred<{ books: Book[]; hasMore: boolean }>();
+    vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(failing.promise)
+      .mockReturnValueOnce(second.promise);
+
+    render(<Harness store={store} params={baseParams} />);
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    // Wrap in act so the reset effect's setLoadingMore(false) commits before the next click
+    // reads the loadMore closure. Without act, store.invalidate runs outside React's batch
+    // and the stale loadingMore=true would make the second click early-return.
+    act(() => {
+      store.invalidate("books");
+      // After invalidate, the reset effect runs. Seed fresh entry so a successor loadMore can fire.
+      store.set("books", "/", seeded, { context: CTX });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    // The stale (post-invalidate) rejection arrives. Must NOT reset successor's loadingMore.
+    failing.reject(new Error("network blip"));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    // Successor resolves cleanly.
+    second.resolve({ books: [{ id: 2, title: "Second" } as Book], hasMore: false });
+    await screen.findByText("Second");
+    expect(screen.getByTestId("loadingMore").textContent).toBe("false");
   });
 });
