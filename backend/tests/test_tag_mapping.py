@@ -447,6 +447,12 @@ class TestRegisterGetParameter:
             def delete_tag(db, id):
                 return None
 
+            @staticmethod
+            def get_tag_name(db, id):
+                # Required factory dependency для re-read payload в *Renamed
+                # событиях, независимо от register_get.
+                return "stub"
+
         if include_get_tag:
             MockService.get_tag = staticmethod(lambda db, id, user_id: {"id": id})
 

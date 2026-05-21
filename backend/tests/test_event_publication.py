@@ -37,22 +37,6 @@ def _close_session(session):
         return
 
 
-@pytest.fixture
-def captured_domain_events(monkeypatch):
-    calls = []
-
-    def capture(*, scope, event_type, payload):
-        calls.append(
-            {
-                "scope": scope.to_wire(),
-                "event": {"type": event_type, "payload": payload},
-            }
-        )
-
-    monkeypatch.setattr("app.events.broker.publish_nowait", capture)
-    return calls
-
-
 def _upload_temp(client, filename: str) -> str:
     with open(FIXTURES / filename, "rb") as f:
         response = client.post(
@@ -463,6 +447,9 @@ def test_upload_create_publishes_book_created(admin_client, captured_domain_even
         ("put", "/api/series/1", {"name": "Renamed Series"}, "seriesRenamed", {"seriesId": 1, "name": "Renamed Series"}),
         ("post", "/api/series/1/merge", {"sourceId": 2}, "seriesMerged", {"targetId": 1, "sourceId": 2}),
         ("delete", "/api/series/99", None, "seriesDeleted", {"seriesId": 99}),
+        ("put", "/api/tags/1", {"name": "Renamed Tag"}, "tagRenamed", {"tagId": 1, "name": "Renamed Tag"}),
+        ("post", "/api/tags/2/merge", {"sourceId": 1}, "tagMerged", {"targetId": 2, "sourceId": 1}),
+        ("delete", "/api/tags/99", None, "tagDeleted", {"tagId": 99}),
     ],
 )
 def test_entity_mutations_publish_library_events(
@@ -483,6 +470,11 @@ def test_entity_mutations_publish_library_events(
     elif event_type == "seriesDeleted":
         db.execute(
             "INSERT INTO series (id, name, sort_name) VALUES (99, 'Empty Series', 'Empty Series')"
+        )
+        db.commit()
+    elif event_type == "tagDeleted":
+        db.execute(
+            "INSERT INTO tags (id, name) VALUES (99, 'Empty Tag')"
         )
         db.commit()
 

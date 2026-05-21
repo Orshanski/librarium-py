@@ -82,6 +82,10 @@ def register_entity_crud(
         or getattr(service, f"merge_{entity_label}")
     )
     delete_fn = getattr(service, f"delete_{entity_label}")
+    # `get_<entity_label>_name(db, id) → str` — required для всех call-sites
+    # (используется для re-read stored name в payload события *Renamed,
+    # независимо от register_get).
+    get_name_fn = getattr(service, f"get_{entity_label}_name")
 
     if register_get:
         get_fn = getattr(service, f"get_{entity_label}")
@@ -107,11 +111,16 @@ def register_entity_crud(
         name = body.name.strip()
         changed = rename_fn(db, entity_id, name)
         if changed:
+            # Re-read stored name from DB для unified event payload —
+            # для tags `normalize_tag_name` приводит wire-input ("science
+            # fiction") к stored ("Science fiction"); фабрика должна
+            # публиковать stored, а не wire (иначе UI-flicker).
+            stored_name = get_name_fn(db, entity_id)
             publish_domain_event_after_commit(
                 db,
                 scope=EventScope(kind="library"),
                 event_type=f"{entity_label}Renamed",
-                payload={_entity_id_payload_key(entity_label): entity_id, "name": name},
+                payload={_entity_id_payload_key(entity_label): entity_id, "name": stored_name},
             )
         logger.info(
             "Renamed %s=%d to=%s by user_id=%s",

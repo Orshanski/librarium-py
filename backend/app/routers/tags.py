@@ -11,6 +11,7 @@ from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMap
 from ..events import EventScope, publish_domain_event_after_commit
 from ..logging_utils import safe as safe_log
 from ..services import tags_service
+from ._entity_crud import register_entity_crud
 
 log = logging.getLogger("librarium.tags")
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -59,3 +60,15 @@ def map_tag(
         action, tag_id, safe_log(body.name), result.target_id, user.user_id,
     )
     return result
+
+
+# Three new endpoints via factory: PUT /{tag_id} rename, POST /{tag_id}/merge,
+# DELETE /{tag_id}. GET /{tag_id} остаётся custom (см. выше) — фильтры
+# несовместимы с factory-handler'ом. register_get=False.
+register_entity_crud(
+    router,
+    service=tags_service,
+    logger=log,
+    entity_label="tag",
+    register_get=False,
+)

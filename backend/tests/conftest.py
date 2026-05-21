@@ -182,6 +182,27 @@ def tag_id(db):
     return row["tag_id"]
 
 
+@pytest.fixture
+def captured_domain_events(monkeypatch):
+    """Capture domain events after commit. Patches app.events.broker.publish_nowait
+    (post-commit layer — events на rollback не попадают сюда).
+
+    Wire format: each captured item is {scope: {...}, event: {type, payload}}.
+    """
+    calls = []
+
+    def capture(*, scope, event_type, payload):
+        calls.append(
+            {
+                "scope": scope.to_wire(),
+                "event": {"type": event_type, "payload": payload},
+            }
+        )
+
+    monkeypatch.setattr("app.events.broker.publish_nowait", capture)
+    return calls
+
+
 @pytest.fixture(autouse=True)
 def _clear_auth_rate_limit_state():
     """Clear auth rate-limit dict between tests to prevent 429 carry-over.
