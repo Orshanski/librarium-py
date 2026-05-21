@@ -101,4 +101,23 @@ describe("useCatalogList", () => {
     expect(stored?.cursor).toBe(1);
     expect(stored?.hasMore).toBe(false);
   });
+
+  it("does not write stale in-flight results after invalidation", async () => {
+    const first = deferred<{ books: Book[]; hasMore: boolean }>();
+    const spy = vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ books: [{ id: 2, title: "Fresh" } as Book], hasMore: false });
+
+    render(<Harness store={store} params={baseParams} />);
+    expect(screen.getByTestId("loading").textContent).toBe("true");
+
+    store.invalidate("books");
+    first.resolve({ books: [{ id: 1, title: "Stale" } as Book], hasMore: false });
+
+    await screen.findByText("Fresh");
+    expect(screen.queryByText("Stale")).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(2);
+    const stored = store.get<CatalogEntry>("books", "/");
+    expect(stored?.books[0]?.title).toBe("Fresh");
+  });
 });

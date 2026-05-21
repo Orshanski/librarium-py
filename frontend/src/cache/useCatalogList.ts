@@ -60,22 +60,32 @@ export function useCatalogList(
     () => store.get<CatalogEntry>("books", params.urlKey),
     () => store.get<CatalogEntry>("books", params.urlKey),
   );
+  const invalidationVersion = useSyncExternalStore(
+    subscribe,
+    () => store.invalidationVersion("books"),
+    () => store.invalidationVersion("books"),
+  );
 
   const [loading, setLoading] = useState<boolean>(entry === undefined);
 
   // Deps: urlKey covers all URL-derived fields (sort + ids + languages). `entry === undefined`
-  // is intentional — when invalidation removes the entry, this expression flips and the effect
-  // re-runs to fetch fresh data (Task 7's regression pin verifies this).
+  // catches invalidation that removed a populated entry. `invalidationVersion` is a separate
+  // signal so React re-renders and the effect re-runs even when the entry was already undefined
+  // (cold-mount SSE race: a stale in-flight fetch is dropped via the version guard below, and
+  // the effect needs to re-fire to start a fresh fetch — otherwise the spinner would stick
+  // forever because the snapshot identity didn't change).
   useEffect(() => {
     if (entry !== undefined) {
       setLoading(false);
       return undefined;
     }
     const controller = new AbortController();
+    const startedAtInvalidationVersion = store.invalidationVersion("books");
     setLoading(true);
     listBooks(buildApiParams(params, 0, INITIAL_SIZE), controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
+        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
         const next: CatalogEntry = {
           books: data.books ?? [],
           hasMore: data.hasMore ?? false,
@@ -91,7 +101,7 @@ export function useCatalogList(
         setLoading(false);
       });
     return () => controller.abort();
-  }, [store, params.urlKey, params.context, entry === undefined]);
+  }, [store, params.urlKey, params.context, entry === undefined, invalidationVersion]);
 
   return {
     books: entry?.books ?? [],
