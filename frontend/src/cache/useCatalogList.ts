@@ -95,6 +95,7 @@ export function useCatalogList(
   // they all bump it) AND the cold-mount race where entry stays undefined across an invalidate.
   // Task 7's regression pin verifies refetch-on-invalidation; Task 3's race test verifies cold-mount.
   useEffect(() => {
+    // Nav to an already-cached key: flip loading false in case we arrived from a loading=true state.
     if (entry !== undefined) {
       setLoading(false);
       return;
@@ -175,6 +176,8 @@ export function useCatalogList(
   }, [store, params.urlKey, params.context, loading]);
 
   useEffect(() => {
+    // Note: <main> is shared with useScrollRestore in the page. Restoring scroll position can
+    // dispatch a scroll event that fires onScroll here and triggers loadMore — intended.
     const main = document.querySelector("main");
     if (!main) return undefined;
 

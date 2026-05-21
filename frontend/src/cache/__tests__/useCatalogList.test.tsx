@@ -470,6 +470,31 @@ describe("useCatalogList", () => {
     expect(screen.queryByText("Stale")).toBeNull();
   });
 
+  it("re-renders without refetch when store patches the entry in place", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "Old", rating: null } as Book],
+      hasMore: false,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const spy = vi.spyOn(booksApi, "listBooks");
+
+    render(<Harness store={store} params={baseParams} />);
+    expect(screen.getByText("Old")).toBeInTheDocument();
+
+    // Non-invalidating mutation: applyBookUpdate with a non-structural decision patches the entry
+    // in place. The hook must observe the change via useSyncExternalStore identity and re-render
+    // without firing a fetch.
+    store.applyBookUpdate({
+      book: { id: 1, title: "Patched", rating: 5 },
+      changedFields: ["rating"],
+    });
+
+    await screen.findByText("Patched");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+
   it("renders empty without throwing when the initial fetch fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(booksApi, "listBooks").mockRejectedValue(new Error("boom"));
