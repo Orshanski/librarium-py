@@ -194,4 +194,28 @@ describe("useCatalogList", () => {
     expect(screen.getByText("Original")).toBeInTheDocument();
     expect(screen.queryByText("Duplicate")).toBeNull();
   });
+
+  it("loadMore does not write after invalidation; loadingMore is reset", async () => {
+    const seeded: CatalogEntry = {
+      books: [{ id: 1, title: "B1" } as Book],
+      hasMore: true,
+      cursor: 1,
+    };
+    store.set("books", "/", seeded, { context: CTX });
+    const pending = deferred<{ books: Book[]; hasMore: boolean }>();
+    vi.spyOn(booksApi, "listBooks")
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ books: [{ id: 99, title: "Refetched" } as Book], hasMore: false });
+
+    render(<Harness store={store} params={baseParams} />);
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+    store.invalidate("books");
+    pending.resolve({ books: [{ id: 2, title: "Stale" } as Book], hasMore: false });
+
+    await screen.findByText("Refetched");
+    expect(screen.getByTestId("loadingMore").textContent).toBe("false");
+    expect(screen.queryByText("Stale")).toBeNull();
+  });
 });

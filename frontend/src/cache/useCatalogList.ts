@@ -111,6 +111,13 @@ export function useCatalogList(
     return () => controller.abort();
   }, [store, params.urlKey, params.context, entry === undefined, invalidationVersion]);
 
+  // Reset loadingMore whenever the books bucket is invalidated. The loadMore .then() that
+  // detects a version mismatch deliberately skips its own setLoadingMore(false) — this effect
+  // owns that transition, so the next loadMore is not blocked by the stale guard.
+  useEffect(() => {
+    setLoadingMore(false);
+  }, [invalidationVersion]);
+
   // loadMore intentionally re-reads `baseline` from the store inside `.then(...)` rather than
   // closing over the snapshot captured at click time. This preserves domain patches
   // (applyBookUpdate / etc.) that may land during the round-trip — they'd otherwise be
@@ -119,9 +126,11 @@ export function useCatalogList(
   const loadMore = useCallback(() => {
     const current = store.get<CatalogEntry>("books", params.urlKey);
     if (!current || !current.hasMore || loading || loadingMore) return;
+    const startedAtInvalidationVersion = store.invalidationVersion("books");
     setLoadingMore(true);
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
+        if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
         const baseline = store.get<CatalogEntry>("books", params.urlKey);
         if (!baseline) return;
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
