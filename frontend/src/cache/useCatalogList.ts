@@ -1,5 +1,5 @@
 // frontend/src/cache/useCatalogList.ts
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { listBooks, type BookListParams } from "@/api/endpoints/books";
 import type { Book } from "@/types";
 import type { BookListContext } from "@/domain/read-models";
@@ -76,6 +76,14 @@ export function useCatalogList(
   const [loading, setLoading] = useState<boolean>(entry === undefined);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   // Deps: urlKey covers all URL-derived fields (sort + ids + languages). `entry === undefined`
   // catches invalidation that removed a populated entry. `invalidationVersion` is a separate
   // signal so React re-renders and the effect re-runs even when the entry was already undefined
@@ -126,7 +134,7 @@ export function useCatalogList(
   // omitted from deps: `params.urlKey` already encodes them.
   const loadMore = useCallback(() => {
     const current = store.get<CatalogEntry>("books", params.urlKey);
-    if (!current || !current.hasMore || loading || loadingMore) return;
+    if (!current || !current.hasMore || loadingMore) return;
     const startedAtInvalidationVersion = store.invalidationVersion("books");
     setLoadingMore(true);
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
@@ -136,14 +144,13 @@ export function useCatalogList(
         if (!baseline) return;
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
         store.set("books", params.urlKey, next, { context: params.context });
-        setLoadingMore(false);
+        if (mountedRef.current) setLoadingMore(false);
       })
       .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
         console.warn("Failed to load more books:", err);
-        setLoadingMore(false);
+        if (mountedRef.current) setLoadingMore(false);
       });
-  }, [store, params.urlKey, params.context, loading, loadingMore]);
+  }, [store, params.urlKey, params.context, loadingMore]);
 
   return {
     books: entry?.books ?? [],

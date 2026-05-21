@@ -194,6 +194,9 @@ describe("useCatalogList", () => {
 
     expect(screen.getByText("Original")).toBeInTheDocument();
     expect(screen.queryByText("Duplicate")).toBeNull();
+    const stored = store.get<CatalogEntry>("books", "/");
+    expect(stored?.cursor).toBe(2);
+    expect(stored?.books.map((b) => b.id)).toEqual([1, 2]);
   });
 
   it("loadMore does not write after invalidation; loadingMore is reset", async () => {
