@@ -60,6 +60,45 @@ pyright                    # Полный прогон
   lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`,
   PyMuPDF `fitz`.
 
+## LSP (Python)
+
+Принцип «LSP вместо grep» из корневого `CLAUDE.md`. Для backend используется
+тот же language server, который читает `pyrightconfig.json` (см. выше — pyright).
+Работает на файлах `.py` в `backend/app/`.
+
+Типичные операции (через инструмент `LSP`):
+
+- `workspaceSymbol` — найти где определён символ во всём backend. Полезно для
+  «существует ли функция / класс / Pydantic-модель X», «в каком модуле она
+  объявлена».
+- `documentSymbol` — структура одного `.py`-файла: классы, функции, методы,
+  глобальные константы. Полезно для проверки «есть ли в роутере такой
+  endpoint», «какова структура DAL-модуля» без полного Read.
+- `findReferences` — все использования символа. Полезно для проверки «где
+  вызывается DAL-метод X», «кто импортирует service Y», «затронут ли мой
+  endpoint при рефакторинге типа Z».
+- `goToDefinition` — куда указывает имя при impl-чтении. Полезно для перехода
+  от router handler'а к DAL-функции.
+- `hover` — сигнатура и docstring. Полезно для проверки «совпадает ли
+  Pydantic-модель в роутере с тем, что я думал».
+- `incomingCalls` / `outgoingCalls` — кто вызывает функцию / кому она звонит.
+  Полезно для трассировки «service → DAL → SQL» при ревью изменений.
+
+**Особенность aiosql:** методы `Queries.get_books()`, `Queries.insert_book()`
+и т.п. генерируются динамически из `*.sql` файлов. Pyright их видит через
+stub'ы в `backend/typings/aiosql/`. LSP `workspaceSymbol` на конкретный DAL-метод
+их найдёт через stub-файл, но `goToDefinition` укажет на stub, не на реальный
+`.sql`-файл — это известное ограничение. Для понимания SQL — Read соответствующего
+`.sql`-файла в `backend/app/dal/`.
+
+Позиция в `LSP`-вызове — 1-based `line`/`character`. Курсор ставится на любой
+character внутри identifier'а символа.
+
+**Когда LSP не помогает:** проверка отсутствия конкретного текстового
+шаблона (`grep -n 'log.warning(' file.py`), дифф-сверка веток (`git diff main`),
+инспекция полного тела функции (Read), SQL-запросы в `.sql`-файлах
+(LSP их не индексирует — Read).
+
 ## SonarCloud
 
 Прогон только локальный — через wrapper:

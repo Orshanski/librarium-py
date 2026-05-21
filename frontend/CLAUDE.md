@@ -33,6 +33,40 @@ npx tsc --noEmit           # Type check
 - **Responsive.** Mobile vs desktop через `useIsMobile()` из `responsive.ts`,
   не CSS media queries напрямую в компонентах.
 
+## LSP (TypeScript)
+
+Принцип «LSP вместо grep» из корневого `CLAUDE.md`. Для frontend используется
+language server поверх `tsserver` (через инструмент `LSP`). Работает на файлах
+`.ts` и `.tsx`.
+
+Типичные операции:
+
+- `workspaceSymbol` — найти где определён символ во всём проекте. Полезно для
+  проверки «существует ли экспорт X», «в каком файле объявлен Y».
+- `documentSymbol` — все символы (функции, классы, типы, константы) в одном
+  файле. Полезно для проверки «есть ли в файле такой-то экспорт», «какова
+  структура файла» без полного Read.
+- `findReferences` — все использования символа. Полезно для проверки «где
+  вызывается helper X», «сколько call-sites у функции Y», «мигрирован ли
+  хук в правильное число потребителей».
+- `goToDefinition` — куда указывает импорт или вызов. Полезно для перехода
+  от call-site к определению при review.
+- `goToImplementation` — для интерфейсов и абстрактных методов. На frontend
+  редко (мало interfaces).
+- `hover` — сигнатура и docstring символа на позиции. Полезно для проверки
+  «совпадает ли сигнатура X с тем, что я ожидаю».
+- `outgoingCalls` / `incomingCalls` — кому звонит функция / кто звонит ей.
+  Полезно для проверки «компонент действительно render-only — не вызывает
+  useEffect/useCachedResource в outgoing». Требует
+  `prepareCallHierarchy` сначала.
+
+Позиция в `LSP`-вызове — 1-based `line`/`character`, как в редакторе. Курсор
+ставится на любой character внутри identifier'а символа.
+
+**Когда LSP не помогает:** проверка отсутствия конкретного текстового
+шаблона (`grep -n 'metadataCache.set(' file.tsx`), дифф-сверка между
+ветками (`git diff main`), инспекция полного тела функции (Read).
+
 ## Vendored Code
 
 - **`src/vendor/foliate-js/` — полный форк, не upstream vendor copy.** Upstream
