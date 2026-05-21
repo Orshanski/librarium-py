@@ -1,22 +1,24 @@
 """
-Explicit factory that registers the 4 shared CRUD endpoints shared between
-authors and series on a caller-provided APIRouter:
-    GET    /{entity_id}
+Explicit factory that registers up to 4 shared CRUD endpoints (3 when
+`register_get=False`) shared between authors, series and tags on a
+caller-provided APIRouter:
+    GET    /{entity_id}    # only when register_get=True
     PUT    /{entity_id}
     POST   /{entity_id}/merge
     DELETE /{entity_id}
 
 Plain function, not a decorator / not a metaclass / not a class-returning factory.
 Callers own the router instance (prefix, tags, list endpoint). `list_*` is not
-registered here because authors and series differ in query-param signatures.
+registered here because authors/series/tags differ in query-param signatures.
 
 Dynamic naming: factory резолвит service-функции через `getattr` по
 entity_label:
-    get_<entity_label>(db, id, user_id)
+    get_<entity_label>(db, id, user_id)         # only when register_get=True
     rename_<entity_label>(db, id, name)
-    merge_<entity_label>s(db, target, source)  # authors → merge_authors (plural)
-        or merge_<entity_label>(db, target, source)  # series → merge_series
+    merge_<entity_label>s(db, target, source)   # authors → merge_authors (plural)
+        or merge_<entity_label>(db, target, source)   # series/tags → singular
     delete_<entity_label>(db, id)
+    get_<entity_label>_name(db, id)             # required для re-read payload в *Renamed event'е
 
 Detail-строки (not-found, has-books, self-merge) — inside service functions,
 не kwargs фабрики.
@@ -47,7 +49,7 @@ def register_entity_crud(
     detail_response_model: type[Any] | None = None,
     register_get: bool = True,
 ) -> None:
-    """Register 4 shared CRUD endpoints on ``router``.
+    """Register up to 4 shared CRUD endpoints on ``router`` (3 when ``register_get=False``).
 
     Required service functions (всегда, независимо от ``register_get``):
       - ``rename_<label>(db, id, name) → bool``
@@ -112,7 +114,9 @@ def register_entity_crud(
         user: Annotated[CurrentUser, Depends(require_admin)],
         db: Annotated[sqlite3.Connection, Depends(db_session)],
     ):
-        name = body.name.strip()
+        # body.name уже stripped Pydantic'ом (RenameBody → STRIP_BODY_CONFIG);
+        # доп. .strip() не нужен.
+        name = body.name
         changed = rename_fn(db, entity_id, name)
         if changed:
             # Re-read stored name from DB для unified event payload —

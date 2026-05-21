@@ -58,11 +58,11 @@ class TestMergeTag:
     def test_merge_moves_books_and_publishes_event(self, admin_client, db, captured_domain_events):
         resp = admin_client.post("/api/tags/2/merge", json={"sourceId": 1})
         assert resp.status_code == 200
-        # source книги перешли в target
+        # Seed: tag 1 → {1, 3, 5}; tag 2 → {2, 4, 5}; объединение → {1..5}
+        # (book 5 в обоих → INSERT OR IGNORE дедуплицирует).
         rows = db.execute("SELECT book_id FROM book_tags WHERE tag_id = 2 ORDER BY book_id").fetchall()
         book_ids = {r["book_id"] for r in rows}
-        assert 1 in book_ids
-        assert 4 in book_ids
+        assert book_ids == {1, 2, 3, 4, 5}
         # source удалён
         assert db.execute("SELECT id FROM tags WHERE id = 1").fetchone() is None
         assert _event_matches(captured_domain_events, "tagMerged", {"targetId": 2, "sourceId": 1})

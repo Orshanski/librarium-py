@@ -316,6 +316,33 @@ def test_tag_detail_books_have_unified_card_shape(reader_client, tag_id):
 
 
 # ---------------------------------------------------------------------------
+# Tag mutation endpoints (52az.1) — three routes registered via factory.
+# Functional behavior covered in test_tags_endpoints.py; здесь — smoke wire.
+# ---------------------------------------------------------------------------
+
+
+def test_put_tag_rename_wire(admin_client):
+    resp = admin_client.put("/api/tags/1", json={"name": "Wire Renamed Tag"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_post_tag_merge_wire(admin_client):
+    resp = admin_client.post("/api/tags/2/merge", json={"sourceId": 1})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_delete_tag_wire(admin_client, db):
+    db.execute("INSERT INTO tags (name) VALUES ('WireDeleteTag')")
+    db.commit()
+    tag_id = db.execute("SELECT id FROM tags WHERE name = 'WireDeleteTag'").fetchone()["id"]
+    resp = admin_client.delete(f"/api/tags/{tag_id}")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # GET /api/shelves/{id}
 # ---------------------------------------------------------------------------
 
