@@ -43,25 +43,31 @@ export function useAuthorPage(): UseAuthorPageResult {
 
   const authorId = Number(id);
   const pathnameWithSearch = location.pathname + location.search;
+  const isInvalidId = !id || Number.isNaN(authorId);
 
   const scrollContext = useMemo(
     () => authorScrollContext(pathnameWithSearch, authorId),
     [pathnameWithSearch, authorId],
   );
 
-  const stateOrigin = readOriginFromState(location.state);
-  const parentOriginForBookLink: ListOrigin | undefined =
-    stateOrigin && stateOrigin.type !== "book" ? stateOrigin : undefined;
-  const crumb: AuthorCrumb = parentOriginForBookLink
-    ? { label: parentOriginForBookLink.label, href: parentOriginForBookLink.url }
-    : { label: "Авторы", href: "/authors" };
+  const parentOriginForBookLink = useMemo<ListOrigin | undefined>(() => {
+    const stateOrigin = readOriginFromState(location.state);
+    return stateOrigin && stateOrigin.type !== "book" ? stateOrigin : undefined;
+  }, [location.state]);
+
+  const crumb = useMemo<AuthorCrumb>(
+    () => parentOriginForBookLink
+      ? { label: parentOriginForBookLink.label, href: parentOriginForBookLink.url }
+      : { label: "Авторы", href: "/authors" },
+    [parentOriginForBookLink],
+  );
 
   const authorResource = useCachedResource(
     metadataCache,
     `author/${authorId}`,
     "detail",
     (signal) => (
-      !id || Number.isNaN(authorId)
+      isInvalidId
         ? Promise.reject(new NotFoundError(404, "Not found"))
         : getAuthor(authorId, signal)
     ),
@@ -75,23 +81,20 @@ export function useAuthorPage(): UseAuthorPageResult {
       id: raw.id,
       name: raw.name,
       sortName: raw.sortName ?? "",
-      bookCount: authorResource.data?.books?.length || 0,
+      bookCount: authorResource.data?.books?.length ?? 0,
       tags: raw.tags?.map((t) => t.name) ?? [],
     };
   }, [authorResource.data]);
 
-  const books = useMemo<Book[]>(
-    () => authorResource.data?.books || [],
-    [authorResource.data],
-  );
+  const books: Book[] = authorResource.data?.books ?? [];
 
   const loading = authorResource.loading;
-  const notFound = authorResource.error instanceof NotFoundError || !id || Number.isNaN(authorId);
+  const notFound = authorResource.error instanceof NotFoundError || isInvalidId;
 
   useScrollRestore(!loading, scrollContext);
 
   useEffect(() => {
-    if (Number.isNaN(authorId)) return undefined;
+    if (isInvalidId) return undefined;
     const unsubscribeMerged = domainEvents.subscribe("authorMerged", (payload) => {
       if (payload.sourceId === authorId) {
         navigate(`/authors/${payload.targetId}`);
