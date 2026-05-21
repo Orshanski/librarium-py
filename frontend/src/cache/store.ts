@@ -126,6 +126,68 @@ export class MetadataCacheStore {
     });
   }
 
+  applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
+    const { shelfId, bookId, hasBook, book } = payload;
+    const namespace = `shelf/${shelfId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as Record<string, unknown>;
+      if (!hasBook) {
+        // Remove case: filter bookId from books array if present
+        if (Array.isArray((value as { books?: unknown }).books)) {
+          const books = (value as { books: BookListRow[] }).books;
+          const filtered = books.filter((row) => row.id !== bookId);
+          if (filtered.length !== books.length) {
+            ns.entries.set(key, { ...entry, value: { ...value, books: filtered } });
+            changed = true;
+          }
+        }
+      } else if (book !== undefined) {
+        // Add case with book: append with dedup
+        if (Array.isArray((value as { books?: unknown }).books)) {
+          const books = (value as { books: BookListRow[] }).books;
+          const alreadyPresent = books.some((row) => row.id === book.id);
+          if (!alreadyPresent) {
+            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as unknown as BookListRow] } });
+            changed = true;
+          }
+        }
+      } else {
+        // Add case without book: invalidate this entry
+        ns.entries.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
+  }
+
+  applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
+    const { shelfId, name } = payload;
+    const namespace = `shelf/${shelfId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as Record<string, unknown>;
+      const shelf = (value as { shelf?: { id?: unknown; name?: unknown } }).shelf;
+      if (shelf && shelf.id === shelfId) {
+        ns.entries.set(key, { ...entry, value: { ...value, shelf: { ...shelf, name } } });
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
+  }
+
   invalidateBookLists(): void {
     this.updateBookListEntries(() => ({ delete: true }));
   }
