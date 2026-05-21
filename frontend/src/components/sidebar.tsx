@@ -74,7 +74,9 @@ export function SidebarContent({
       const { id } = await apiCreateShelf(name);
       setNewShelfName("");
       setShowNewShelf(false);
-      // publish → handler инвалидирует 'shelves' в store → useCachedResource refetch
+      // publish → handler инвалидирует 'shelves' в store → useCachedResource refetch.
+      // Локальный оптимистичный setShelves удалён намеренно: согласовано с «store first»,
+      // короткая пауза до refetch (~RTT) принята как компромисс.
       domainEvents.publish("shelfCreated", { shelfId: id, name });
       onNavigate?.();
     } catch (err) {
