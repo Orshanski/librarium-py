@@ -59,3 +59,14 @@ def merge_series(db: sqlite3.Connection, target_id: int, source_id: int) -> bool
 def delete_series(db: sqlite3.Connection, series_id: int) -> None:
     """Делегация. DAL raise'ит NotFoundError/BadInputError (T5) — пропагируем."""
     dal.delete_series(db, series_id)
+
+
+def get_series_name(db: sqlite3.Connection, series_id: int) -> str:
+    """Return series name by id. Raises NotFoundError if series does not exist.
+
+    Используется register_entity_crud для re-read имени после успешного
+    rename (payload события *Renamed). Симметрично get_tag_name/get_author_name."""
+    row = dal.queries.get_series_by_id(db, id=series_id)
+    if row is None:
+        raise NotFoundError("Серия не найдена")
+    return row["name"]

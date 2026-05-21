@@ -292,3 +292,42 @@ class TestDeleteTagDAL:
         # Seed (tests/seed.py): tag 1 → books {1, 3, 5} — см. TestMergeTagDAL.
         with pytest.raises(BadInputError):
             delete_tag(db, tag_id=1)
+
+
+class TestGetNameWrappers:
+    def test_tags_get_tag_name_returns_str_for_existing(self, admin_client, db):
+        from app.services.tags_service import get_tag_name
+        name = get_tag_name(db, 1)
+        assert isinstance(name, str)
+        assert name == "Фэнтези"
+
+    def test_tags_get_tag_name_raises_not_found_for_missing(self, admin_client, db):
+        from app.services.tags_service import get_tag_name
+        from app.exceptions import NotFoundError
+        import pytest
+        with pytest.raises(NotFoundError):
+            get_tag_name(db, 99999)
+
+    def test_series_get_series_name_returns_str_for_existing(self, admin_client, db):
+        from app.services.series_service import get_series_name
+        name = get_series_name(db, 1)
+        assert isinstance(name, str)
+
+    def test_series_get_series_name_raises_not_found_for_missing(self, admin_client, db):
+        from app.services.series_service import get_series_name
+        from app.exceptions import NotFoundError
+        import pytest
+        with pytest.raises(NotFoundError):
+            get_series_name(db, 99999)
+
+    def test_authors_get_author_name_returns_str_for_existing(self, admin_client, db):
+        from app.services.authors_service import get_author_name
+        name = get_author_name(db, 1)
+        assert isinstance(name, str)
+
+    def test_authors_get_author_name_raises_not_found_for_missing(self, admin_client, db):
+        from app.services.authors_service import get_author_name
+        from app.exceptions import NotFoundError
+        import pytest
+        with pytest.raises(NotFoundError):
+            get_author_name(db, 99999)

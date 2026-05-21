@@ -60,3 +60,16 @@ def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:
         renamed=result["renamed"],
         name=committed_name,
     )
+
+
+def get_tag_name(db: sqlite3.Connection, tag_id: int) -> str:
+    """Return tag name by id. Raises NotFoundError if tag does not exist.
+
+    Spec-уровневый контракт `→ str` (не `str | None`): обёртка над
+    dal.get_tag_name (которая возвращает str | None), raise'ит NotFoundError
+    при None. Используется register_entity_crud для re-read имени после
+    успешного rename (payload события *Renamed)."""
+    name = dal.get_tag_name(db, tag_id)
+    if name is None:
+        raise NotFoundError("Тег не найден")
+    return name

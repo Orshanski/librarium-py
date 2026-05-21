@@ -58,3 +58,14 @@ def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> boo
 def delete_author(db: sqlite3.Connection, author_id: int) -> None:
     """Делегация. DAL raise'ит NotFoundError/BadInputError (T5) — пропагируем."""
     dal.delete_author(db, author_id)
+
+
+def get_author_name(db: sqlite3.Connection, author_id: int) -> str:
+    """Return author name by id. Raises NotFoundError if author does not exist.
+
+    Используется register_entity_crud для re-read имени после успешного
+    rename (payload события *Renamed). Симметрично get_tag_name/get_series_name."""
+    row = dal.queries.get_author_by_id(db, id=author_id)
+    if row is None:
+        raise NotFoundError("Автор не найден")
+    return row["name"]
