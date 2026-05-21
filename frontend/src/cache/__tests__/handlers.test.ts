@@ -1,7 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { domainEvents } from "@/domain/events";
+import type { DomainEventMap } from "@/domain/events";
+import type { Book } from "@/types";
 import { MetadataCacheStore } from "../store";
 import { registerMetadataCacheHandlers } from "../handlers";
+
+function makeBook(id: number, title: string): Book {
+  return {
+    id,
+    title,
+    authors: [],
+    series: null,
+    seriesNumber: null,
+    coverPath: "",
+    rating: null,
+    isRead: false,
+  };
+}
 
 describe("metadata cache handlers", () => {
   let store: MetadataCacheStore;
@@ -194,31 +209,44 @@ describe("metadata cache handlers", () => {
   });
 
   it("shelfMembershipChanged hasBook=true с полем book добавляет карточку в shelf/{id} entry", () => {
+    store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
     store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+    store.set("book-shelves/20", "all", { shelves: [] });
 
-    domainEvents.publish("shelfMembershipChanged", {
+    const payload: DomainEventMap["shelfMembershipChanged"] = {
       shelfId: 3,
       bookId: 20,
       hasBook: true,
-      book: { id: 20, title: "New" } as never,
-    });
+      book: makeBook(20, "New"),
+    };
+    domainEvents.publish("shelfMembershipChanged", payload);
 
     const shelfEntry = store.get<{ shelf: { id: number }; books: { id: number; title: string }[] }>("shelf/3", "detail");
     expect(shelfEntry).not.toBeUndefined();
     expect(shelfEntry?.books.some((b) => b.id === 20)).toBe(true);
     expect(shelfEntry?.books.find((b) => b.id === 20)?.title).toBe("New");
+    // Сопутствующие инвалидации сохраняются независимо от ветки hasBook.
+    expect(store.get("shelves", "all")).toBeUndefined();
+    expect(store.get("book-shelves/20", "all")).toBeUndefined();
   });
 
   it("shelfMembershipChanged hasBook=true без book инвалидирует shelf/{id}", () => {
+    store.set("shelves", "all", { shelves: [{ id: 3, bookCount: 1 }] });
     store.set("shelf/3", "detail", { shelf: { id: 3 }, books: [{ id: 99, title: "Existing" }] });
+    store.set("book-shelves/20", "all", { shelves: [] });
+    const beforeInvalidation = store.invalidationVersion("shelf/3");
 
-    domainEvents.publish("shelfMembershipChanged", {
+    const payload: DomainEventMap["shelfMembershipChanged"] = {
       shelfId: 3,
       bookId: 20,
       hasBook: true,
-    });
+    };
+    domainEvents.publish("shelfMembershipChanged", payload);
 
     expect(store.get("shelf/3", "detail")).toBeUndefined();
+    expect(store.invalidationVersion("shelf/3")).toBe(beforeInvalidation + 1);
+    expect(store.get("shelves", "all")).toBeUndefined();
+    expect(store.get("book-shelves/20", "all")).toBeUndefined();
   });
 
   it("handles author, series, tag, shelf, rating, read, and progress events", () => {
