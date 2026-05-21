@@ -270,7 +270,9 @@ describe("metadata cache handlers", () => {
 
     domainEvents.publish("authorRenamed", { authorId: 1, name: "New" });
     expect(store.get("filter-options/authors", "all")).toBeUndefined();
-    expect(store.get("author/1", "detail")).toBeUndefined();
+    const authorEntry = store.get<{ author: { id: number; name: string } }>("author/1", "detail");
+    expect(authorEntry).not.toBeUndefined();
+    expect(authorEntry?.author.name).toBe("New");
     expect(store.get("books", "author-sorted")).toBeUndefined();
     expect(store.get<{ books: { authors: { name: string }[] }[] }>("books", "safe-author-row")?.books[0].authors[0].name).toBe("New");
 
