@@ -94,6 +94,11 @@ export function useAuthorPage(): UseAuthorPageResult {
 
   useScrollRestore(!loading, scrollContext);
 
+  // Подписки на authorMerged/authorDeleted покрывают и локальный, и удалённый (SSE) сценарий.
+  // Инвариант порядка: handler из registerMetadataCacheHandlers зарегистрирован первым, наша
+  // подписка — позже; Set обходится в порядке регистрации; store.invalidate синхронен,
+  // React-рендер от useCachedResource асинхронный → navigate уходит до возврата страницы
+  // в состояние «Автор не найден». Если этот порядок изменится, инвариант сломается.
   useEffect(() => {
     if (isInvalidId) return undefined;
     const unsubscribeMerged = domainEvents.subscribe("authorMerged", (payload) => {
