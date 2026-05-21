@@ -4,7 +4,7 @@ import sqlite3
 from ..dal import tags as dal
 from ..dtos.catalog import UserSort
 from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse, TagSummary
-from ..exceptions import NotFoundError
+from ..exceptions import BadInputError, NotFoundError
 from .book_item_builder import row_to_book_card_item
 
 
@@ -73,3 +73,45 @@ def get_tag_name(db: sqlite3.Connection, tag_id: int) -> str:
     if name is None:
         raise NotFoundError("Тег не найден")
     return name
+
+
+def rename_tag(db: sqlite3.Connection, tag_id: int, name: str) -> bool:
+    """Rename tag. Raises NotFoundError if tag does not exist.
+
+    Сравнивает по нормализованному имени (не raw, как у series/authors).
+    Это даёт идемпотентность повторного PUT с любым регистром/whitespace —
+    осознанная асимметрия с rename_series.
+
+    Returns True если имя реально изменилось, False если no-op."""
+    if not dal.tag_exists(db, tag_id):
+        raise NotFoundError("Тег не найден")
+    normalized = dal.normalize_tag_name(name)
+    current = dal.get_tag_name(db, tag_id)
+    if current == normalized:
+        return False
+    dal.rename_tag(db, tag_id, normalized)
+    return True
+
+
+def merge_tag(db: sqlite3.Connection, target_id: int, source_id: int) -> bool:
+    """Merge source tag into target. Симметрично merge_series.
+
+    Returns True если merge произошёл, False если source не существует
+    (silent no-op, как у merge_series). Raises BadInputError на self-merge.
+
+    Существование target специально не проверяется — если его не существует,
+    DAL-операция (insert_book_tags_from_source с несуществующим target)
+    поднимет FK IntegrityError → 500. UX-fix общий — librarium-py-q6cu."""
+    if target_id == source_id:
+        raise BadInputError("Нельзя объединить с самим собой")
+    if not dal.tag_exists(db, source_id):
+        return False
+    dal.merge_tag(db, target_id, source_id)
+    return True
+
+
+def delete_tag(db: sqlite3.Connection, tag_id: int) -> None:
+    """Delete tag. Делегация в DAL — структурно симметрично delete_series/
+    delete_author. DAL raise'ит NotFoundError/BadInputError (existence+count
+    checks), пропагируем."""
+    dal.delete_tag(db, tag_id)

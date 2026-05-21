@@ -331,3 +331,57 @@ class TestGetNameWrappers:
         import pytest
         with pytest.raises(NotFoundError):
             get_author_name(db, 99999)
+
+
+class TestTagServiceCRUD:
+    def test_rename_tag_returns_true_on_change(self, admin_client, db):
+        from app.services.tags_service import rename_tag
+        changed = rename_tag(db, tag_id=1, name="Новое фэнтези")
+        assert changed is True
+        row = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
+        assert row["name"] == "Новое фэнтези"
+
+    def test_rename_tag_normalizes_name(self, admin_client, db):
+        from app.services.tags_service import rename_tag
+        changed = rename_tag(db, tag_id=1, name="новое фэнтези")
+        assert changed is True
+        row = db.execute("SELECT name FROM tags WHERE id = 1").fetchone()
+        assert row["name"] == "Новое фэнтези"  # Capitalize first letter
+
+    def test_rename_tag_normalized_idempotent(self, admin_client, db):
+        """Идемпотентность повторного rename с любым регистром: tag 1 'Фэнтези',
+        повтор с lowercase 'фэнтези' → same normalized → no-op."""
+        from app.services.tags_service import rename_tag
+        changed = rename_tag(db, tag_id=1, name="фэнтези")
+        assert changed is False
+
+    def test_rename_tag_raises_not_found(self, admin_client, db):
+        from app.services.tags_service import rename_tag
+        from app.exceptions import NotFoundError
+        import pytest
+        with pytest.raises(NotFoundError):
+            rename_tag(db, tag_id=99999, name="Что-то")
+
+    def test_merge_tag_returns_true_on_success(self, admin_client, db):
+        from app.services.tags_service import merge_tag
+        changed = merge_tag(db, target_id=2, source_id=1)
+        assert changed is True
+
+    def test_merge_tag_returns_false_on_nonexistent_source(self, admin_client, db):
+        from app.services.tags_service import merge_tag
+        changed = merge_tag(db, target_id=2, source_id=99999)
+        assert changed is False
+
+    def test_merge_tag_raises_bad_input_on_self_merge(self, admin_client, db):
+        from app.services.tags_service import merge_tag
+        from app.exceptions import BadInputError
+        import pytest
+        with pytest.raises(BadInputError):
+            merge_tag(db, target_id=1, source_id=1)
+
+    def test_delete_tag_delegates_to_dal(self, admin_client, db):
+        from app.services.tags_service import delete_tag
+        db.execute("INSERT INTO tags (name) VALUES ('TempForServiceTest')")
+        tag_id = db.execute("SELECT id FROM tags WHERE name = 'TempForServiceTest'").fetchone()["id"]
+        delete_tag(db, tag_id=tag_id)
+        assert db.execute("SELECT id FROM tags WHERE id = ?", (tag_id,)).fetchone() is None
