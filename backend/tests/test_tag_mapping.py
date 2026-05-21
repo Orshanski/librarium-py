@@ -428,11 +428,11 @@ class TestRegisterGetParameter:
     проверить именно factory-поведение в изоляции (не зацепить existing
     series/authors GET handlers)."""
 
-    def test_register_get_false_skips_get_endpoint(self, admin_client):
-        from fastapi import APIRouter
-        from fastapi.routing import APIRoute
-        from app.routers._entity_crud import register_entity_crud
+    @staticmethod
+    def _build_router(*, register_get, include_get_tag=False):
         import logging
+        from fastapi import APIRouter
+        from app.routers._entity_crud import register_entity_crud
 
         class MockService:
             @staticmethod
@@ -447,9 +447,8 @@ class TestRegisterGetParameter:
             def delete_tag(db, id):
                 return None
 
-            @staticmethod
-            def get_tag_name(db, id):
-                return "stub"
+        if include_get_tag:
+            MockService.get_tag = staticmethod(lambda db, id, user_id: {"id": id})
 
         router = APIRouter()
         register_entity_crud(
@@ -457,51 +456,27 @@ class TestRegisterGetParameter:
             service=MockService,
             logger=logging.getLogger("test"),
             entity_label="tag",
-            register_get=False,
+            register_get=register_get,
         )
+        return router
+
+    @staticmethod
+    def _routes_summary(router):
+        from fastapi.routing import APIRoute
+        return {(r.path, tuple(sorted(r.methods))) for r in router.routes if isinstance(r, APIRoute)}
+
+    def test_register_get_false_skips_get_endpoint(self):
+        router = self._build_router(register_get=False)
+        methods_paths = self._routes_summary(router)
         # Routes registered должны быть только PUT, POST .../merge, DELETE — без GET /{entity_id}
-        methods_paths = {(r.path, tuple(sorted(r.methods))) for r in router.routes if isinstance(r, APIRoute)}
         assert ("/{entity_id}", ("PUT",)) in methods_paths
         assert ("/{entity_id}/merge", ("POST",)) in methods_paths
         assert ("/{entity_id}", ("DELETE",)) in methods_paths
         # GET /{entity_id} НЕ зарегистрирован
         assert not any(path == "/{entity_id}" and "GET" in methods for path, methods in methods_paths)
 
-    def test_register_get_true_includes_get_endpoint(self, admin_client):
+    def test_register_get_true_includes_get_endpoint(self):
         """Default register_get=True сохраняет existing behavior (series/authors call-sites)."""
-        from fastapi import APIRouter
-        from fastapi.routing import APIRoute
-        from app.routers._entity_crud import register_entity_crud
-        import logging
-
-        class MockService:
-            @staticmethod
-            def get_tag(db, id, user_id):
-                return {"id": id}
-
-            @staticmethod
-            def rename_tag(db, id, name):
-                return True
-
-            @staticmethod
-            def merge_tag(db, target, source):
-                return True
-
-            @staticmethod
-            def delete_tag(db, id):
-                return None
-
-            @staticmethod
-            def get_tag_name(db, id):
-                return "stub"
-
-        router = APIRouter()
-        register_entity_crud(
-            router,
-            service=MockService,
-            logger=logging.getLogger("test"),
-            entity_label="tag",
-            # register_get default = True
-        )
-        methods_paths = {(r.path, tuple(sorted(r.methods))) for r in router.routes if isinstance(r, APIRoute)}
+        router = self._build_router(register_get=True, include_get_tag=True)
+        methods_paths = self._routes_summary(router)
         assert any(path == "/{entity_id}" and "GET" in methods for path, methods in methods_paths)

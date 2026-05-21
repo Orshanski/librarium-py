@@ -49,16 +49,21 @@ def register_entity_crud(
 ) -> None:
     """Register 4 shared CRUD endpoints on ``router``.
 
+    Required service functions:
+      - ``rename_<label>(db, id, name) → bool``
+      - ``merge_<label>s(db, target, source) → bool`` (plural for authors) or
+        ``merge_<label>(db, target, source) → bool`` (series; singular=plural)
+      - ``delete_<label>(db, id) → None``
+      Service functions raise custom domain exceptions (NotFoundError,
+      BadInputError) — middleware handles HTTP maps.
+
+    Optional service functions (only when ``register_get=True``):
+      - ``get_<label>(db, id, user_id)`` — takes a ``user_id`` because the
+        detail page books[] carry per-user rating/is_read via LEFT JOIN with
+        user_books.
+
     Parameters:
-      - ``service``: entity service module (e.g. ``authors_service``). Must expose
-        ``get_<label>(db, id, user_id)`` (only when ``register_get=True``),
-        ``rename_<label>(db, id, name)``,
-        ``merge_<label>s(db, target, source)`` (plural for authors) or
-        ``merge_<label>(db, target, source)`` (series; singular=plural),
-        ``delete_<label>(db, id)``. Service functions raise custom domain
-        exceptions (NotFoundError, BadInputError) — middleware handles HTTP maps.
-        ``get_<label>`` takes a ``user_id`` because the detail page books[] carry
-        per-user rating/is_read via LEFT JOIN with user_books.
+      - ``service``: entity service module (e.g. ``authors_service``).
       - ``logger``: caller's module logger for info lines on rename/merge/delete.
       - ``entity_label``: singular noun used in log lines (``"author"``, ``"series"``).
       - ``detail_response_model``: optional Pydantic model class for the GET
