@@ -15,8 +15,14 @@ set -euo pipefail
 
 cmd=$(jq -re '.tool_input.command' 2>/dev/null) || exit 0
 
-case "$cmd" in
-  *"git push"*)
+# Срабатываем ТОЛЬКО если команда (после trimming whitespace)
+# начинается буквально с "git push". Не пытаемся парсить shell
+# (это нерешаемо одной regex'ой) — сложные случаи типа
+# `cd backend && git push` или `echo ... | hook.sh` намеренно
+# не покрываем, чтобы избежать false-positive на тексте в кавычках.
+trimmed=$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]+//')
+case "$trimmed" in
+  "git push"|"git push "*)
     jq -n '{
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -27,7 +33,7 @@ case "$cmd" in
     }'
     exit 0
     ;;
-  *)
+  0)
     exit 0
     ;;
 esac
