@@ -27,6 +27,9 @@ describe("AuthorPage", () => {
     unregisterCacheHandlers?.();
     unregisterCacheHandlers = undefined;
     domainEvents.clear();
+    // Cache между основным describe и сиблингами-хелперами (describeMobileGearAbsent/...) —
+    // их beforeEach чистит только sessionStorage+viewport, не кеш. Защищаем от прокидывания
+    // обновлённых имён через метаданные (rename-тест пишет "New" в author/42).
     metadataCache.clear();
   });
 
@@ -181,7 +184,9 @@ describe("AuthorPage", () => {
       domainEvents.publish("authorRenamed", { authorId: 42, name: "New" });
     });
 
-    expect(screen.getAllByText("New").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText("New").length).toBeGreaterThan(0);
+    });
     expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
   });
 
@@ -222,7 +227,7 @@ describe("AuthorPage", () => {
       http.get("/api/authors/:id", () => {
         requestCount += 1;
         return HttpResponse.json({
-          author: { id: 42, name: "Author 42", sortName: "A42", bookCount: requestCount, tags: [] },
+          author: { id: 42, name: "Author 42", sortName: "A42", bookCount: 0, tags: [] },
           books: [],
         });
       })
@@ -256,8 +261,7 @@ describe("AuthorPage", () => {
           author: { id: Number(params.id), name: `Author ${params.id}`, sortName: `A${params.id}`, bookCount: 0, tags: [] },
           books: [],
         })
-      ),
-      http.get("/api/authors", () => HttpResponse.json({ authors: [] }))
+      )
     );
 
     renderWithProviders(

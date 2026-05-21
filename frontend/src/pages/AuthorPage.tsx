@@ -87,6 +87,8 @@ export default function AuthorPage() {
           onMerged={() => setShowAdmin(false)}
           onDeleted={() => {
             setShowAdmin(false);
+            // Страховка поверх подписки хука на authorDeleted: основная навигация — через подписку,
+            // эта строка защищает от изменений порядка publish/callback в EntityAdminPanel.
             navigateAfterDelete();
           }}
         />
