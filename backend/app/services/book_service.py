@@ -147,6 +147,18 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
     )
 
 
+def get_book_card_item_or_none(db: sqlite3.Connection, book_id: int, user_id: int):
+    """Return a BookCardItem for book_id/user_id, or None if the book is absent.
+
+    Used by the shelves router to embed the card in the shelfMembershipChanged payload
+    after a successful add — avoids a direct DAL import in the router layer.
+    """
+    row = dal.get_book_by_id(db, book_id, user_id)
+    if row is None:
+        return None
+    return row_to_book_card_item(cast(dict, row))
+
+
 def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, str]]:
     """Резолвит tempId-ы в (tempId, src_path, fmt, ext). Кидает ошибки до side effects."""
     if len(set(add_formats)) != len(add_formats):
