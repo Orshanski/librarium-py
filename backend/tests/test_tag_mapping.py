@@ -220,3 +220,42 @@ class TestRenameTagDAL:
         rename_tag(db, tag_id=1, name="Какое-то новое имя")
         new_name_2 = db.execute("SELECT name FROM tags WHERE id = 2").fetchone()["name"]
         assert new_name_2 == original_name_2
+
+
+class TestMergeTagDAL:
+    def test_merge_moves_books_from_source_to_target(self, admin_client, db):
+        from app.dal.tags import merge_tag
+        # Seed (tests/seed.py): tag 1 → books {1, 3, 5}; tag 2 → books {2, 4, 5}.
+        # Book 5 уже в обоих тегах → INSERT OR IGNORE дедуплицирует
+        # (book_tags has PRIMARY KEY (book_id, tag_id)).
+        merge_tag(db, target_id=2, source_id=1)
+        # All books that referenced tag 1 теперь reference tag 2
+        rows = db.execute("SELECT book_id FROM book_tags WHERE tag_id = 2 ORDER BY book_id").fetchall()
+        book_ids = {r["book_id"] for r in rows}
+        assert {1, 2, 3, 4, 5} == book_ids
+
+    def test_merge_deletes_source_tag(self, admin_client, db):
+        from app.dal.tags import merge_tag
+        merge_tag(db, target_id=2, source_id=1)
+        assert db.execute("SELECT id FROM tags WHERE id = 1").fetchone() is None
+
+    def test_merge_remaps_existing_tag_mappings(self, admin_client, db):
+        """Phantom-исключение seed-зависимости: вставляем явный mapping для test,
+        проверяем behavior merge_tag, а не seed-состояние."""
+        from app.dal.tags import merge_tag
+        # Setup explicit mapping (don't depend on seed mapping 'sf_fantasy' → 1)
+        db.execute("INSERT INTO tag_mappings (raw_tag, tag_id) VALUES ('test_raw_remap', 1)")
+        merge_tag(db, target_id=2, source_id=1)
+        row = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = 'test_raw_remap'").fetchone()
+        assert row is not None
+        assert row["tag_id"] == 2
+
+    def test_merge_inserts_source_name_mapping(self, admin_client, db):
+        from app.dal.tags import merge_tag
+        # Before merge: source name 'Фэнтези' (tag 1) — нет self-mapping by name.
+        # After merge: 'Фэнтези' → target_id=2 в tag_mappings (future imports of
+        # raw 'Фэнтези' разрешаются в merged target).
+        merge_tag(db, target_id=2, source_id=1)
+        row = db.execute("SELECT tag_id FROM tag_mappings WHERE raw_tag = 'Фэнтези'").fetchone()
+        assert row is not None
+        assert row["tag_id"] == 2

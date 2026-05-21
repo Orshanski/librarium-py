@@ -183,3 +183,27 @@ def rename_tag(db: sqlite3.Connection, tag_id: int, name: str) -> None:
     """Rename tag to `name`. Caller is responsible for normalization and
     existence checks — DAL is the thin SQL layer (симметрично dal.rename_series)."""
     queries.update_tag_name(db, name=name, id=tag_id)
+
+
+def merge_tag(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
+    """Merge source tag into target: move book references, remap raw_tag
+    mappings, delete source. Caller is responsible for existence/self-merge
+    checks — DAL is the thin SQL layer (симметрично dal.merge_series).
+
+    Mappings strategy mirrors existing dal.map_tag merge branch:
+    1. Read source name (для insert mapping ниже).
+    2. Move book_tags rows source → target (INSERT OR IGNORE для дубликатов).
+    3. Delete remaining source book_tags rows.
+    4. Remap existing tag_mappings rows from source to target.
+    5. Insert mapping source_name → target (если source имел имя) — future
+       FB2 imports того же имени разрешаются в target.
+    6. Delete source tag row.
+    """
+    source_row = queries.get_tag_name_by_id(db, id=source_id)
+    source_name = source_row["name"] if source_row else None
+    queries.insert_book_tags_from_source(db, target=target_id, source=source_id)
+    queries.delete_book_tags_by_source(db, source=source_id)
+    queries.update_tag_mappings_target(db, target=target_id, source=source_id)
+    if source_name:
+        queries.insert_tag_mapping(db, raw=source_name, tid=target_id)
+    queries.delete_tag_by_id(db, source=source_id)
