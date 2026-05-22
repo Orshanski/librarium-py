@@ -161,18 +161,11 @@ describe("list scroll validity", () => {
         version: 0,
         context: { kind: "book-list", key: "/?seriesIds=2", source: "catalog", sort: "addedDesc", filters: { seriesIds: [2] } },
       },
-      {
-        url: "/?tagIds=3",
-        scrollTop: 400,
-        version: 0,
-        context: { kind: "book-list", key: "/?tagIds=3", source: "catalog", sort: "addedDesc", filters: { tagIds: [3] } },
-      },
     ]);
     registerScrollInvalidationHandlers(domainEvents);
 
     domainEvents.publish("authorDeleted", { authorId: 1 });
     domainEvents.publish("seriesDeleted", { seriesId: 2 });
-    domainEvents.publish("tagMapped", { tagId: 3, targetId: 9, name: "Mapped" });
 
     expect(readScrollEntries()).toEqual([]);
   });
@@ -232,5 +225,114 @@ describe("list scroll validity", () => {
         context: { kind: "entity-list", key: "authors", entity: "authors" },
       },
     ]);
+  });
+});
+
+describe("scroll invalidation: tagRenamed", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    domainEvents.clear();
+  });
+
+  it("invalidates search entries", () => {
+    writeScrollEntries([{
+      url: "/search",
+      scrollTop: 100,
+      version: 1,
+      context: { kind: "book-list", source: "search", sort: "addedDesc", key: "/search", query: "x" },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagRenamed", { tagId: 1, name: "X" });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("keeps tag-detail entries for the renamed tag", () => {
+    writeScrollEntries([{
+      url: "/tags/1",
+      scrollTop: 100,
+      version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/1", tagId: 1 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagRenamed", { tagId: 1, name: "X" });
+    expect(readScrollEntries()).toHaveLength(1);
+  });
+});
+
+describe("scroll invalidation: tagMerged", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    domainEvents.clear();
+  });
+
+  it("invalidates entries where context.tagId is source or target", () => {
+    writeScrollEntries([
+      { url: "/tags/1", scrollTop: 1, version: 1, context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/1", tagId: 1 } },
+      { url: "/tags/2", scrollTop: 2, version: 1, context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/2", tagId: 2 } },
+    ]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("invalidates entries with tagIds filter including merged ids", () => {
+    writeScrollEntries([{
+      url: "/",
+      scrollTop: 1,
+      version: 1,
+      context: { kind: "book-list", source: "catalog", sort: "addedDesc", key: "/", filters: { tagIds: [1] } },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("keeps unaffected entries (different tagId, no filter overlap)", () => {
+    writeScrollEntries([{
+      url: "/tags/9", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/9", tagId: 9 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+    expect(readScrollEntries()).toHaveLength(1);
+  });
+});
+
+describe("scroll invalidation: tagDeleted", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    domainEvents.clear();
+  });
+
+  it("invalidates entries where context.tagId equals deleted id", () => {
+    writeScrollEntries([{
+      url: "/tags/5",
+      scrollTop: 1,
+      version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/5", tagId: 5 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("invalidates entries with tagIds filter including deleted id", () => {
+    writeScrollEntries([{
+      url: "/", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "catalog", sort: "addedDesc", key: "/", filters: { tagIds: [5] } },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("keeps unaffected entries (different tagId, no filter overlap)", () => {
+    writeScrollEntries([{
+      url: "/tags/9", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/9", tagId: 9 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(readScrollEntries()).toHaveLength(1);
   });
 });

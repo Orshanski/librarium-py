@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { domainEvents } from "../events";
+import { domainEvents, type DomainEventMap } from "../events";
 
 describe("domainEvents", () => {
   beforeEach(() => {
@@ -55,5 +55,35 @@ describe("domainEvents", () => {
     expect(later).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+describe("DomainEventMap tag events", () => {
+  beforeEach(() => {
+    domainEvents.clear();
+  });
+
+  it("tagRenamed: tagId + name", () => {
+    const handler = vi.fn<(p: DomainEventMap["tagRenamed"]) => void>();
+    const unsub = domainEvents.subscribe("tagRenamed", handler);
+    domainEvents.publish("tagRenamed", { tagId: 1, name: "Renamed" });
+    expect(handler).toHaveBeenCalledWith({ tagId: 1, name: "Renamed" });
+    unsub();
+  });
+
+  it("tagMerged: targetId + sourceId", () => {
+    const handler = vi.fn<(p: DomainEventMap["tagMerged"]) => void>();
+    const unsub = domainEvents.subscribe("tagMerged", handler);
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+    expect(handler).toHaveBeenCalledWith({ targetId: 2, sourceId: 1 });
+    unsub();
+  });
+
+  it("tagDeleted: tagId", () => {
+    const handler = vi.fn<(p: DomainEventMap["tagDeleted"]) => void>();
+    const unsub = domainEvents.subscribe("tagDeleted", handler);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(handler).toHaveBeenCalledWith({ tagId: 5 });
+    unsub();
   });
 });

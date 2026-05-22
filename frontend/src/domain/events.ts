@@ -47,7 +47,9 @@ export type DomainEventMap = {
   seriesRenamed: { seriesId: number; name: string; sortName?: string };
   seriesMerged: { targetId: number; sourceId: number };
   seriesDeleted: { seriesId: number };
-  tagMapped: { tagId: number; targetId: number; name: string };
+  tagRenamed: { tagId: number; name: string };
+  tagMerged: { targetId: number; sourceId: number };
+  tagDeleted: { tagId: number };
   shelfCreated: { shelfId: number; name: string };
   shelfRenamed: { shelfId: number; name: string };
   shelfDeleted: { shelfId: number };

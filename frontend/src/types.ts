@@ -32,6 +32,7 @@ export interface Book {
   coverPath: string;
   rating: number | null;
   isRead: boolean;
+  tags: TagRef[];
 }
 
 /**
@@ -49,7 +50,6 @@ export interface BookDetail extends Book {
   language: string | null;
   publisher: string | null;
   pubDate: string | null;
-  tags: TagRef[];
   addedAt: string;
   updatedAt: string;
 }

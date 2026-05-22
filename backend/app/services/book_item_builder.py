@@ -4,8 +4,9 @@ Two builders cover the read-path response shapes:
 - `row_to_book_card_item` — list endpoints (catalog, shelf, author, series,
   tag, search). Card-level fields only.
 - `row_to_book_detail_item` — single-book detail endpoint. Card-level fields
-  plus 8 detail fields (sort_title, description, language, publisher,
-  pub_date, tags, added_at, updated_at).
+  plus 7 detail fields (sort_title, description, language, publisher,
+  pub_date, added_at, updated_at). `tags` is a card-shape field handled
+  by `row_to_book_card_item`.
 
 Both expect rows post `parse_book_row_aggregates`:
 - authors: list[AuthorRef]   (parsed JSON, not CSV)
@@ -23,6 +24,7 @@ def row_to_book_card_item(row: Mapping[str, Any]) -> BookCardItem:
 
     Row contract (guaranteed by parse_book_row_aggregates):
     - authors: list[AuthorRef]
+    - tags: list[TagRef]
     - series: SeriesRef | None
     - is_read: int | None (0/1 from SQL, coerced to bool)
     """
@@ -38,6 +40,7 @@ def row_to_book_card_item(row: Mapping[str, Any]) -> BookCardItem:
         cover_path=f"/api/covers/{book_id}?t={updated_at}",
         rating=row.get("rating"),
         is_read=bool(is_read_raw) if is_read_raw is not None else False,
+        tags=row.get("tags") or [],
     )
 
 

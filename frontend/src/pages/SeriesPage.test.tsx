@@ -224,8 +224,9 @@ describe("SeriesPage", () => {
     server.use(
       http.get("/api/series/:id", () => {
         requestCount += 1;
+        const name = requestCount === 1 ? "Series 42" : "Series 42 Merged";
         return HttpResponse.json({
-          series: { id: 42, name: "Series 42", sortName: "S42", bookCount: 0, authors: [] },
+          series: { id: 42, name, sortName: "S42", bookCount: 0, authors: [] },
           books: [],
         });
       })
@@ -249,6 +250,9 @@ describe("SeriesPage", () => {
 
     await waitFor(() => {
       expect(requestCount).toBe(2);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Series 42 Merged").length).toBeGreaterThan(0);
     });
   });
 

@@ -58,6 +58,195 @@ const CASES: EntityCase[] = [
   },
 ];
 
+const defaultTagsList = [
+  { id: 1, name: "Фэнтези" },
+  { id: 2, name: "Детектив" },
+];
+
+function setupDefaultTagHandlers() {
+  server.use(
+    http.get("/api/filter-options/tags", () =>
+      HttpResponse.json({ tags: defaultTagsList })
+    )
+  );
+}
+
+describe("EntityAdminPanel — tag mode", () => {
+  it("uses 'жанр' / 'Жанр' localization (not 'тег')", async () => {
+    setupDefaultTagHandlers();
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={5}
+        onRenamed={vi.fn()}
+        onMerged={vi.fn()}
+        onDeleted={vi.fn()}
+      />
+    );
+    // Should use "жанр"/"Жанр", not "тег"/"Тег"
+    expect(screen.queryByText(/тег|Тег/)).toBeNull();
+    expect(screen.getByText(/жанр|Жанр/i)).toBeTruthy();
+  });
+
+  it("renames tag: calls renameTag and publishes tagRenamed event", async () => {
+    domainEvents.clear();
+    const events: unknown[] = [];
+    domainEvents.subscribe("tagRenamed", (payload) => events.push(payload));
+    setupDefaultTagHandlers();
+    server.use(
+      http.put("/api/tags/:id", () => HttpResponse.json({ ok: true }))
+    );
+
+    const onRenamed = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={5}
+        onRenamed={onRenamed}
+        onMerged={vi.fn()}
+        onDeleted={vi.fn()}
+      />
+    );
+
+    const input = screen.getByDisplayValue("Фэнтези");
+    fireEvent.change(input, { target: { value: "Фантастика" } });
+    fireEvent.click(screen.getByText("Сохранить"));
+
+    await waitFor(() => {
+      expect(onRenamed).toHaveBeenCalledWith("Фантастика");
+      expect(events).toEqual([{ tagId: 1, name: "Фантастика" }]);
+    });
+  });
+
+  it("delete button is disabled when bookCount > 0", () => {
+    setupDefaultTagHandlers();
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={5}
+        onRenamed={vi.fn()}
+        onMerged={vi.fn()}
+        onDeleted={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Удалить")).toBeDisabled();
+  });
+
+  it("delete button is enabled when bookCount === 0", () => {
+    setupDefaultTagHandlers();
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={0}
+        onRenamed={vi.fn()}
+        onMerged={vi.fn()}
+        onDeleted={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Удалить")).not.toBeDisabled();
+  });
+
+  it("deletes tag: calls deleteTag and publishes tagDeleted event", async () => {
+    domainEvents.clear();
+    const events: unknown[] = [];
+    domainEvents.subscribe("tagDeleted", (payload) => events.push(payload));
+    setupDefaultTagHandlers();
+    server.use(
+      http.delete("/api/tags/:id", () => HttpResponse.json({ ok: true }))
+    );
+
+    const onDeleted = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={0}
+        onRenamed={vi.fn()}
+        onMerged={vi.fn()}
+        onDeleted={onDeleted}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Удалить"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Удалить").length).toBeGreaterThan(0);
+    });
+
+    const deleteBtns = screen.getAllByText("Удалить");
+    fireEvent.click(deleteBtns[deleteBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+      expect(events).toEqual([{ tagId: 1 }]);
+    });
+  });
+
+  it("merges tag: calls mergeTag and publishes tagMerged event", async () => {
+    domainEvents.clear();
+    const events: unknown[] = [];
+    domainEvents.subscribe("tagMerged", (payload) => events.push(payload));
+    // defaultTagsList has {id:1, "Фэнтези"} and {id:2, "Детектив"}.
+    // entityId=1 is filtered out, so "Детектив" (id=2) is the merge candidate.
+    setupDefaultTagHandlers();
+    server.use(
+      http.post("/api/tags/:id/merge", () => HttpResponse.json({ ok: true }))
+    );
+
+    const onMerged = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={5}
+        onRenamed={vi.fn()}
+        onMerged={onMerged}
+        onDeleted={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Найти жанр-дубликат...")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText("Найти жанр-дубликат...");
+    fireEvent.change(searchInput, { target: { value: "Дет" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Детектив")).toBeInTheDocument();
+    });
+
+    const mergeBtn = screen.getByText("Присоединить");
+    fireEvent.click(mergeBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Присоединить").length).toBeGreaterThan(0);
+    });
+
+    const confirmBtns = screen.getAllByText("Присоединить");
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(onMerged).toHaveBeenCalled();
+      expect(events).toEqual([{ targetId: 1, sourceId: 2 }]);
+    });
+  });
+});
+
 describe.each(CASES)(
   "EntityAdminPanel — $entityType mode",
   ({ entityType, apiPath, searchPlaceholder, rename, merge, emptyName }) => {

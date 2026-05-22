@@ -37,22 +37,6 @@ def _close_session(session):
         return
 
 
-@pytest.fixture
-def captured_domain_events(monkeypatch):
-    calls = []
-
-    def capture(*, scope, event_type, payload):
-        calls.append(
-            {
-                "scope": scope.to_wire(),
-                "event": {"type": event_type, "payload": payload},
-            }
-        )
-
-    monkeypatch.setattr("app.events.broker.publish_nowait", capture)
-    return calls
-
-
 def _upload_temp(client, filename: str) -> str:
     with open(FIXTURES / filename, "rb") as f:
         response = client.post(
@@ -463,6 +447,9 @@ def test_upload_create_publishes_book_created(admin_client, captured_domain_even
         ("put", "/api/series/1", {"name": "Renamed Series"}, "seriesRenamed", {"seriesId": 1, "name": "Renamed Series"}),
         ("post", "/api/series/1/merge", {"sourceId": 2}, "seriesMerged", {"targetId": 1, "sourceId": 2}),
         ("delete", "/api/series/99", None, "seriesDeleted", {"seriesId": 99}),
+        ("put", "/api/tags/1", {"name": "Renamed Tag"}, "tagRenamed", {"tagId": 1, "name": "Renamed Tag"}),
+        ("post", "/api/tags/2/merge", {"sourceId": 1}, "tagMerged", {"targetId": 2, "sourceId": 1}),
+        ("delete", "/api/tags/99", None, "tagDeleted", {"tagId": 99}),
     ],
 )
 def test_entity_mutations_publish_library_events(
@@ -483,6 +470,11 @@ def test_entity_mutations_publish_library_events(
     elif event_type == "seriesDeleted":
         db.execute(
             "INSERT INTO series (id, name, sort_name) VALUES (99, 'Empty Series', 'Empty Series')"
+        )
+        db.commit()
+    elif event_type == "tagDeleted":
+        db.execute(
+            "INSERT INTO tags (id, name) VALUES (99, 'Empty Tag')"
         )
         db.commit()
 
@@ -520,44 +512,6 @@ def test_entity_semantic_no_ops_publish_nothing(
 
     assert captured_domain_events == []
 
-
-def test_tag_map_publishes_tag_mapped(admin_client, captured_domain_events):
-    assert_ok(admin_client.put("/api/tags/1/map", json={"name": "  Event Fantasy  "}))
-
-    assert captured_domain_events == [
-        {
-            "scope": {"kind": "library"},
-            "event": {
-                "type": "tagMapped",
-                "payload": {"tagId": 1, "targetId": 1, "name": "Event Fantasy"},
-            },
-        }
-    ]
-
-
-def test_tag_map_event_name_matches_normalized_committed_name(
-    admin_client,
-    captured_domain_events,
-):
-    result = assert_ok(admin_client.put("/api/tags/1/map", json={"name": "event fantasy"}))
-    tag = assert_ok(admin_client.get(f"/api/tags/{result['targetId']}"))["tag"]
-
-    assert tag["name"] == "Event fantasy"
-    assert captured_domain_events == [
-        {
-            "scope": {"kind": "library"},
-            "event": {
-                "type": "tagMapped",
-                "payload": {"tagId": 1, "targetId": 1, "name": tag["name"]},
-            },
-        }
-    ]
-
-
-def test_tag_map_same_name_publishes_nothing(admin_client, captured_domain_events):
-    assert_ok(admin_client.put("/api/tags/1/map", json={"name": "  Фэнтези  "}))
-
-    assert captured_domain_events == []
 
 
 def _assert_single_user_event(captured_domain_events, event_type: str, payload: dict):

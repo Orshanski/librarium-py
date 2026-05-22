@@ -82,7 +82,7 @@ export function useAuthorPage(): UseAuthorPageResult {
       id: raw.id,
       name: raw.name,
       sortName: raw.sortName ?? "",
-      bookCount: authorResource.data?.books?.length ?? 0,
+      bookCount: raw.bookCount,
       tags: raw.tags?.map((t) => t.name) ?? [],
     };
   }, [authorResource.data]);

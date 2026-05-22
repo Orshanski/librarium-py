@@ -3,10 +3,11 @@ import { colors, fonts } from "../theme";
 import ConfirmDialog from "./confirm-dialog";
 import { listSeries, renameSeries, mergeSeries, deleteSeries } from "../api/endpoints/series";
 import { listAuthors, renameAuthor, mergeAuthor, deleteAuthor } from "../api/endpoints/authors";
+import { listTagOptions, renameTag, mergeTag, deleteTag } from "../api/endpoints/tags";
 import { domainEvents } from "@/domain/events";
 
 interface EntityAdminPanelProps {
-  entityType: "author" | "series";
+  entityType: "author" | "series" | "tag";
   entityId: number;
   currentName: string;
   bookCount: number;
@@ -112,8 +113,7 @@ export default function EntityAdminPanel({
   const [deleting, setDeleting] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; label: string; action: () => void } | null>(null);
 
-  const label = entityType === "author" ? "автора" : "серию";
-  const labelCap = entityType === "author" ? "Автор" : "Серия";
+  const label = entityType === "author" ? "автора" : entityType === "series" ? "серию" : "жанр";
 
   const [allEntities, setAllEntities] = useState<{ id: number; name: string }[]>([]);
 
@@ -124,6 +124,12 @@ export default function EntityAdminPanel({
           setAllEntities(data.series.filter((e) => e.id !== entityId));
         })
         .catch((err) => console.warn("Failed to fetch series:", err));
+    } else if (entityType === "tag") {
+      listTagOptions()
+        .then((data) => {
+          setAllEntities(data.tags.filter((e) => e.id !== entityId));
+        })
+        .catch((err) => console.warn("Failed to fetch tags:", err));
     } else {
       listAuthors()
         .then((data) => {
@@ -145,6 +151,9 @@ export default function EntityAdminPanel({
       if (entityType === "series") {
         await renameSeries(entityId, trimmed);
         domainEvents.publish("seriesRenamed", { seriesId: entityId, name: trimmed });
+      } else if (entityType === "tag") {
+        await renameTag(entityId, trimmed);
+        domainEvents.publish("tagRenamed", { tagId: entityId, name: trimmed });
       } else {
         await renameAuthor(entityId, trimmed);
         domainEvents.publish("authorRenamed", { authorId: entityId, name: trimmed });
@@ -168,6 +177,9 @@ export default function EntityAdminPanel({
           if (entityType === "series") {
             await mergeSeries(entityId, source.id);
             domainEvents.publish("seriesMerged", { targetId: entityId, sourceId: source.id });
+          } else if (entityType === "tag") {
+            await mergeTag(entityId, source.id);
+            domainEvents.publish("tagMerged", { targetId: entityId, sourceId: source.id });
           } else {
             await mergeAuthor(entityId, source.id);
             domainEvents.publish("authorMerged", { targetId: entityId, sourceId: source.id });
@@ -194,6 +206,9 @@ export default function EntityAdminPanel({
           if (entityType === "series") {
             await deleteSeries(entityId);
             domainEvents.publish("seriesDeleted", { seriesId: entityId });
+          } else if (entityType === "tag") {
+            await deleteTag(entityId);
+            domainEvents.publish("tagDeleted", { tagId: entityId });
           } else {
             await deleteAuthor(entityId);
             domainEvents.publish("authorDeleted", { authorId: entityId });
@@ -242,7 +257,7 @@ export default function EntityAdminPanel({
         <span style={labelStyle}>Объединить дубликаты</span>
         <input
           style={inputStyle}
-          placeholder={`Найти ${label === "автора" ? "автора" : "серию"}-дубликат...`}
+          placeholder={`Найти ${label}-дубликат...`}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />

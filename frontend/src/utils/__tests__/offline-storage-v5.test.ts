@@ -18,6 +18,7 @@ describe("Offline storage v5", () => {
       coverPath: "/c",
       rating: 4,
       isRead: true,
+      tags: [],
     };
     const coverBlob = new Blob(["fake"], { type: "image/jpeg" });
     await saveOfflineBook(book, [], coverBlob);

@@ -34,9 +34,10 @@ def get_author(db: sqlite3.Connection, author_id: int, user_id: int) -> AuthorDe
 def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
     """Переименовать автора. Raises NotFoundError если автор не существует.
 
-    Existence check уходит на thin queries.author_exists (как в delete_author),
-    а имя читается напрямую через queries.get_author_by_id — без user-scoped
-    запроса get_author_by_id из DAL, который тянет user_books JOIN."""
+    Existence check уходит на thin queries.author_exists (как в delete_author).
+    После этого вызываем queries.get_author_by_id ради row["name"]; book_count
+    в строке игнорируется. Запрос содержит LEFT JOIN через book_authors/books
+    для агрегата book_count, но это та же стоимость что у author detail endpoint."""
     if not dal.queries.author_exists(db, id=author_id):
         raise NotFoundError("Автор не найден")
     row = dal.queries.get_author_by_id(db, id=author_id)
@@ -58,3 +59,15 @@ def merge_authors(db: sqlite3.Connection, target_id: int, source_id: int) -> boo
 def delete_author(db: sqlite3.Connection, author_id: int) -> None:
     """Делегация. DAL raise'ит NotFoundError/BadInputError (T5) — пропагируем."""
     dal.delete_author(db, author_id)
+
+
+def get_author_name(db: sqlite3.Connection, author_id: int) -> str:
+    """Return author name by id. Raises NotFoundError if author does not exist.
+
+    Используется register_entity_crud для re-read имени после успешного
+    rename (payload события *Renamed). Симметрично get_tag_name/get_series_name.
+    Вызываем get_author_by_id ради row["name"]; book_count игнорируется."""
+    row = dal.queries.get_author_by_id(db, id=author_id)
+    if row is None:
+        raise NotFoundError("Автор не найден")
+    return row["name"]

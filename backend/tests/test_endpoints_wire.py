@@ -183,6 +183,34 @@ def test_get_author_detail_wire(admin_client):
     assert_no_legacy_csv_fields(book)
 
 
+def test_author_detail_has_book_count(reader_client):
+    """GET /api/authors/{id} returns author.bookCount from book_authors JOIN.
+
+    Seed: author id=1 (Test Author) → book_authors rows for book_id {1, 3} → bookCount=2.
+    """
+    response = reader_client.get("/api/authors/1")
+    assert response.status_code == 200
+    author = response.json()["author"]
+    assert "bookCount" in author
+    assert isinstance(author["bookCount"], int)
+    assert author["bookCount"] == 2
+
+
+def test_author_detail_empty_author_bookcount_zero(admin_client, db):
+    """Автор без книг — bookCount=0 (LEFT JOIN важно).
+
+    Вставляет автора без book_authors-записей и проверяет, что
+    bookCount=0 (а не NULL / absent), то есть LEFT JOIN не теряет строку.
+    """
+    db.execute("INSERT INTO authors (name, sort_name) VALUES ('EmptyAuthorBC', 'EmptyAuthorBC')")
+    db.commit()
+    author_id = db.execute("SELECT id FROM authors WHERE name='EmptyAuthorBC'").fetchone()["id"]
+    response = admin_client.get(f"/api/authors/{author_id}")
+    assert response.status_code == 200
+    author = response.json()["author"]
+    assert author["bookCount"] == 0
+
+
 def test_author_detail_books_have_unified_card_shape(reader_client):
     """GET /api/authors/{id} books[] follows BookCardItem shape (no detail keys)."""
     response = reader_client.get("/api/authors/1")
@@ -192,12 +220,12 @@ def test_author_detail_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
@@ -253,12 +281,12 @@ def test_series_detail_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
@@ -305,14 +333,41 @@ def test_tag_detail_books_have_unified_card_shape(reader_client, tag_id):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
+
+
+# ---------------------------------------------------------------------------
+# Tag mutation endpoints (52az.1) — three routes registered via factory.
+# Functional behavior covered in test_tags_endpoints.py; здесь — smoke wire.
+# ---------------------------------------------------------------------------
+
+
+def test_put_tag_rename_wire(admin_client):
+    resp = admin_client.put("/api/tags/1", json={"name": "Wire Renamed Tag"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_post_tag_merge_wire(admin_client):
+    resp = admin_client.post("/api/tags/2/merge", json={"sourceId": 1})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_delete_tag_wire(admin_client, db):
+    db.execute("INSERT INTO tags (name) VALUES ('WireDeleteTag')")
+    db.commit()
+    tag_id = db.execute("SELECT id FROM tags WHERE name = 'WireDeleteTag'").fetchone()["id"]
+    resp = admin_client.delete(f"/api/tags/{tag_id}")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -447,18 +502,36 @@ def test_catalog_books_have_unified_card_shape(reader_client):
     # Card shape — all expected card keys present, AND no detail-page keys.
     expected_keys = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected_keys.issubset(book.keys()), f"missing keys: {expected_keys - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"unexpected detail keys leaked into card: {forbidden & book.keys()}"
 
 
+def test_book_card_includes_tags_array(reader_client):
+    """BookCardItem.tags returns TagRef[] from aggregated SQL (catalog endpoint)."""
+    response = reader_client.get("/api/books?limit=5")
+    assert response.status_code == 200
+    books = response.json()["books"]
+    assert len(books) > 0
+    for book in books:
+        assert "tags" in book
+        assert isinstance(book["tags"], list)
+        for tag in book["tags"]:
+            assert set(tag.keys()) == {"id", "name"}
+
+
 def test_search_books_have_unified_card_shape(reader_client):
-    """GET /api/search books[] follows BookCardItem shape (no detail keys)."""
+    """GET /api/search books[] follows BookCardItem shape (no detail keys).
+
+    Search SQL does not aggregate tags — tags is present but returns [] for
+    search results. This is intentional: the BookCardItem contract is uniform
+    across all list endpoints; search just doesn't populate tags via SQL.
+    """
     response = reader_client.get("/api/search", params={"q": "Minimal"})
     assert response.status_code == 200
     books = response.json().get("books", [])
@@ -466,11 +539,11 @@ def test_search_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"

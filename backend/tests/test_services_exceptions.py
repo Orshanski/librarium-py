@@ -95,10 +95,6 @@ class TestTagsService:
         with pytest.raises(NotFoundError, match="Not found"):
             tags_service.get_tag(db, 999999, user_id=1, author_ids=[], series_ids=[], language=None, sort="addedDesc")
 
-    def test_map_missing_tag_raises_not_found(self, db):
-        with pytest.raises(NotFoundError, match="Not found"):
-            tags_service.map_tag(db, 999999, name="new-tag-name")
-
 
 # ---------- T3: book_service migration ----------
 
@@ -141,7 +137,7 @@ class TestBookServiceUpdateBook:
     def test_update_resolves_authorids_from_string(self, db):
         """authorIds=['New Author'] — resolve внутри service создаёт нового автора
         и обновляет привязку книги."""
-        book_service.update_book(db, 1, UpdateBookBody(authorIds=["Totally New Author T9"]))
+        book_service.update_book(db, 1, UpdateBookBody(authorIds=["Totally New Author T9"]))  # pyright: ignore[reportCallIssue]
         rows = db.execute(
             "SELECT a.name FROM authors a JOIN book_authors ba ON ba.author_id=a.id WHERE ba.book_id=1"
         ).fetchall()
@@ -149,7 +145,7 @@ class TestBookServiceUpdateBook:
         assert "Totally New Author T9" in names
 
     def test_update_resolves_tagids_from_string(self, db):
-        book_service.update_book(db, 1, UpdateBookBody(tagIds=["BrandNewTagT9"]))
+        book_service.update_book(db, 1, UpdateBookBody(tagIds=["BrandNewTagT9"]))  # pyright: ignore[reportCallIssue]
         rows = db.execute(
             "SELECT t.name FROM tags t JOIN book_tags bt ON bt.tag_id=t.id WHERE bt.book_id=1"
         ).fetchall()
@@ -157,7 +153,7 @@ class TestBookServiceUpdateBook:
         assert "BrandNewTagT9" in names
 
     def test_update_resolves_series_from_string(self, db):
-        book_service.update_book(db, 1, UpdateBookBody(seriesId="Brand New Series T9"))
+        book_service.update_book(db, 1, UpdateBookBody(seriesId="Brand New Series T9"))  # pyright: ignore[reportCallIssue]
         row = db.execute(
             "SELECT s.name FROM series s JOIN books b ON b.series_id=s.id WHERE b.id=1"
         ).fetchone()
@@ -174,7 +170,7 @@ class TestBookServiceUpdateBook:
         temp_path = UPLOADS_DIR / f"{temp_id}.epub"
         temp_path.write_bytes((fixtures / "minimal.epub").read_bytes())
         try:
-            book_service.update_book(db, 1, UpdateBookBody(addFormats=[temp_id]))
+            book_service.update_book(db, 1, UpdateBookBody(addFormats=[temp_id]))  # pyright: ignore[reportCallIssue]
             formats = [r["format"] for r in db.execute(
                 "SELECT format FROM book_files WHERE book_id=1"
             ).fetchall()]
@@ -185,7 +181,7 @@ class TestBookServiceUpdateBook:
                 temp_path.unlink()
 
     def test_update_delete_formats_via_service(self, db):
-        book_service.update_book(db, 1, UpdateBookBody(deleteFormats=["FB2"]))
+        book_service.update_book(db, 1, UpdateBookBody(deleteFormats=["FB2"]))  # pyright: ignore[reportCallIssue]
         formats = [r["format"] for r in db.execute(
             "SELECT format FROM book_files WHERE book_id=1"
         ).fetchall()]
@@ -193,7 +189,7 @@ class TestBookServiceUpdateBook:
 
     def test_update_commit_cover_without_pending_raises(self, db):
         with pytest.raises(BadInputError, match="No pending cover"):
-            book_service.update_book(db, 1, UpdateBookBody(commitCover=True))
+            book_service.update_book(db, 1, UpdateBookBody(commitCover=True))  # pyright: ignore[reportCallIssue]
 
 
 # ---------- T3: cover_service migration ----------

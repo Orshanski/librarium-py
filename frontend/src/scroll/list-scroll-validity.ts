@@ -35,7 +35,9 @@ export type ScrollInvalidationEvent =
   | { kind: "seriesRenamed"; seriesId: number }
   | { kind: "seriesMerged"; targetId: number; sourceId: number }
   | { kind: "seriesDeleted"; seriesId: number }
-  | { kind: "tagMapped"; tagId: number; targetId: number }
+  | { kind: "tagRenamed"; tagId: number }
+  | { kind: "tagMerged"; targetId: number; sourceId: number }
+  | { kind: "tagDeleted"; tagId: number }
   | { kind: "shelfCreated" }
   | { kind: "shelfRenamed"; shelfId: number }
   | { kind: "shelfDeleted"; shelfId: number };
@@ -90,7 +92,9 @@ export function registerScrollInvalidationHandlers(bus: EventBus): () => void {
     bus.subscribe("seriesRenamed", (payload) => clearInvalidScrollEntries({ kind: "seriesRenamed", seriesId: payload.seriesId })),
     bus.subscribe("seriesMerged", (payload) => clearInvalidScrollEntries({ kind: "seriesMerged", targetId: payload.targetId, sourceId: payload.sourceId })),
     bus.subscribe("seriesDeleted", (payload) => clearInvalidScrollEntries({ kind: "seriesDeleted", seriesId: payload.seriesId })),
-    bus.subscribe("tagMapped", (payload) => clearInvalidScrollEntries({ kind: "tagMapped", tagId: payload.tagId, targetId: payload.targetId })),
+    bus.subscribe("tagRenamed", (payload) => clearInvalidScrollEntries({ kind: "tagRenamed", tagId: payload.tagId })),
+    bus.subscribe("tagMerged", (payload) => clearInvalidScrollEntries({ kind: "tagMerged", targetId: payload.targetId, sourceId: payload.sourceId })),
+    bus.subscribe("tagDeleted", (payload) => clearInvalidScrollEntries({ kind: "tagDeleted", tagId: payload.tagId })),
     bus.subscribe("shelfCreated", () => clearInvalidScrollEntries({ kind: "shelfCreated" })),
     bus.subscribe("shelfRenamed", (payload) => clearInvalidScrollEntries({ kind: "shelfRenamed", shelfId: payload.shelfId })),
     bus.subscribe("shelfDeleted", (payload) => clearInvalidScrollEntries({ kind: "shelfDeleted", shelfId: payload.shelfId })),
@@ -116,7 +120,7 @@ function isBookListStillValid(context: BookListContext, event: ScrollInvalidatio
   if (isBookPatchEvent(event)) return isBookPatchStillValid(context, event);
   if (isAuthorEvent(event)) return isAuthorEventStillValid(context, event);
   if (isSeriesEvent(event)) return isSeriesEventStillValid(context, event);
-  if (event.kind === "tagMapped") return isTagMapStillValid(context, event);
+  if (isTagEvent(event)) return isTagEventStillValid(context, event);
   if (isShelfEvent(event)) return isShelfEventStillValid(context, event);
   return true;
 }
@@ -200,11 +204,26 @@ function isSeriesEventStillValid(context: BookListContext, event: SeriesEvent): 
     && !context.filters?.seriesIds?.includes(event.seriesId);
 }
 
-function isTagMapStillValid(context: BookListContext, event: Extract<ScrollInvalidationEvent, { kind: "tagMapped" }>): boolean {
+type TagEvent = Extract<
+  ScrollInvalidationEvent,
+  { kind: "tagRenamed" } | { kind: "tagMerged" } | { kind: "tagDeleted" }
+>;
+
+function isTagEvent(event: ScrollInvalidationEvent): event is TagEvent {
+  return event.kind === "tagRenamed" || event.kind === "tagMerged" || event.kind === "tagDeleted";
+}
+
+function isTagEventStillValid(context: BookListContext, event: TagEvent): boolean {
   if (context.source === "search") return false;
+  if (event.kind === "tagRenamed") return true;
+  if (event.kind === "tagMerged") {
+    return context.tagId !== event.sourceId
+      && context.tagId !== event.targetId
+      && !context.filters?.tagIds?.some((id) => id === event.sourceId || id === event.targetId);
+  }
+  // tagDeleted
   return context.tagId !== event.tagId
-    && context.tagId !== event.targetId
-    && !context.filters?.tagIds?.some((id) => id === event.tagId || id === event.targetId);
+    && !context.filters?.tagIds?.includes(event.tagId);
 }
 
 type ShelfEvent = Extract<
@@ -228,7 +247,7 @@ function isEntityListStillValid(entity: Extract<ScrollContext, { kind: "entity-l
   if (event.kind === "seriesRenamed" || event.kind === "seriesMerged" || event.kind === "seriesDeleted") {
     return entity !== "series";
   }
-  if (event.kind === "tagMapped") return entity !== "tags";
+  if (event.kind === "tagRenamed" || event.kind === "tagMerged" || event.kind === "tagDeleted") return entity !== "tags";
   if (event.kind === "shelfCreated" || event.kind === "shelfRenamed") return entity !== "shelves";
   if (event.kind === "shelfDeleted") return entity !== "shelves";
   return true;

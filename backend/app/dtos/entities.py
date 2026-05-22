@@ -9,28 +9,23 @@ from .book_card import BookCardItem
 from .catalog import LanguageOptionRow
 
 
-class RenameBody(BaseModel):
-    model_config = BODY_CONFIG
-    name: str
-
-
-class MergeBody(BaseModel):
-    model_config = BODY_CONFIG
-    source_id: int
-
-
-MAP_BODY_CONFIG = ConfigDict(
+STRIP_BODY_CONFIG = ConfigDict(
     str_strip_whitespace=True,
     populate_by_name=False,
     alias_generator=to_camel,
     extra="forbid",
 )
-"""BODY_CONFIG + str_strip_whitespace=True для MapBody."""
+"""BODY_CONFIG + str_strip_whitespace=True. Used by RenameBody."""
 
 
-class MapBody(BaseModel):
-    model_config = MAP_BODY_CONFIG
+class RenameBody(BaseModel):
+    model_config = STRIP_BODY_CONFIG
     name: str = Field(..., min_length=1)
+
+
+class MergeBody(BaseModel):
+    model_config = BODY_CONFIG
+    source_id: int = Field(..., ge=1)
 
 
 # ---------------------------------------------------------------------------
@@ -65,11 +60,12 @@ class AuthorsList(TypedDict):
 
 
 class AuthorSummary(TypedDict):
-    """Raw authors table row — SELECT * FROM authors — returned inside get_author_by_id.
-    Distinct from AuthorRow: no book_count or tags aggregate columns."""
+    """Raw authors table row returned inside get_author_by_id with COUNT JOIN.
+    Distinct from AuthorRow: has book_count from COUNT(DISTINCT b.id) JOIN, no tags aggregate."""
     id: int
     name: str
     sort_name: str | None
+    book_count: int
 
 
 class AuthorDetailRow(TypedDict):
@@ -112,10 +108,11 @@ class SeriesDetailRow(TypedDict):
 # --- tag ---
 
 class TagSummaryRow(TypedDict):
-    """DAL-уровень: тип тега из SELECT * FROM tags, ключи snake_case."""
+    """DAL-уровень: тип тега из get_tag_header с COUNT JOIN, ключи snake_case."""
     id: int
     name: str
     code: str | None
+    book_count: int
 
 
 class TagSummary(BaseModel):
@@ -124,6 +121,7 @@ class TagSummary(BaseModel):
 
     id: int
     name: str
+    book_count: int
     code: str | None = None
 
 
@@ -167,12 +165,6 @@ class TagCloudEntry(TypedDict):
     id: int
     name: str
     book_count: int
-
-
-class TagMapResult(TypedDict):
-    """Return shape of dal.tags.map_tag — renamed flag + resolved target id."""
-    renamed: bool
-    target_id: int
 
 
 # --- shared entity-detail book row ---
@@ -268,22 +260,6 @@ class TagCloudResponse(BaseModel):
     model_config = RESPONSE_CONFIG
 
     tags: list[TagCloudEntry]
-
-
-class TagMapResponse(BaseModel):
-    """Response for PUT /api/tags/{id}/map.
-
-    Wire format: {"ok": True, "targetId": int}
-    `renamed` is present on the object for router-side logging but excluded
-    from JSON serialisation via Field(exclude=True).
-    """
-    model_config = RESPONSE_CONFIG
-
-    ok: bool = True
-    target_id: int
-    renamed: bool = Field(exclude=True)
-    changed: bool = Field(default=True, exclude=True)
-    name: str = Field(exclude=True)
 
 
 class AuthorOptionsResponse(BaseModel):

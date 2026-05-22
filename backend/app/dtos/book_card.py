@@ -29,18 +29,19 @@ class BookCardItem(BaseModel):
     cover_path: str
     rating: int | None
     is_read: bool
+    tags: list[TagRef]
 
 
 class BookDetailItem(BookCardItem):
     """Полная книжная модель — карточечный контракт плюс детальные поля
-    (описание, язык, издательство, теги, временные метки). Используется на
+    (описание, язык, издательство, временные метки). Используется на
     детальной странице книги. BookCardItem — строгое подмножество.
+    Поле `tags` унаследовано от BookCardItem.
     """
     sort_title: str | None
     description: str | None
     language: str | None
     publisher: str | None
     pub_date: str | None
-    tags: list[TagRef]
     added_at: str
     updated_at: str

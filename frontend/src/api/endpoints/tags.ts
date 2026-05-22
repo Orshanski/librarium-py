@@ -1,4 +1,5 @@
 import { client, type ClientQuery } from "../client";
+import type { OkResponse } from "../types";
 import type { Book } from "@/types";
 
 export interface CloudTag {
@@ -23,17 +24,13 @@ export interface TagOptionsResponse {
 export interface TagSummary {
   id: number;
   name: string;
+  bookCount: number;
   code?: string | null;
 }
 
 export interface TagBooksResponse {
   tag: TagSummary;
   books: Book[];
-}
-
-export interface MapTagResponse {
-  ok: true;
-  targetId: number;
 }
 
 export interface TagQuery extends ClientQuery {
@@ -74,6 +71,14 @@ export function getTag(
   });
 }
 
-export function mapTag(id: number, name: string): Promise<MapTagResponse> {
-  return client<MapTagResponse>("PUT", `/api/tags/${id}/map`, { body: { name } });
+export function renameTag(id: number, name: string): Promise<OkResponse> {
+  return client<OkResponse>("PUT", `/api/tags/${id}`, { body: { name } });
+}
+
+export function mergeTag(id: number, sourceId: number): Promise<OkResponse> {
+  return client<OkResponse>("POST", `/api/tags/${id}/merge`, { body: { sourceId } });
+}
+
+export function deleteTag(id: number): Promise<OkResponse> {
+  return client<OkResponse>("DELETE", `/api/tags/${id}`);
 }

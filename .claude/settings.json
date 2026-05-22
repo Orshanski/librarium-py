@@ -44,6 +44,21 @@
           {
             "command": "bd prime",
             "type": "command"
+          },
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lsp-rule.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/forbid-skip-excuse.sh",
+            "type": "command"
           }
         ],
         "matcher": ""
