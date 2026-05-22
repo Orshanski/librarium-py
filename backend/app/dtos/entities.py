@@ -65,11 +65,12 @@ class AuthorsList(TypedDict):
 
 
 class AuthorSummary(TypedDict):
-    """Raw authors table row — SELECT * FROM authors — returned inside get_author_by_id.
-    Distinct from AuthorRow: no book_count or tags aggregate columns."""
+    """Raw authors table row returned inside get_author_by_id with COUNT JOIN.
+    Distinct from AuthorRow: has book_count from COUNT(DISTINCT b.id) JOIN, no tags aggregate."""
     id: int
     name: str
     sort_name: str | None
+    book_count: int
 
 
 class AuthorDetailRow(TypedDict):
@@ -112,10 +113,11 @@ class SeriesDetailRow(TypedDict):
 # --- tag ---
 
 class TagSummaryRow(TypedDict):
-    """DAL-уровень: тип тега из SELECT * FROM tags, ключи snake_case."""
+    """DAL-уровень: тип тега из get_tag_header с COUNT JOIN, ключи snake_case."""
     id: int
     name: str
     code: str | None
+    book_count: int
 
 
 class TagSummary(BaseModel):
@@ -125,6 +127,7 @@ class TagSummary(BaseModel):
     id: int
     name: str
     code: str | None = None
+    book_count: int
 
 
 class TagDetailBookRow(TypedDict):

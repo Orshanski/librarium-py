@@ -183,6 +183,15 @@ def test_get_author_detail_wire(admin_client):
     assert_no_legacy_csv_fields(book)
 
 
+def test_author_detail_has_book_count(reader_client):
+    """GET /api/authors/{id} returns author.bookCount from book_authors JOIN."""
+    response = reader_client.get("/api/authors/1")
+    assert response.status_code == 200
+    author = response.json()["author"]
+    assert "bookCount" in author
+    assert isinstance(author["bookCount"], int)
+
+
 def test_author_detail_books_have_unified_card_shape(reader_client):
     """GET /api/authors/{id} books[] follows BookCardItem shape (no detail keys)."""
     response = reader_client.get("/api/authors/1")

@@ -37,6 +37,7 @@ def get_tag(
             id=tag_row["id"],
             name=tag_row["name"],
             code=tag_row.get("code"),
+            book_count=tag_row["book_count"],
         ),
         books=books,
     )

@@ -420,6 +420,27 @@ class TestDTOTightening:
         assert resp.status_code == 422
 
 
+class TestTagDetailBookCount:
+    def test_tag_detail_returns_book_count(self, admin_client, db):
+        """GET /api/tags/{id} returns bookCount aggregate from book_tags JOIN."""
+        # Seed: tag 1 (Фэнтези) → books {1, 3, 5} (3 книги)
+        response = admin_client.get("/api/tags/1")
+        assert response.status_code == 200
+        tag = response.json()["tag"]
+        assert "bookCount" in tag
+        assert tag["bookCount"] == 3
+
+    def test_tag_detail_empty_tag_bookcount_zero(self, admin_client, db):
+        """Тег без книг — bookCount=0 (LEFT JOIN важно)."""
+        db.execute("INSERT INTO tags (name) VALUES ('EmptyTagBC')")
+        db.commit()
+        tag_id = db.execute("SELECT id FROM tags WHERE name='EmptyTagBC'").fetchone()["id"]
+        response = admin_client.get(f"/api/tags/{tag_id}")
+        assert response.status_code == 200
+        tag = response.json()["tag"]
+        assert tag["bookCount"] == 0
+
+
 class TestRegisterGetParameter:
     """Когда `register_get=False`, фабрика не регистрирует GET и не требует
     `get_<entity_label>` от service-модуля.
