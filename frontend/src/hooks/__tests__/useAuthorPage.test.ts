@@ -9,20 +9,21 @@ vi.mock("@/api/endpoints/authors", () => ({
 }));
 
 import { getAuthor } from "@/api/endpoints/authors";
+import type { Book } from "@/types";
 import { useAuthorPage } from "../useAuthorPage";
 
 const mockedGetAuthor = getAuthor as ReturnType<typeof vi.fn>;
 
-const MINIMAL_BOOK = {
+const MINIMAL_BOOK: Book = {
   id: 10,
   title: "Some Book",
   authors: [{ id: 1, name: "Test Author" }],
   tags: [],
   series: null,
   seriesNumber: null,
-  coverPath: null,
+  coverPath: "",
   rating: null,
-  isRead: 0,
+  isRead: false,
 };
 
 function wrapper({ children }: { children: React.ReactNode }) {
