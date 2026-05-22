@@ -15,6 +15,7 @@ function makeBook(id: number, title: string): Book {
     coverPath: "",
     rating: null,
     isRead: false,
+    tags: [],
   };
 }
 

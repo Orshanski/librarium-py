@@ -18,6 +18,7 @@ const baselineBook: Book = {
   rating: 4,
   isRead: false,
   coverPath: "/api/covers/7",
+  tags: [],
 };
 
 describe("BookCard — golden baseline", () => {

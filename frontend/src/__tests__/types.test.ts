@@ -12,6 +12,7 @@ describe("Book type — unified card-level shape", () => {
       coverPath: "/cover",
       rating: null,
       isRead: false,
+      tags: [],
     };
 
     expect(book.id).toBe(1);
@@ -29,6 +30,7 @@ describe("Book type — unified card-level shape", () => {
       coverPath: "/cover",
       rating: 4,
       isRead: true,
+      tags: [],
     };
 
     expect(book.series?.name).toBe("Серия");

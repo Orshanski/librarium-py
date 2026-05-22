@@ -204,6 +204,7 @@ function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<Offl
     coverPath: coverUrl,
     rating: book.rating,
     isRead: book.isRead,
+    tags: [],
   };
 
   return (

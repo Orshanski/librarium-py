@@ -36,6 +36,7 @@ function makeBook(overrides: Partial<Book> & { id: number; title: string }): Boo
     coverPath: overrides.coverPath ?? "",
     rating: overrides.rating ?? null,
     isRead: overrides.isRead ?? false,
+    tags: overrides.tags ?? [],
   };
 }
 

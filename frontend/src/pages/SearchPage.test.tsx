@@ -21,6 +21,7 @@ function makeSearchHit(overrides: Partial<Book> = {}): Book {
     seriesNumber: null,
     rating: null,
     isRead: false,
+    tags: [],
     ...overrides,
   };
 }

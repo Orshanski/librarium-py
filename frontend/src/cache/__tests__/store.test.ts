@@ -504,7 +504,7 @@ describe("MetadataCacheStore", () => {
       shelfId: 42,
       bookId: 3,
       hasBook: true,
-      book: { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false },
+      book: { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false, tags: [] },
     });
 
     const result = store.get<{ books: { id: number }[] }>("shelf/42", "/api/shelves/42");
@@ -517,7 +517,7 @@ describe("MetadataCacheStore", () => {
       shelf: { id: 42, name: "My Shelf" },
       books: [{ id: 1, title: "Book A" }],
     });
-    const book = { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false };
+    const book = { id: 3, title: "Book C", authors: [], series: null, seriesNumber: null, coverPath: "", rating: null, isRead: false, tags: [] };
 
     store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true, book });
     store.applyShelfMembershipChange({ shelfId: 42, bookId: 3, hasBook: true, book });

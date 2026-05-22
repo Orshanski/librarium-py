@@ -13,6 +13,7 @@ const baseBook: Book = {
   rating: null,
   isRead: false,
   coverPath: "/cover/7",
+  tags: [],
 };
 
 const tokens = {
