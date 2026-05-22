@@ -724,6 +724,7 @@ describe("applyTagRename", () => {
     const store = new MetadataCacheStore();
     store.set("tag/2", "detail", { tag: { id: 2, name: "Untouched" }, books: [] }, { context: tagTwoContext });
     store.applyTagRename({ tagId: 1, name: "New" });
+    // namespace isolation — applyTagRename targets only tag/{payload.tagId} entries
     const entry = store.get<{ tag: { name: string } }>("tag/2", "detail");
     expect(entry?.tag.name).toBe("Untouched");
   });
@@ -749,5 +750,14 @@ describe("applyTagRename", () => {
     store.set("catalog", "p2", { books: [{ id: 1, tags: [{ id: 1, name: "X" }] }] });  // no context arg
     store.applyTagRename({ tagId: 1, name: "Y" });
     expect(store.get("catalog", "p2")).toBeUndefined();
+  });
+
+  it("deletes entries with search context (classifier → structural)", () => {
+    const store = new MetadataCacheStore();
+    store.set("catalog", "search-q", {
+      books: [{ id: 1, title: "B", tags: [{ id: 1, name: "Old" }] }],
+    }, { context: { kind: "book-list", source: "search", sort: "addedDesc", key: "/search" } });
+    store.applyTagRename({ tagId: 1, name: "New" });
+    expect(store.get("catalog", "search-q")).toBeUndefined();
   });
 });

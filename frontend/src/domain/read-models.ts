@@ -119,10 +119,11 @@ export function classifySeriesRenameForBookList(context: BookListContext): Valid
 
 export function classifyTagRenameForBookList(context: BookListContext): ValidityDecision {
   if (context.source === "search") return "structural";
+  // На странице тега (tag-detail) все строки списка несут этот тег; name
+  // обновится через патч namespace tag/{tagId} на втором шаге applyTagRename.
+  if (context.source === "tag-detail") return "patchable";
   // В BookListSort нет сортировок по имени тега (tagAsc/tagDesc отсутствуют),
   // поэтому переименование тега не может сломать сортировку ни в каком контексте.
-  // На странице тега (tag-detail) все строки несут этот тег; name обновится
-  // через патч namespace tag/{tagId} на втором шаге applyTagRename.
   return "patchable";
 }
 
