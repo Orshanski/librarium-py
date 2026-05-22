@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { createElement } from "react";
+import { createElement, useEffect } from "react";
 import { domainEvents } from "@/domain/events";
 
 vi.mock("@/api/endpoints/tags", () => ({
@@ -12,6 +12,7 @@ vi.mock("@/api/endpoints/tags", () => ({
 import { getTag } from "@/api/endpoints/tags";
 import type { TagSummary } from "@/api/endpoints/tags";
 import type { Book } from "@/types";
+import { useTagPage } from "../useTagPage";
 
 const mockedGetTag = getTag as ReturnType<typeof vi.fn>;
 
@@ -53,6 +54,12 @@ function invalidWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Mounts only when the /tags route is active; used to detect navigation. */
+function TagsListMarker({ onMount }: { onMount: () => void }) {
+  useEffect(onMount, [onMount]);
+  return null;
+}
+
 describe("useTagPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,7 +70,6 @@ describe("useTagPage", () => {
   it("returns tagId, tag, books from resource", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
 
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper });
 
     await waitFor(() => {
@@ -83,18 +89,7 @@ describe("useTagPage", () => {
     // Mock: both original and target tag responses
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
 
-    function wrapperWithBothRoutes({ children }: { children: React.ReactNode }) {
-      return createElement(
-        MemoryRouter,
-        { initialEntries: ["/tags/7"] },
-        createElement(Routes, null,
-          createElement(Route, { path: "/tags/:id", element: children }),
-        ),
-      );
-    }
-
-    const { useTagPage } = await import("../useTagPage");
-    const { result } = renderHook(() => useTagPage(), { wrapper: wrapperWithBothRoutes });
+    const { result } = renderHook(() => useTagPage(), { wrapper });
 
     await waitFor(() => expect(result.current.tag).not.toBeNull());
     expect(result.current.tagId).toBe(7);
@@ -123,16 +118,12 @@ describe("useTagPage", () => {
           createElement(Route, { path: "/tags/:id", element: children }),
           createElement(Route, {
             path: "/tags",
-            element: (() => {
-              lastLocation = "/tags";
-              return null;
-            })(),
+            element: createElement(TagsListMarker, { onMount: () => { lastLocation = "/tags"; } }),
           }),
         ),
       );
     }
 
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper: wrapperWithTagsRoute });
 
     await waitFor(() => expect(result.current.tag).not.toBeNull());
@@ -142,18 +133,13 @@ describe("useTagPage", () => {
       domainEvents.publish("tagDeleted", { tagId: 7 });
     });
 
-    // Navigation to /tags happened; the hook is now unmounted/navigated
-    // Verify it didn't crash and the subscription fired
-    await waitFor(() => {
-      // The hook itself navigated; we just verify it didn't throw
-      expect(result.current).toBeDefined();
-    });
+    // Navigation to /tags happened: TagsListMarker mounts and sets lastLocation
+    await waitFor(() => expect(lastLocation).toBe("/tags"));
   });
 
   it("tagMerged with different sourceId does NOT navigate away", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
 
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper });
 
     await waitFor(() => expect(result.current.tag).not.toBeNull());
@@ -169,7 +155,6 @@ describe("useTagPage", () => {
   });
 
   it("invalid id (NaN) → notFound true, no fetch", async () => {
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper: invalidWrapper });
 
     // notFound should be true immediately (NaN id)
@@ -186,7 +171,6 @@ describe("useTagPage", () => {
   it("returns bookIds derived from books", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
 
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper });
 
     await waitFor(() => expect(result.current.tag).not.toBeNull());
@@ -197,7 +181,6 @@ describe("useTagPage", () => {
   it("navigateAfterDelete is a callable function", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [] });
 
-    const { useTagPage } = await import("../useTagPage");
     const { result } = renderHook(() => useTagPage(), { wrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
