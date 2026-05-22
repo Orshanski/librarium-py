@@ -184,12 +184,31 @@ def test_get_author_detail_wire(admin_client):
 
 
 def test_author_detail_has_book_count(reader_client):
-    """GET /api/authors/{id} returns author.bookCount from book_authors JOIN."""
+    """GET /api/authors/{id} returns author.bookCount from book_authors JOIN.
+
+    Seed: author id=1 (Test Author) → book_authors rows for book_id {1, 3} → bookCount=2.
+    """
     response = reader_client.get("/api/authors/1")
     assert response.status_code == 200
     author = response.json()["author"]
     assert "bookCount" in author
     assert isinstance(author["bookCount"], int)
+    assert author["bookCount"] == 2
+
+
+def test_author_detail_empty_author_bookcount_zero(admin_client, db):
+    """Автор без книг — bookCount=0 (LEFT JOIN важно).
+
+    Вставляет автора без book_authors-записей и проверяет, что
+    bookCount=0 (а не NULL / absent), то есть LEFT JOIN не теряет строку.
+    """
+    db.execute("INSERT INTO authors (name, sort_name) VALUES ('EmptyAuthorBC', 'EmptyAuthorBC')")
+    db.commit()
+    author_id = db.execute("SELECT id FROM authors WHERE name='EmptyAuthorBC'").fetchone()["id"]
+    response = admin_client.get(f"/api/authors/{author_id}")
+    assert response.status_code == 200
+    author = response.json()["author"]
+    assert author["bookCount"] == 0
 
 
 def test_author_detail_books_have_unified_card_shape(reader_client):
