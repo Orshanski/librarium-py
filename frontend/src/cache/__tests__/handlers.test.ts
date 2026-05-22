@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { domainEvents } from "@/domain/events";
 import type { DomainEventMap } from "@/domain/events";
 import type { Book } from "@/types";
@@ -185,7 +185,7 @@ describe("metadata cache handlers", () => {
       files: [],
       identifiers: [],
     });
-    domainEvents.publish("tagMapped", { tagId: 5, targetId: 6, name: "Mapped" });
+    domainEvents.publish("tagDeleted", { tagId: 5 });
     expect(store.get("book/1", "detail")).toBeUndefined();
   });
 
@@ -300,7 +300,7 @@ describe("metadata cache handlers", () => {
     store.set("series/9", "tag-books", { books: [{ id: 21, tags: [{ id: 3, name: "Old" }] }], hasMore: false }, {
       context: { kind: "book-list", key: "series/9", source: "series-detail", seriesId: 9, sort: "seriesNumber" },
     });
-    domainEvents.publish("tagMapped", { tagId: 3, targetId: 9, name: "Mapped" });
+    domainEvents.publish("tagDeleted", { tagId: 3 });
     expect(store.get("filter-options/tags", "all")).toBeUndefined();
     expect(store.get("tag/3", "detail")).toBeUndefined();
     expect(store.get("series/9", "tag-books")).toBeUndefined();
@@ -380,5 +380,65 @@ describe("metadata cache handlers", () => {
     expect(store.get("filter-options/series", "all")).toBeUndefined();
     expect(store.get("filter-options/tags", "all")).toBeUndefined();
     expect(store.get("filter-options/languages", "all")).toBeUndefined();
+  });
+});
+
+describe("tagRenamed handler", () => {
+  it("invalidates tags + authors + filter-options/tags + book details, applies rename", () => {
+    const store = new MetadataCacheStore();
+    const applyTagRenameSpy = vi.spyOn(store, "applyTagRename");
+    const invalidateBookDetailsSpy = vi.spyOn(store, "invalidateNamespacePrefix");
+    store.set("tags", "1", { tags: [] });
+    store.set("authors", "1", { authors: [] });
+    store.set("filter-options/tags", "1", { tags: [] });
+    store.set("tag/1", "detail", { tag: { id: 1, name: "Old" } });
+    const unregister = registerMetadataCacheHandlers(store, domainEvents);
+
+    domainEvents.publish("tagRenamed", { tagId: 1, name: "New" });
+
+    expect(store.get("tags", "1")).toBeUndefined();
+    expect(store.get("authors", "1")).toBeUndefined();
+    expect(store.get("filter-options/tags", "1")).toBeUndefined();
+    expect(applyTagRenameSpy).toHaveBeenCalledWith({ tagId: 1, name: "New" });
+    expect(invalidateBookDetailsSpy).toHaveBeenCalledWith("book/");
+    expect(store.get<{ tag: { name: string } }>("tag/1", "detail")?.tag.name).toBe("New");
+
+    unregister();
+  });
+});
+
+describe("tagMerged handler", () => {
+  it("invalidates tags + authors + tag/{target} + tag/{source} + book details/lists + filter-options", () => {
+    const store = new MetadataCacheStore();
+    store.set("tags", "1", {});
+    store.set("authors", "1", {});
+    store.set("tag/2", "detail", {});
+    store.set("tag/1", "detail", {});
+    const unregister = registerMetadataCacheHandlers(store, domainEvents);
+
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+
+    expect(store.get("tags", "1")).toBeUndefined();
+    expect(store.get("authors", "1")).toBeUndefined();
+    expect(store.get("tag/2", "detail")).toBeUndefined();
+    expect(store.get("tag/1", "detail")).toBeUndefined();
+    unregister();
+  });
+});
+
+describe("tagDeleted handler", () => {
+  it("invalidates tags + authors + tag/{id} + book details/lists + filter-options", () => {
+    const store = new MetadataCacheStore();
+    store.set("tags", "1", {});
+    store.set("authors", "1", {});
+    store.set("tag/5", "detail", {});
+    const unregister = registerMetadataCacheHandlers(store, domainEvents);
+
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+
+    expect(store.get("tags", "1")).toBeUndefined();
+    expect(store.get("authors", "1")).toBeUndefined();
+    expect(store.get("tag/5", "detail")).toBeUndefined();
+    unregister();
   });
 });

@@ -93,10 +93,26 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidateBookLists();
       invalidateFilterOptions(store);
     }),
-    bus.subscribe("tagMapped", (payload) => {
+    bus.subscribe("tagRenamed", (payload) => {
       store.invalidate("tags");
-      store.invalidate(`tag/${payload.tagId}`);
+      store.invalidate("authors");
+      store.invalidate("filter-options/tags");
+      invalidateBookDetails(store);
+      store.applyTagRename(payload);
+    }),
+    bus.subscribe("tagMerged", (payload) => {
+      store.invalidate("tags");
+      store.invalidate("authors");
       store.invalidate(`tag/${payload.targetId}`);
+      store.invalidate(`tag/${payload.sourceId}`);
+      invalidateBookDetails(store);
+      store.invalidateBookLists();
+      invalidateFilterOptions(store);
+    }),
+    bus.subscribe("tagDeleted", (payload) => {
+      store.invalidate("tags");
+      store.invalidate("authors");
+      store.invalidate(`tag/${payload.tagId}`);
       invalidateBookDetails(store);
       store.invalidateBookLists();
       invalidateFilterOptions(store);
