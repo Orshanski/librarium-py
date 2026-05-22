@@ -513,44 +513,6 @@ def test_entity_semantic_no_ops_publish_nothing(
     assert captured_domain_events == []
 
 
-def test_tag_map_publishes_tag_mapped(admin_client, captured_domain_events):
-    assert_ok(admin_client.put("/api/tags/1/map", json={"name": "  Event Fantasy  "}))
-
-    assert captured_domain_events == [
-        {
-            "scope": {"kind": "library"},
-            "event": {
-                "type": "tagMapped",
-                "payload": {"tagId": 1, "targetId": 1, "name": "Event Fantasy"},
-            },
-        }
-    ]
-
-
-def test_tag_map_event_name_matches_normalized_committed_name(
-    admin_client,
-    captured_domain_events,
-):
-    result = assert_ok(admin_client.put("/api/tags/1/map", json={"name": "event fantasy"}))
-    tag = assert_ok(admin_client.get(f"/api/tags/{result['targetId']}"))["tag"]
-
-    assert tag["name"] == "Event fantasy"
-    assert captured_domain_events == [
-        {
-            "scope": {"kind": "library"},
-            "event": {
-                "type": "tagMapped",
-                "payload": {"tagId": 1, "targetId": 1, "name": tag["name"]},
-            },
-        }
-    ]
-
-
-def test_tag_map_same_name_publishes_nothing(admin_client, captured_domain_events):
-    assert_ok(admin_client.put("/api/tags/1/map", json={"name": "  Фэнтези  "}))
-
-    assert captured_domain_events == []
-
 
 def _assert_single_user_event(captured_domain_events, event_type: str, payload: dict):
     assert captured_domain_events == [

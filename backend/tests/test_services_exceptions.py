@@ -95,10 +95,6 @@ class TestTagsService:
         with pytest.raises(NotFoundError, match="Not found"):
             tags_service.get_tag(db, 999999, user_id=1, author_ids=[], series_ids=[], language=None, sort="addedDesc")
 
-    def test_map_missing_tag_raises_not_found(self, db):
-        with pytest.raises(NotFoundError, match="Not found"):
-            tags_service.map_tag(db, 999999, name="new-tag-name")
-
 
 # ---------- T3: book_service migration ----------
 

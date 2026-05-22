@@ -70,9 +70,9 @@ def test_shelf_summary_serialises_camel():
 
 
 def test_tag_summary_serialises_camel():
-    item = TagSummary(id=1, name="X", code="abc")
+    item = TagSummary(id=1, name="X", code="abc", book_count=0)
     wire = item.model_dump(by_alias=True)
-    assert wire == {"id": 1, "name": "X", "code": "abc"}
+    assert wire == {"id": 1, "name": "X", "code": "abc", "bookCount": 0}
 
 
 def test_catalog_filters_typed_dict_does_not_have_user_id():
