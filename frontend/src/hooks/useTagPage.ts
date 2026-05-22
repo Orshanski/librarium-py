@@ -26,11 +26,9 @@ export interface UseTagPageResult {
   pathnameWithSearch: string;
   sort: string;
   selected: SelectedFilters;
-  searchParams: URLSearchParams;
   bookIds: number[];
   offlineBookIds: Set<number>;
   navigateAfterDelete: () => void;
-  updateParams: (updates: Record<string, string[] | undefined>) => void;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
   handleSortChange: (newSort: string) => void;
 }
@@ -139,11 +137,9 @@ export function useTagPage(): UseTagPageResult {
     pathnameWithSearch,
     sort,
     selected,
-    searchParams,
     bookIds,
     offlineBookIds,
     navigateAfterDelete,
-    updateParams,
     onSelectionChange,
     handleSortChange,
   };
