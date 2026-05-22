@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renameTag, mergeTag, deleteTag } from "./tags";
 
 vi.mock("../client", () => ({ client: vi.fn() }));
+
+import { renameTag, mergeTag, deleteTag } from "./tags";
 import { client } from "../client";
 
 describe("tags API client", () => {
