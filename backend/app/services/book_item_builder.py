@@ -38,6 +38,7 @@ def row_to_book_card_item(row: Mapping[str, Any]) -> BookCardItem:
         cover_path=f"/api/covers/{book_id}?t={updated_at}",
         rating=row.get("rating"),
         is_read=bool(is_read_raw) if is_read_raw is not None else False,
+        tags=row.get("tags") or [],
     )
 
 

@@ -192,12 +192,12 @@ def test_author_detail_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
@@ -253,12 +253,12 @@ def test_series_detail_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
@@ -305,12 +305,12 @@ def test_tag_detail_books_have_unified_card_shape(reader_client, tag_id):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
 
@@ -474,18 +474,36 @@ def test_catalog_books_have_unified_card_shape(reader_client):
     # Card shape — all expected card keys present, AND no detail-page keys.
     expected_keys = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected_keys.issubset(book.keys()), f"missing keys: {expected_keys - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"unexpected detail keys leaked into card: {forbidden & book.keys()}"
 
 
+def test_book_card_includes_tags_array(reader_client):
+    """BookCardItem.tags returns TagRef[] from aggregated SQL (catalog endpoint)."""
+    response = reader_client.get("/api/books?limit=5")
+    assert response.status_code == 200
+    books = response.json()["books"]
+    assert len(books) > 0
+    for book in books:
+        assert "tags" in book
+        assert isinstance(book["tags"], list)
+        for tag in book["tags"]:
+            assert set(tag.keys()) == {"id", "name"}
+
+
 def test_search_books_have_unified_card_shape(reader_client):
-    """GET /api/search books[] follows BookCardItem shape (no detail keys)."""
+    """GET /api/search books[] follows BookCardItem shape (no detail keys).
+
+    Search SQL does not aggregate tags — tags is present but returns [] for
+    search results. This is intentional: the BookCardItem contract is uniform
+    across all list endpoints; search just doesn't populate tags via SQL.
+    """
     response = reader_client.get("/api/search", params={"q": "Minimal"})
     assert response.status_code == 200
     books = response.json().get("books", [])
@@ -493,11 +511,11 @@ def test_search_books_have_unified_card_shape(reader_client):
     book = books[0]
     expected = {
         "id", "title", "authors", "series", "seriesNumber",
-        "coverPath", "rating", "isRead",
+        "coverPath", "rating", "isRead", "tags",
     }
     assert expected.issubset(book.keys()), f"missing: {expected - book.keys()}"
     forbidden = {
         "description", "publisher", "language", "pubDate", "isbn",
-        "tags", "formats", "addedAt", "updatedAt", "sortTitle",
+        "formats", "addedAt", "updatedAt", "sortTitle",
     }
     assert forbidden.isdisjoint(book.keys()), f"leaked: {forbidden & book.keys()}"
