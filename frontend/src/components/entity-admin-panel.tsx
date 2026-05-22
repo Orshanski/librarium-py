@@ -114,7 +114,6 @@ export default function EntityAdminPanel({
   const [confirmAction, setConfirmAction] = useState<{ message: string; label: string; action: () => void } | null>(null);
 
   const label = entityType === "author" ? "автора" : entityType === "series" ? "серию" : "жанр";
-  const labelCap = entityType === "author" ? "Автор" : entityType === "series" ? "Серия" : "Жанр";
 
   const [allEntities, setAllEntities] = useState<{ id: number; name: string }[]>([]);
 

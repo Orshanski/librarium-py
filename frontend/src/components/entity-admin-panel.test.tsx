@@ -193,6 +193,58 @@ describe("EntityAdminPanel — tag mode", () => {
       expect(events).toEqual([{ tagId: 1 }]);
     });
   });
+
+  it("merges tag: calls mergeTag and publishes tagMerged event", async () => {
+    domainEvents.clear();
+    const events: unknown[] = [];
+    domainEvents.subscribe("tagMerged", (payload) => events.push(payload));
+    // defaultTagsList has {id:1, "Фэнтези"} and {id:2, "Детектив"}.
+    // entityId=1 is filtered out, so "Детектив" (id=2) is the merge candidate.
+    setupDefaultTagHandlers();
+    server.use(
+      http.post("/api/tags/:id/merge", () => HttpResponse.json({ ok: true }))
+    );
+
+    const onMerged = vi.fn();
+
+    renderWithProviders(
+      <EntityAdminPanel
+        entityType="tag"
+        entityId={1}
+        currentName="Фэнтези"
+        bookCount={5}
+        onRenamed={vi.fn()}
+        onMerged={onMerged}
+        onDeleted={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Найти жанр-дубликат...")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText("Найти жанр-дубликат...");
+    fireEvent.change(searchInput, { target: { value: "Дет" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Детектив")).toBeInTheDocument();
+    });
+
+    const mergeBtn = screen.getByText("Присоединить");
+    fireEvent.click(mergeBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Присоединить").length).toBeGreaterThan(0);
+    });
+
+    const confirmBtns = screen.getAllByText("Присоединить");
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(onMerged).toHaveBeenCalled();
+      expect(events).toEqual([{ targetId: 1, sourceId: 2 }]);
+    });
+  });
 });
 
 describe.each(CASES)(
