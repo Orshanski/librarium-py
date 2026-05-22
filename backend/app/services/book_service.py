@@ -247,7 +247,7 @@ def _apply_add_formats(
     восстанавливает .bak из backed_up_paths."""
     copied_dsts: list[str] = []
     try:
-        for (_tid, src, fmt, ext) in resolved_adds:
+        for (_, src, fmt, ext) in resolved_adds:
             dst = prepare_book_format_path(db, book_id, fmt, ext)
             copied_dsts.append(dst)
             shutil.copyfile(src, dst)
@@ -344,12 +344,12 @@ def update_book(
     dal.update_book(db, book_id, data)
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
-    for _orig_path, bak_path in backed_up_paths:
+    for _, bak_path in backed_up_paths:
         with contextlib.suppress(FileNotFoundError):
             os.remove(bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.
-    for (tid, _src, _fmt, _ext) in resolved_adds:
+    for (tid, _, _, _) in resolved_adds:
         cleanup_temp_session(tid)
 
     response = _update_book_response(db, book_id, user_id)
