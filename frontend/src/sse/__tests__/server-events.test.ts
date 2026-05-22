@@ -171,3 +171,53 @@ describe("dispatchServerEvent", () => {
   );
 
 });
+
+describe("SSE bridge tag events", () => {
+  beforeEach(() => {
+    domainEvents.clear();
+  });
+
+  it("tagRenamed: dispatches to domainEvents", () => {
+    const handler = vi.fn();
+    const unsub = domainEvents.subscribe("tagRenamed", handler);
+    dispatchServerEvent({
+      eventId: 1,
+      scope: { kind: "library" },
+      event: { type: "tagRenamed", payload: { tagId: 1, name: "X" } },
+    });
+    expect(handler).toHaveBeenCalledWith({ tagId: 1, name: "X" });
+    unsub();
+  });
+
+  it("tagMerged: dispatches to domainEvents", () => {
+    const handler = vi.fn();
+    const unsub = domainEvents.subscribe("tagMerged", handler);
+    dispatchServerEvent({
+      eventId: 2,
+      scope: { kind: "library" },
+      event: { type: "tagMerged", payload: { targetId: 2, sourceId: 1 } },
+    });
+    expect(handler).toHaveBeenCalledWith({ targetId: 2, sourceId: 1 });
+    unsub();
+  });
+
+  it("tagDeleted: dispatches to domainEvents", () => {
+    const handler = vi.fn();
+    const unsub = domainEvents.subscribe("tagDeleted", handler);
+    dispatchServerEvent({
+      eventId: 3,
+      scope: { kind: "library" },
+      event: { type: "tagDeleted", payload: { tagId: 5 } },
+    });
+    expect(handler).toHaveBeenCalledWith({ tagId: 5 });
+    unsub();
+  });
+
+  it("tagRenamed: rejects payload without name", () => {
+    expect(() => dispatchServerEvent({
+      eventId: 4,
+      scope: { kind: "library" },
+      event: { type: "tagRenamed", payload: { tagId: 1 } },
+    })).toThrow();
+  });
+});

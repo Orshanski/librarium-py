@@ -10,7 +10,7 @@ type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> 
 };
 
 type BookBooleanPayloadField = "isRead" | "isHidden";
-type RenamedPayloadIdField = "authorId" | "seriesId";
+type RenamedPayloadIdField = "authorId" | "seriesId" | "tagId";
 
 const KNOWN_EVENTS = [
   "bookUpdated",
@@ -25,7 +25,9 @@ const KNOWN_EVENTS = [
   "seriesRenamed",
   "seriesMerged",
   "seriesDeleted",
-  "tagMapped",
+  "tagRenamed",
+  "tagMerged",
+  "tagDeleted",
   "shelfCreated",
   "shelfRenamed",
   "shelfDeleted",
@@ -131,6 +133,7 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       return;
     case "authorMerged":
     case "seriesMerged":
+    case "tagMerged":
       validateMergedPayload(value);
       return;
     case "authorDeleted":
@@ -142,10 +145,11 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
     case "seriesDeleted":
       requireNumber(value.seriesId);
       return;
-    case "tagMapped":
+    case "tagRenamed":
+      validateRenamedPayload(value, "tagId");
+      return;
+    case "tagDeleted":
       requireNumber(value.tagId);
-      requireNumber(value.targetId);
-      requireString(value.name);
       return;
     case "shelfCreated":
     case "shelfRenamed":
