@@ -126,8 +126,8 @@ class TagSummary(BaseModel):
 
     id: int
     name: str
-    code: str | None = None
     book_count: int
+    code: str | None = None
 
 
 class TagDetailBookRow(TypedDict):
