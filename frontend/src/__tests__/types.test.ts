@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Book, BookDetail } from "../types";
+import type { Book, BookDetail, TagRef } from "../types";
 
 describe("Book type — unified card-level shape", () => {
   it("Book has only card-level fields (no description/language/etc.)", () => {
@@ -37,7 +37,7 @@ describe("Book type — unified card-level shape", () => {
     expect(book.series?.id).toBe(5);
   });
 
-  it("BookDetail extends Book with detail-only fields (tags as TagRef[])", () => {
+  it("BookDetail extends Book with detail-only fields", () => {
     const detail: BookDetail = {
       id: 3,
       title: "Z",
@@ -64,5 +64,22 @@ describe("Book type — unified card-level shape", () => {
     // Detail-only fields are accessible.
     expect(detail.description).toBe("Описание");
     expect(detail.tags[0].name).toBe("роман");
+  });
+
+  it("Book.tags accepts TagRef[] at card level", () => {
+    const book: Book = {
+      id: 4,
+      title: "Fiction Book",
+      authors: [],
+      series: null,
+      seriesNumber: null,
+      coverPath: "/api/covers/4?t=x",
+      rating: null,
+      isRead: false,
+      tags: [{ id: 1, name: "Fiction" } satisfies TagRef],
+    };
+
+    expect(book.tags).toHaveLength(1);
+    expect(book.tags[0].name).toBe("Fiction");
   });
 });

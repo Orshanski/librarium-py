@@ -204,7 +204,7 @@ function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<Offl
     coverPath: coverUrl,
     rating: book.rating,
     isRead: book.isRead,
-    tags: [],
+    tags: [], // оффлайн-кэш не хранит tags в ay83
   };
 
   return (
