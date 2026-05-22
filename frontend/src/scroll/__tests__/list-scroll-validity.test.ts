@@ -286,6 +286,16 @@ describe("scroll invalidation: tagMerged", () => {
     domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
     expect(readScrollEntries()).toHaveLength(0);
   });
+
+  it("keeps unaffected entries (different tagId, no filter overlap)", () => {
+    writeScrollEntries([{
+      url: "/tags/9", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/9", tagId: 9 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagMerged", { targetId: 2, sourceId: 1 });
+    expect(readScrollEntries()).toHaveLength(1);
+  });
 });
 
 describe("scroll invalidation: tagDeleted", () => {
@@ -304,5 +314,25 @@ describe("scroll invalidation: tagDeleted", () => {
     registerScrollInvalidationHandlers(domainEvents);
     domainEvents.publish("tagDeleted", { tagId: 5 });
     expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("invalidates entries with tagIds filter including deleted id", () => {
+    writeScrollEntries([{
+      url: "/", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "catalog", sort: "addedDesc", key: "/", filters: { tagIds: [5] } },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(readScrollEntries()).toHaveLength(0);
+  });
+
+  it("keeps unaffected entries (different tagId, no filter overlap)", () => {
+    writeScrollEntries([{
+      url: "/tags/9", scrollTop: 1, version: 1,
+      context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/9", tagId: 9 },
+    }]);
+    registerScrollInvalidationHandlers(domainEvents);
+    domainEvents.publish("tagDeleted", { tagId: 5 });
+    expect(readScrollEntries()).toHaveLength(1);
   });
 });

@@ -131,11 +131,6 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
     case "authorRenamed":
       validateRenamedPayload(value, "authorId");
       return;
-    case "authorMerged":
-    case "seriesMerged":
-    case "tagMerged":
-      validateMergedPayload(value);
-      return;
     case "authorDeleted":
       requireNumber(value.authorId);
       return;
@@ -150,6 +145,11 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       return;
     case "tagDeleted":
       requireNumber(value.tagId);
+      return;
+    case "authorMerged":
+    case "seriesMerged":
+    case "tagMerged":
+      validateMergedPayload(value);
       return;
     case "shelfCreated":
     case "shelfRenamed":
