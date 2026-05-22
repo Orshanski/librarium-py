@@ -33,11 +33,6 @@ export interface TagBooksResponse {
   books: Book[];
 }
 
-export interface MapTagResponse {
-  ok: true;
-  targetId: number;
-}
-
 export interface TagQuery extends ClientQuery {
   authorIds?: number[] | string[];
   seriesIds?: number[] | string[];
@@ -74,10 +69,6 @@ export function getTag(
     query: { ...query },
     signal,
   });
-}
-
-export function mapTag(id: number, name: string): Promise<MapTagResponse> {
-  return client<MapTagResponse>("PUT", `/api/tags/${id}/map`, { body: { name } });
 }
 
 export function renameTag(id: number, name: string): Promise<OkResponse> {

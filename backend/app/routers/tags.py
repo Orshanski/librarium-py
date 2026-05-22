@@ -4,12 +4,10 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Query
 
-from ..auth import CurrentUser, get_current_user, require_admin
+from ..auth import CurrentUser, get_current_user
 from ..database import db_session
 from ..dtos.catalog import UserSort
-from ..dtos.entities import MapBody, TagCloudResponse, TagDetailResponse, TagMapResponse
-from ..events import EventScope, publish_domain_event_after_commit
-from ..logging_utils import safe as safe_log
+from ..dtos.entities import TagCloudResponse, TagDetailResponse
 from ..services import tags_service
 from ._entity_crud import register_entity_crud
 
@@ -37,29 +35,6 @@ def get_tag(
     sort: UserSort = "addedDesc",
 ):
     return tags_service.get_tag(db, tag_id, user.user_id, author_ids, series_ids, language, sort)
-
-
-@router.put("/{tag_id}/map", response_model=TagMapResponse)
-def map_tag(
-    tag_id: int,
-    body: MapBody,
-    user: Annotated[CurrentUser, Depends(require_admin)],
-    db: Annotated[sqlite3.Connection, Depends(db_session)],
-):
-    result = tags_service.map_tag(db, tag_id, body.name)
-    if result.changed:
-        publish_domain_event_after_commit(
-            db,
-            scope=EventScope(kind="library"),
-            event_type="tagMapped",
-            payload={"tagId": tag_id, "targetId": result.target_id, "name": result.name},
-        )
-    action = "renamed" if result.renamed else "merged"
-    log.info(
-        "Tag %s: %d → %s (target=%d) by user_id=%s",
-        action, tag_id, safe_log(body.name), result.target_id, user.user_id,
-    )
-    return result
 
 
 # Three new endpoints via factory: PUT /{tag_id} rename, POST /{tag_id}/merge,

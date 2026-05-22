@@ -3,7 +3,7 @@ import sqlite3
 
 from ..dal import tags as dal
 from ..dtos.catalog import UserSort
-from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagMapResponse, TagSummary
+from ..dtos.entities import TagCloudResponse, TagDetailResponse, TagSummary
 from ..exceptions import BadInputError, NotFoundError
 from .book_item_builder import row_to_book_card_item
 
@@ -40,26 +40,6 @@ def get_tag(
             book_count=tag_row["book_count"],
         ),
         books=books,
-    )
-
-
-def map_tag(db: sqlite3.Connection, tag_id: int, name: str) -> TagMapResponse:
-    """Renames tag to `name`, или merges в existing tag с таким именем.
-    Raises NotFoundError если tag_id не существует.
-    Returns TagMapResponse; `renamed` is excluded from wire output but available
-    as an attribute for router-side logging."""
-    if not dal.tag_exists(db, tag_id):
-        raise NotFoundError("Not found")
-    normalized_name = dal.normalize_tag_name(name)
-    if dal.get_tag_name(db, tag_id) == normalized_name:
-        return TagMapResponse(ok=True, target_id=tag_id, renamed=True, changed=False, name=normalized_name)
-    result = dal.map_tag(db, tag_id, name)
-    committed_name = dal.get_tag_name(db, result["target_id"]) or normalized_name
-    return TagMapResponse(
-        ok=True,
-        target_id=result["target_id"],
-        renamed=result["renamed"],
-        name=committed_name,
     )
 
 

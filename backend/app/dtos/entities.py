@@ -15,7 +15,7 @@ STRIP_BODY_CONFIG = ConfigDict(
     alias_generator=to_camel,
     extra="forbid",
 )
-"""BODY_CONFIG + str_strip_whitespace=True. Used by MapBody, RenameBody."""
+"""BODY_CONFIG + str_strip_whitespace=True. Used by RenameBody."""
 
 
 class RenameBody(BaseModel):
@@ -26,11 +26,6 @@ class RenameBody(BaseModel):
 class MergeBody(BaseModel):
     model_config = BODY_CONFIG
     source_id: int = Field(..., ge=1)
-
-
-class MapBody(BaseModel):
-    model_config = STRIP_BODY_CONFIG
-    name: str = Field(..., min_length=1)
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +167,6 @@ class TagCloudEntry(TypedDict):
     book_count: int
 
 
-class TagMapResult(TypedDict):
-    """Return shape of dal.tags.map_tag — renamed flag + resolved target id."""
-    renamed: bool
-    target_id: int
-
-
 # --- shared entity-detail book row ---
 
 class EntityBookRow(TypedDict):
@@ -271,22 +260,6 @@ class TagCloudResponse(BaseModel):
     model_config = RESPONSE_CONFIG
 
     tags: list[TagCloudEntry]
-
-
-class TagMapResponse(BaseModel):
-    """Response for PUT /api/tags/{id}/map.
-
-    Wire format: {"ok": True, "targetId": int}
-    `renamed` is present on the object for router-side logging but excluded
-    from JSON serialisation via Field(exclude=True).
-    """
-    model_config = RESPONSE_CONFIG
-
-    ok: bool = True
-    target_id: int
-    renamed: bool = Field(exclude=True)
-    changed: bool = Field(default=True, exclude=True)
-    name: str = Field(exclude=True)
 
 
 class AuthorOptionsResponse(BaseModel):

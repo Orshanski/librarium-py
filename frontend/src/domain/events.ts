@@ -50,7 +50,6 @@ export type DomainEventMap = {
   tagRenamed: { tagId: number; name: string };
   tagMerged: { targetId: number; sourceId: number };
   tagDeleted: { tagId: number };
-  tagMapped: { tagId: number; targetId: number; name: string }; // legacy: removed in ay83 Task 12
   shelfCreated: { shelfId: number; name: string };
   shelfRenamed: { shelfId: number; name: string };
   shelfDeleted: { shelfId: number };

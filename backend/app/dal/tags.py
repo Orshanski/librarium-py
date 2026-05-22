@@ -11,7 +11,6 @@ from ..dtos.entities import (
     TagCloudEntry,
     TagDetailBookRow,
     TagDetailRow,
-    TagMapResult,
 )
 from ..exceptions import BadInputError, NotFoundError
 from ._parsers import parse_book_row_aggregates
@@ -102,7 +101,7 @@ def normalize_tag_name(name: str) -> str:
     Идемпотентна: повторный вызов на уже нормализованной строке возвращает её
     же без изменений. Применяется в двух слоях независимо: read-path
     (resolve_tag_names — UI-инвариант для unknown raw codes) и write-path
-    (get_or_create_tag, map_tag — БД-инвариант на tags.name). Defense in depth:
+    (get_or_create_tag — БД-инвариант на tags.name). Defense in depth:
     каждый слой защищает свой контракт; идемпотентность делает двойной вызов
     безопасным.
     """
@@ -128,36 +127,6 @@ def resolve_tag_names(db: sqlite3.Connection, raw_tags: list[str]) -> list[str]:
             seen.add(name)
             result.append(name)
     return result
-
-
-def map_tag(db: sqlite3.Connection, tag_id: int, target_name: str) -> TagMapResult:
-    """Map tag to target (rename or merge).
-
-    Returns {"renamed": bool, "target_id": int}.
-
-    Нормализует target_name через normalize_tag_name — write-path инвариант
-    (tags.name всегда Capitalized) держится одинаково и на create-path
-    (get_or_create_tag), и на rename-path (этот метод).
-    """
-    target_name = normalize_tag_name(target_name)
-    existing = queries.map_tag_check_existing(db, name=target_name, id=tag_id)
-
-    if existing:
-        target_id = existing["id"]
-        # Remember source name for tag_mappings before deleting
-        source_row = queries.get_tag_name_by_id(db, id=tag_id)
-        source_name = source_row["name"] if source_row else None
-        queries.insert_book_tags_from_source(db, target=target_id, source=tag_id)
-        queries.delete_book_tags_by_source(db, source=tag_id)
-        queries.update_tag_mappings_target(db, target=target_id, source=tag_id)
-        # Add mapping from source name so future imports resolve correctly
-        if source_name:
-            queries.insert_tag_mapping(db, raw=source_name, tid=target_id)
-        queries.delete_tag_by_id(db, source=tag_id)
-        return {"renamed": False, "target_id": target_id}
-    else:
-        queries.update_tag_name(db, name=target_name, id=tag_id)
-        return {"renamed": True, "target_id": tag_id}
 
 
 def get_or_create_tag(db: sqlite3.Connection, name: str) -> int:
@@ -191,7 +160,7 @@ def merge_tag(db: sqlite3.Connection, target_id: int, source_id: int) -> None:
     mappings, delete source. Caller is responsible for existence/self-merge
     checks — DAL is the thin SQL layer (симметрично dal.merge_series).
 
-    Mappings strategy mirrors existing dal.map_tag merge branch:
+    Mappings strategy:
     1. Read source name (для insert mapping ниже).
     2. Move book_tags rows source → target (INSERT OR IGNORE для дубликатов).
     3. Delete remaining source book_tags rows.
