@@ -301,8 +301,9 @@ describe("TagPage", () => {
     server.use(
       http.get("/api/tags/:id", () => {
         requestCount += 1;
+        const name = requestCount === 1 ? "Sci-Fi" : "Sci-Fi Merged";
         return HttpResponse.json({
-          tag: { id: 2, name: "Sci-Fi", code: null, bookCount: 7 },
+          tag: { id: 2, name, code: null, bookCount: 7 },
           books: [],
         });
       })
@@ -326,6 +327,9 @@ describe("TagPage", () => {
 
     await waitFor(() => {
       expect(requestCount).toBe(2);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Sci-Fi Merged").length).toBeGreaterThan(0);
     });
   });
 
