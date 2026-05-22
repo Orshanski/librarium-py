@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
+import { domainEvents } from "@/domain/events";
 import { Routes, Route } from "react-router-dom";
 import TagPage from "./TagPage";
 import {
@@ -13,10 +15,18 @@ import {
 } from "@/test/entity-page-mobile";
 
 describe("TagPage", () => {
+  let unregisterCacheHandlers: (() => void) | undefined;
+
   beforeEach(() => {
-    // Clear sessionStorage between tests
     sessionStorage.clear();
     metadataCache.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  afterEach(() => {
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
+    domainEvents.clear();
   });
 
   it("displays tag and books when data is successfully fetched", async () => {
@@ -27,6 +37,7 @@ describe("TagPage", () => {
             id: 1,
             name: "Science Fiction",
             code: null,
+            bookCount: 2,
           },
           books: [
             {
@@ -79,12 +90,10 @@ describe("TagPage", () => {
       { initialEntries: ["/tags/1"] }
     );
 
-    // Wait for books to appear
     await waitFor(() => {
       expect(screen.getByText("Dune")).toBeInTheDocument();
     });
 
-    // Books should appear
     expect(screen.getByText("Neuromancer")).toBeInTheDocument();
   });
 
@@ -102,7 +111,6 @@ describe("TagPage", () => {
       { initialEntries: ["/tags/999"] }
     );
 
-    // Should show not found message
     await waitFor(() => {
       const elements = screen.queryAllByText("Жанр не найден");
       expect(elements.length).toBeGreaterThan(0);
@@ -135,6 +143,7 @@ describe("TagPage", () => {
             id: 1,
             name: "Fiction",
             code: null,
+            bookCount: 1,
           },
           books: [
             {
@@ -168,15 +177,10 @@ describe("TagPage", () => {
       { initialEntries: ["/tags/1"] },
     );
 
-    // Assert on the book title (which appears only AFTER fetch resolves)
-    // rather than the tag name (which shows up in breadcrumbs / PageHeader
-    // before the fetch completes) — guarantees server round-trip happened
-    // before we inspect capturedQuery.
     await waitFor(() => {
       expect(screen.getByText("Dune")).toBeInTheDocument();
     });
 
-    // No filter was set → authorIds / seriesIds / language must NOT be sent.
     expect(capturedQuery.authorIds).toBeUndefined();
     expect(capturedQuery.seriesIds).toBeUndefined();
     expect(capturedQuery.language).toBeUndefined();
@@ -188,7 +192,7 @@ describe("TagPage", () => {
       http.get("/api/tags/:id", () => {
         requestCount += 1;
         return HttpResponse.json({
-          tag: { id: 1, name: "Science Fiction", code: null },
+          tag: { id: 1, name: "Science Fiction", code: null, bookCount: 1 },
           books: [
             {
               id: 101,
@@ -229,19 +233,145 @@ describe("TagPage", () => {
     expect(screen.getByText("Dune")).toBeInTheDocument();
     expect(requestCount).toBe(1);
   });
+
+  it("tagRenamed updates title without 'Загрузка...'", async () => {
+    server.use(
+      http.get("/api/tags/:id", () =>
+        HttpResponse.json({
+          tag: { id: 1, name: "Фэнтези", code: null, bookCount: 3 },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Фэнтези").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("tagRenamed", { tagId: 1, name: "Sci-Fi" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Sci-Fi").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
+  });
+
+  it("переходит на /tags/{targetId} при tagMerged с sourceId равным tagId", async () => {
+    server.use(
+      http.get("/api/tags/:id", ({ params }) =>
+        HttpResponse.json({
+          tag: { id: Number(params.id), name: `Жанр ${params.id}`, code: null, bookCount: 0 },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Жанр 1").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("tagMerged", { sourceId: 1, targetId: 2 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Жанр 2").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Жанр не найден")).not.toBeInTheDocument();
+  });
+
+  it("остаётся на странице при tagMerged с targetId равным tagId (refetch)", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("/api/tags/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          tag: { id: 2, name: "Sci-Fi", code: null, bookCount: 7 },
+          books: [],
+        });
+      })
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/2"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Sci-Fi").length).toBeGreaterThan(0);
+    });
+    expect(requestCount).toBe(1);
+
+    await act(async () => {
+      domainEvents.publish("tagMerged", { sourceId: 1, targetId: 2 });
+    });
+
+    await waitFor(() => {
+      expect(requestCount).toBe(2);
+    });
+  });
+
+  it("переходит на /tags при tagDeleted нашего жанра", async () => {
+    server.use(
+      http.get("/api/tags/:id", ({ params }) =>
+        HttpResponse.json({
+          tag: { id: Number(params.id), name: `Жанр ${params.id}`, code: null, bookCount: 0 },
+          books: [],
+        })
+      )
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+        <Route path="/tags" element={<div>Список жанров</div>} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Жанр 1").length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      domainEvents.publish("tagDeleted", { tagId: 1 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Список жанров")).toBeInTheDocument();
+    });
+  });
 });
 
 const tagCase = {
   label: "TagPage",
   entityNoun: "жанром",
   gearLabel: "Управление жанром",
-  panelComponent: "TagAdminPanel",
+  panelComponent: "EntityAdminPanel",
   titleRegex: /Science Fiction/,
-  panelText: "Сопоставить с...",
+  panelText: "Переименовать",
   detailPath: "/api/tags/:id",
   listPath: "/api/tags",
   detailResponse: {
-    tag: { id: 1, name: "Science Fiction", code: null },
+    tag: { id: 1, name: "Science Fiction", code: null, bookCount: 0 },
     books: [],
   },
   listResponse: { tags: [] },
