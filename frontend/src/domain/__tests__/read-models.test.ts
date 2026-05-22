@@ -5,6 +5,7 @@ import {
   classifyReadingProgressForContext,
   classifySeriesRenameForBookList,
   classifyShelfMembershipForContext,
+  classifyTagRenameForBookList,
   type BookListContext,
 } from "../read-models";
 
@@ -148,4 +149,28 @@ describe("read-model validity", () => {
     expect(classifyReadingProgressForContext(readingNow, { hasPositionChanged: true, lastReadAtChanged: false })).toBe("structural");
     expect(classifyReadingProgressForContext(catalogAdded, { hasPositionChanged: true, lastReadAtChanged: true })).toBe("unaffected");
   });
+});
+
+describe("classifyTagRenameForBookList", () => {
+  const base: Omit<BookListContext, "source"> = {
+    kind: "book-list",
+    sort: "addedDesc",
+    key: "/",
+  };
+
+  it("tag-detail → patchable", () => {
+    expect(classifyTagRenameForBookList({ ...base, source: "tag-detail", tagId: 1 })).toBe("patchable");
+  });
+
+  it("search → structural", () => {
+    expect(classifyTagRenameForBookList({ ...base, source: "search", query: "q" })).toBe("structural");
+  });
+
+  it.each(["catalog", "author-detail", "series-detail", "shelf-regular", "shelf-best", "shelf-reading-now"] as const)(
+    "%s → patchable",
+    (source) => {
+      const ctx: BookListContext = { ...base, source } as BookListContext;
+      expect(classifyTagRenameForBookList(ctx)).toBe("patchable");
+    },
+  );
 });

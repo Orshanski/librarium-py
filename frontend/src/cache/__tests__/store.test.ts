@@ -695,3 +695,59 @@ describe("MetadataCacheStore", () => {
     expect(entry?.books[0].id).toBe(2);
   });
 });
+
+describe("applyTagRename", () => {
+  const tagOneContext: BookListContext = {
+    kind: "book-list",
+    key: "/tags/1",
+    source: "tag-detail",
+    tagId: 1,
+    sort: "addedDesc",
+  };
+  const tagTwoContext: BookListContext = {
+    kind: "book-list",
+    key: "/tags/2",
+    source: "tag-detail",
+    tagId: 2,
+    sort: "addedDesc",
+  };
+
+  it("updates tag.name in namespace tag/{id}", () => {
+    const store = new MetadataCacheStore();
+    store.set("tag/1", "detail", { tag: { id: 1, name: "Old" }, books: [] }, { context: tagOneContext });
+    store.applyTagRename({ tagId: 1, name: "New" });
+    const entry = store.get<{ tag: { name: string } }>("tag/1", "detail");
+    expect(entry?.tag.name).toBe("New");
+  });
+
+  it("does not touch tag/{other-id}", () => {
+    const store = new MetadataCacheStore();
+    store.set("tag/2", "detail", { tag: { id: 2, name: "Untouched" }, books: [] }, { context: tagTwoContext });
+    store.applyTagRename({ tagId: 1, name: "New" });
+    const entry = store.get<{ tag: { name: string } }>("tag/2", "detail");
+    expect(entry?.tag.name).toBe("Untouched");
+  });
+
+  it("patches book.tags refs through general pass", () => {
+    const store = new MetadataCacheStore();
+    store.set("catalog", "p1", {
+      books: [
+        { id: 1, title: "B1", tags: [{ id: 1, name: "Old" }, { id: 2, name: "Other" }] },
+        { id: 2, title: "B2", tags: [{ id: 1, name: "Old" }] },
+        { id: 3, title: "B3", tags: [{ id: 3, name: "Untouched" }] },
+      ],
+    }, { context: { kind: "book-list", source: "catalog", sort: "addedDesc", key: "/" } });
+    store.applyTagRename({ tagId: 1, name: "New" });
+    const value = store.get<{ books: Array<{ tags: Array<{ id: number; name: string }> }> }>("catalog", "p1");
+    expect(value!.books[0].tags).toEqual([{ id: 1, name: "New" }, { id: 2, name: "Other" }]);
+    expect(value!.books[1].tags).toEqual([{ id: 1, name: "New" }]);
+    expect(value!.books[2].tags).toEqual([{ id: 3, name: "Untouched" }]);
+  });
+
+  it("deletes entries without context (general pass)", () => {
+    const store = new MetadataCacheStore();
+    store.set("catalog", "p2", { books: [{ id: 1, tags: [{ id: 1, name: "X" }] }] });  // no context arg
+    store.applyTagRename({ tagId: 1, name: "Y" });
+    expect(store.get("catalog", "p2")).toBeUndefined();
+  });
+});

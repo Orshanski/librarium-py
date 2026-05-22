@@ -1,4 +1,4 @@
-import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList } from "@/domain/read-models";
+import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList, classifyTagRenameForBookList } from "@/domain/read-models";
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
 
@@ -173,6 +173,49 @@ export class MetadataCacheStore {
           value: {
             ...value,
             series: { ...series, name: payload.name, ...sortNamePatch(payload.sortName) },
+          },
+        });
+        changed = true;
+      }
+    }
+    if (changed) {
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
+  }
+
+  applyTagRename(payload: DomainEventMap["tagRenamed"]): void {
+    this.updateBookListEntries((entry) => {
+      if (!entry.context) return { delete: true };
+      if (classifyTagRenameForBookList(entry.context) === "structural") {
+        return { delete: true };
+      }
+      return {
+        value: {
+          ...entry.value,
+          books: entry.value.books.map((row) => patchTagRefs(row, payload)),
+        },
+      };
+    });
+
+    this.hydratePersistedNamespaces();
+    const namespace = `tag/${payload.tagId}`;
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    // invariant: namespace ⇒ entity-id binding
+    // namespace tag/{id} гарантирует принадлежность записи именно этому тегу —
+    // проверка tag.id === payload.tagId избыточна (тот же приём, что в applySeriesRename).
+    for (const [key, entry] of ns.entries) {
+      const value = entry.value as { tag?: { name?: unknown } } & Record<string, unknown>;
+      const tag = value.tag;
+      if (tag) {
+        ns.entries.set(key, {
+          ...entry,
+          value: {
+            ...value,
+            tag: { ...tag, name: payload.name },
           },
         });
         changed = true;
@@ -428,11 +471,30 @@ function patchSeriesRef(
   return row;
 }
 
+function patchTagRefs(
+  row: BookListRow,
+  payload: DomainEventMap["tagRenamed"],
+): BookListRow {
+  if (!Array.isArray(row.tags)) return row;
+  return {
+    ...row,
+    tags: row.tags.map((tag) => (
+      isTagRef(tag) && tag.id === payload.tagId
+        ? { ...tag, name: payload.name }
+        : tag
+    )),
+  };
+}
+
 function sortNamePatch(sortName: string | undefined): { sortName?: string } {
   return sortName === undefined ? {} : { sortName };
 }
 
 function isAuthorRef(value: unknown): value is { id: number; name: string; sortName?: string } {
+  return hasNumericId(value);
+}
+
+function isTagRef(value: unknown): value is { id: number; name: string } {
   return hasNumericId(value);
 }
 
