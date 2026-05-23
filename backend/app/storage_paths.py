@@ -146,16 +146,16 @@ def library_backup_file(path: str | Path) -> Path:
 
 def upload_book_file(temp_id: str, ext: str) -> Path:
     filename = f"{_temp_id_segment(temp_id)}.{_ext(ext, BOOK_EXTS)}"
-    return _resolve_under(UPLOADS_DIR, filename)
+    return _managed_file_under(UPLOADS_DIR, filename)
 
 
 def upload_cover_file(temp_id: str, ext: str) -> Path:
     filename = f"{_temp_id_segment(temp_id)}-cover.{_ext(ext, COVER_EXTS)}"
-    return _resolve_under(UPLOADS_DIR, filename)
+    return _managed_file_under(UPLOADS_DIR, filename)
 
 
 def upload_zip_file(temp_id: str) -> Path:
-    return _resolve_under(UPLOADS_DIR, f"{_temp_id_segment(temp_id)}.zip")
+    return _managed_file_under(UPLOADS_DIR, f"{_temp_id_segment(temp_id)}.zip")
 
 
 def upload_file_from_basename(name: str) -> Path | None:

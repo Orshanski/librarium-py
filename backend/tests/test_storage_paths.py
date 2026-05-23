@@ -82,6 +82,15 @@ def test_upload_file_from_basename_ignores_unexpected_shapes(name):
     assert sp.upload_file_from_basename(name) is None
 
 
+def test_upload_book_file_rejects_symlinked_file_component(tmp_path, monkeypatch):
+    monkeypatch.setattr(sp, "UPLOADS_DIR", tmp_path)
+    (tmp_path / "victim.fb2").write_bytes(b"victim")
+    (tmp_path / "abc123.fb2").symlink_to(tmp_path / "victim.fb2")
+
+    with pytest.raises(BadInputError):
+        sp.upload_book_file("abc123", "fb2")
+
+
 def test_library_backup_file_requires_managed_library_path():
     original = sp.library_book_file(42, "pdf")
     assert sp.library_backup_file(original).name == "book.pdf.bak"
