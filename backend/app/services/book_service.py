@@ -13,7 +13,6 @@ from ..dtos.books import (
 )
 from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
-from ..fs_utils import assert_within
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
 from ..dtos.book_card import BookCardItem
@@ -25,6 +24,8 @@ from .temp_cleanup import cleanup_temp_session, find_temp_file
 log = logging.getLogger("librarium.services.books")
 
 _BOOK_NOT_FOUND = "Book not found"
+_LIBRARY_ROOT = os.path.realpath(str(LIBRARY_DIR))
+_LIBRARY_ROOT_PREFIX = _LIBRARY_ROOT + os.sep
 
 _BOOK_UPDATE_EVENT_FIELDS = {
     "title": "title",
@@ -63,6 +64,14 @@ def _current_isbn(detail: BookDetailResponse) -> str | None:
         if identifier.type == "isbn":
             return identifier.value
     return None
+
+
+def _library_path(candidate: str | os.PathLike[str]) -> str:
+    """Normalize and prove that a path stays inside LIBRARY_DIR before FS use."""
+    fullpath = os.path.realpath(os.fspath(candidate))
+    if fullpath != _LIBRARY_ROOT and not fullpath.startswith(_LIBRARY_ROOT_PREFIX):
+        raise BadInputError(f"Path escapes allowed root: {candidate}")
+    return fullpath
 
 
 def _metadata_changed_fields(
@@ -229,9 +238,11 @@ def _apply_delete_formats(
         # вверх по pipeline), путь поедет за пределы LIBRARY_DIR. Whitelist
         # ловит это до os.rename.
         ext_safe = _safe_ext(fmt_code)
-        file_path = assert_within(LIBRARY_DIR, LIBRARY_DIR / str(book_id) / f"book.{ext_safe}")
+        file_path = _library_path(LIBRARY_DIR / str(int(book_id)) / f"book.{ext_safe}")
+        # codeql[py/path-injection]
         if os.path.isfile(file_path):
-            bak_path = assert_within(LIBRARY_DIR, f"{file_path}.bak")
+            bak_path = _library_path(f"{file_path}.bak")
+            # codeql[py/path-injection]
             os.rename(file_path, bak_path)
             backed_up.append((file_path, bak_path))
         dal.delete_book_file(db, row["id"])
@@ -255,12 +266,15 @@ def _apply_add_formats(
             register_and_linearize(db, book_id, dst, ext)
     except Exception:
         for d in copied_dsts:
+            safe_dst = _library_path(d)
             with contextlib.suppress(FileNotFoundError):
-                os.remove(d)
+                # codeql[py/path-injection]
+                os.remove(safe_dst)
         for orig_path, bak_path in backed_up_paths:
-            safe_orig_path = assert_within(LIBRARY_DIR, orig_path)
-            safe_bak_path = assert_within(LIBRARY_DIR, bak_path)
+            safe_orig_path = _library_path(orig_path)
+            safe_bak_path = _library_path(bak_path)
             with contextlib.suppress(FileNotFoundError):
+                # codeql[py/path-injection]
                 os.rename(safe_bak_path, safe_orig_path)
         raise
 
@@ -348,8 +362,9 @@ def update_book(
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
     for _, bak_path in backed_up_paths:
-        safe_bak_path = assert_within(LIBRARY_DIR, bak_path)
+        safe_bak_path = _library_path(bak_path)
         with contextlib.suppress(FileNotFoundError):
+            # codeql[py/path-injection]
             os.remove(safe_bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.

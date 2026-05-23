@@ -199,6 +199,10 @@ class TestBookServiceUpdateBook:
                 [(str(tmp_path / "book.fb2"), str(outside_bak))],
             )
 
+    def test_library_path_rejects_path_outside_library(self, tmp_path):
+        with pytest.raises(BadInputError, match="Path escapes allowed root"):
+            book_service._library_path(tmp_path / "book.fb2")  # pyright: ignore[reportPrivateUsage]
+
     def test_update_commit_cover_without_pending_raises(self, db):
         with pytest.raises(BadInputError, match="No pending cover"):
             book_service.update_book(db, 1, UpdateBookBody(commitCover=True))  # pyright: ignore[reportCallIssue]
