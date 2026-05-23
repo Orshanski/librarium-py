@@ -20,6 +20,17 @@ def test_library_book_file_rejects_symlinked_book_dir(tmp_path, monkeypatch):
         sp.library_book_file(1, "epub")
 
 
+def test_library_book_file_rejects_symlinked_file_component(tmp_path, monkeypatch):
+    monkeypatch.setattr(sp, "LIBRARY_DIR", tmp_path)
+    book_dir = tmp_path / "1"
+    book_dir.mkdir()
+    (book_dir / "cover.jpg").write_bytes(b"cover")
+    (book_dir / "book.epub").symlink_to(book_dir / "cover.jpg")
+
+    with pytest.raises(BadInputError):
+        sp.library_book_file(1, "epub")
+
+
 @pytest.mark.parametrize("ext", ["../pdf", "/pdf", "txt", "pdf/../../x"])
 def test_library_book_file_rejects_unsafe_extension(ext):
     with pytest.raises(BadInputError):

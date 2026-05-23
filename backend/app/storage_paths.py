@@ -32,6 +32,18 @@ def _resolve_under(root: Path, *parts: str) -> Path:
     return candidate
 
 
+def _managed_file_under(root: Path, filename: str) -> Path:
+    root_resolved = _root(root)
+    candidate = root_resolved / filename
+    try:
+        candidate.parent.resolve().relative_to(root_resolved)
+    except ValueError as exc:
+        raise BadInputError("Path escapes managed storage root") from exc
+    if candidate.is_symlink():
+        raise BadInputError("Managed storage file must not be a symlink")
+    return candidate
+
+
 def _book_id_segment(book_id: int) -> str:
     if isinstance(book_id, bool) or not isinstance(book_id, int) or book_id < 1:
         raise BadInputError("Invalid book id")
@@ -73,7 +85,7 @@ def library_book_dir_for_delete(book_id: int) -> Path:
 
 def library_book_file(book_id: int, ext: str) -> Path:
     book_dir = _library_book_dir_lexical(book_id)
-    return _resolve_under(book_dir, f"book.{_ext(ext, BOOK_EXTS)}")
+    return _managed_file_under(book_dir, f"book.{_ext(ext, BOOK_EXTS)}")
 
 
 def library_cover_file(book_id: int, ext: str) -> Path:
