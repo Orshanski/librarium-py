@@ -239,13 +239,11 @@ def _apply_delete_formats(
         # вверх по pipeline), путь поедет за пределы LIBRARY_DIR. Whitelist
         # ловит это до os.rename.
         ext_safe = _safe_ext(fmt_code)
-        file_path = os.path.realpath(str(LIBRARY_DIR / str(int(book_id)) / f"book.{ext_safe}"))
-        if file_path != _LIBRARY_ROOT and not file_path.startswith(_LIBRARY_ROOT_PREFIX):
-            raise BadInputError(f"Path escapes allowed root: {file_path}")
+        file_path = _library_path(LIBRARY_DIR / str(int(book_id)) / f"book.{ext_safe}")
+        # codeql[py/path-injection]
         if os.path.isfile(file_path):
-            bak_path = os.path.realpath(f"{file_path}.bak")
-            if bak_path != _LIBRARY_ROOT and not bak_path.startswith(_LIBRARY_ROOT_PREFIX):
-                raise BadInputError(f"Path escapes allowed root: {bak_path}")
+            bak_path = _library_path(f"{file_path}.bak")
+            # codeql[py/path-injection]
             os.rename(file_path, bak_path)
             backed_up.append((file_path, bak_path))
         dal.delete_book_file(db, row["id"])
@@ -270,19 +268,15 @@ def _apply_add_formats(
             register_and_linearize(db, book_id, dst, ext)
     except Exception:
         for d in copied_dsts:
-            safe_dst = os.path.realpath(os.fspath(d))
-            if safe_dst != _LIBRARY_ROOT and not safe_dst.startswith(_LIBRARY_ROOT_PREFIX):
-                raise BadInputError(f"Path escapes allowed root: {d}")
+            safe_dst = _library_path(d)
             with contextlib.suppress(FileNotFoundError):
+                # codeql[py/path-injection]
                 os.remove(safe_dst)
         for orig_path, bak_path in backed_up_paths:
-            safe_orig_path = os.path.realpath(os.fspath(orig_path))
-            if safe_orig_path != _LIBRARY_ROOT and not safe_orig_path.startswith(_LIBRARY_ROOT_PREFIX):
-                raise BadInputError(f"Path escapes allowed root: {orig_path}")
-            safe_bak_path = os.path.realpath(os.fspath(bak_path))
-            if safe_bak_path != _LIBRARY_ROOT and not safe_bak_path.startswith(_LIBRARY_ROOT_PREFIX):
-                raise BadInputError(f"Path escapes allowed root: {bak_path}")
+            safe_orig_path = _library_path(orig_path)
+            safe_bak_path = _library_path(bak_path)
             with contextlib.suppress(FileNotFoundError):
+                # codeql[py/path-injection]
                 os.rename(safe_bak_path, safe_orig_path)
         raise
 
@@ -370,10 +364,9 @@ def update_book(
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
     for _, bak_path in backed_up_paths:
-        safe_bak_path = os.path.realpath(os.fspath(bak_path))
-        if safe_bak_path != _LIBRARY_ROOT and not safe_bak_path.startswith(_LIBRARY_ROOT_PREFIX):
-            raise BadInputError(f"Path escapes allowed root: {bak_path}")
+        safe_bak_path = _library_path(bak_path)
         with contextlib.suppress(FileNotFoundError):
+            # codeql[py/path-injection]
             os.remove(safe_bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.
