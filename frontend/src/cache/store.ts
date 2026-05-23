@@ -6,12 +6,12 @@ import type { BookListRow, BookListValue } from "./projection/book-list";
 import { applyBookRowPatch, applyBookUpdate as applyBookUpdateProjection } from "./projection/books";
 import { isRecord } from "./projection/guards";
 import { patchArrayRowListValue, patchNestedRefsValue, patchObjectRowListValue } from "./projection/namespace-rows";
-import { readPersistedNamespace, STORAGE_PREFIX } from "./projection/persistence";
-import type { PersistedCacheEntry } from "./projection/persistence";
 import { applySeriesRename as applySeriesRenameProjection } from "./projection/series";
 import { projectShelfMembershipChange, applyShelfRename as applyShelfRenameProjection } from "./projection/shelves";
 import { applyTagRename as applyTagRenameProjection } from "./projection/tags";
 import type { BookListProjectionEntry, BookListUpdateResult, ProjectionCacheEntry, ProjectionWriter } from "./projection/writer";
+import { readPersistedNamespace, STORAGE_PREFIX } from "./storage/persistence";
+import type { PersistedCacheEntry } from "./storage/persistence";
 
 type CacheEntry = PersistedCacheEntry;
 

@@ -1,5 +1,4 @@
 import type { BookListContext } from "@/domain/read-models";
-import { hasBooksArray, isBookList } from "./book-list";
 import { isBookListContext } from "./book-list-context";
 
 export type PersistedCacheEntry = {
@@ -34,9 +33,26 @@ function normalizePersistedEntry(entry: unknown): PersistedCacheEntry | undefine
   if (!("value" in entry)) return undefined;
   const value = (entry as { value: unknown }).value;
   const context = (entry as { context?: unknown }).context;
-  if (hasBooksArray(value) && !isBookList(value)) return undefined;
+  if (hasBooksArray(value) && !isPersistedBookList(value)) return undefined;
   return {
     value,
     context: isBookListContext(context) ? context : undefined,
   };
+}
+
+function hasBooksArray(value: unknown): boolean {
+  return typeof value === "object"
+    && value !== null
+    && Array.isArray((value as { books?: unknown }).books);
+}
+
+function isPersistedBookList(value: unknown): boolean {
+  return hasBooksArray(value)
+    && (value as { books: unknown[] }).books.every(hasNumericId);
+}
+
+function hasNumericId(value: unknown): boolean {
+  return typeof value === "object"
+    && value !== null
+    && typeof (value as { id?: unknown }).id === "number";
 }
