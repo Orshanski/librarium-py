@@ -533,6 +533,57 @@ describe("MetadataCacheStore", () => {
     expect(entry?.author.sortName).toBe("New Sort");
   });
 
+  it("applyAuthorRename patches persisted book detail namespace after hydration", () => {
+    const first = new MetadataCacheStore();
+    first.set("book/10", "detail", {
+      book: { id: 10, title: "Book", authors: [{ id: 7, name: "Old" }], series: null, tags: [] },
+    });
+
+    const hydrated = new MetadataCacheStore();
+    hydrated.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
+
+    expect(hydrated.get<{ book: { authors: unknown[] } }>("book/10", "detail")?.book.authors).toEqual([
+      { id: 7, name: "New", sortName: "New" },
+    ]);
+  });
+
+  it("applySeriesRename and applyTagRename patch persisted book detail refs after hydration", () => {
+    const first = new MetadataCacheStore();
+    first.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [],
+        series: { id: 9, name: "Old Series" },
+        tags: [{ id: 3, name: "Old Tag" }],
+      },
+    });
+
+    const hydrated = new MetadataCacheStore();
+    hydrated.applySeriesRename({ seriesId: 9, name: "New Series", sortName: "New Series" });
+    hydrated.applyTagRename({ tagId: 3, name: "New Tag" });
+
+    const book = hydrated.get<{ book: { series: unknown; tags: unknown[] } }>("book/10", "detail")?.book;
+    expect(book?.series).toEqual({ id: 9, name: "New Series", sortName: "New Series" });
+    expect(book?.tags).toEqual([{ id: 3, name: "New Tag" }]);
+  });
+
+  it("rename patches persisted aggregate and filter option namespaces after hydration", () => {
+    const first = new MetadataCacheStore();
+    first.set("authors", "all", { authors: [{ id: 7, name: "Old", sortName: "Old", bookCount: 1 }] });
+    first.set("filter-options/authors", "all", { authors: [{ id: 7, name: "Old" }] });
+
+    const hydrated = new MetadataCacheStore();
+    hydrated.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
+
+    expect(hydrated.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
+      { id: 7, name: "New", sortName: "New", bookCount: 1 },
+    ]);
+    expect(hydrated.get<{ authors: unknown[] }>("filter-options/authors", "all")?.authors).toEqual([
+      { id: 7, name: "New" },
+    ]);
+  });
+
   it("persists and hydrates namespace entries from sessionStorage", () => {
     store.set("authors", "/authors", { authors: [{ id: 1, name: "Frank Herbert" }] });
 
@@ -887,6 +938,28 @@ describe("MetadataCacheStore", () => {
     expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
       { id: 7, name: "New", sortName: "New", bookCount: 3, tags: [{ id: 1, name: "T" }] },
     ]);
+  });
+
+  it("applyAuthorRename is idempotent for aggregate patches", () => {
+    const store = new MetadataCacheStore();
+    const subscriber = vi.fn();
+    store.set("authors", "all", { authors: [{ id: 7, name: "Old", bookCount: 1 }] });
+    store.subscribe("authors", subscriber);
+    const beforeVersion = store.version("authors");
+
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+    const afterFirst = store.version("authors");
+    expect(afterFirst).toBe(beforeVersion + 1);
+    expect(subscriber).toHaveBeenCalledTimes(1);
+    expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
+      { id: 7, name: "New", bookCount: 1 },
+    ]);
+
+    subscriber.mockClear();
+    store.applyAuthorRename({ authorId: 7, name: "New" });
+
+    expect(store.version("authors")).toBe(afterFirst);
+    expect(subscriber).not.toHaveBeenCalled();
   });
 
   it("applySeriesRename patches series aggregate and preserves nested authors", () => {
