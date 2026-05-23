@@ -160,6 +160,20 @@ def test_get_authors_wire(admin_client):
     assert all("id" in t and "name" in t for t in author["tags"])
 
 
+def test_get_authors_includes_empty_author_wire(admin_client, db):
+    db.execute(
+        "INSERT INTO authors (id, name, sort_name) VALUES (199, 'Empty Author', 'Author, Empty')"
+    )
+    db.commit()
+
+    resp = admin_client.get("/api/authors")
+    assert resp.status_code == 200
+    author = next(a for a in resp.json()["authors"] if a["id"] == 199)
+
+    assert author["bookCount"] == 0
+    assert author["tags"] == []
+
+
 # ---------------------------------------------------------------------------
 # GET /api/authors/{id}
 # ---------------------------------------------------------------------------
@@ -247,6 +261,20 @@ def test_get_series_wire(admin_client):
     assert isinstance(s["authors"], list)
     assert len(s["authors"]) > 0
     assert all("id" in a and "name" in a for a in s["authors"])
+
+
+def test_get_series_includes_empty_series_wire(admin_client, db):
+    db.execute(
+        "INSERT INTO series (id, name, sort_name) VALUES (199, 'Empty Series', 'Empty Series')"
+    )
+    db.commit()
+
+    resp = admin_client.get("/api/series")
+    assert resp.status_code == 200
+    series = next(s for s in resp.json()["series"] if s["id"] == 199)
+
+    assert series["bookCount"] == 0
+    assert series["authors"] == []
 
 
 # ---------------------------------------------------------------------------

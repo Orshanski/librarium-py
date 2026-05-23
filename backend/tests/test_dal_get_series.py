@@ -77,6 +77,37 @@ def test_get_series_no_duplicate_authors(db, series_with_single_author):
     assert len(author_ids) == len(set(author_ids)), "Duplicate authors returned"
 
 
+def test_get_series_includes_series_without_books(db):
+    """Directory must show manually-created series even before books are attached."""
+    db.execute(
+        "INSERT INTO series (id, name, sort_name) VALUES (199, 'Empty Series', 'Empty Series')"
+    )
+    db.commit()
+
+    result = dal_series.get_series(db, user_id=1)
+    s = next(se for se in result["series"] if se["id"] == 199)
+
+    assert s["book_count"] == 0
+    assert s["authors"] == []
+
+
+def test_get_series_includes_series_without_books_when_user_has_hidden_books(db):
+    """Hidden-book scope must not hide entities that have no books at all."""
+    db.execute(
+        "INSERT INTO series (id, name, sort_name) VALUES (199, 'Empty Series', 'Empty Series')"
+    )
+    db.execute(
+        "INSERT INTO user_books (user_id, book_id, is_hidden) VALUES (1, 1, 1)"
+    )
+    db.commit()
+
+    result = dal_series.get_series(db, user_id=1)
+    s = next(se for se in result["series"] if se["id"] == 199)
+
+    assert s["book_count"] == 0
+    assert s["authors"] == []
+
+
 def test_get_series_authors_sorted_alphabetically(
     db, series_with_two_authors_inserted_non_alphabetically
 ):

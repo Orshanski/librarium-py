@@ -16,5 +16,5 @@ SELECT s.id, s.name, s.sort_name,
            JOIN authors a ON ba.author_id = a.id
            WHERE b2.series_id = s.id)) AS authors
 FROM series s
-JOIN books b ON b.series_id = s.id
+LEFT JOIN books b ON b.series_id = s.id
 {where_clause} GROUP BY s.id ORDER BY s.sort_name COLLATE NOCASE

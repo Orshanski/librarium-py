@@ -17,6 +17,16 @@ def test_tag_cloud_has_book_counts(reader_client):
         assert t["bookCount"] >= 1
 
 
+def test_tag_cloud_includes_tag_without_books(reader_client, db_test):
+    db_test.execute("INSERT INTO tags (id, name) VALUES (199, 'Empty tag')")
+    db_test.commit()
+
+    data = assert_ok(reader_client.get("/api/tags/cloud"))
+    tag = next(t for t in data["tags"] if t["id"] == 199)
+
+    assert tag["bookCount"] == 0
+
+
 def test_filter_books_by_tag(reader_client):
     data = assert_ok(reader_client.get("/api/books", params={"tagIds": "1"}))
     ids = {b["id"] for b in data["books"]}

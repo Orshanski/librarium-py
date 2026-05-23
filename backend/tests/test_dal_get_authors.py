@@ -52,6 +52,37 @@ def test_get_authors_empty_tags_for_author_without_tagged_books(db, author_witho
     assert a["tags"] == []
 
 
+def test_get_authors_includes_author_without_books(db):
+    """Directory must show manually-created authors even before books are attached."""
+    db.execute(
+        "INSERT INTO authors (id, name, sort_name) VALUES (199, 'Empty Author', 'Author, Empty')"
+    )
+    db.commit()
+
+    authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]
+    a = next(a for a in authors if a["id"] == 199)
+
+    assert a["book_count"] == 0
+    assert a["tags"] == []
+
+
+def test_get_authors_includes_author_without_books_when_user_has_hidden_books(db):
+    """Hidden-book scope must not hide entities that have no books at all."""
+    db.execute(
+        "INSERT INTO authors (id, name, sort_name) VALUES (199, 'Empty Author', 'Author, Empty')"
+    )
+    db.execute(
+        "INSERT INTO user_books (user_id, book_id, is_hidden) VALUES (1, 1, 1)"
+    )
+    db.commit()
+
+    authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]
+    a = next(a for a in authors if a["id"] == 199)
+
+    assert a["book_count"] == 0
+    assert a["tags"] == []
+
+
 def test_get_authors_no_csv_field(db, author_with_tagged_books):
     """tags must never be a raw string — always a parsed list."""
     authors = dal_authors.get_authors(db, user_id=1, tag_ids=None, language=None)["authors"]

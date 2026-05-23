@@ -57,7 +57,7 @@ def build_book_where(
             params.update(p)
 
     if user_id is not None:
-        clauses.append("b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1)")
+        clauses.append("(b.id IS NULL OR b.id NOT IN (SELECT book_id FROM user_books WHERE user_id = :uid AND is_hidden = 1))")
         params["uid"] = user_id
 
     for dim in _LIST_DIMENSIONS:
