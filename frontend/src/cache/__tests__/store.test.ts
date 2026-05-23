@@ -207,6 +207,20 @@ describe("MetadataCacheStore", () => {
     sort: "authorAsc",
   };
 
+  it("applyAuthorRename patches author detail namespace", () => {
+    const store = new MetadataCacheStore();
+    store.set("author/7", "detail", { author: { id: 7, name: "Old", sortName: "Old", bookCount: 3 } });
+
+    store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
+
+    expect(store.get<{ author: unknown }>("author/7", "detail")?.author).toEqual({
+      id: 7,
+      name: "New",
+      sortName: "New",
+      bookCount: 3,
+    });
+  });
+
   it("applyAuthorRename обновляет author.name и author.sortName в записи детали", () => {
     store.set("author/7", "detail", {
       author: { id: 7, name: "Old", sortName: "Old Sort" },
@@ -263,6 +277,20 @@ describe("MetadataCacheStore", () => {
     seriesId: 10,
     sort: "seriesNumber",
   };
+
+  it("applySeriesRename patches series detail namespace", () => {
+    const store = new MetadataCacheStore();
+    store.set("series/9", "detail", { series: { id: 9, name: "Old", sortName: "Old", bookCount: 2 } });
+
+    store.applySeriesRename({ seriesId: 9, name: "New", sortName: "New" });
+
+    expect(store.get<{ series: unknown }>("series/9", "detail")?.series).toEqual({
+      id: 9,
+      name: "New",
+      sortName: "New",
+      bookCount: 2,
+    });
+  });
 
   it("applySeriesRename обновляет series.name и series.sortName в записи детали", () => {
     store.set("series/9", "detail", {
@@ -864,6 +892,20 @@ describe("applyTagRename", () => {
     tagId: 2,
     sort: "addedDesc",
   };
+
+  it("applyTagRename patches tag detail namespace", () => {
+    const store = new MetadataCacheStore();
+    const key = "/tags/3?sort=addedDesc";
+    store.set("tag/3", key, { tag: { id: 3, name: "Old", bookCount: 4 } });
+
+    store.applyTagRename({ tagId: 3, name: "New" });
+
+    expect(store.get<{ tag: unknown }>("tag/3", key)?.tag).toEqual({
+      id: 3,
+      name: "New",
+      bookCount: 4,
+    });
+  });
 
   it("updates tag.name in namespace tag/{id}", () => {
     const store = new MetadataCacheStore();
