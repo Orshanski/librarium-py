@@ -121,7 +121,7 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     if not dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
 
-    book_dir = storage_paths.library_book_dir(book_id)
+    book_dir = storage_paths.library_book_dir_for_delete(book_id)
     if book_dir.is_dir():
         shutil.rmtree(book_dir)
 

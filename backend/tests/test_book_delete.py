@@ -1,5 +1,8 @@
 import os
 
+import pytest
+
+from app.exceptions import BadInputError
 from app.services import book_service
 from tests._helpers import assert_error, assert_ok, connect_test_db
 
@@ -47,3 +50,22 @@ def test_delete_book_removes_policy_book_dir(db, tmp_path, monkeypatch):
     book_service.delete_book(db, 1)
 
     assert not policy_book_dir.exists()
+
+
+def test_delete_book_rejects_symlinked_book_dir(db, tmp_path, monkeypatch):
+    from app import storage_paths
+
+    target_dir = tmp_path / "2"
+    target_dir.mkdir()
+    target_file = target_dir / "book.fb2"
+    target_file.write_bytes(b"book 2 content")
+    (tmp_path / "1").symlink_to(target_dir, target_is_directory=True)
+
+    monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
+    monkeypatch.setattr(book_service.thumb, "invalidate", lambda book_id: None)
+
+    with pytest.raises(BadInputError):
+        book_service.delete_book(db, 1)
+
+    assert target_file.read_bytes() == b"book 2 content"
+    assert db.execute("SELECT 1 FROM books WHERE id = 1").fetchone() is not None

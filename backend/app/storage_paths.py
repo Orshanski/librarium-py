@@ -58,6 +58,15 @@ def library_book_dir(book_id: int) -> Path:
     return _resolve_under(LIBRARY_DIR, _book_id_segment(book_id))
 
 
+def library_book_dir_for_delete(book_id: int) -> Path:
+    book_segment = _book_id_segment(book_id)
+    library_root = _root(LIBRARY_DIR)
+    candidate = library_root / book_segment
+    if candidate.is_symlink():
+        raise BadInputError("Library book directory must not be a symlink")
+    return candidate
+
+
 def library_book_file(book_id: int, ext: str) -> Path:
     return _resolve_under(
         LIBRARY_DIR,
