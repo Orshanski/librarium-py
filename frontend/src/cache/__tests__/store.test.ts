@@ -178,7 +178,7 @@ describe("MetadataCacheStore", () => {
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  it("preserves existing sortName when rename event omits canonical sortName", () => {
+  it("derives sortName in book-list refs when rename event omits canonical sortName", () => {
     store.set("tag/1", "detail", {
       books: [{ id: 1, authors: [{ id: 7, name: "Old", sortName: "Old Sort" }], series: { id: 9, name: "Series", sortName: "Series Sort" } }],
       hasMore: false,
@@ -188,8 +188,8 @@ describe("MetadataCacheStore", () => {
     store.applySeriesRename({ seriesId: 9, name: "New Series" });
 
     const row = store.get<{ books: { authors: { sortName?: string }[]; series: { sortName?: string } }[] }>("tag/1", "detail")?.books[0];
-    expect(row?.authors[0].sortName).toBe("Old Sort");
-    expect(row?.series.sortName).toBe("Series Sort");
+    expect(row?.authors[0].sortName).toBe("New");
+    expect(row?.series.sortName).toBe("New Series");
   });
 
   const authorSevenContext: BookListContext = {
@@ -235,16 +235,16 @@ describe("MetadataCacheStore", () => {
     expect(entry?.author.sortName).toBe("New Sort");
   });
 
-  it("applyAuthorRename не перезаписывает sortName, если он отсутствует в payload", () => {
+  it("applyAuthorRename derives author sortName when it is absent from payload", () => {
     store.set("author/7", "detail", {
       author: { id: 7, name: "Old", sortName: "Old Sort" },
       books: [],
     }, { context: authorSevenContext });
 
-    store.applyAuthorRename({ authorId: 7, name: "New" });
+    store.applyAuthorRename({ authorId: 7, name: "New Author" });
 
     const entry = store.get<{ author: { sortName?: string } }>("author/7", "detail");
-    expect(entry?.author.sortName).toBe("Old Sort");
+    expect(entry?.author.sortName).toBe("Author, New");
   });
 
   it("applyAuthorRename не трогает записи других авторов", () => {
@@ -306,16 +306,16 @@ describe("MetadataCacheStore", () => {
     expect(entry?.series.sortName).toBe("New Sort");
   });
 
-  it("applySeriesRename не перезаписывает sortName, если он отсутствует в payload", () => {
+  it("applySeriesRename derives series sortName when it is absent from payload", () => {
     store.set("series/9", "detail", {
       series: { id: 9, name: "Old", sortName: "Old Sort" },
       books: [],
     }, { context: seriesNineContext });
 
-    store.applySeriesRename({ seriesId: 9, name: "New" });
+    store.applySeriesRename({ seriesId: 9, name: "New Series" });
 
     const entry = store.get<{ series: { sortName?: string } }>("series/9", "detail");
-    expect(entry?.series.sortName).toBe("Old Sort");
+    expect(entry?.series.sortName).toBe("New Series");
   });
 
   it("applySeriesRename не трогает записи других серий", () => {
@@ -940,6 +940,35 @@ describe("MetadataCacheStore", () => {
     ]);
   });
 
+  it("applyAuthorRename derives sortName and re-sorts aggregate rows for name-only payloads", () => {
+    const store = new MetadataCacheStore();
+    store.set("authors", "all", {
+      authors: [
+        { id: 1, name: "Middle Writer", sortName: "Writer, Middle" },
+        { id: 7, name: "Old Zed", sortName: "Zed, Old", bookCount: 3 },
+      ],
+    });
+    store.set("book/10", "detail", {
+      book: { id: 10, authors: [{ id: 7, name: "Old Zed", sortName: "Zed, Old" }], series: null, tags: [] },
+    });
+    store.set("series", "all", {
+      series: [{ id: 9, name: "Series", authors: [{ id: 7, name: "Old Zed", sortName: "Zed, Old" }] }],
+    });
+
+    store.applyAuthorRename({ authorId: 7, name: "Aaron Alpha" });
+
+    expect(store.get<{ authors: Array<{ id: number; sortName: string }> }>("authors", "all")?.authors).toEqual([
+      { id: 7, name: "Aaron Alpha", sortName: "Alpha, Aaron", bookCount: 3 },
+      { id: 1, name: "Middle Writer", sortName: "Writer, Middle" },
+    ]);
+    expect(store.get<{ book: { authors: unknown[] } }>("book/10", "detail")?.book.authors).toEqual([
+      { id: 7, name: "Aaron Alpha", sortName: "Alpha, Aaron" },
+    ]);
+    expect(store.get<{ series: Array<{ authors: unknown[] }> }>("series", "all")?.series[0].authors).toEqual([
+      { id: 7, name: "Aaron Alpha", sortName: "Alpha, Aaron" },
+    ]);
+  });
+
   it("applyAuthorRename is idempotent for aggregate patches", () => {
     const store = new MetadataCacheStore();
     const subscriber = vi.fn();
@@ -952,7 +981,7 @@ describe("MetadataCacheStore", () => {
     expect(afterFirst).toBe(beforeVersion + 1);
     expect(subscriber).toHaveBeenCalledTimes(1);
     expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
-      { id: 7, name: "New", bookCount: 1 },
+      { id: 7, name: "New", sortName: "New", bookCount: 1 },
     ]);
 
     subscriber.mockClear();
@@ -973,6 +1002,31 @@ describe("MetadataCacheStore", () => {
     expect(store.get<{ series: unknown[] }>("series", "all")?.series).toEqual([
       { id: 9, name: "New", sortName: "New", bookCount: 2, authors: [{ id: 7, name: "A" }] },
     ]);
+  });
+
+  it("applySeriesRename derives sortName and re-sorts aggregate rows for name-only payloads", () => {
+    const store = new MetadataCacheStore();
+    store.set("series", "all", {
+      series: [
+        { id: 1, name: "Middle Series", sortName: "Middle Series" },
+        { id: 9, name: "Old Series", sortName: "Zed Series", bookCount: 2 },
+      ],
+    });
+    store.set("book/10", "detail", {
+      book: { id: 10, authors: [], series: { id: 9, name: "Old Series", sortName: "Zed Series" }, tags: [] },
+    });
+
+    store.applySeriesRename({ seriesId: 9, name: "Alpha Series" });
+
+    expect(store.get<{ series: Array<{ id: number; sortName: string }> }>("series", "all")?.series).toEqual([
+      { id: 9, name: "Alpha Series", sortName: "Alpha Series", bookCount: 2 },
+      { id: 1, name: "Middle Series", sortName: "Middle Series" },
+    ]);
+    expect(store.get<{ book: { series: unknown } }>("book/10", "detail")?.book.series).toEqual({
+      id: 9,
+      name: "Alpha Series",
+      sortName: "Alpha Series",
+    });
   });
 
   it("applyTagRename patches tags aggregate and preserves counters", () => {

@@ -105,6 +105,8 @@ export class MetadataCacheStore {
   }
 
   applyAuthorRename(payload: DomainEventMap["authorRenamed"]): void {
+    const sortName = payload.sortName ?? deriveAuthorSortName(payload.name);
+    const sortNamePatchValue = { sortName };
     this.updateBookListEntries((entry) => {
       if (!entry.context) return { delete: true };
       if (classifyAuthorRenameForBookList(entry.context) === "structural") {
@@ -113,7 +115,7 @@ export class MetadataCacheStore {
       return {
         value: {
           ...entry.value,
-          books: entry.value.books.map((row) => patchAuthorRefs(row, payload)),
+          books: entry.value.books.map((row) => patchAuthorRefs(row, payload, sortName)),
         },
       };
     });
@@ -125,7 +127,7 @@ export class MetadataCacheStore {
           ? patchNamedRefs(
             book.authors as Array<{ id: number; name: string; sortName?: string }>,
             payload.authorId,
-            { name: payload.name, ...sortNamePatch(payload.sortName) },
+            { name: payload.name, ...sortNamePatchValue },
           ).refs
           : book.authors;
 
@@ -137,7 +139,7 @@ export class MetadataCacheStore {
       "authors",
       "authors",
       payload.authorId,
-      { name: payload.name, ...sortNamePatch(payload.sortName) },
+      { name: payload.name, ...sortNamePatchValue },
       sortBySortName,
       (rows) => rows.every(isValidSortNameRow),
     );
@@ -156,7 +158,7 @@ export class MetadataCacheStore {
       "series",
       "authors",
       payload.authorId,
-      { name: payload.name, ...sortNamePatch(payload.sortName) },
+      { name: payload.name, ...sortNamePatchValue },
     );
 
     this.hydratePersistedNamespaces();
@@ -175,7 +177,7 @@ export class MetadataCacheStore {
           ...entry,
           value: {
             ...value,
-            author: { ...author, name: payload.name, ...sortNamePatch(payload.sortName) },
+            author: { ...author, name: payload.name, ...sortNamePatchValue },
           },
         });
         changed = true;
@@ -189,6 +191,8 @@ export class MetadataCacheStore {
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
+    const sortName = payload.sortName ?? payload.name;
+    const sortNamePatchValue = { sortName };
     this.updateBookListEntries((entry) => {
       if (!entry.context) return { delete: true };
       if (classifySeriesRenameForBookList(entry.context) === "structural") {
@@ -197,7 +201,7 @@ export class MetadataCacheStore {
       return {
         value: {
           ...entry.value,
-          books: entry.value.books.map((row) => patchSeriesRef(row, payload)),
+          books: entry.value.books.map((row) => patchSeriesRef(row, payload, sortName)),
         },
       };
     });
@@ -209,7 +213,7 @@ export class MetadataCacheStore {
           ? {
             ...book.series,
             name: payload.name,
-            ...sortNamePatch(payload.sortName),
+            ...sortNamePatchValue,
           }
           : book.series;
 
@@ -221,7 +225,7 @@ export class MetadataCacheStore {
       "series",
       "series",
       payload.seriesId,
-      { name: payload.name, ...sortNamePatch(payload.sortName) },
+      { name: payload.name, ...sortNamePatchValue },
       sortBySortName,
       (rows) => rows.every(isValidSortNameRow),
     );
@@ -251,7 +255,7 @@ export class MetadataCacheStore {
           ...entry,
           value: {
             ...value,
-            series: { ...series, name: payload.name, ...sortNamePatch(payload.sortName) },
+            series: { ...series, name: payload.name, ...sortNamePatchValue },
           },
         });
         changed = true;
@@ -665,13 +669,14 @@ function patchBookList(value: BookListValue, book: { id: number } & Record<strin
 function patchAuthorRefs(
   row: BookListRow,
   payload: DomainEventMap["authorRenamed"],
+  sortName: string,
 ): BookListRow {
   if (!Array.isArray(row.authors)) return row;
   return {
     ...row,
     authors: row.authors.map((author) => (
       isAuthorRef(author) && author.id === payload.authorId
-        ? { ...author, name: payload.name, ...sortNamePatch(payload.sortName) }
+        ? { ...author, name: payload.name, sortName }
         : author
     )),
   };
@@ -680,6 +685,7 @@ function patchAuthorRefs(
 function patchSeriesRef(
   row: BookListRow,
   payload: DomainEventMap["seriesRenamed"],
+  sortName: string,
 ): BookListRow {
   if (isRefWithId(row.series, payload.seriesId)) {
     return {
@@ -687,7 +693,7 @@ function patchSeriesRef(
       series: {
         ...row.series,
         name: payload.name,
-        ...sortNamePatch(payload.sortName),
+        sortName,
       },
     };
   }
@@ -711,6 +717,12 @@ function patchTagRefs(
 
 function sortNamePatch(sortName: string | undefined): { sortName?: string } {
   return sortName === undefined ? {} : { sortName };
+}
+
+function deriveAuthorSortName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return name.trim();
+  return `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}`;
 }
 
 function isAuthorRef(value: unknown): value is { id: number; name: string; sortName?: string } {
