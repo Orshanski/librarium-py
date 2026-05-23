@@ -5,6 +5,7 @@ before filesystem callers receive them.
 """
 
 from pathlib import Path, PurePosixPath
+import contextlib
 import os
 import re
 
@@ -179,12 +180,22 @@ def upload_file_from_basename(name: str) -> Path | None:
 
 def upload_session_files(temp_id: str) -> list[Path]:
     temp_segment = _temp_id_segment(temp_id)
-    candidates = [
-        *(upload_book_file(temp_segment, ext) for ext in sorted(BOOK_EXTS)),
-        *(upload_cover_file(temp_segment, ext) for ext in sorted(COVER_EXTS)),
-        upload_zip_file(temp_segment),
-    ]
-    return [path for path in candidates if path.is_file()]
+    paths: list[Path] = []
+    for ext in sorted(BOOK_EXTS):
+        with contextlib.suppress(BadInputError):
+            path = upload_book_file(temp_segment, ext)
+            if path.is_file():
+                paths.append(path)
+    for ext in sorted(COVER_EXTS):
+        with contextlib.suppress(BadInputError):
+            path = upload_cover_file(temp_segment, ext)
+            if path.is_file():
+                paths.append(path)
+    with contextlib.suppress(BadInputError):
+        path = upload_zip_file(temp_segment)
+        if path.is_file():
+            paths.append(path)
+    return paths
 
 
 def upload_policy_files() -> list[Path]:

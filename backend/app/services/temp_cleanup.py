@@ -23,25 +23,24 @@ _GRACE_SECONDS = 3600
 
 def find_temp_file(temp_id: str) -> str | None:
     """Найти temp-файл по точному совпадению: `{temp_id}.{ext}`."""
-    try:
-        for ext in sorted(storage_paths.BOOK_EXTS):
+    for ext in sorted(storage_paths.BOOK_EXTS):
+        try:
             path = storage_paths.upload_book_file(temp_id, ext)
-            if path.is_file():
-                return path.name
-    except BadInputError:
-        return None
+        except BadInputError:
+            continue
+        if path.is_file():
+            return path.name
     return None
 
 
 def find_temp_covers(temp_id: str) -> list[str]:
     """Найти temp-cover файлы: `{temp_id}-cover.{ext}`."""
-    try:
-        paths = [
-            storage_paths.upload_cover_file(temp_id, ext)
-            for ext in sorted(storage_paths.COVER_EXTS)
-        ]
-    except BadInputError:
-        return []
+    paths = []
+    for ext in sorted(storage_paths.COVER_EXTS):
+        try:
+            paths.append(storage_paths.upload_cover_file(temp_id, ext))
+        except BadInputError:
+            continue
     return [path.name for path in paths if path.is_file()]
 
 

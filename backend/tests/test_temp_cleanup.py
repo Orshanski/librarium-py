@@ -36,6 +36,21 @@ def test_cleanup_session_ignores_unexpected_same_session_names(tmp_path, monkeyp
     assert (tmp_path / "abc123-cover.jpg").is_dir()
 
 
+def test_cleanup_session_skips_symlinked_candidate_but_removes_valid_files(tmp_path, monkeypatch):
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup.storage_paths, "UPLOADS_DIR", tmp_path)
+
+    (tmp_path / "abc123.fb2").write_bytes(b"book")
+    (tmp_path / "victim.epub").write_bytes(b"victim")
+    (tmp_path / "abc123.epub").symlink_to(tmp_path / "victim.epub")
+
+    cleanup_temp_session("abc123")
+
+    assert not (tmp_path / "abc123.fb2").exists()
+    assert (tmp_path / "abc123.epub").is_symlink()
+    assert (tmp_path / "victim.epub").exists()
+
+
 def test_cleanup_idempotent(tmp_path, monkeypatch):
     from app.services import temp_cleanup
     monkeypatch.setattr(temp_cleanup.storage_paths, "UPLOADS_DIR", tmp_path)
@@ -67,6 +82,17 @@ def test_find_temp_file_and_covers(tmp_path, monkeypatch):
     covers = sorted(temp_cleanup.find_temp_covers("xyz789"))
     assert covers == ["xyz789-cover.jpg", "xyz789-cover.png"]
     assert temp_cleanup.find_temp_covers("missing") == []
+
+
+def test_find_temp_file_skips_symlinked_candidate(tmp_path, monkeypatch):
+    from app.services import temp_cleanup
+    monkeypatch.setattr(temp_cleanup.storage_paths, "UPLOADS_DIR", tmp_path)
+
+    (tmp_path / "abc123.fb2").write_bytes(b"book")
+    (tmp_path / "victim.epub").write_bytes(b"victim")
+    (tmp_path / "abc123.epub").symlink_to(tmp_path / "victim.epub")
+
+    assert temp_cleanup.find_temp_file("abc123") == "abc123.fb2"
 
 
 # ── cleanup_old_uploads ──
