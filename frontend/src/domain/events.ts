@@ -1,5 +1,4 @@
-import type { BookDetailResponse } from "@/api/endpoints/books";
-import type { Book } from "@/types";
+import type { Book, BookDetailSnapshot } from "@/types";
 
 type MinimalBook = {
   id: number;
@@ -27,7 +26,7 @@ export type BookChangedField =
 export type DomainEventMap = {
   bookUpdated: {
     book: MinimalBook;
-    detail?: BookDetailResponse;
+    detail?: BookDetailSnapshot;
     changedFields: BookChangedField[];
     affected?: {
       authorIds?: number[];

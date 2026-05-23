@@ -1,23 +1,10 @@
 import { client, type ClientQuery } from "../client";
 import type { OkResponse } from "../types";
-import type { Book, BookDetail } from "@/types";
+import type { Book, BookDetailSnapshot } from "@/types";
 
-export interface BookFileInfo {
-  id: number;
-  format: string;
-  fileSize: number | null;
-}
+export type { BookFileInfo, BookIdentifier } from "@/types";
 
-export interface BookIdentifier {
-  type: string;
-  value: string;
-}
-
-export interface BookDetailResponse {
-  book: BookDetail;
-  files: BookFileInfo[];
-  identifiers: BookIdentifier[];
-}
+export type BookDetailResponse = BookDetailSnapshot;
 
 export interface BookListParams extends ClientQuery {
   sort?: string;

@@ -4,12 +4,10 @@ import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
+import type { FilterKey, SelectedFilters } from "../api/filter-types";
 import { metadataCache, useCachedResource } from "../cache";
 
-export type FilterKey = "authorIds" | "seriesIds" | "tagIds" | "language";
-
-export type SelectedFilters = Partial<Record<FilterKey, string[]>>;
-
+export type { FilterKey, SelectedFilters };
 export type { ApiFilterParams };
 
 // Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)

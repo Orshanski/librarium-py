@@ -1,4 +1,4 @@
-import type { SelectedFilters } from "../components/smart-filter-bar";
+import type { SelectedFilters } from "./filter-types";
 import type { ClientQuery } from "./client";
 
 export interface ApiFilterParams extends ClientQuery {

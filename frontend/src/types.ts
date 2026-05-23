@@ -53,3 +53,20 @@ export interface BookDetail extends Book {
   addedAt: string;
   updatedAt: string;
 }
+
+export interface BookFileInfo {
+  id: number;
+  format: string;
+  fileSize: number | null;
+}
+
+export interface BookIdentifier {
+  type: string;
+  value: string;
+}
+
+export interface BookDetailSnapshot {
+  book: BookDetail;
+  files: BookFileInfo[];
+  identifiers: BookIdentifier[];
+}

@@ -3,87 +3,17 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth";
 import { ResponsiveProvider } from "./responsive";
 import { installFetchCredentials } from "./api/credentials";
-import { evictExpired, getUnsyncedProgress, getUnsyncedSettings, markSettingsSynced } from "./utils/offline-storage";
-import { pushProgressToServerCAS } from "./utils/reader-sync";
-import { saveSettings } from "./api/endpoints/reader";
-import { getDeviceName } from "./utils/device-info";
 import { installMetadataCacheHandlersForApp } from "./cache/bootstrap";
 import { installScrollInvalidationHandlersForApp } from "./scroll/bootstrap";
 import { installOfflineStorageHandlersForApp } from "./offline/bootstrap";
+import { installAppLifecycleForApp } from "./lifecycle/bootstrap";
 import App from "./App";
 
 installFetchCredentials();
 installMetadataCacheHandlersForApp();
 installScrollInvalidationHandlersForApp();
 installOfflineStorageHandlersForApp();
-
-const readerWindow = window as Window & { __librariumReaderActiveCount?: number };
-
-function isReaderActive() {
-  return (readerWindow.__librariumReaderActiveCount ?? 0) > 0;
-}
-
-async function syncUnsyncedProgress() {
-  try {
-    const unsynced = await getUnsyncedProgress();
-    const deviceName = getDeviceName();
-    for (const p of unsynced) {
-      // CAS helper handles accept / rebase / reject-adopt, writes to IDB,
-      // marks synced. On 'adopted' the catalog page has no reader to jump —
-      // the adoption is silent and that's fine (the row is now synced).
-      await pushProgressToServerCAS(p, { deviceName });
-    }
-  } catch (err) {
-    console.warn("Failed to sync progress:", err);
-  }
-}
-
-async function syncUnsyncedSettings() {
-  try {
-    const unsyncedSettings = await getUnsyncedSettings();
-    for (const s of unsyncedSettings) {
-      try {
-        await saveSettings(s.settings);
-        await markSettingsSynced(s.deviceType);
-      } catch (err) {
-        console.warn("Failed to sync settings entry:", err);
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to sync settings:", err);
-  }
-}
-
-// Evict expired offline books on startup (14-day TTL)
-evictExpired().catch((err) => console.warn("Failed to evict expired books:", err));
-
-// Sync unsynced reading progress and settings when coming back online
-globalThis.addEventListener("online", async () => {
-  if (!isReaderActive()) {
-    await syncUnsyncedProgress();
-  }
-  await syncUnsyncedSettings();
-});
-
-document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState !== "visible" || !navigator.onLine) return;
-  if (!isReaderActive()) {
-    await syncUnsyncedProgress();
-  }
-  await syncUnsyncedSettings();
-});
-
-// Evict expired books when going offline to free space
-globalThis.addEventListener("offline", () => {
-  evictExpired().catch((err) => console.warn("Failed to evict expired books on offline:", err));
-});
-
-// Register Service Worker for PWA offline support (production only)
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  globalThis.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed:", err));
-  });
-}
+installAppLifecycleForApp();
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>

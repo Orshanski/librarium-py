@@ -1,11 +1,6 @@
-export interface SimilarBook {
-  title: string;
-  authors: string;
-  coverUrl: string;
-  litresUrl: string;
-  rating: number;
-  ratingCount: number;
-}
+import type { SimilarBook } from "@/api/endpoints/similar";
+
+export type { SimilarBook };
 
 export interface SimilarBooksViewProps {
   books: SimilarBook[];
