@@ -2,9 +2,22 @@ import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classif
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
 import { patchBookDetailBook } from "./projection/book-detail";
-import { isRecord } from "./projection/guards";
+import {
+  deriveAuthorSortName,
+  hasBooksArray,
+  hasNumericId,
+  isBookList,
+  isValidNameRow,
+  isValidSortNameRow,
+  patchAuthorRefs,
+  patchBookList,
+  patchSeriesRef,
+  patchTagRefs,
+} from "./projection/book-list";
+import type { BookListRow, BookListValue } from "./projection/book-list";
+import { isBookListContext } from "./projection/book-list-context";
+import { patchArrayRowListValue, patchNestedRefsValue, patchObjectRowListValue } from "./projection/namespace-rows";
 import { patchNamedRefs } from "./projection/refs";
-import { mergeRowById } from "./projection/rows";
 import { sortByName, sortBySortName } from "./projection/sorts";
 
 type CacheEntry = {
@@ -563,17 +576,8 @@ export class MetadataCacheStore {
     canSortRows?: (rows: readonly T[]) => boolean,
   ): void {
     this.updateNamespaceEntries(namespace, (entry, key) => {
-      if (!isRecord(entry.value)) return undefined;
-      const value = entry.value as Record<string, unknown>;
-      const rows = value[field];
-      if (!Array.isArray(rows)) return undefined;
-      const result = mergeRowById(rows as T[], id, patch);
-      if (!result.changed) return undefined;
-      const rowsAreMalformed = rows.some((row) => !isRecord(row) || typeof (row as { id?: unknown }).id !== "number");
-      const nextRows = rowsAreMalformed || canSortRows === undefined || !canSortRows(result.rows)
-        ? result.rows
-        : sorter(result.rows, key);
-      return { ...entry, value: { ...value, [field]: nextRows } };
+      const value = patchObjectRowListValue(entry.value, field, id, patch, sorter, key, canSortRows);
+      return value === undefined ? undefined : { ...entry, value };
     });
   }
 
@@ -585,15 +589,8 @@ export class MetadataCacheStore {
     canSortRows?: (rows: readonly T[]) => boolean,
   ): void {
     this.updateNamespaceEntries(namespace, (entry, key) => {
-      if (!Array.isArray(entry.value)) return undefined;
-      const rows = entry.value;
-      const result = mergeRowById(rows as T[], id, patch);
-      if (!result.changed) return undefined;
-      const rowsAreMalformed = rows.some((row) => !isRecord(row) || typeof (row as { id?: unknown }).id !== "number");
-      const nextRows = rowsAreMalformed || canSortRows === undefined || !canSortRows(result.rows)
-        ? result.rows
-        : sorter(result.rows, key);
-      return { ...entry, value: nextRows };
+      const value = patchArrayRowListValue(entry.value, id, patch, sorter, key, canSortRows);
+      return value === undefined ? undefined : { ...entry, value };
     });
   }
 
@@ -605,23 +602,8 @@ export class MetadataCacheStore {
     patch: Partial<{ id: number; name: string; sortName?: string }>,
   ): void {
     this.updateNamespaceEntries(namespace, (entry) => {
-      if (!isRecord(entry.value)) return undefined;
-      const value = entry.value as Record<string, unknown>;
-      const rows = value[listField];
-      if (!Array.isArray(rows)) return undefined;
-      let changed = false;
-      const nextRows = rows.map((row) => {
-        if (!isRecord(row) || !Array.isArray(row[refField])) return row;
-        const result = patchNamedRefs(
-          row[refField] as Array<{ id: number; name: string; sortName?: string }>,
-          id,
-          patch,
-        );
-        if (!result.changed) return row;
-        changed = true;
-        return { ...row, [refField]: result.refs };
-      });
-      return changed ? { ...entry, value: { ...value, [listField]: nextRows } } : undefined;
+      const value = patchNestedRefsValue(entry.value, listField, refField, id, patch);
+      return value === undefined ? undefined : { ...entry, value };
     });
   }
 
@@ -686,118 +668,12 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-type BookListRow = { id: number } & Record<string, unknown>;
-type BookListValue = { books: BookListRow[] } & Record<string, unknown>;
-
-function isBookList(value: unknown): value is BookListValue {
-  return typeof value === "object"
-    && value !== null
-    && Array.isArray((value as { books?: unknown }).books)
-    && (value as { books: unknown[] }).books.every(isBookListRow);
-}
-
 function sameContext(left: BookListContext | undefined, right: BookListContext | undefined): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function patchBookList(value: BookListValue, book: { id: number } & Record<string, unknown>): BookListValue {
-  return {
-    ...value,
-    books: value.books.map((row) => (row.id === book.id ? { ...row, ...book } : row)),
-  };
-}
-
-function patchAuthorRefs(
-  row: BookListRow,
-  payload: DomainEventMap["authorRenamed"],
-  sortName: string,
-): BookListRow {
-  if (!Array.isArray(row.authors)) return row;
-  return {
-    ...row,
-    authors: row.authors.map((author) => (
-      isAuthorRef(author) && author.id === payload.authorId
-        ? { ...author, name: payload.name, sortName }
-        : author
-    )),
-  };
-}
-
-function patchSeriesRef(
-  row: BookListRow,
-  payload: DomainEventMap["seriesRenamed"],
-  sortName: string,
-): BookListRow {
-  if (isRefWithId(row.series, payload.seriesId)) {
-    return {
-      ...row,
-      series: {
-        ...row.series,
-        name: payload.name,
-        sortName,
-      },
-    };
-  }
-  return row;
-}
-
-function patchTagRefs(
-  row: BookListRow,
-  payload: DomainEventMap["tagRenamed"],
-): BookListRow {
-  if (!Array.isArray(row.tags)) return row;
-  return {
-    ...row,
-    tags: row.tags.map((tag) => (
-      isTagRef(tag) && tag.id === payload.tagId
-        ? { ...tag, name: payload.name }
-        : tag
-    )),
-  };
-}
-
 function sortNamePatch(sortName: string | undefined): { sortName?: string } {
   return sortName === undefined ? {} : { sortName };
-}
-
-function deriveAuthorSortName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return name.trim();
-  return `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}`;
-}
-
-function isAuthorRef(value: unknown): value is { id: number; name: string; sortName?: string } {
-  return hasNumericId(value);
-}
-
-function isTagRef(value: unknown): value is { id: number; name: string } {
-  return hasNumericId(value);
-}
-
-function isRefWithId(value: unknown, id: number): value is { id: number; name?: string; sortName?: string } {
-  return typeof value === "object"
-    && value !== null
-    && (value as { id?: unknown }).id === id;
-}
-
-function isBookListRow(value: unknown): value is BookListRow {
-  return hasNumericId(value);
-}
-
-function hasNumericId(value: unknown): value is { id: number } {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { id?: unknown }).id === "number";
-}
-
-function isValidNameRow(value: unknown): value is { name: string } {
-  return isRecord(value) && typeof value.name === "string";
-}
-
-function isValidSortNameRow(value: unknown): value is { name: string; sortName?: string } {
-  return isRecord(value)
-    && typeof value.name === "string"
-    && (value.sortName === undefined || typeof value.sortName === "string");
 }
 
 function readPersistedNamespace(namespace: string): Map<string, CacheEntry> {
@@ -830,103 +706,4 @@ function normalizePersistedEntry(entry: unknown): CacheEntry | undefined {
     value,
     context: isBookListContext(context) ? context : undefined,
   };
-}
-
-function hasBooksArray(value: unknown): boolean {
-  return typeof value === "object"
-    && value !== null
-    && Array.isArray((value as { books?: unknown }).books);
-}
-
-const BOOK_LIST_SOURCES = new Set([
-  "catalog",
-  "tag-detail",
-  "author-detail",
-  "series-detail",
-  "shelf-regular",
-  "shelf-best",
-  "shelf-reading-now",
-  "search",
-]);
-
-const BOOK_LIST_SORTS = new Set([
-  "addedDesc",
-  "addedAsc",
-  "titleAsc",
-  "titleDesc",
-  "authorAsc",
-  "authorDesc",
-  "ratingDesc",
-  "ratingAsc",
-  "seriesNumber",
-  "lastReadDesc",
-]);
-
-function isBookListContext(value: unknown): value is BookListContext {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const context = value as Record<string, unknown>;
-  return isBaseBookListContext(context)
-    && hasValidOptionalContextFields(context)
-    && hasValidSourceSpecificFields(context);
-}
-
-function isBaseBookListContext(context: Record<string, unknown>): boolean {
-  return context.kind === "book-list"
-    && typeof context.key === "string"
-    && typeof context.source === "string"
-    && BOOK_LIST_SOURCES.has(context.source)
-    && typeof context.sort === "string"
-    && BOOK_LIST_SORTS.has(context.sort);
-}
-
-function hasValidOptionalContextFields(context: Record<string, unknown>): boolean {
-  return isOptionalNumber(context.authorId)
-    && isOptionalNumber(context.seriesId)
-    && isOptionalNumber(context.tagId)
-    && isOptionalNumber(context.shelfId)
-    && (context.query === undefined || typeof context.query === "string")
-    && isFilters(context.filters);
-}
-
-function hasValidSourceSpecificFields(context: Record<string, unknown>): boolean {
-  return matchesSourceNumberField(context, "author-detail", "authorId")
-    && matchesSourceNumberField(context, "series-detail", "seriesId")
-    && matchesSourceNumberField(context, "tag-detail", "tagId")
-    && matchesShelfSourceField(context);
-}
-
-function matchesSourceNumberField(context: Record<string, unknown>, source: string, field: string): boolean {
-  if (context.source === source) return typeof context[field] === "number";
-  return context[field] === undefined;
-}
-
-function matchesShelfSourceField(context: Record<string, unknown>): boolean {
-  if (isShelfSource(context.source)) return typeof context.shelfId === "number";
-  return context.shelfId === undefined;
-}
-
-function isShelfSource(source: unknown): boolean {
-  return source === "shelf-regular" || source === "shelf-best" || source === "shelf-reading-now";
-}
-
-function isOptionalNumber(value: unknown): boolean {
-  return value === undefined || typeof value === "number";
-}
-
-function isFilters(value: unknown): boolean {
-  if (value === undefined) return true;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const filters = value as Record<string, unknown>;
-  return isOptionalNumberArray(filters.authorIds)
-    && isOptionalNumberArray(filters.seriesIds)
-    && isOptionalNumberArray(filters.tagIds)
-    && isOptionalStringArray(filters.languages);
-}
-
-function isOptionalNumberArray(value: unknown): boolean {
-  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === "number"));
-}
-
-function isOptionalStringArray(value: unknown): boolean {
-  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === "string"));
 }
