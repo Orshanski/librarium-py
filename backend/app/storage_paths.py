@@ -159,8 +159,14 @@ def _library_path_from_db(
         raise BadInputError("Invalid managed database path")
 
     book_segment = _book_id_segment(book_id)
+    if db_path.startswith("/") or "//" in db_path or db_path.endswith("/"):
+        raise BadInputError("Invalid managed database path")
+
+    db_parts = tuple(db_path.split("/"))
+    if any(part in {"", ".", ".."} for part in db_parts):
+        raise BadInputError("Invalid managed database path")
+
     prefix_parts = PurePosixPath(DB_PATH_PREFIX).parts
-    db_parts = PurePosixPath(db_path).parts
     expected_len = len(prefix_parts) + 2
     if (
         db_parts[: len(prefix_parts)] != prefix_parts

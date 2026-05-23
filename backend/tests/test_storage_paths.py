@@ -65,5 +65,18 @@ def test_library_file_from_db_path_binds_book_id_and_extension():
         sp.library_file_from_db_path(42, "data/library/42/book.txt", {"epub"})
 
 
+@pytest.mark.parametrize(
+    "db_path",
+    [
+        "./data/library/42/book.epub",
+        "data/library//42/book.epub",
+        "data/library/42/book.epub/.",
+    ],
+)
+def test_library_file_from_db_path_rejects_non_canonical_db_path(db_path):
+    with pytest.raises(BadInputError):
+        sp.library_file_from_db_path(42, db_path, {"epub"})
+
+
 def test_frontend_static_file_rejects_escape():
     assert sp.frontend_static_file("../backend/app/main.py") is None
