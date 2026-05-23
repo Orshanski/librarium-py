@@ -12,21 +12,16 @@ FS-операций — ответственность caller'а (через fs_
 import os
 import sqlite3
 
-from ..config import LIBRARY_DIR, db_path_for
+from .. import storage_paths
+from ..config import db_path_for
 from ..dal import books as dal
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..pdf_linearize import linearize_pdf_in_place
 
-# Финальная защита от path-traversal: ext попадает в os.path.join() и любая
-# не-whitelisted строка (`../`, `/`, символы-разделители) даст путь за пределы
-# book_dir. Whitelist строго ограничен поддерживаемыми форматами книг.
-# Дублирует upload_service.BOOK_EXTENSIONS — кросс-импорт создаёт цикл.
-_ALLOWED_EXTS = {"fb2", "epub", "pdf"}
-
 
 def _safe_ext(ext: str) -> str:
     ext_lc = (ext or "").lower()
-    if ext_lc not in _ALLOWED_EXTS:
+    if ext_lc not in storage_paths.BOOK_EXTS:
         raise BadInputError(f"Unsupported book extension: {ext!r}")
     return ext_lc
 
@@ -36,11 +31,10 @@ def book_dir_and_dst(book_id: int, ext: str) -> tuple[str, str]:
 
     Возвращает `(book_dir, dst)`. Каталог может существовать — `exist_ok=True`.
     """
-    ext_lc = _safe_ext(ext)
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    os.makedirs(book_dir, exist_ok=True)
-    dst = os.path.join(book_dir, f"book.{ext_lc}")
-    return book_dir, dst
+    book_dir = storage_paths.library_book_dir(book_id)
+    book_dir.mkdir(parents=True, exist_ok=True)
+    dst = storage_paths.library_book_file(book_id, ext)
+    return str(book_dir), str(dst)
 
 
 def prepare_book_format_path(

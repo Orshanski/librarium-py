@@ -1,11 +1,11 @@
 import contextlib
 import logging
-import os
 import shutil
 import sqlite3
+from pathlib import Path
 from typing import Any, cast
 
-from ..config import LIBRARY_DIR, UPLOADS_DIR
+from .. import storage_paths
 from ..dal import books as dal
 from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
@@ -16,7 +16,7 @@ from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
 from ..dtos.book_card import BookCardItem
-from .book_file_writer import _safe_ext, prepare_book_format_path, register_and_linearize
+from .book_file_writer import prepare_book_format_path, register_and_linearize
 from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
 from .entity_resolver import resolve_authors, resolve_series, resolve_tags
 from .temp_cleanup import cleanup_temp_session, find_temp_file
@@ -24,8 +24,6 @@ from .temp_cleanup import cleanup_temp_session, find_temp_file
 log = logging.getLogger("librarium.services.books")
 
 _BOOK_NOT_FOUND = "Book not found"
-_LIBRARY_ROOT = os.path.realpath(str(LIBRARY_DIR))
-_LIBRARY_ROOT_PREFIX = _LIBRARY_ROOT + os.sep
 
 _BOOK_UPDATE_EVENT_FIELDS = {
     "title": "title",
@@ -64,14 +62,6 @@ def _current_isbn(detail: BookDetailResponse) -> str | None:
         if identifier.type == "isbn":
             return identifier.value
     return None
-
-
-def _library_path(candidate: str | os.PathLike[str]) -> str:
-    """Normalize and prove that a path stays inside LIBRARY_DIR before FS use."""
-    fullpath = os.path.realpath(os.fspath(candidate))
-    if fullpath != _LIBRARY_ROOT and not fullpath.startswith(_LIBRARY_ROOT_PREFIX):
-        raise BadInputError(f"Path escapes allowed root: {candidate}")
-    return fullpath
 
 
 def _metadata_changed_fields(
@@ -131,8 +121,8 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     if not dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
 
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    if os.path.isdir(book_dir):
+    book_dir = storage_paths.library_book_dir(book_id)
+    if book_dir.is_dir():
         shutil.rmtree(book_dir)
 
     dal.delete_book(db, book_id)
@@ -182,7 +172,7 @@ def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, st
             raise BadInputError(f"Temp file not found: {tid}")
         ext = basename.rsplit(".", 1)[-1].lower()
         fmt = ext.upper()
-        src_path = str(UPLOADS_DIR / basename)
+        src_path = str(storage_paths.upload_book_file(tid, ext))
         resolved.append((tid, src_path, fmt, ext))
     added_fmts = [r[2] for r in resolved]
     if len(set(added_fmts)) != len(added_fmts):
@@ -233,20 +223,24 @@ def _apply_delete_formats(
     """
     backed_up: list[tuple[str, str]] = []
     for fmt_code, row in resolved_deletes:
-        # Defense-in-depth: fmt_code came through DAL-existence filter, но если
-        # в book_files.format когда-то проникнет кривое значение (через bug
-        # вверх по pipeline), путь поедет за пределы LIBRARY_DIR. Whitelist
-        # ловит это до os.rename.
-        ext_safe = _safe_ext(fmt_code)
-        file_path = _library_path(LIBRARY_DIR / str(int(book_id)) / f"book.{ext_safe}")
-        # codeql[py/path-injection]
-        if os.path.isfile(file_path):
-            bak_path = _library_path(f"{file_path}.bak")
-            # codeql[py/path-injection]
-            os.rename(file_path, bak_path)
-            backed_up.append((file_path, bak_path))
+        file_path = storage_paths.library_book_file(book_id, fmt_code)
+        if file_path.is_file():
+            bak_path = storage_paths.library_backup_file(file_path)
+            file_path.rename(bak_path)
+            backed_up.append((str(file_path), str(bak_path)))
         dal.delete_book_file(db, row["id"])
     return backed_up
+
+
+def _policy_library_file(path: str) -> Path:
+    return storage_paths.library_backup_file(path).with_suffix("")
+
+
+def _policy_backup_pair(orig_path: str, bak_path: str) -> tuple[Path, Path]:
+    expected_bak_path = storage_paths.library_backup_file(orig_path)
+    if Path(bak_path).resolve() != expected_bak_path.resolve():
+        raise BadInputError("Backup path does not match managed library file")
+    return expected_bak_path.with_suffix(""), expected_bak_path
 
 
 def _apply_add_formats(
@@ -266,16 +260,13 @@ def _apply_add_formats(
             register_and_linearize(db, book_id, dst, ext)
     except Exception:
         for d in copied_dsts:
-            safe_dst = _library_path(d)
+            safe_dst = _policy_library_file(d)
             with contextlib.suppress(FileNotFoundError):
-                # codeql[py/path-injection]
-                os.remove(safe_dst)
+                safe_dst.unlink()
         for orig_path, bak_path in backed_up_paths:
-            safe_orig_path = _library_path(orig_path)
-            safe_bak_path = _library_path(bak_path)
+            safe_orig_path, safe_bak_path = _policy_backup_pair(orig_path, bak_path)
             with contextlib.suppress(FileNotFoundError):
-                # codeql[py/path-injection]
-                os.rename(safe_bak_path, safe_orig_path)
+                safe_bak_path.rename(safe_orig_path)
         raise
 
 
@@ -361,11 +352,10 @@ def update_book(
     dal.update_book(db, book_id, data)
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
-    for _, bak_path in backed_up_paths:
-        safe_bak_path = _library_path(bak_path)
+    for orig_path, bak_path in backed_up_paths:
+        _, safe_bak_path = _policy_backup_pair(orig_path, bak_path)
         with contextlib.suppress(FileNotFoundError):
-            # codeql[py/path-injection]
-            os.remove(safe_bak_path)
+            safe_bak_path.unlink()
 
     # Шаг 6: cleanup temp-буфера после успеха.
     for (tid, _, _, _) in resolved_adds:

@@ -191,7 +191,7 @@ class TestBookServiceUpdateBook:
         outside_bak = tmp_path / "book.fb2.bak"
         outside_bak.write_bytes(b"not a library backup")
 
-        with pytest.raises(BadInputError, match="Path escapes allowed root"):
+        with pytest.raises(BadInputError, match="Backup source must be under library storage"):
             book_service._apply_add_formats(  # pyright: ignore[reportPrivateUsage]
                 db,
                 1,
@@ -199,9 +199,11 @@ class TestBookServiceUpdateBook:
                 [(str(tmp_path / "book.fb2"), str(outside_bak))],
             )
 
-    def test_library_path_rejects_path_outside_library(self, tmp_path):
-        with pytest.raises(BadInputError, match="Path escapes allowed root"):
-            book_service._library_path(tmp_path / "book.fb2")  # pyright: ignore[reportPrivateUsage]
+    def test_library_backup_file_rejects_path_outside_library(self, tmp_path):
+        from app import storage_paths
+
+        with pytest.raises(BadInputError, match="Backup source must be under library storage"):
+            storage_paths.library_backup_file(tmp_path / "book.fb2")
 
     def test_update_commit_cover_without_pending_raises(self, db):
         with pytest.raises(BadInputError, match="No pending cover"):

@@ -1,4 +1,8 @@
 """Tests for PUT /api/books/{id} — metadata update."""
+import pytest
+
+from app.exceptions import BadInputError
+from app.services import book_service
 from tests._helpers import assert_error, assert_ok
 
 
@@ -94,3 +98,18 @@ class TestBookUpdate:
     def test_reader_cannot_update(self, reader_client):
         resp = reader_client.put("/api/books/1", json={"title": "Hacked"})
         assert_error(resp, 403)
+
+
+def test_update_rejects_corrupted_delete_format_before_filesystem(db):
+    row = db.execute(
+        "INSERT INTO book_files (book_id, format, file_path, file_size) "
+        "VALUES (1, '../EPUB', 'data/library/1/book.epub', 1) RETURNING id"
+    ).fetchone()
+    assert row is not None
+
+    with pytest.raises(BadInputError):
+        book_service._apply_delete_formats(  # pyright: ignore[reportPrivateUsage]
+            db,
+            1,
+            [("../EPUB", row)],
+        )

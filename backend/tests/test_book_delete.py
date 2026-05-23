@@ -1,5 +1,6 @@
 import os
 
+from app.services import book_service
 from tests._helpers import assert_error, assert_ok, connect_test_db
 
 
@@ -31,3 +32,18 @@ def test_delete_book(admin_client):
 def test_reader_cannot_delete(reader_client):
     resp = reader_client.delete("/api/books/1")
     assert_error(resp, 403)
+
+
+def test_delete_book_removes_policy_book_dir(db, tmp_path, monkeypatch):
+    from app import storage_paths
+
+    policy_book_dir = tmp_path / "1"
+    policy_book_dir.mkdir()
+    (policy_book_dir / "book.fb2").write_bytes(b"content")
+
+    monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
+    monkeypatch.setattr(book_service.thumb, "invalidate", lambda book_id: None)
+
+    book_service.delete_book(db, 1)
+
+    assert not policy_book_dir.exists()

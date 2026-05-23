@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from app.exceptions import ConflictError, NotFoundError
+from app.exceptions import BadInputError, ConflictError, NotFoundError
 from app.services.book_file_writer import (
     book_dir_and_dst,
     prepare_book_format_path,
@@ -13,20 +13,27 @@ from app.services.book_file_writer import (
 
 class TestBookDirAndDst:
     def test_creates_dir_and_returns_paths(self, tmp_path, monkeypatch):
-        from app.services import book_file_writer
-        monkeypatch.setattr(book_file_writer, "LIBRARY_DIR", tmp_path)
+        from app import storage_paths
+        monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
         book_dir, dst = book_dir_and_dst(book_id=42, ext="epub")
         assert book_dir == str(tmp_path / "42")
         assert dst == str(tmp_path / "42" / "book.epub")
         assert (tmp_path / "42").is_dir()
 
     def test_existing_dir_not_recreated(self, tmp_path, monkeypatch):
-        from app.services import book_file_writer
-        monkeypatch.setattr(book_file_writer, "LIBRARY_DIR", tmp_path)
+        from app import storage_paths
+        monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
         (tmp_path / "42").mkdir()
         (tmp_path / "42" / "marker.txt").write_bytes(b"preserved")
         book_dir_and_dst(book_id=42, ext="pdf")
         assert (tmp_path / "42" / "marker.txt").read_bytes() == b"preserved"
+
+    @pytest.mark.parametrize("ext", ["../epub", "/pdf", "pdf/../../fb2", "txt"])
+    def test_rejects_unsafe_extension(self, tmp_path, monkeypatch, ext):
+        from app import storage_paths
+        monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
+        with pytest.raises(BadInputError):
+            book_dir_and_dst(book_id=42, ext=ext)
 
 
 class TestPrepareBookFormatPath:
