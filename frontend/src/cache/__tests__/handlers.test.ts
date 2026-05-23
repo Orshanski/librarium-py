@@ -125,7 +125,9 @@ describe("metadata cache handlers", () => {
   });
 
   it("invalidates books on create and delete", () => {
+    const invalidateSpy = vi.spyOn(store, "invalidate");
     store.set("books", "catalog-added", { books: [{ id: 1 }], hasMore: false });
+    store.set("shelves", "all", { shelves: [{ id: 1, bookCount: 1 }] });
     store.set("series", "/series", { series: [{ id: 1, bookCount: 1 }] });
     store.set("tags", "cloud?top=30", { tags: [{ id: 1, bookCount: 1 }] });
     domainEvents.publish("bookCreated", { bookId: 2 });
@@ -148,6 +150,8 @@ describe("metadata cache handlers", () => {
     expect(store.get("author/1", "detail")).toBeUndefined();
     expect(store.get("book/1", "detail")).toBeUndefined();
     expect(store.get("book-shelves/1", "all")).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith("shelves");
+    expect(invalidateSpy).toHaveBeenCalledWith("book-shelves/1");
   });
 
   it("invalidates aggregate entity read models after membership-changing book updates", () => {
@@ -170,7 +174,9 @@ describe("metadata cache handlers", () => {
       identifiers: [],
     });
     domainEvents.publish("authorRenamed", { authorId: 7, name: "New" });
-    expect(store.get("book/1", "detail")).toBeUndefined();
+    expect(store.get("book/1", "detail")).toMatchObject({
+      book: { authors: [{ id: 7, name: "New" }] },
+    });
 
     store.set("book/1", "detail", {
       book: { id: 1, series: { id: 3, name: "Old" } },
@@ -178,15 +184,89 @@ describe("metadata cache handlers", () => {
       identifiers: [],
     });
     domainEvents.publish("seriesRenamed", { seriesId: 3, name: "New" });
-    expect(store.get("book/1", "detail")).toBeUndefined();
+    expect(store.get("book/1", "detail")).toMatchObject({
+      book: { series: { id: 3, name: "New" } },
+    });
 
     store.set("book/1", "detail", {
       book: { id: 1, tags: [{ id: 5, name: "Old" }] },
       files: [],
       identifiers: [],
     });
-    domainEvents.publish("tagDeleted", { tagId: 5 });
-    expect(store.get("book/1", "detail")).toBeUndefined();
+    domainEvents.publish("tagRenamed", { tagId: 5, name: "New" });
+    expect(store.get("book/1", "detail")).toMatchObject({
+      book: { tags: [{ id: 5, name: "New" }] },
+    });
+  });
+
+  it("authorRenamed only applies metadata patch", () => {
+    const applySpy = vi.spyOn(store, "applyAuthorRename");
+    const invalidateSpy = vi.spyOn(store, "invalidate");
+    const invalidatePrefixSpy = vi.spyOn(store, "invalidateNamespacePrefix");
+
+    domainEvents.publish("authorRenamed", { authorId: 7, name: "New", sortName: "New" });
+
+    expect(applySpy).toHaveBeenCalledWith({ authorId: 7, name: "New", sortName: "New" });
+    expect(invalidateSpy).not.toHaveBeenCalledWith("authors");
+    expect(invalidateSpy).not.toHaveBeenCalledWith("filter-options/authors");
+    expect(invalidateSpy).not.toHaveBeenCalledWith("series");
+    expect(invalidatePrefixSpy).not.toHaveBeenCalledWith("book/");
+  });
+
+  it("seriesRenamed only applies metadata patch", () => {
+    const applySpy = vi.spyOn(store, "applySeriesRename");
+    const invalidateSpy = vi.spyOn(store, "invalidate");
+    const invalidatePrefixSpy = vi.spyOn(store, "invalidateNamespacePrefix");
+
+    domainEvents.publish("seriesRenamed", { seriesId: 9, name: "New", sortName: "New" });
+
+    expect(applySpy).toHaveBeenCalledWith({ seriesId: 9, name: "New", sortName: "New" });
+    expect(invalidateSpy).not.toHaveBeenCalledWith("series");
+    expect(invalidateSpy).not.toHaveBeenCalledWith("filter-options/series");
+    expect(invalidatePrefixSpy).not.toHaveBeenCalledWith("book/");
+  });
+
+  it("tagRenamed only applies metadata patch", () => {
+    const applySpy = vi.spyOn(store, "applyTagRename");
+    const invalidateSpy = vi.spyOn(store, "invalidate");
+    const invalidatePrefixSpy = vi.spyOn(store, "invalidateNamespacePrefix");
+
+    domainEvents.publish("tagRenamed", { tagId: 3, name: "New" });
+
+    expect(applySpy).toHaveBeenCalledWith({ tagId: 3, name: "New" });
+    expect(invalidateSpy).not.toHaveBeenCalledWith("tags");
+    expect(invalidateSpy).not.toHaveBeenCalledWith("authors");
+    expect(invalidateSpy).not.toHaveBeenCalledWith("filter-options/tags");
+    expect(invalidatePrefixSpy).not.toHaveBeenCalledWith("book/");
+  });
+
+  it("rename handlers patch cached surfaces instead of clearing them", () => {
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [{ id: 7, name: "Old", sortName: "Old" }],
+        series: null,
+        tags: [{ id: 3, name: "Old Tag" }],
+      },
+    });
+    store.set("authors", "all", {
+      authors: [{ id: 7, name: "Old", tags: [{ id: 3, name: "Old Tag" }] }],
+    });
+    store.set("series", "all", {
+      series: [{ id: 9, name: "S", authors: [{ id: 7, name: "Old" }] }],
+    });
+    store.set("filter-options/authors", "all", { authors: [{ id: 7, name: "Old" }] });
+    store.set("filter-options/tags", "all", { tags: [{ id: 3, name: "Old Tag" }] });
+
+    domainEvents.publish("authorRenamed", { authorId: 7, name: "New", sortName: "New" });
+    domainEvents.publish("tagRenamed", { tagId: 3, name: "New Tag" });
+
+    expect(store.get("book/10", "detail")).not.toBeUndefined();
+    expect(store.get<{ authors: Array<{ name: string }> }>("filter-options/authors", "all")?.authors[0].name).toBe("New");
+    expect(store.get<{ tags: Array<{ name: string }> }>("filter-options/tags", "all")?.tags[0].name).toBe("New Tag");
+    expect(store.get<{ series: Array<{ authors: Array<{ name: string }> }> }>("series", "all")?.series[0].authors[0].name).toBe("New");
+    expect(store.get<{ authors: Array<{ tags: Array<{ name: string }> }> }>("authors", "all")?.authors[0].tags[0].name).toBe("New Tag");
   });
 
   it("invalidates shelves summary on shelf membership changes", () => {
@@ -270,12 +350,19 @@ describe("metadata cache handlers", () => {
     });
 
     domainEvents.publish("authorRenamed", { authorId: 1, name: "New" });
-    expect(store.get("filter-options/authors", "all")).toBeUndefined();
+    expect(store.get<{ authors: { id: number; name: string }[] }>("filter-options/authors", "all")?.authors[0].name).toBe("New");
     const authorEntry = store.get<{ author: { id: number; name: string } }>("author/1", "detail");
     expect(authorEntry).not.toBeUndefined();
     expect(authorEntry?.author.name).toBe("New");
     expect(store.get("books", "author-sorted")).toBeUndefined();
     expect(store.get<{ books: { authors: { name: string }[] }[] }>("books", "safe-author-row")?.books[0].authors[0].name).toBe("New");
+
+    domainEvents.publish("seriesRenamed", { seriesId: 2, name: "New" });
+    expect(store.get<{ series: { id: number; name: string }[] }>("filter-options/series", "all")?.series[0].name).toBe("New");
+    const seriesEntry = store.get<{ series: { id: number; name: string } }>("series/2", "detail");
+    expect(seriesEntry).not.toBeUndefined();
+    expect(seriesEntry?.series.name).toBe("New");
+    expect(store.get("search", "old-series")).toBeUndefined();
 
     store.set("tag/1", "detail", { books: [{ id: 12, authors: [{ id: 1, name: "New" }] }], hasMore: false }, {
       context: { kind: "book-list", key: "tag/1", source: "tag-detail", tagId: 1, sort: "addedDesc" },
@@ -283,13 +370,6 @@ describe("metadata cache handlers", () => {
     domainEvents.publish("authorDeleted", { authorId: 1 });
     expect(store.get("tag/1", "detail")).toBeUndefined();
     expect(store.get("filter-options/tags", "authors=1")).toBeUndefined();
-
-    domainEvents.publish("seriesRenamed", { seriesId: 2, name: "New" });
-    expect(store.get("filter-options/series", "all")).toBeUndefined();
-    const seriesEntry = store.get<{ series: { id: number; name: string } }>("series/2", "detail");
-    expect(seriesEntry).not.toBeUndefined();
-    expect(seriesEntry?.series.name).toBe("New");
-    expect(store.get("search", "old-series")).toBeUndefined();
 
     store.set("author/2", "series-books", { books: [{ id: 20, series: { id: 2, name: "New" } }], hasMore: false }, {
       context: { kind: "book-list", key: "author/2", source: "author-detail", authorId: 2, sort: "addedDesc" },
@@ -361,7 +441,9 @@ describe("metadata cache handlers", () => {
   });
 
   it("invalidates hidden-filtered read models on hidden-state changes", () => {
+    const invalidateSpy = vi.spyOn(store, "invalidate");
     store.set("books", "catalog", { books: [{ id: 7 }], hasMore: false });
+    store.set("book/7", "detail", { book: { id: 7 }, files: [] });
     store.set("authors", "all", { authors: [{ id: 1, bookCount: 1 }] });
     store.set("series", "all", { series: [{ id: 2, bookCount: 1 }] });
     store.set("tags", "cloud?top=30", { tags: [{ id: 3, bookCount: 1 }] });
@@ -380,40 +462,16 @@ describe("metadata cache handlers", () => {
     expect(store.get("filter-options/series", "all")).toBeUndefined();
     expect(store.get("filter-options/tags", "all")).toBeUndefined();
     expect(store.get("filter-options/languages", "all")).toBeUndefined();
-  });
-});
+    expect(store.get("book/7", "detail")).toBeUndefined();
 
-describe("tagRenamed handler", () => {
-  it("invalidates tags + authors + filter-options/tags + book details, applies rename", () => {
-    const store = new MetadataCacheStore();
-    const applyTagRenameSpy = vi.spyOn(store, "applyTagRename");
-    const invalidateNamespacePrefixSpy = vi.spyOn(store, "invalidateNamespacePrefix");
-    store.set("tags", "1", { tags: [] });
-    store.set("authors", "1", { authors: [] });
-    store.set("filter-options/tags", "1", { tags: [] });
-    store.set(
-      "tag/1",
-      "detail",
-      {
-        tag: { id: 1, name: "Old" },
-        books: [{ id: 100, title: "B100", tags: [{ id: 1, name: "Old" }] }],
-      },
-      { context: { kind: "book-list", source: "tag-detail", sort: "addedDesc", key: "/tags/1", tagId: 1 } },
-    );
-    const unregister = registerMetadataCacheHandlers(store, domainEvents);
-
-    domainEvents.publish("tagRenamed", { tagId: 1, name: "New" });
-
-    expect(store.get("tags", "1")).toBeUndefined();
-    expect(store.get("authors", "1")).toBeUndefined();
-    expect(store.get("filter-options/tags", "1")).toBeUndefined();
-    expect(applyTagRenameSpy).toHaveBeenCalledWith({ tagId: 1, name: "New" });
-    expect(invalidateNamespacePrefixSpy).toHaveBeenCalledWith("book/");
-    const entry = store.get<{ tag: { name: string }; books: Array<{ tags: Array<{ name: string }> }> }>("tag/1", "detail");
-    expect(entry?.tag.name).toBe("New");
-    expect(entry?.books[0].tags[0].name).toBe("New");
-
-    unregister();
+    expect(invalidateSpy).toHaveBeenCalledWith("book/7");
+    expect(invalidateSpy).toHaveBeenCalledWith("authors");
+    expect(invalidateSpy).toHaveBeenCalledWith("series");
+    expect(invalidateSpy).toHaveBeenCalledWith("tags");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/authors");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/series");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/tags");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/languages");
   });
 });
 

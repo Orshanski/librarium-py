@@ -1,6 +1,11 @@
 import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList, classifyTagRenameForBookList } from "@/domain/read-models";
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
+import { patchBookDetailBook } from "./projection/book-detail";
+import { isRecord } from "./projection/guards";
+import { patchNamedRefs } from "./projection/refs";
+import { mergeRowById } from "./projection/rows";
+import { sortByName, sortBySortName } from "./projection/sorts";
 
 type CacheEntry = {
   value: unknown;
@@ -100,6 +105,8 @@ export class MetadataCacheStore {
   }
 
   applyAuthorRename(payload: DomainEventMap["authorRenamed"]): void {
+    const sortName = payload.sortName ?? deriveAuthorSortName(payload.name);
+    const sortNamePatchValue = { sortName };
     this.updateBookListEntries((entry) => {
       if (!entry.context) return { delete: true };
       if (classifyAuthorRenameForBookList(entry.context) === "structural") {
@@ -108,10 +115,51 @@ export class MetadataCacheStore {
       return {
         value: {
           ...entry.value,
-          books: entry.value.books.map((row) => patchAuthorRefs(row, payload)),
+          books: entry.value.books.map((row) => patchAuthorRefs(row, payload, sortName)),
         },
       };
     });
+
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const authors = Array.isArray(book.authors)
+          ? patchNamedRefs(
+            book.authors as Array<{ id: number; name: string; sortName?: string }>,
+            payload.authorId,
+            { name: payload.name, ...sortNamePatchValue },
+          ).refs
+          : book.authors;
+
+        return { ...book, authors };
+      }),
+    }));
+
+    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
+      "authors",
+      "authors",
+      payload.authorId,
+      { name: payload.name, ...sortNamePatchValue },
+      sortBySortName,
+      (rows) => rows.every(isValidSortNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/authors",
+      "authors",
+      payload.authorId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchNestedRefsInNamespace(
+      "series",
+      "series",
+      "authors",
+      payload.authorId,
+      { name: payload.name, ...sortNamePatchValue },
+    );
 
     this.hydratePersistedNamespaces();
     const namespace = `author/${payload.authorId}`;
@@ -129,7 +177,7 @@ export class MetadataCacheStore {
           ...entry,
           value: {
             ...value,
-            author: { ...author, name: payload.name, ...sortNamePatch(payload.sortName) },
+            author: { ...author, name: payload.name, ...sortNamePatchValue },
           },
         });
         changed = true;
@@ -143,6 +191,8 @@ export class MetadataCacheStore {
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
+    const sortName = payload.sortName ?? payload.name;
+    const sortNamePatchValue = { sortName };
     this.updateBookListEntries((entry) => {
       if (!entry.context) return { delete: true };
       if (classifySeriesRenameForBookList(entry.context) === "structural") {
@@ -151,10 +201,43 @@ export class MetadataCacheStore {
       return {
         value: {
           ...entry.value,
-          books: entry.value.books.map((row) => patchSeriesRef(row, payload)),
+          books: entry.value.books.map((row) => patchSeriesRef(row, payload, sortName)),
         },
       };
     });
+
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const series = hasNumericId(book.series) && book.series.id === payload.seriesId
+          ? {
+            ...book.series,
+            name: payload.name,
+            ...sortNamePatchValue,
+          }
+          : book.series;
+
+        return { ...book, series };
+      }),
+    }));
+
+    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
+      "series",
+      "series",
+      payload.seriesId,
+      { name: payload.name, ...sortNamePatchValue },
+      sortBySortName,
+      (rows) => rows.every(isValidSortNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/series",
+      "series",
+      payload.seriesId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
 
     this.hydratePersistedNamespaces();
     const namespace = `series/${payload.seriesId}`;
@@ -172,7 +255,7 @@ export class MetadataCacheStore {
           ...entry,
           value: {
             ...value,
-            series: { ...series, name: payload.name, ...sortNamePatch(payload.sortName) },
+            series: { ...series, name: payload.name, ...sortNamePatchValue },
           },
         });
         changed = true;
@@ -198,6 +281,47 @@ export class MetadataCacheStore {
         },
       };
     });
+
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const tags = Array.isArray(book.tags)
+          ? patchNamedRefs(
+            book.tags as Array<{ id: number; name: string }>,
+            payload.tagId,
+            { name: payload.name },
+          ).refs
+          : book.tags;
+
+        return { ...book, tags };
+      }),
+    }));
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "tags",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+      (rows, key) => (key === "cloud?top=30" ? rows : sortByName(rows)),
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/tags",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchNestedRefsInNamespace(
+      "authors",
+      "authors",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+    );
 
     this.hydratePersistedNamespaces();
     const namespace = `tag/${payload.tagId}`;
@@ -361,6 +485,105 @@ export class MetadataCacheStore {
     return created;
   }
 
+  private setEntryIfChanged(ns: Namespace, key: string, next: CacheEntry): boolean {
+    const current = ns.entries.get(key);
+    if (current && Object.is(current.context, next.context) && deepEqual(current.value, next.value)) {
+      return false;
+    }
+    ns.entries.set(key, next);
+    return true;
+  }
+
+  private updateNamespaceEntries(
+    namespace: string,
+    updater: (entry: CacheEntry, key: string) => CacheEntry | undefined,
+  ): void {
+    this.hydratePersistedNamespaces();
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    for (const [key, entry] of ns.entries) {
+      const next = updater(entry, key);
+      if (next === undefined) continue;
+      changed = this.setEntryIfChanged(ns, key, next) || changed;
+    }
+    if (!changed) return;
+    ns.version += 1;
+    this.persist(namespace);
+    this.notify(namespace);
+  }
+
+  private updateNamespacePrefixEntries(
+    prefix: string,
+    updater: (namespace: string, entry: CacheEntry) => CacheEntry | undefined,
+  ): void {
+    this.hydratePersistedNamespaces();
+    for (const [namespace, ns] of this.namespaces) {
+      if (!namespace.startsWith(prefix)) continue;
+      let changed = false;
+      for (const [key, entry] of ns.entries) {
+        const next = updater(namespace, entry);
+        if (next === undefined) continue;
+        changed = this.setEntryIfChanged(ns, key, next) || changed;
+      }
+      if (!changed) continue;
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
+  }
+
+  private patchRowListNamespace<T extends { id: number } & Record<string, unknown>>(
+    namespace: string,
+    field: string,
+    id: number,
+    patch: Partial<T>,
+    sorter: (rows: T[], key: string) => T[],
+    canSortRows?: (rows: readonly T[]) => boolean,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry, key) => {
+      if (!isRecord(entry.value)) return undefined;
+      const value = entry.value as Record<string, unknown>;
+      const rows = value[field];
+      if (!Array.isArray(rows)) return undefined;
+      const result = mergeRowById(rows as T[], id, patch);
+      if (!result.changed) return undefined;
+      const rowsAreMalformed = rows.some((row) => !isRecord(row) || typeof (row as { id?: unknown }).id !== "number");
+      const nextRows = rowsAreMalformed || canSortRows === undefined || !canSortRows(result.rows)
+        ? result.rows
+        : sorter(result.rows, key);
+      return { ...entry, value: { ...value, [field]: nextRows } };
+    });
+  }
+
+  private patchNestedRefsInNamespace(
+    namespace: string,
+    listField: string,
+    refField: string,
+    id: number,
+    patch: Partial<{ id: number; name: string; sortName?: string }>,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry) => {
+      if (!isRecord(entry.value)) return undefined;
+      const value = entry.value as Record<string, unknown>;
+      const rows = value[listField];
+      if (!Array.isArray(rows)) return undefined;
+      let changed = false;
+      const nextRows = rows.map((row) => {
+        if (!isRecord(row) || !Array.isArray(row[refField])) return row;
+        const result = patchNamedRefs(
+          row[refField] as Array<{ id: number; name: string; sortName?: string }>,
+          id,
+          patch,
+        );
+        if (!result.changed) return row;
+        changed = true;
+        return { ...row, [refField]: result.refs };
+      });
+      return changed ? { ...entry, value: { ...value, [listField]: nextRows } } : undefined;
+    });
+  }
+
   private updateBookListEntries(
     updater: (entry: CacheEntry & { value: BookListValue }) => { value?: BookListValue; delete?: boolean },
   ): void {
@@ -376,8 +599,8 @@ export class MetadataCacheStore {
           changed = true;
           invalidated = true;
         } else if (result.value) {
-          ns.entries.set(key, { ...entry, value: result.value });
-          changed = true;
+          const nextEntry = { ...entry, value: result.value };
+          changed = this.setEntryIfChanged(ns, key, nextEntry) || changed;
         }
       }
       if (changed) {
@@ -418,6 +641,10 @@ function subscriberSnapshot(ns: Namespace): Array<() => void> {
   return Array.from(ns.subscribers);
 }
 
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 type BookListRow = { id: number } & Record<string, unknown>;
 type BookListValue = { books: BookListRow[] } & Record<string, unknown>;
 
@@ -442,13 +669,14 @@ function patchBookList(value: BookListValue, book: { id: number } & Record<strin
 function patchAuthorRefs(
   row: BookListRow,
   payload: DomainEventMap["authorRenamed"],
+  sortName: string,
 ): BookListRow {
   if (!Array.isArray(row.authors)) return row;
   return {
     ...row,
     authors: row.authors.map((author) => (
       isAuthorRef(author) && author.id === payload.authorId
-        ? { ...author, name: payload.name, ...sortNamePatch(payload.sortName) }
+        ? { ...author, name: payload.name, sortName }
         : author
     )),
   };
@@ -457,6 +685,7 @@ function patchAuthorRefs(
 function patchSeriesRef(
   row: BookListRow,
   payload: DomainEventMap["seriesRenamed"],
+  sortName: string,
 ): BookListRow {
   if (isRefWithId(row.series, payload.seriesId)) {
     return {
@@ -464,7 +693,7 @@ function patchSeriesRef(
       series: {
         ...row.series,
         name: payload.name,
-        ...sortNamePatch(payload.sortName),
+        sortName,
       },
     };
   }
@@ -490,6 +719,12 @@ function sortNamePatch(sortName: string | undefined): { sortName?: string } {
   return sortName === undefined ? {} : { sortName };
 }
 
+function deriveAuthorSortName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return name.trim();
+  return `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}`;
+}
+
 function isAuthorRef(value: unknown): value is { id: number; name: string; sortName?: string } {
   return hasNumericId(value);
 }
@@ -512,6 +747,16 @@ function hasNumericId(value: unknown): value is { id: number } {
   return typeof value === "object"
     && value !== null
     && typeof (value as { id?: unknown }).id === "number";
+}
+
+function isValidNameRow(value: unknown): value is { name: string } {
+  return isRecord(value) && typeof value.name === "string";
+}
+
+function isValidSortNameRow(value: unknown): value is { name: string; sortName?: string } {
+  return isRecord(value)
+    && typeof value.name === "string"
+    && (value.sortName === undefined || typeof value.sortName === "string");
 }
 
 function readPersistedNamespace(namespace: string): Map<string, CacheEntry> {
