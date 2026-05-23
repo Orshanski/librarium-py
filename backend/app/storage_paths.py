@@ -54,11 +54,7 @@ def _temp_id_segment(temp_id: str) -> str:
     return temp_id
 
 
-def library_book_dir(book_id: int) -> Path:
-    return _resolve_under(LIBRARY_DIR, _book_id_segment(book_id))
-
-
-def library_book_dir_for_delete(book_id: int) -> Path:
+def _library_book_dir_lexical(book_id: int) -> Path:
     book_segment = _book_id_segment(book_id)
     library_root = _root(LIBRARY_DIR)
     candidate = library_root / book_segment
@@ -67,12 +63,17 @@ def library_book_dir_for_delete(book_id: int) -> Path:
     return candidate
 
 
+def library_book_dir(book_id: int) -> Path:
+    return _library_book_dir_lexical(book_id)
+
+
+def library_book_dir_for_delete(book_id: int) -> Path:
+    return _library_book_dir_lexical(book_id)
+
+
 def library_book_file(book_id: int, ext: str) -> Path:
-    return _resolve_under(
-        LIBRARY_DIR,
-        _book_id_segment(book_id),
-        f"book.{_ext(ext, BOOK_EXTS)}",
-    )
+    book_dir = _library_book_dir_lexical(book_id)
+    return _resolve_under(book_dir, f"book.{_ext(ext, BOOK_EXTS)}")
 
 
 def library_cover_file(book_id: int, ext: str) -> Path:

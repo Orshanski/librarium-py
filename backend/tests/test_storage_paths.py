@@ -10,6 +10,16 @@ def test_library_book_file_accepts_known_book_extension():
     assert path.parent.name == "42"
 
 
+def test_library_book_file_rejects_symlinked_book_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(sp, "LIBRARY_DIR", tmp_path)
+    target_dir = tmp_path / "2"
+    target_dir.mkdir()
+    (tmp_path / "1").symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(BadInputError):
+        sp.library_book_file(1, "epub")
+
+
 @pytest.mark.parametrize("ext", ["../pdf", "/pdf", "txt", "pdf/../../x"])
 def test_library_book_file_rejects_unsafe_extension(ext):
     with pytest.raises(BadInputError):

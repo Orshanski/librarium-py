@@ -224,11 +224,21 @@ def _apply_delete_formats(
     backed_up: list[tuple[str, str]] = []
     for fmt_code, row in resolved_deletes:
         file_path = storage_paths.library_book_file(book_id, fmt_code)
+        backup_pair: tuple[str, str] | None = None
         if file_path.is_file():
             bak_path = storage_paths.library_backup_file(file_path)
             file_path.rename(bak_path)
-            backed_up.append((str(file_path), str(bak_path)))
-        dal.delete_book_file(db, row["id"])
+            backup_pair = (str(file_path), str(bak_path))
+            backed_up.append(backup_pair)
+        try:
+            dal.delete_book_file(db, row["id"])
+        except Exception:
+            if backup_pair is not None:
+                safe_orig_path, safe_bak_path = _policy_backup_pair(*backup_pair)
+                with contextlib.suppress(FileNotFoundError):
+                    safe_bak_path.rename(safe_orig_path)
+                backed_up.remove(backup_pair)
+            raise
     return backed_up
 
 

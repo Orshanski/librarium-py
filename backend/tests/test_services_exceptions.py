@@ -187,6 +187,27 @@ class TestBookServiceUpdateBook:
         ).fetchall()]
         assert "FB2" not in formats
 
+    def test_apply_delete_formats_restores_backup_when_db_delete_fails(self, db, monkeypatch):
+        from app import storage_paths
+        row = db.execute(
+            "SELECT id, format FROM book_files WHERE book_id = 1 AND format = 'FB2'"
+        ).fetchone()
+        assert row is not None
+
+        original = storage_paths.library_book_file(1, "fb2")
+        original.write_bytes(b"original")
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("db delete failed")
+
+        monkeypatch.setattr(book_service.dal, "delete_book_file", boom)
+
+        with pytest.raises(RuntimeError, match="db delete failed"):
+            book_service._apply_delete_formats(db, 1, [("FB2", row)])  # pyright: ignore[reportPrivateUsage]
+
+        assert original.read_bytes() == b"original"
+        assert not storage_paths.library_backup_file(original).exists()
+
     def test_update_rejects_restore_path_outside_library(self, db, tmp_path):
         outside_bak = tmp_path / "book.fb2.bak"
         outside_bak.write_bytes(b"not a library backup")
