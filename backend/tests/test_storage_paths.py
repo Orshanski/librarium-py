@@ -91,6 +91,17 @@ def test_upload_book_file_rejects_symlinked_file_component(tmp_path, monkeypatch
         sp.upload_book_file("abc123", "fb2")
 
 
+def test_thumb_file_rejects_symlinked_file_component(tmp_path, monkeypatch):
+    thumbs_dir = tmp_path / "thumbs"
+    thumbs_dir.mkdir()
+    monkeypatch.setattr(sp, "_THUMBS_DIR", thumbs_dir)
+    (thumbs_dir / "2.jpg").write_bytes(b"thumb")
+    (thumbs_dir / "1.jpg").symlink_to(thumbs_dir / "2.jpg")
+
+    with pytest.raises(BadInputError):
+        sp.thumb_file(1)
+
+
 def test_library_backup_file_requires_managed_library_path():
     original = sp.library_book_file(42, "pdf")
     assert sp.library_backup_file(original).name == "book.pdf.bak"

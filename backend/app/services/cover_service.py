@@ -205,8 +205,8 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
     Returns thumb path on success, or None on any failure. Caller (router)
     decides fallback (e.g. serve full cover when thumb generation failed).
     """
-    thumb_path = storage_paths.thumb_file(book_id)
     try:
+        thumb_path = storage_paths.thumb_file(book_id)
         if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
             return str(thumb_path)
         original = Image.open(cover_path)

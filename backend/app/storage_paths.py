@@ -229,7 +229,7 @@ def upload_cover_candidates(temp_id: int | str) -> list[Path]:
 
 
 def thumb_file(book_id: int) -> Path:
-    return _resolve_under(_THUMBS_DIR, f"{_book_id_segment(book_id)}.jpg")
+    return _managed_file_under(_THUMBS_DIR, f"{_book_id_segment(book_id)}.jpg")
 
 
 def _library_path_from_db(

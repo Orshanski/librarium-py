@@ -246,6 +246,22 @@ class TestCoverEdgeCases:
         assert policy_thumb.exists()
         assert calls == [2]
 
+    def test_get_thumb_returns_none_for_symlinked_policy_thumb(self, tmp_path, monkeypatch):
+        from app import storage_paths
+        from app.config import LIBRARY_DIR
+        from app.services import cover_service
+
+        thumbs_dir = tmp_path / "thumbs"
+        thumbs_dir.mkdir()
+        monkeypatch.setattr(storage_paths, "_THUMBS_DIR", thumbs_dir)
+        (thumbs_dir / "other.jpg").write_bytes(b"thumb")
+        (thumbs_dir / "2.jpg").symlink_to(thumbs_dir / "other.jpg")
+
+        result = cover_service.get_thumb(2, str(Path(LIBRARY_DIR) / "2" / "cover.jpg"))
+
+        assert result is None
+        assert (thumbs_dir / "2.jpg").is_symlink()
+
     def test_commit_uses_policy_upload_and_library_cover_paths(self, admin_client, db, monkeypatch):
         from app import storage_paths
         from app.services import cover_service
@@ -416,6 +432,31 @@ def test_commit_embed_failure_returns_true(admin_client, db, monkeypatch):
 
     result = cover_service._commit(db, book_id=2)
     assert result is True
+
+
+def test_commit_thumb_invalidate_failure_returns_true(admin_client, db, tmp_path, monkeypatch):
+    """Thumbnail cache invalidation is best-effort after the cover commit succeeds."""
+    from app import storage_paths
+    from app.config import LIBRARY_DIR
+    from app.services import cover_service
+
+    thumbs_dir = tmp_path / "thumbs"
+    thumbs_dir.mkdir()
+    monkeypatch.setattr(storage_paths, "_THUMBS_DIR", thumbs_dir)
+    (thumbs_dir / "other.jpg").write_bytes(b"thumb")
+    (thumbs_dir / "2.jpg").symlink_to(thumbs_dir / "other.jpg")
+
+    resp = admin_client.post(
+        "/api/books/2/cover",
+        files={"file": ("new.png", TINY_PNG, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    result = cover_service._commit(db, book_id=2)
+
+    assert result is True
+    assert (Path(LIBRARY_DIR) / "2" / "cover.png").exists()
+    assert (thumbs_dir / "2.jpg").is_symlink()
 
 
 def test_commit_embed_programming_bug_raises(admin_client, db, monkeypatch):
