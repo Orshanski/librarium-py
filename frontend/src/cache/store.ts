@@ -2,7 +2,10 @@ import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classif
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
 import { patchBookDetailBook } from "./projection/book-detail";
+import { isRecord } from "./projection/guards";
 import { patchNamedRefs } from "./projection/refs";
+import { mergeRowById } from "./projection/rows";
+import { sortByName, sortBySortName } from "./projection/sorts";
 
 type CacheEntry = {
   value: unknown;
@@ -130,6 +133,32 @@ export class MetadataCacheStore {
       }),
     }));
 
+    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
+      "authors",
+      "authors",
+      payload.authorId,
+      { name: payload.name, ...sortNamePatch(payload.sortName) },
+      sortBySortName,
+      (rows) => rows.every(isValidSortNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/authors",
+      "authors",
+      payload.authorId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchNestedRefsInNamespace(
+      "series",
+      "series",
+      "authors",
+      payload.authorId,
+      { name: payload.name, ...sortNamePatch(payload.sortName) },
+    );
+
     this.hydratePersistedNamespaces();
     const namespace = `author/${payload.authorId}`;
     const ns = this.namespaces.get(namespace);
@@ -188,6 +217,24 @@ export class MetadataCacheStore {
       }),
     }));
 
+    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
+      "series",
+      "series",
+      payload.seriesId,
+      { name: payload.name, ...sortNamePatch(payload.sortName) },
+      sortBySortName,
+      (rows) => rows.every(isValidSortNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/series",
+      "series",
+      payload.seriesId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
+
     this.hydratePersistedNamespaces();
     const namespace = `series/${payload.seriesId}`;
     const ns = this.namespaces.get(namespace);
@@ -245,6 +292,32 @@ export class MetadataCacheStore {
         return { ...book, tags };
       }),
     }));
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "tags",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+      (rows, key) => (key === "cloud?top=30" ? rows : sortByName(rows)),
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchRowListNamespace<{ id: number; name: string }>(
+      "filter-options/tags",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
+
+    this.patchNestedRefsInNamespace(
+      "authors",
+      "authors",
+      "tags",
+      payload.tagId,
+      { name: payload.name },
+    );
 
     this.hydratePersistedNamespaces();
     const namespace = `tag/${payload.tagId}`;
@@ -419,14 +492,14 @@ export class MetadataCacheStore {
 
   private updateNamespaceEntries(
     namespace: string,
-    updater: (entry: CacheEntry) => CacheEntry | undefined,
+    updater: (entry: CacheEntry, key: string) => CacheEntry | undefined,
   ): void {
     this.hydratePersistedNamespaces();
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
     let changed = false;
     for (const [key, entry] of ns.entries) {
-      const next = updater(entry);
+      const next = updater(entry, key);
       if (next === undefined) continue;
       changed = this.setEntryIfChanged(ns, key, next) || changed;
     }
@@ -454,6 +527,57 @@ export class MetadataCacheStore {
       this.persist(namespace);
       this.notify(namespace);
     }
+  }
+
+  private patchRowListNamespace<T extends { id: number } & Record<string, unknown>>(
+    namespace: string,
+    field: string,
+    id: number,
+    patch: Partial<T>,
+    sorter: (rows: T[], key: string) => T[],
+    canSortRows?: (rows: readonly T[]) => boolean,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry, key) => {
+      if (!isRecord(entry.value)) return undefined;
+      const value = entry.value as Record<string, unknown>;
+      const rows = value[field];
+      if (!Array.isArray(rows)) return undefined;
+      const result = mergeRowById(rows as T[], id, patch);
+      if (!result.changed) return undefined;
+      const rowsAreMalformed = rows.some((row) => !isRecord(row) || typeof (row as { id?: unknown }).id !== "number");
+      const nextRows = rowsAreMalformed || canSortRows === undefined || !canSortRows(result.rows)
+        ? result.rows
+        : sorter(result.rows, key);
+      return { ...entry, value: { ...value, [field]: nextRows } };
+    });
+  }
+
+  private patchNestedRefsInNamespace(
+    namespace: string,
+    listField: string,
+    refField: string,
+    id: number,
+    patch: Partial<{ id: number; name: string; sortName?: string }>,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry) => {
+      if (!isRecord(entry.value)) return undefined;
+      const value = entry.value as Record<string, unknown>;
+      const rows = value[listField];
+      if (!Array.isArray(rows)) return undefined;
+      let changed = false;
+      const nextRows = rows.map((row) => {
+        if (!isRecord(row) || !Array.isArray(row[refField])) return row;
+        const result = patchNamedRefs(
+          row[refField] as Array<{ id: number; name: string; sortName?: string }>,
+          id,
+          patch,
+        );
+        if (!result.changed) return row;
+        changed = true;
+        return { ...row, [refField]: result.refs };
+      });
+      return changed ? { ...entry, value: { ...value, [listField]: nextRows } } : undefined;
+    });
   }
 
   private updateBookListEntries(
@@ -611,6 +735,16 @@ function hasNumericId(value: unknown): value is { id: number } {
   return typeof value === "object"
     && value !== null
     && typeof (value as { id?: unknown }).id === "number";
+}
+
+function isValidNameRow(value: unknown): value is { name: string } {
+  return isRecord(value) && typeof value.name === "string";
+}
+
+function isValidSortNameRow(value: unknown): value is { name: string; sortName?: string } {
+  return isRecord(value)
+    && typeof value.name === "string"
+    && (value.sortName === undefined || typeof value.sortName === "string");
 }
 
 function readPersistedNamespace(namespace: string): Map<string, CacheEntry> {

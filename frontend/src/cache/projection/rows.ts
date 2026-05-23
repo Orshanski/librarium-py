@@ -1,3 +1,5 @@
+import { isRecord } from "./guards";
+
 export type RowWithId = { id: number } & Record<string, unknown>;
 
 export type RowUpdateResult<T extends RowWithId> = {
@@ -12,10 +14,10 @@ export function mergeRowById<T extends RowWithId>(
 ): RowUpdateResult<T> {
   let changed = false;
   const next = rows.map((row) => {
-    if (row.id !== id) return row;
+    if (!isRecord(row) || typeof row.id !== "number" || row.id !== id) return row;
     const merged = { ...row, ...patch };
     if (!shallowEqual(row, merged)) changed = true;
-    return merged;
+    return merged as T;
   });
 
   return { rows: changed ? next : [...rows], changed };
