@@ -13,6 +13,7 @@ from ..dtos.books import (
 )
 from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..fs_utils import assert_within
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
 from ..dtos.book_card import BookCardItem
@@ -228,9 +229,9 @@ def _apply_delete_formats(
         # вверх по pipeline), путь поедет за пределы LIBRARY_DIR. Whitelist
         # ловит это до os.rename.
         ext_safe = _safe_ext(fmt_code)
-        file_path = str(LIBRARY_DIR / str(book_id) / f"book.{ext_safe}")
+        file_path = assert_within(LIBRARY_DIR, LIBRARY_DIR / str(book_id) / f"book.{ext_safe}")
         if os.path.isfile(file_path):
-            bak_path = file_path + ".bak"
+            bak_path = assert_within(LIBRARY_DIR, f"{file_path}.bak")
             os.rename(file_path, bak_path)
             backed_up.append((file_path, bak_path))
         dal.delete_book_file(db, row["id"])
@@ -257,8 +258,10 @@ def _apply_add_formats(
             with contextlib.suppress(FileNotFoundError):
                 os.remove(d)
         for orig_path, bak_path in backed_up_paths:
+            safe_orig_path = assert_within(LIBRARY_DIR, orig_path)
+            safe_bak_path = assert_within(LIBRARY_DIR, bak_path)
             with contextlib.suppress(FileNotFoundError):
-                os.rename(bak_path, orig_path)
+                os.rename(safe_bak_path, safe_orig_path)
         raise
 
 
@@ -345,8 +348,9 @@ def update_book(
 
     # Шаг 5b: финальное удаление backed-up .bak (replace-flow успешно завершён).
     for _, bak_path in backed_up_paths:
+        safe_bak_path = assert_within(LIBRARY_DIR, bak_path)
         with contextlib.suppress(FileNotFoundError):
-            os.remove(bak_path)
+            os.remove(safe_bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.
     for (tid, _, _, _) in resolved_adds:

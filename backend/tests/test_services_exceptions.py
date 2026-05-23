@@ -187,6 +187,18 @@ class TestBookServiceUpdateBook:
         ).fetchall()]
         assert "FB2" not in formats
 
+    def test_update_rejects_restore_path_outside_library(self, db, tmp_path):
+        outside_bak = tmp_path / "book.fb2.bak"
+        outside_bak.write_bytes(b"not a library backup")
+
+        with pytest.raises(BadInputError, match="Path escapes allowed root"):
+            book_service._apply_add_formats(  # pyright: ignore[reportPrivateUsage]
+                db,
+                1,
+                [("missing-temp", "/does/not/exist.epub", "EPUB", "epub")],
+                [(str(tmp_path / "book.fb2"), str(outside_bak))],
+            )
+
     def test_update_commit_cover_without_pending_raises(self, db):
         with pytest.raises(BadInputError, match="No pending cover"):
             book_service.update_book(db, 1, UpdateBookBody(commitCover=True))  # pyright: ignore[reportCallIssue]
