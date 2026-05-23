@@ -37,8 +37,21 @@ def test_library_backup_file_requires_managed_library_path():
     original = sp.library_book_file(42, "pdf")
     assert sp.library_backup_file(original).name == "book.pdf.bak"
 
+    cover = sp.library_cover_file(42, "gif")
+    assert sp.library_backup_file(cover).name == "cover.gif.bak"
+
     with pytest.raises(BadInputError):
         sp.library_backup_file("/tmp/book.pdf")
+
+
+@pytest.mark.parametrize("path", [
+    sp.library_book_dir(42) / "notes.txt",
+    sp.library_book_dir(42),
+    sp.library_book_dir(42) / "book.txt",
+])
+def test_library_backup_file_rejects_non_canonical_library_paths(path):
+    with pytest.raises(BadInputError):
+        sp.library_backup_file(path)
 
 
 def test_library_file_from_db_path_binds_book_id_and_extension():

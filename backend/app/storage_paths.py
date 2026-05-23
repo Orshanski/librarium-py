@@ -89,11 +89,31 @@ def library_backup_file(path: str | Path) -> Path:
     library_root = _root(LIBRARY_DIR)
     resolved = Path(path).resolve()
     try:
-        resolved.relative_to(library_root)
+        relative = resolved.relative_to(library_root)
     except ValueError as exc:
         raise BadInputError("Backup source must be under library storage") from exc
-    parent_parts = resolved.relative_to(library_root).parts[:-1]
-    return _resolve_under(LIBRARY_DIR, *parent_parts, f"{resolved.name}.bak")
+
+    if len(relative.parts) != 2:
+        raise BadInputError("Backup source must be a managed library file")
+
+    book_segment, filename = relative.parts
+    try:
+        if _book_id_segment(int(book_segment)) != book_segment:
+            raise BadInputError("Invalid book id")
+    except ValueError as exc:
+        raise BadInputError("Invalid book id") from exc
+
+    stem, dot, ext = filename.rpartition(".")
+    if dot != ".":
+        raise BadInputError("Backup source must be a managed library file")
+    if stem == "book":
+        _ext(ext, BOOK_EXTS)
+    elif stem == "cover":
+        _ext(ext, COVER_EXTS)
+    else:
+        raise BadInputError("Backup source must be a managed library file")
+
+    return _resolve_under(LIBRARY_DIR, book_segment, f"{filename}.bak")
 
 
 def upload_book_file(temp_id: str, ext: str) -> Path:
