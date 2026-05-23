@@ -11,6 +11,7 @@ from pathlib import Path
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from PIL import Image
 
+from . import storage_paths
 from . import xml_safe
 from .exceptions import BadInputError
 from .logging_utils import safe as safe_log
@@ -215,26 +216,19 @@ def to_jpeg(image_bytes: bytes) -> bytes:
 
 def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
     """Orchestrator: find cover on disk, convert to JPEG, embed into all book files."""
-    from .config import LIBRARY_DIR
     from .dal.books import get_book_files
 
-    book_dir = LIBRARY_DIR / str(book_id)
+    book_dir = storage_paths.library_book_dir(book_id)
     if not book_dir.is_dir():
         log.warning("Book directory not found: %s", safe_log(book_dir))
         return
 
-    # Find cover file
-    cover_file = None
-    for f in os.listdir(str(book_dir)):
-        if f.startswith("cover.") and "bak" not in f:
-            cover_file = f
-            break
-
-    if cover_file is None:
+    cover_path = storage_paths.current_library_cover(book_id)
+    if cover_path is None:
         log.warning("No cover file found for book %d", book_id)
         return  # book_id is int — safe to log directly
 
-    cover_bytes = (book_dir / cover_file).read_bytes()
+    cover_bytes = cover_path.read_bytes()
     jpeg_bytes = to_jpeg(cover_bytes)
 
     from .services.book_file_writer import _safe_ext
@@ -247,10 +241,10 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
         # кривое значение через bug — путь поедет за пределы LIBRARY_DIR.
         try:
             ext_safe = _safe_ext(fmt.lower())
+            file_path = storage_paths.library_book_file(book_id, ext_safe)
         except BadInputError:
             log.warning("Skipping book %d with invalid format %s", book_id, safe_log(fmt))
             continue
-        file_path = LIBRARY_DIR / str(book_id) / f"book.{ext_safe}"
         if not file_path.exists():
             log.warning("File not found: %s", safe_log(file_path))
             continue

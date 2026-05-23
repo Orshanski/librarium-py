@@ -1,11 +1,10 @@
 """Book file download — resolve path with traversal guard."""
 import sqlite3
 from dataclasses import dataclass
-from pathlib import Path
 
-from ..config import DB_PATH_PREFIX, LIBRARY_DIR
+from .. import storage_paths
 from ..dal import books as dal
-from ..exceptions import NotFoundError
+from ..exceptions import BadInputError, NotFoundError
 
 _FILE_NOT_FOUND = "File not found"
 
@@ -42,20 +41,15 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     if not target:
         raise NotFoundError("Format not available")
 
-    # file_path в DB — путь вида "data/library/{book_id}/{filename}"
-    # (см. config.db_path_for). Берём часть внутри library и склеиваем с
-    # LIBRARY_DIR — так путь работает одинаково в prod и в тестах, где
-    # DATA_DIR смонтирован под другим именем.
-    try:
-        rel_in_library = Path(target["file_path"]).relative_to(DB_PATH_PREFIX)
-    except ValueError:
+    target_format = target["format"].lower()
+    if target_format not in storage_paths.BOOK_EXTS:
         raise NotFoundError(_FILE_NOT_FOUND)
-    candidate = LIBRARY_DIR / rel_in_library
 
     try:
-        resolved = candidate.resolve()
-        resolved.relative_to(LIBRARY_DIR.resolve())
-    except (ValueError, OSError):
+        resolved = storage_paths.library_file_from_db_path(
+            book_id, target["file_path"], {target_format}
+        )
+    except (BadInputError, OSError):
         raise NotFoundError(_FILE_NOT_FOUND)
     if not resolved.is_file():
         raise NotFoundError(_FILE_NOT_FOUND)

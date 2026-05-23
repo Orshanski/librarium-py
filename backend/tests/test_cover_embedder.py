@@ -9,6 +9,7 @@ from pathlib import Path
 from lxml import etree
 from PIL import Image
 
+from app import cover_embedder
 from app.cover_embedder import embed_cover_epub, embed_cover_fb2, to_jpeg
 
 FIXTURES = Path(__file__).parent / "fixtures" / "books"
@@ -278,6 +279,71 @@ class TestConvertToJpeg:
 
 class TestEmbedCover:
     """Task 6: embed_cover orchestrator."""
+
+    def test_embed_cover_uses_storage_policy_for_managed_book_paths(
+        self, admin_client, db, monkeypatch
+    ):
+        from app.config import LIBRARY_DIR
+
+        calls: list[tuple[str, int, str | None]] = []
+
+        def track_book_dir(book_id: int) -> Path:
+            calls.append(("dir", book_id, None))
+            return LIBRARY_DIR / str(book_id)
+
+        def track_book_file(book_id: int, ext: str) -> Path:
+            calls.append(("file", book_id, ext))
+            return LIBRARY_DIR / str(book_id) / f"book.{ext}"
+
+        monkeypatch.setattr(
+            cover_embedder.storage_paths, "library_book_dir", track_book_dir
+        )
+        monkeypatch.setattr(
+            cover_embedder.storage_paths, "library_book_file", track_book_file
+        )
+
+        book_dir = LIBRARY_DIR / "1"
+        (book_dir / "cover.jpg").write_bytes(_make_test_jpeg(color="purple"))
+
+        cover_embedder.embed_cover(db, 1)
+
+        assert ("dir", 1, None) in calls
+        assert ("file", 1, "fb2") in calls
+
+    def test_embed_cover_skips_unsafe_book_path_and_continues(
+        self, admin_client, db, monkeypatch
+    ):
+        from app.config import LIBRARY_DIR, db_path_for
+        from app.exceptions import BadInputError
+
+        book_dir = LIBRARY_DIR / "1"
+        (book_dir / "cover.jpg").write_bytes(_make_test_jpeg(color="purple"))
+        (book_dir / "book.epub").write_bytes(b"epub")
+        db.execute(
+            "INSERT INTO book_files (book_id, format, file_path) VALUES (?, ?, ?)",
+            (1, "EPUB", db_path_for(1, "book.epub")),
+        )
+        db.commit()
+
+        def policy_book_file(book_id: int, ext: str) -> Path:
+            if ext == "fb2":
+                raise BadInputError("unsafe managed path")
+            return book_dir / f"book.{ext}"
+
+        epub_calls: list[Path] = []
+        monkeypatch.setattr(
+            cover_embedder.storage_paths, "library_book_file", policy_book_file
+        )
+        monkeypatch.setattr(
+            cover_embedder, "embed_cover_fb2", lambda *_args: pytest.fail("fb2 should be skipped")
+        )
+        monkeypatch.setattr(
+            cover_embedder, "embed_cover_epub", lambda path, _cover: epub_calls.append(path)
+        )
+
+        cover_embedder.embed_cover(db, 1)
+
+        assert epub_calls == [book_dir / "book.epub"]
 
     def test_embed_cover_fb2(self, admin_client, db):
         from app.config import LIBRARY_DIR
