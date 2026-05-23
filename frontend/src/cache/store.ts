@@ -1,30 +1,19 @@
-import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList, classifyTagRenameForBookList } from "@/domain/read-models";
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
-import { patchBookDetailBook } from "./projection/book-detail";
-import {
-  deriveAuthorSortName,
-  hasBooksArray,
-  hasNumericId,
-  isBookList,
-  isValidNameRow,
-  isValidSortNameRow,
-  patchAuthorRefs,
-  patchBookList,
-  patchSeriesRef,
-  patchTagRefs,
-} from "./projection/book-list";
+import { applyAuthorRename as applyAuthorRenameProjection } from "./projection/authors";
+import { isBookList } from "./projection/book-list";
 import type { BookListRow, BookListValue } from "./projection/book-list";
-import { isBookListContext } from "./projection/book-list-context";
+import { applyBookRowPatch, applyBookUpdate as applyBookUpdateProjection } from "./projection/books";
 import { isRecord } from "./projection/guards";
 import { patchArrayRowListValue, patchNestedRefsValue, patchObjectRowListValue } from "./projection/namespace-rows";
-import { patchNamedRefs } from "./projection/refs";
-import { sortByName, sortBySortName } from "./projection/sorts";
+import { readPersistedNamespace, STORAGE_PREFIX } from "./projection/persistence";
+import type { PersistedCacheEntry } from "./projection/persistence";
+import { applySeriesRename as applySeriesRenameProjection } from "./projection/series";
+import { projectShelfMembershipChange, applyShelfRename as applyShelfRenameProjection } from "./projection/shelves";
+import { applyTagRename as applyTagRenameProjection } from "./projection/tags";
+import type { BookListProjectionEntry, BookListUpdateResult, ProjectionCacheEntry, ProjectionWriter } from "./projection/writer";
 
-type CacheEntry = {
-  value: unknown;
-  context?: BookListContext;
-};
+type CacheEntry = PersistedCacheEntry;
 
 type Namespace = {
   entries: Map<string, CacheEntry>;
@@ -33,10 +22,22 @@ type Namespace = {
   invalidationVersion: number;
 };
 
-const STORAGE_PREFIX = "librarium_metadata_cache_";
-
 export class MetadataCacheStore {
   private readonly namespaces = new Map<string, Namespace>();
+  private readonly projectionWriter: ProjectionWriter = {
+    updateBookListEntries: (updater) => this.updateBookListEntries(updater),
+    updateNamespacePrefixEntries: (prefix, updater) => this.updateNamespacePrefixEntries(prefix, updater),
+    patchDetailNamespace: (namespace, updater) => this.patchDetailNamespace(namespace, updater),
+    patchRowListNamespace: (namespace, field, id, patch, sorter, canSortRows) => {
+      this.patchRowListNamespace(namespace, field, id, patch, sorter, canSortRows);
+    },
+    patchArrayNamespace: (namespace, id, patch, sorter, canSortRows) => {
+      this.patchArrayNamespace(namespace, id, patch, sorter, canSortRows);
+    },
+    patchNestedRefsInNamespace: (namespace, listField, refField, id, patch) => {
+      this.patchNestedRefsInNamespace(namespace, listField, refField, id, patch);
+    },
+  };
 
   get<T>(namespace: string, key: string): T | undefined {
     return this.getNamespace(namespace).entries.get(key)?.value as T | undefined;
@@ -102,284 +103,49 @@ export class MetadataCacheStore {
   }
 
   patchBookRow(book: { id: number } & Record<string, unknown>): void {
-    this.updateBookListEntries((entry) => ({ value: patchBookList(entry.value, book) }));
+    applyBookRowPatch(this.projectionWriter, book);
   }
 
   applyBookUpdate(payload: DomainEventMap["bookUpdated"]): void {
-    this.updateBookListEntries((entry) => {
-      if (!entry.context) return { delete: true };
-      const decision = classifyBookUpdateForBookList(
-        entry.context,
-        payload.changedFields,
-        payload.affected,
-      );
-      if (decision === "structural") return { delete: true };
-      return { value: patchBookList(entry.value, payload.book) };
-    });
+    applyBookUpdateProjection(this.projectionWriter, payload);
   }
 
   applyAuthorRename(payload: DomainEventMap["authorRenamed"]): void {
-    const sortName = payload.sortName ?? deriveAuthorSortName(payload.name);
-    const sortNamePatchValue = { sortName };
-    this.updateBookListEntries((entry) => {
-      if (!entry.context) return { delete: true };
-      if (classifyAuthorRenameForBookList(entry.context) === "structural") {
-        return { delete: true };
-      }
-      return {
-        value: {
-          ...entry.value,
-          books: entry.value.books.map((row) => patchAuthorRefs(row, payload, sortName)),
-        },
-      };
-    });
-
-    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
-      ...entry,
-      value: patchBookDetailBook(entry.value, (book) => {
-        const authors = Array.isArray(book.authors)
-          ? patchNamedRefs(
-            book.authors as Array<{ id: number; name: string; sortName?: string }>,
-            payload.authorId,
-            { name: payload.name, ...sortNamePatchValue },
-          ).refs
-          : book.authors;
-
-        return { ...book, authors };
-      }),
-    }));
-
-    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
-      "authors",
-      "authors",
-      payload.authorId,
-      { name: payload.name, ...sortNamePatchValue },
-      sortBySortName,
-      (rows) => rows.every(isValidSortNameRow),
-    );
-
-    this.patchArrayNamespace<{ id: number; name: string }>(
-      "filter-options/authors",
-      payload.authorId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-    this.patchRowListNamespace<{ id: number; name: string }>(
-      "filter-options/authors",
-      "authors",
-      payload.authorId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-
-    this.patchNestedRefsInNamespace(
-      "series",
-      "series",
-      "authors",
-      payload.authorId,
-      { name: payload.name, ...sortNamePatchValue },
-    );
-
-    this.patchDetailNamespace(`author/${payload.authorId}`, (value) => {
-      const author = value.author;
-      return isRecord(author)
-        ? { ...value, author: { ...author, name: payload.name, ...sortNamePatchValue } }
-        : undefined;
-    });
+    applyAuthorRenameProjection(this.projectionWriter, payload);
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
-    const sortName = payload.sortName ?? payload.name;
-    const sortNamePatchValue = { sortName };
-    this.updateBookListEntries((entry) => {
-      if (!entry.context) return { delete: true };
-      if (classifySeriesRenameForBookList(entry.context) === "structural") {
-        return { delete: true };
-      }
-      return {
-        value: {
-          ...entry.value,
-          books: entry.value.books.map((row) => patchSeriesRef(row, payload, sortName)),
-        },
-      };
-    });
-
-    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
-      ...entry,
-      value: patchBookDetailBook(entry.value, (book) => {
-        const series = hasNumericId(book.series) && book.series.id === payload.seriesId
-          ? {
-            ...book.series,
-            name: payload.name,
-            ...sortNamePatchValue,
-          }
-          : book.series;
-
-        return { ...book, series };
-      }),
-    }));
-
-    this.patchRowListNamespace<{ id: number; name: string; sortName?: string }>(
-      "series",
-      "series",
-      payload.seriesId,
-      { name: payload.name, ...sortNamePatchValue },
-      sortBySortName,
-      (rows) => rows.every(isValidSortNameRow),
-    );
-
-    this.patchArrayNamespace<{ id: number; name: string }>(
-      "filter-options/series",
-      payload.seriesId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-    this.patchRowListNamespace<{ id: number; name: string }>(
-      "filter-options/series",
-      "series",
-      payload.seriesId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-
-    this.patchDetailNamespace(`series/${payload.seriesId}`, (value) => {
-      const series = value.series;
-      return isRecord(series)
-        ? { ...value, series: { ...series, name: payload.name, ...sortNamePatchValue } }
-        : undefined;
-    });
+    applySeriesRenameProjection(this.projectionWriter, payload);
   }
 
   applyTagRename(payload: DomainEventMap["tagRenamed"]): void {
-    this.updateBookListEntries((entry) => {
-      if (!entry.context) return { delete: true };
-      if (classifyTagRenameForBookList(entry.context) === "structural") {
-        return { delete: true };
-      }
-      return {
-        value: {
-          ...entry.value,
-          books: entry.value.books.map((row) => patchTagRefs(row, payload)),
-        },
-      };
-    });
-
-    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
-      ...entry,
-      value: patchBookDetailBook(entry.value, (book) => {
-        const tags = Array.isArray(book.tags)
-          ? patchNamedRefs(
-            book.tags as Array<{ id: number; name: string }>,
-            payload.tagId,
-            { name: payload.name },
-          ).refs
-          : book.tags;
-
-        return { ...book, tags };
-      }),
-    }));
-
-    this.patchRowListNamespace<{ id: number; name: string }>(
-      "tags",
-      "tags",
-      payload.tagId,
-      { name: payload.name },
-      (rows, key) => (key === "cloud?top=30" ? rows : sortByName(rows)),
-      (rows) => rows.every(isValidNameRow),
-    );
-
-    this.patchArrayNamespace<{ id: number; name: string }>(
-      "filter-options/tags",
-      payload.tagId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-    this.patchRowListNamespace<{ id: number; name: string }>(
-      "filter-options/tags",
-      "tags",
-      payload.tagId,
-      { name: payload.name },
-      sortByName,
-      (rows) => rows.every(isValidNameRow),
-    );
-
-    this.patchNestedRefsInNamespace(
-      "authors",
-      "authors",
-      "tags",
-      payload.tagId,
-      { name: payload.name },
-    );
-
-    this.patchDetailNamespace(`tag/${payload.tagId}`, (value) => {
-      const tag = value.tag;
-      return isRecord(tag) ? { ...value, tag: { ...tag, name: payload.name } } : undefined;
-    });
+    applyTagRenameProjection(this.projectionWriter, payload);
   }
 
   applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
-    const { shelfId, bookId, hasBook, book } = payload;
+    const { shelfId } = payload;
     this.hydratePersistedNamespaces();
     const namespace = `shelf/${shelfId}`;
     const ns = this.namespaces.get(namespace);
     if (!ns) return;
-    let changed = false;
-    let invalidated = false;
-    const keysToDelete: string[] = [];
-    for (const [key, entry] of ns.entries) {
-      const value = entry.value as Record<string, unknown>;
-      const booksField = (value as { books?: unknown }).books;
-      if (!hasBook) {
-        if (Array.isArray(booksField)) {
-          const books = booksField as BookListRow[];
-          const filtered = books.filter((row) => row.id !== bookId);
-          if (filtered.length !== books.length) {
-            ns.entries.set(key, { ...entry, value: { ...value, books: filtered } });
-            changed = true;
-          }
-        }
-      } else if (book !== undefined) {
-        if (Array.isArray(booksField)) {
-          const books = booksField as BookListRow[];
-          const alreadyPresent = books.some((row) => row.id === book.id);
-          if (!alreadyPresent) {
-            // Book structurally satisfies BookListRow ({id: number} + extras), но Record<string, unknown> и
-            // конкретный interface Book не overlap-ятся в строгом смысле — TS требует unknown-промежуток.
-            ns.entries.set(key, { ...entry, value: { ...value, books: [...books, book as unknown as BookListRow] } });
-            changed = true;
-          }
-        }
-      } else {
-        // Add без карточки — нет данных для точечной правки, инвалидируем запись.
-        // Накапливаем ключи, удаляем после итерации; delete внутри for-of по Map работает,
-        // но паттерн хрупкий — копим явный список.
-        keysToDelete.push(key);
-      }
+    const result = projectShelfMembershipChange(ns.entries, payload);
+    for (const [key, entry] of result.entries) {
+      ns.entries.set(key, entry);
     }
-    for (const key of keysToDelete) {
+    for (const key of result.invalidatedKeys) {
       ns.entries.delete(key);
-      changed = true;
-      invalidated = true;
     }
+    const changed = result.entries.length > 0 || result.invalidatedKeys.length > 0;
     if (changed) {
       ns.version += 1;
-      if (invalidated) ns.invalidationVersion += 1;
+      if (result.invalidatedKeys.length > 0) ns.invalidationVersion += 1;
       this.persist(namespace);
       this.notify(namespace);
     }
   }
 
   applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
-    const { shelfId, name } = payload;
-    this.patchDetailNamespace(`shelf/${shelfId}`, (value) => {
-      const shelf = value.shelf;
-      return isRecord(shelf) ? { ...value, shelf: { ...shelf, name } } : undefined;
-    });
+    applyShelfRenameProjection(this.projectionWriter, payload);
   }
 
   invalidateBookLists(): void {
@@ -449,7 +215,7 @@ export class MetadataCacheStore {
 
   private updateNamespaceEntries(
     namespace: string,
-    updater: (entry: CacheEntry, key: string) => CacheEntry | undefined,
+    updater: (entry: ProjectionCacheEntry, key: string) => ProjectionCacheEntry | undefined,
   ): void {
     this.hydratePersistedNamespaces();
     const ns = this.namespaces.get(namespace);
@@ -468,7 +234,7 @@ export class MetadataCacheStore {
 
   private updateNamespacePrefixEntries(
     prefix: string,
-    updater: (namespace: string, entry: CacheEntry) => CacheEntry | undefined,
+    updater: (namespace: string, entry: ProjectionCacheEntry) => ProjectionCacheEntry | undefined,
   ): void {
     this.hydratePersistedNamespaces();
     for (const [namespace, ns] of this.namespaces) {
@@ -538,7 +304,7 @@ export class MetadataCacheStore {
   }
 
   private updateBookListEntries(
-    updater: (entry: CacheEntry & { value: BookListValue }) => { value?: BookListValue; delete?: boolean },
+    updater: (entry: BookListProjectionEntry) => BookListUpdateResult,
   ): void {
     this.hydratePersistedNamespaces();
     for (const [namespace, ns] of this.namespaces) {
@@ -600,40 +366,4 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function sameContext(left: BookListContext | undefined, right: BookListContext | undefined): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function sortNamePatch(sortName: string | undefined): { sortName?: string } {
-  return sortName === undefined ? {} : { sortName };
-}
-
-function readPersistedNamespace(namespace: string): Map<string, CacheEntry> {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_PREFIX + namespace);
-    if (!raw) return new Map();
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return new Map(
-        Object.entries(parsed as Record<string, unknown>)
-          .flatMap(([key, entry]) => {
-            const normalized = normalizePersistedEntry(entry);
-            return normalized ? [[key, normalized] as const] : [];
-          }),
-      );
-    }
-    return new Map();
-  } catch {
-    return new Map();
-  }
-}
-
-function normalizePersistedEntry(entry: unknown): CacheEntry | undefined {
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
-  if (!("value" in entry)) return undefined;
-  const value = (entry as { value: unknown }).value;
-  const context = (entry as { context?: unknown }).context;
-  if (hasBooksArray(value) && !isBookList(value)) return undefined;
-  return {
-    value,
-    context: isBookListContext(context) ? context : undefined,
-  };
 }
