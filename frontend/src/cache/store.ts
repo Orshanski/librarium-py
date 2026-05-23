@@ -16,6 +16,7 @@ import {
 } from "./projection/book-list";
 import type { BookListRow, BookListValue } from "./projection/book-list";
 import { isBookListContext } from "./projection/book-list-context";
+import { isRecord } from "./projection/guards";
 import { patchArrayRowListValue, patchNestedRefsValue, patchObjectRowListValue } from "./projection/namespace-rows";
 import { patchNamedRefs } from "./projection/refs";
 import { sortByName, sortBySortName } from "./projection/sorts";
@@ -181,33 +182,12 @@ export class MetadataCacheStore {
       { name: payload.name, ...sortNamePatchValue },
     );
 
-    this.hydratePersistedNamespaces();
-    const namespace = `author/${payload.authorId}`;
-    const ns = this.namespaces.get(namespace);
-    if (!ns) return;
-    let changed = false;
-    // invariant: namespace ⇒ entity-id binding
-    // namespace author/{id} гарантирует принадлежность записи именно этому автору —
-    // проверка author.id === payload.authorId избыточна (та же гарантия, что в applyShelfRename).
-    for (const [key, entry] of ns.entries) {
-      const value = entry.value as { author?: { name?: unknown; sortName?: unknown } } & Record<string, unknown>;
+    this.patchDetailNamespace(`author/${payload.authorId}`, (value) => {
       const author = value.author;
-      if (author) {
-        ns.entries.set(key, {
-          ...entry,
-          value: {
-            ...value,
-            author: { ...author, name: payload.name, ...sortNamePatchValue },
-          },
-        });
-        changed = true;
-      }
-    }
-    if (changed) {
-      ns.version += 1;
-      this.persist(namespace);
-      this.notify(namespace);
-    }
+      return isRecord(author)
+        ? { ...value, author: { ...author, name: payload.name, ...sortNamePatchValue } }
+        : undefined;
+    });
   }
 
   applySeriesRename(payload: DomainEventMap["seriesRenamed"]): void {
@@ -266,33 +246,12 @@ export class MetadataCacheStore {
       (rows) => rows.every(isValidNameRow),
     );
 
-    this.hydratePersistedNamespaces();
-    const namespace = `series/${payload.seriesId}`;
-    const ns = this.namespaces.get(namespace);
-    if (!ns) return;
-    let changed = false;
-    // invariant: namespace ⇒ entity-id binding
-    // namespace series/{id} гарантирует принадлежность записи именно этой серии —
-    // проверка series.id === payload.seriesId избыточна (тот же приём, что в applyAuthorRename).
-    for (const [key, entry] of ns.entries) {
-      const value = entry.value as { series?: { name?: unknown; sortName?: unknown } } & Record<string, unknown>;
+    this.patchDetailNamespace(`series/${payload.seriesId}`, (value) => {
       const series = value.series;
-      if (series) {
-        ns.entries.set(key, {
-          ...entry,
-          value: {
-            ...value,
-            series: { ...series, name: payload.name, ...sortNamePatchValue },
-          },
-        });
-        changed = true;
-      }
-    }
-    if (changed) {
-      ns.version += 1;
-      this.persist(namespace);
-      this.notify(namespace);
-    }
+      return isRecord(series)
+        ? { ...value, series: { ...series, name: payload.name, ...sortNamePatchValue } }
+        : undefined;
+    });
   }
 
   applyTagRename(payload: DomainEventMap["tagRenamed"]): void {
@@ -357,33 +316,10 @@ export class MetadataCacheStore {
       { name: payload.name },
     );
 
-    this.hydratePersistedNamespaces();
-    const namespace = `tag/${payload.tagId}`;
-    const ns = this.namespaces.get(namespace);
-    if (!ns) return;
-    let changed = false;
-    // invariant: namespace ⇒ entity-id binding
-    // namespace tag/{id} гарантирует принадлежность записи именно этому тегу —
-    // проверка tag.id === payload.tagId избыточна (тот же приём, что в applySeriesRename).
-    for (const [key, entry] of ns.entries) {
-      const value = entry.value as { tag?: { name?: unknown } } & Record<string, unknown>;
+    this.patchDetailNamespace(`tag/${payload.tagId}`, (value) => {
       const tag = value.tag;
-      if (tag) {
-        ns.entries.set(key, {
-          ...entry,
-          value: {
-            ...value,
-            tag: { ...tag, name: payload.name },
-          },
-        });
-        changed = true;
-      }
-    }
-    if (changed) {
-      ns.version += 1;
-      this.persist(namespace);
-      this.notify(namespace);
-    }
+      return isRecord(tag) ? { ...value, tag: { ...tag, name: payload.name } } : undefined;
+    });
   }
 
   applyShelfMembershipChange(payload: DomainEventMap["shelfMembershipChanged"]): void {
@@ -440,27 +376,10 @@ export class MetadataCacheStore {
 
   applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
     const { shelfId, name } = payload;
-    this.hydratePersistedNamespaces();
-    const namespace = `shelf/${shelfId}`;
-    const ns = this.namespaces.get(namespace);
-    if (!ns) return;
-    let changed = false;
-    // invariant: namespace ⇒ entity-id binding
-    // Запись находится в namespace shelf/{shelfId} — namespace гарантирует принадлежность
-    // именно этой полке, дополнительная проверка shelf.id не нужна.
-    for (const [key, entry] of ns.entries) {
-      const value = entry.value as { shelf?: { name?: unknown } } & Record<string, unknown>;
+    this.patchDetailNamespace(`shelf/${shelfId}`, (value) => {
       const shelf = value.shelf;
-      if (shelf) {
-        ns.entries.set(key, { ...entry, value: { ...value, shelf: { ...shelf, name } } });
-        changed = true;
-      }
-    }
-    if (changed) {
-      ns.version += 1;
-      this.persist(namespace);
-      this.notify(namespace);
-    }
+      return isRecord(shelf) ? { ...value, shelf: { ...shelf, name } } : undefined;
+    });
   }
 
   invalidateBookLists(): void {
@@ -565,6 +484,17 @@ export class MetadataCacheStore {
       this.persist(namespace);
       this.notify(namespace);
     }
+  }
+
+  private patchDetailNamespace(
+    namespace: string,
+    updater: (value: Record<string, unknown>) => Record<string, unknown> | undefined,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry) => {
+      if (!isRecord(entry.value)) return undefined;
+      const value = updater(entry.value);
+      return value === undefined ? undefined : { ...entry, value };
+    });
   }
 
   private patchRowListNamespace<T extends { id: number } & Record<string, unknown>>(
