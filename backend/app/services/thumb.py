@@ -11,8 +11,8 @@ log = logging.getLogger("librarium.services.thumb")
 def invalidate(book_id: int) -> None:
     """Delete cached thumbnail for a book."""
     try:
-        thumb = storage_paths.thumb_file(book_id)
+        thumb = os.path.normpath(os.path.realpath(os.fspath(storage_paths.thumb_file(book_id))))
         if os.path.exists(thumb):
             os.remove(thumb)
     except (BadInputError, OSError) as e:
-        log.warning("Failed to invalidate thumbnail for book=%d: %s", book_id, safe_log(e))
+        log.warning("Failed to invalidate thumbnail for book=%d: %s", int(book_id), safe_log(e))

@@ -6,6 +6,7 @@ cleanup_temp_session. Плюс lazy orphan-GC `cleanup_old_uploads`, котор�
 зовут upload-пути в начале своей работы (self-healing без scheduler/cron).
 """
 import logging
+import os
 import time
 from contextlib import suppress
 
@@ -28,7 +29,8 @@ def find_temp_file(temp_id: str) -> str | None:
             path = storage_paths.upload_book_file(temp_id, ext)
         except BadInputError:
             continue
-        if path.is_file():
+        safe_path = os.path.normpath(os.path.realpath(os.fspath(path)))
+        if os.path.isfile(safe_path):
             return path.name
     return None
 
@@ -41,7 +43,11 @@ def find_temp_covers(temp_id: str) -> list[str]:
             paths.append(storage_paths.upload_cover_file(temp_id, ext))
         except BadInputError:
             continue
-    return [path.name for path in paths if path.is_file()]
+    return [
+        path.name
+        for path in paths
+        if os.path.isfile(os.path.normpath(os.path.realpath(os.fspath(path))))
+    ]
 
 
 def cleanup_temp_session(temp_id: str) -> None:
@@ -58,7 +64,7 @@ def cleanup_temp_session(temp_id: str) -> None:
         return
     for path in paths:
         with suppress(FileNotFoundError):
-            path.unlink()
+            os.unlink(os.path.normpath(os.path.realpath(os.fspath(path))))
 
 
 def cleanup_old_uploads() -> int:
@@ -76,9 +82,10 @@ def cleanup_old_uploads() -> int:
     removed = 0
     for path in storage_paths.upload_policy_files():
         try:
-            if path.stat().st_mtime < cutoff:
+            safe_path = os.path.normpath(os.path.realpath(os.fspath(path)))
+            if os.stat(safe_path).st_mtime < cutoff:
                 with suppress(FileNotFoundError):
-                    path.unlink()
+                    os.unlink(safe_path)
                     removed += 1
         except OSError:
             # stat мог упасть если файл снесли параллельно — нестрашно.

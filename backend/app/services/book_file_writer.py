@@ -31,10 +31,10 @@ def book_dir_and_dst(book_id: int, ext: str) -> tuple[str, str]:
 
     Возвращает `(book_dir, dst)`. Каталог может существовать — `exist_ok=True`.
     """
-    book_dir = storage_paths.library_book_dir(book_id)
-    dst = storage_paths.library_book_file(book_id, ext)
-    book_dir.mkdir(parents=True, exist_ok=True)
-    return str(book_dir), str(dst)
+    book_dir = os.path.normpath(os.path.realpath(os.fspath(storage_paths.library_book_dir(book_id))))
+    dst = os.path.normpath(os.path.realpath(os.fspath(storage_paths.library_book_file(book_id, ext))))
+    os.makedirs(book_dir, exist_ok=True)
+    return book_dir, dst
 
 
 def prepare_book_format_path(
@@ -68,8 +68,9 @@ def register_and_linearize(
     Без FS rollback: caller управляет откатом через fs_utils.move_with_rollback
     или write_with_rollback — при DAL-failure rollback сработает автоматически.
     """
+    safe_dst = os.path.normpath(os.path.realpath(dst))
     if ext == "pdf":
-        linearize_pdf_in_place(dst)
-    file_size = os.path.getsize(dst)
+        linearize_pdf_in_place(safe_dst)
+    file_size = os.path.getsize(safe_dst)
     dal.add_book_file(db, book_id, ext.upper(), db_path_for(book_id, f"book.{ext}"), file_size)
     return file_size

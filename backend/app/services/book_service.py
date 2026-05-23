@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import os
 import shutil
 import sqlite3
 from pathlib import Path
@@ -46,6 +47,10 @@ _USER_SCOPED_BOOK_EVENT_FIELDS = {
     "is_hidden",
     "hidden",
 }
+
+
+def _fs_path(path: str | os.PathLike[str]) -> str:
+    return os.path.normpath(os.path.realpath(os.fspath(path)))
 
 
 def _library_event_book_payload(response: UpdateBookResponse) -> dict[str, object]:
@@ -121,8 +126,8 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     if not dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
 
-    book_dir = storage_paths.library_book_dir_for_delete(book_id)
-    if book_dir.is_dir():
+    book_dir = _fs_path(storage_paths.library_book_dir_for_delete(book_id))
+    if os.path.isdir(book_dir):
         shutil.rmtree(book_dir)
 
     dal.delete_book(db, book_id)
@@ -172,7 +177,7 @@ def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, st
             raise BadInputError(f"Temp file not found: {tid}")
         ext = basename.rsplit(".", 1)[-1].lower()
         fmt = ext.upper()
-        src_path = str(storage_paths.upload_book_file(tid, ext))
+        src_path = _fs_path(storage_paths.upload_book_file(tid, ext))
         resolved.append((tid, src_path, fmt, ext))
     added_fmts = [r[2] for r in resolved]
     if len(set(added_fmts)) != len(added_fmts):
@@ -223,12 +228,12 @@ def _apply_delete_formats(
     """
     backed_up: list[tuple[str, str]] = []
     for fmt_code, row in resolved_deletes:
-        file_path = storage_paths.library_book_file(book_id, fmt_code)
+        file_path = _fs_path(storage_paths.library_book_file(book_id, fmt_code))
         backup_pair: tuple[str, str] | None = None
-        if file_path.is_file():
-            bak_path = storage_paths.library_backup_file(file_path)
-            file_path.rename(bak_path)
-            backup_pair = (str(file_path), str(bak_path))
+        if os.path.isfile(file_path):
+            bak_path = _fs_path(storage_paths.library_backup_file(file_path))
+            os.rename(file_path, bak_path)
+            backup_pair = (file_path, bak_path)
             backed_up.append(backup_pair)
         try:
             dal.delete_book_file(db, row["id"])
@@ -236,21 +241,25 @@ def _apply_delete_formats(
             if backup_pair is not None:
                 safe_orig_path, safe_bak_path = _policy_backup_pair(*backup_pair)
                 with contextlib.suppress(FileNotFoundError):
-                    safe_bak_path.rename(safe_orig_path)
+                    os.rename(safe_bak_path, safe_orig_path)
                 backed_up.remove(backup_pair)
             raise
     return backed_up
 
 
-def _policy_library_file(path: str) -> Path:
-    return storage_paths.library_backup_file(path).with_suffix("")
+def _policy_library_file(path: str) -> str:
+    managed_path = storage_paths.library_backup_file(path).with_suffix("")
+    return _fs_path(managed_path)
 
 
-def _policy_backup_pair(orig_path: str, bak_path: str) -> tuple[Path, Path]:
+def _policy_backup_pair(orig_path: str, bak_path: str) -> tuple[str, str]:
     expected_bak_path = storage_paths.library_backup_file(orig_path)
-    if Path(bak_path).resolve() != expected_bak_path.resolve():
+    actual_bak_path = _fs_path(bak_path)
+    safe_expected_bak_path = _fs_path(expected_bak_path)
+    if actual_bak_path != safe_expected_bak_path:
         raise BadInputError("Backup path does not match managed library file")
-    return expected_bak_path.with_suffix(""), expected_bak_path
+    safe_orig_path = _fs_path(Path(safe_expected_bak_path).with_suffix(""))
+    return safe_orig_path, safe_expected_bak_path
 
 
 def _apply_add_formats(
@@ -266,17 +275,19 @@ def _apply_add_formats(
         for (_, src, fmt, ext) in resolved_adds:
             dst = prepare_book_format_path(db, book_id, fmt, ext)
             copied_dsts.append(dst)
-            shutil.copyfile(src, dst)
-            register_and_linearize(db, book_id, dst, ext)
+            safe_src = _fs_path(src)
+            safe_dst = _fs_path(dst)
+            shutil.copyfile(safe_src, safe_dst)
+            register_and_linearize(db, book_id, safe_dst, ext)
     except Exception:
         for d in copied_dsts:
             safe_dst = _policy_library_file(d)
             with contextlib.suppress(FileNotFoundError):
-                safe_dst.unlink()
+                os.unlink(safe_dst)
         for orig_path, bak_path in backed_up_paths:
             safe_orig_path, safe_bak_path = _policy_backup_pair(orig_path, bak_path)
             with contextlib.suppress(FileNotFoundError):
-                safe_bak_path.rename(safe_orig_path)
+                os.rename(safe_bak_path, safe_orig_path)
         raise
 
 
@@ -365,7 +376,7 @@ def update_book(
     for orig_path, bak_path in backed_up_paths:
         _, safe_bak_path = _policy_backup_pair(orig_path, bak_path)
         with contextlib.suppress(FileNotFoundError):
-            safe_bak_path.unlink()
+            os.unlink(safe_bak_path)
 
     # Шаг 6: cleanup temp-буфера после успеха.
     for (tid, _, _, _) in resolved_adds:

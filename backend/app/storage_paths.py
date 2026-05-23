@@ -25,25 +25,33 @@ _THUMBS_DIR = DATA_DIR / "thumbs"
 _FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
 
-def _root(path: Path) -> Path:
-    return path.resolve()
+def _library_root() -> Path:
+    return Path(os.path.realpath(str(LIBRARY_DIR)))
 
 
-def _resolve_under(root: Path, *parts: str) -> Path:
-    root_resolved = _root(root)
-    candidate = root_resolved.joinpath(*parts).resolve()
+def _uploads_root() -> Path:
+    return Path(os.path.realpath(str(UPLOADS_DIR)))
+
+
+def _thumbs_root() -> Path:
+    return Path(os.path.realpath(str(_THUMBS_DIR)))
+
+
+def _frontend_root() -> Path:
+    return Path(os.path.realpath(str(_FRONTEND_DIST)))
+
+
+def _filename_segment(filename: str) -> str:
+    basename = os.path.basename(filename)
+    if basename != filename or basename in {"", ".", ".."}:
+        raise BadInputError("Invalid managed storage filename")
+    return basename
+
+
+def _checked_file(root: Path, *segments: str) -> Path:
+    candidate = root.joinpath(*(_filename_segment(segment) for segment in segments))
     try:
-        candidate.relative_to(root_resolved)
-    except ValueError as exc:
-        raise BadInputError("Path escapes managed storage root") from exc
-    return candidate
-
-
-def _managed_file_under(root: Path, filename: str) -> Path:
-    root_resolved = _root(root)
-    candidate = root_resolved / filename
-    try:
-        candidate.parent.resolve().relative_to(root_resolved)
+        candidate.parent.resolve().relative_to(root)
     except ValueError as exc:
         raise BadInputError("Path escapes managed storage root") from exc
     if candidate.is_symlink():
@@ -51,18 +59,36 @@ def _managed_file_under(root: Path, filename: str) -> Path:
     return candidate
 
 
+def _checked_dir(root: Path, segment: str) -> Path:
+    candidate = root / _filename_segment(segment)
+    if candidate.is_symlink():
+        raise BadInputError("Managed storage directory must not be a symlink")
+    return candidate
+
+
+def _checked_frontend_path(*parts: str) -> Path:
+    root = _frontend_root()
+    candidate = Path(os.path.normpath(os.path.realpath(os.path.join(str(root), *parts))))
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise BadInputError("Path escapes frontend dist root") from exc
+    return candidate
+
+
 def _book_id_segment(book_id: int) -> str:
     if isinstance(book_id, bool) or not isinstance(book_id, int) or book_id < 1:
         raise BadInputError("Invalid book id")
-    return str(book_id)
+    return os.path.basename(str(int(book_id)))
 
 
 def _ext(ext: str, allowed: set[str]) -> str:
     if not isinstance(ext, str):
         raise BadInputError("Invalid extension")
-    normalized = ext.lower()
-    allowed_normalized = {item.lower() for item in allowed}
-    if normalized not in allowed_normalized:
+    normalized = os.path.basename(ext.lower())
+    if normalized != ext.lower():
+        raise BadInputError("Invalid extension")
+    if normalized not in {item.lower() for item in allowed}:
         raise BadInputError(f"Unsupported file extension: {ext or '(empty)'}")
     return normalized
 
@@ -70,16 +96,12 @@ def _ext(ext: str, allowed: set[str]) -> str:
 def _temp_id_segment(temp_id: str) -> str:
     if not isinstance(temp_id, str) or not _TEMP_ID_RE.fullmatch(temp_id):
         raise BadInputError("Invalid temporary id")
-    return temp_id
+    return os.path.basename(temp_id)
 
 
 def _library_book_dir_lexical(book_id: int) -> Path:
     book_segment = _book_id_segment(book_id)
-    library_root = _root(LIBRARY_DIR)
-    candidate = library_root / book_segment
-    if candidate.is_symlink():
-        raise BadInputError("Library book directory must not be a symlink")
-    return candidate
+    return _checked_dir(_library_root(), book_segment)
 
 
 def library_book_dir(book_id: int) -> Path:
@@ -91,13 +113,19 @@ def library_book_dir_for_delete(book_id: int) -> Path:
 
 
 def library_book_file(book_id: int, ext: str) -> Path:
-    book_dir = _library_book_dir_lexical(book_id)
-    return _managed_file_under(book_dir, f"book.{_ext(ext, BOOK_EXTS)}")
+    return _library_file(book_id, "book", ext, BOOK_EXTS)
 
 
 def library_cover_file(book_id: int, ext: str) -> Path:
-    book_dir = _library_book_dir_lexical(book_id)
-    return _managed_file_under(book_dir, f"cover.{_ext(ext, COVER_EXTS)}")
+    return _library_file(book_id, "cover", ext, COVER_EXTS)
+
+
+def _library_file(book_id: int, stem: str, ext: str, allowed_exts: set[str]) -> Path:
+    library_root = _library_root()
+    book_segment = _book_id_segment(book_id)
+    _checked_dir(library_root, book_segment)
+    filename = _filename_segment(f"{_filename_segment(stem)}.{_ext(ext, allowed_exts)}")
+    return _checked_file(library_root, book_segment, filename)
 
 
 def library_cover_candidates(book_id: int) -> list[Path]:
@@ -116,8 +144,8 @@ def current_library_cover(book_id: int) -> Path | None:
 
 
 def library_backup_file(path: str | Path) -> Path:
-    library_root = _root(LIBRARY_DIR)
-    resolved = Path(path).resolve()
+    library_root = _library_root()
+    resolved = Path(os.path.normpath(os.path.realpath(os.fspath(path))))
     try:
         relative = resolved.relative_to(library_root)
     except ValueError as exc:
@@ -126,13 +154,15 @@ def library_backup_file(path: str | Path) -> Path:
     if len(relative.parts) != 2:
         raise BadInputError("Backup source must be a managed library file")
 
-    book_segment, filename = relative.parts
+    raw_book_segment, raw_filename = relative.parts
     try:
-        if _book_id_segment(int(book_segment)) != book_segment:
+        book_segment = _book_id_segment(int(raw_book_segment))
+        if book_segment != raw_book_segment:
             raise BadInputError("Invalid book id")
     except ValueError as exc:
         raise BadInputError("Invalid book id") from exc
 
+    filename = _filename_segment(raw_filename)
     stem, dot, ext = filename.rpartition(".")
     if dot != ".":
         raise BadInputError("Backup source must be a managed library file")
@@ -143,21 +173,21 @@ def library_backup_file(path: str | Path) -> Path:
     else:
         raise BadInputError("Backup source must be a managed library file")
 
-    return _resolve_under(LIBRARY_DIR, book_segment, f"{filename}.bak")
+    return _checked_file(library_root, book_segment, f"{filename}.bak")
 
 
 def upload_book_file(temp_id: str, ext: str) -> Path:
     filename = f"{_temp_id_segment(temp_id)}.{_ext(ext, BOOK_EXTS)}"
-    return _managed_file_under(UPLOADS_DIR, filename)
+    return _checked_file(_uploads_root(), filename)
 
 
 def upload_cover_file(temp_id: str, ext: str) -> Path:
     filename = f"{_temp_id_segment(temp_id)}-cover.{_ext(ext, COVER_EXTS)}"
-    return _managed_file_under(UPLOADS_DIR, filename)
+    return _checked_file(_uploads_root(), filename)
 
 
 def upload_zip_file(temp_id: str) -> Path:
-    return _managed_file_under(UPLOADS_DIR, f"{_temp_id_segment(temp_id)}.zip")
+    return _checked_file(_uploads_root(), f"{_temp_id_segment(temp_id)}.zip")
 
 
 def upload_file_from_basename(name: str) -> Path | None:
@@ -200,7 +230,7 @@ def upload_session_files(temp_id: str) -> list[Path]:
 
 
 def upload_policy_files() -> list[Path]:
-    upload_root = _root(UPLOADS_DIR)
+    upload_root = _uploads_root()
     paths: list[Path] = []
     try:
         with os.scandir(str(upload_root)) as entries:
@@ -229,7 +259,7 @@ def upload_cover_candidates(temp_id: int | str) -> list[Path]:
 
 
 def thumb_file(book_id: int) -> Path:
-    return _managed_file_under(_THUMBS_DIR, f"{_book_id_segment(book_id)}.jpg")
+    return _checked_file(_thumbs_root(), f"{_book_id_segment(book_id)}.jpg")
 
 
 def _library_path_from_db(
@@ -263,8 +293,10 @@ def _library_path_from_db(
     if dot != "." or (expected_stem is not None and stem != expected_stem):
         raise BadInputError("Invalid managed database path")
 
+    library_root = _library_root()
     _ext(ext, allowed_exts)
-    return _resolve_under(LIBRARY_DIR, book_segment, filename)
+    _checked_dir(library_root, book_segment)
+    return _checked_file(library_root, book_segment, filename)
 
 
 def library_file_from_db_path(book_id: int, db_path: str, allowed_exts: set[str]) -> Path:
@@ -276,20 +308,20 @@ def cover_from_db_path(book_id: int, db_path: str) -> Path:
 
 
 def frontend_dist_exists() -> bool:
-    return _FRONTEND_DIST.exists()
+    return _frontend_root().exists()
 
 
 def frontend_assets_dir() -> Path:
-    return _resolve_under(_FRONTEND_DIST, "assets")
+    return _checked_frontend_path("assets")
 
 
 def frontend_index_file() -> Path:
-    return _resolve_under(_FRONTEND_DIST, "index.html")
+    return _checked_frontend_path("index.html")
 
 
 def frontend_static_file(path: str) -> Path | None:
     try:
-        candidate = _resolve_under(_FRONTEND_DIST, path)
+        candidate = _checked_frontend_path(path)
     except BadInputError:
         return None
     if candidate.is_file():
