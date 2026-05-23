@@ -155,6 +155,33 @@ describe("BookReadDownloadButtons", () => {
     expect(revokeUrlSpy).toHaveBeenCalledWith("blob:book-fb2");
   });
 
+  it("sanitizes unsafe download filenames without regex backtracking", async () => {
+    vi.spyOn(booksApi, "downloadBook")
+      .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
+    let clickedDownload = "";
+    vi.spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function captureDownloadName(this: HTMLAnchorElement) {
+        clickedDownload = this.download;
+      });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:book-fb2");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    render(
+      withRouter(
+        <BookReadDownloadButtons
+          bookId={7}
+          bookTitle={'  Bad<>:"/\\|?* name...   '}
+          formats={[{ format: "FB2", size: "850 KB" }]}
+          readableFormats={[]}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Скачать FB2/ }));
+
+    await waitFor(() => expect(clickedDownload).toBe("Bad name.fb2"));
+  });
+
   it("shares FB2 files when the browser supports file sharing", async () => {
     const downloadSpy = vi
       .spyOn(booksApi, "downloadBook")

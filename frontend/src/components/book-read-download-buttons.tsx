@@ -20,11 +20,15 @@ function isReadable(format: string, readableFormats: ReadonlyArray<string>): boo
 }
 
 function sanitizeFilenameBase(value: string): string {
-  return value
+  const sanitized = value
     .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[. ]+$/g, "") || "book";
+    .trim();
+  let end = sanitized.length;
+  while (end > 0 && (sanitized[end - 1] === "." || sanitized[end - 1] === " ")) {
+    end -= 1;
+  }
+  return sanitized.slice(0, end) || "book";
 }
 
 function buildDownloadFilename(title: string, format: string): string {

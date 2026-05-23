@@ -144,6 +144,13 @@ export class MetadataCacheStore {
       (rows) => rows.every(isValidSortNameRow),
     );
 
+    this.patchArrayNamespace<{ id: number; name: string }>(
+      "filter-options/authors",
+      payload.authorId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
     this.patchRowListNamespace<{ id: number; name: string }>(
       "filter-options/authors",
       "authors",
@@ -230,6 +237,13 @@ export class MetadataCacheStore {
       (rows) => rows.every(isValidSortNameRow),
     );
 
+    this.patchArrayNamespace<{ id: number; name: string }>(
+      "filter-options/series",
+      payload.seriesId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
     this.patchRowListNamespace<{ id: number; name: string }>(
       "filter-options/series",
       "series",
@@ -306,6 +320,13 @@ export class MetadataCacheStore {
       (rows) => rows.every(isValidNameRow),
     );
 
+    this.patchArrayNamespace<{ id: number; name: string }>(
+      "filter-options/tags",
+      payload.tagId,
+      { name: payload.name },
+      sortByName,
+      (rows) => rows.every(isValidNameRow),
+    );
     this.patchRowListNamespace<{ id: number; name: string }>(
       "filter-options/tags",
       "tags",
@@ -553,6 +574,26 @@ export class MetadataCacheStore {
         ? result.rows
         : sorter(result.rows, key);
       return { ...entry, value: { ...value, [field]: nextRows } };
+    });
+  }
+
+  private patchArrayNamespace<T extends { id: number } & Record<string, unknown>>(
+    namespace: string,
+    id: number,
+    patch: Partial<T>,
+    sorter: (rows: T[], key: string) => T[],
+    canSortRows?: (rows: readonly T[]) => boolean,
+  ): void {
+    this.updateNamespaceEntries(namespace, (entry, key) => {
+      if (!Array.isArray(entry.value)) return undefined;
+      const rows = entry.value;
+      const result = mergeRowById(rows as T[], id, patch);
+      if (!result.changed) return undefined;
+      const rowsAreMalformed = rows.some((row) => !isRecord(row) || typeof (row as { id?: unknown }).id !== "number");
+      const nextRows = rowsAreMalformed || canSortRows === undefined || !canSortRows(result.rows)
+        ? result.rows
+        : sorter(result.rows, key);
+      return { ...entry, value: nextRows };
     });
   }
 

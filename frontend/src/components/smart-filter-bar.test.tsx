@@ -68,7 +68,7 @@ describe("SmartFilterBar", () => {
     expect(await screen.findByText("Author One")).toBeInTheDocument();
   });
 
-  it("refetches mounted options after author cache invalidation", async () => {
+  it("patches mounted options after author rename", async () => {
     const user = userEvent.setup();
     let call = 0;
     server.use(
@@ -95,8 +95,9 @@ describe("SmartFilterBar", () => {
 
     domainEvents.publish("authorRenamed", { authorId: 1, name: "New Author" });
 
-    await waitFor(() => expect(call).toBe(2));
+    await waitFor(() => expect(screen.queryByText("Old Author")).not.toBeInTheDocument());
     await screen.findByText("New Author");
+    expect(call).toBe(1);
   });
 
   it("renders filter options from API", async () => {
