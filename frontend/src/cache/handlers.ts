@@ -21,27 +21,23 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
         store.invalidate(`book/${payload.book.id}`);
       }
       if (payload.changedFields.includes("publisher")) {
-        store.invalidate("publishers");
+        invalidatePublisherOptionsAfterPublisherChange(store);
       }
       if (payload.changedFields.some((field) => ["authors", "series", "tags", "language"].includes(field))) {
-        invalidateFilterOptions(store);
-        invalidateAggregateEntityReadModels(store);
+        invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
       }
     }),
     bus.subscribe("bookCreated", () => {
       store.invalidateBookLists();
-      invalidateAggregateEntityReadModels(store);
-      invalidateFilterOptions(store);
-      store.invalidate("publishers");
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
+      invalidatePublisherOptionsAfterPublisherChange(store);
     }),
     bus.subscribe("bookDeleted", (payload) => {
       store.invalidateBookLists();
-      invalidateAggregateEntityReadModels(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
       store.invalidate(`book/${payload.bookId}`);
-      invalidateFilterOptions(store);
-      store.invalidate("publishers");
-      store.invalidate("shelves");
-      store.invalidate(`book-shelves/${payload.bookId}`);
+      invalidatePublisherOptionsAfterPublisherChange(store);
+      invalidateShelfMembershipViewsAfterBookDelete(store, payload.bookId);
     }),
     bus.subscribe("shelfMembershipChanged", (payload) => {
       store.applyShelfMembershipChange(payload);
@@ -52,59 +48,49 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.applyAuthorRename(payload);
     }),
     bus.subscribe("authorMerged", (payload) => {
-      store.invalidate("authors");
       store.invalidate(`author/${payload.targetId}`);
       store.invalidate(`author/${payload.sourceId}`);
-      store.invalidate("series");
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("authorDeleted", (payload) => {
-      store.invalidate("authors");
       store.invalidate(`author/${payload.authorId}`);
-      store.invalidate("series");
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("seriesRenamed", (payload) => {
       store.applySeriesRename(payload);
     }),
     bus.subscribe("seriesMerged", (payload) => {
-      store.invalidate("series");
       store.invalidate(`series/${payload.targetId}`);
       store.invalidate(`series/${payload.sourceId}`);
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("seriesDeleted", (payload) => {
-      store.invalidate("series");
       store.invalidate(`series/${payload.seriesId}`);
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("tagRenamed", (payload) => {
       store.applyTagRename(payload);
     }),
     bus.subscribe("tagMerged", (payload) => {
-      store.invalidate("tags");
-      store.invalidate("authors");
       store.invalidate(`tag/${payload.targetId}`);
       store.invalidate(`tag/${payload.sourceId}`);
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("tagDeleted", (payload) => {
-      store.invalidate("tags");
-      store.invalidate("authors");
       store.invalidate(`tag/${payload.tagId}`);
-      invalidateBookDetails(store);
+      invalidateBookDetailsAfterStructuralEntityChange(store);
       store.invalidateBookLists();
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
     }),
     bus.subscribe("shelfCreated", () => {
       store.invalidate("shelves");
@@ -134,10 +120,8 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       patchCachedBookDetail(store, payload.bookId, { isRead: payload.isRead });
     }),
     bus.subscribe("bookHiddenChanged", (payload) => {
-      store.invalidateBookLists();
       store.invalidate(`book/${payload.bookId}`);
-      invalidateAggregateEntityReadModels(store);
-      invalidateFilterOptions(store);
+      invalidateUserFilteredMetadataViewsAfterHiddenChange(store);
     }),
     bus.subscribe("readingProgressChanged", () => {
       store.invalidateNamespacePrefix("shelf/");
@@ -151,20 +135,31 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
   };
 }
 
-function invalidateFilterOptions(store: MetadataCacheStore): void {
+function invalidateUserFilteredMetadataViewsAfterBookStructureChange(store: MetadataCacheStore): void {
+  store.invalidate("authors");
+  store.invalidate("series");
+  store.invalidate("tags");
   for (const namespace of FILTER_OPTION_NAMESPACES) {
     store.invalidate(namespace);
   }
 }
 
-function invalidateAggregateEntityReadModels(store: MetadataCacheStore): void {
-  store.invalidate("authors");
-  store.invalidate("series");
-  store.invalidate("tags");
+function invalidateBookDetailsAfterStructuralEntityChange(store: MetadataCacheStore): void {
+  store.invalidateNamespacePrefix("book/");
 }
 
-function invalidateBookDetails(store: MetadataCacheStore): void {
-  store.invalidateNamespacePrefix("book/");
+function invalidatePublisherOptionsAfterPublisherChange(store: MetadataCacheStore): void {
+  store.invalidate("publishers");
+}
+
+function invalidateUserFilteredMetadataViewsAfterHiddenChange(store: MetadataCacheStore): void {
+  store.invalidateBookLists();
+  invalidateUserFilteredMetadataViewsAfterBookStructureChange(store);
+}
+
+function invalidateShelfMembershipViewsAfterBookDelete(store: MetadataCacheStore, bookId: number): void {
+  store.invalidate("shelves");
+  store.invalidate(`book-shelves/${bookId}`);
 }
 
 function patchCachedBookDetail(

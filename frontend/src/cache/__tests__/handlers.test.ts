@@ -125,7 +125,9 @@ describe("metadata cache handlers", () => {
   });
 
   it("invalidates books on create and delete", () => {
+    const invalidateSpy = vi.spyOn(store, "invalidate");
     store.set("books", "catalog-added", { books: [{ id: 1 }], hasMore: false });
+    store.set("shelves", "all", { shelves: [{ id: 1, bookCount: 1 }] });
     store.set("series", "/series", { series: [{ id: 1, bookCount: 1 }] });
     store.set("tags", "cloud?top=30", { tags: [{ id: 1, bookCount: 1 }] });
     domainEvents.publish("bookCreated", { bookId: 2 });
@@ -148,6 +150,8 @@ describe("metadata cache handlers", () => {
     expect(store.get("author/1", "detail")).toBeUndefined();
     expect(store.get("book/1", "detail")).toBeUndefined();
     expect(store.get("book-shelves/1", "all")).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith("shelves");
+    expect(invalidateSpy).toHaveBeenCalledWith("book-shelves/1");
   });
 
   it("invalidates aggregate entity read models after membership-changing book updates", () => {
@@ -437,7 +441,9 @@ describe("metadata cache handlers", () => {
   });
 
   it("invalidates hidden-filtered read models on hidden-state changes", () => {
+    const invalidateSpy = vi.spyOn(store, "invalidate");
     store.set("books", "catalog", { books: [{ id: 7 }], hasMore: false });
+    store.set("book/7", "detail", { book: { id: 7 }, files: [] });
     store.set("authors", "all", { authors: [{ id: 1, bookCount: 1 }] });
     store.set("series", "all", { series: [{ id: 2, bookCount: 1 }] });
     store.set("tags", "cloud?top=30", { tags: [{ id: 3, bookCount: 1 }] });
@@ -456,6 +462,16 @@ describe("metadata cache handlers", () => {
     expect(store.get("filter-options/series", "all")).toBeUndefined();
     expect(store.get("filter-options/tags", "all")).toBeUndefined();
     expect(store.get("filter-options/languages", "all")).toBeUndefined();
+    expect(store.get("book/7", "detail")).toBeUndefined();
+
+    expect(invalidateSpy).toHaveBeenCalledWith("book/7");
+    expect(invalidateSpy).toHaveBeenCalledWith("authors");
+    expect(invalidateSpy).toHaveBeenCalledWith("series");
+    expect(invalidateSpy).toHaveBeenCalledWith("tags");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/authors");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/series");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/tags");
+    expect(invalidateSpy).toHaveBeenCalledWith("filter-options/languages");
   });
 });
 
