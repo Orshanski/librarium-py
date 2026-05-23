@@ -162,6 +162,22 @@ describe("MetadataCacheStore", () => {
     });
   });
 
+  it("does not notify or bump version for no-op book-list rename patches", () => {
+    const store = new MetadataCacheStore();
+    const subscriber = vi.fn();
+    store.set("author/2", "detail", {
+      books: [{ id: 1, title: "Book", authors: [{ id: 7, name: "Old" }] }],
+      hasMore: false,
+    }, { context: { kind: "book-list", key: "author/2", source: "author-detail", authorId: 2, sort: "addedDesc" } });
+    store.subscribe("author/2", subscriber);
+    const before = store.version("author/2");
+
+    store.applyAuthorRename({ authorId: 99, name: "Missing" });
+
+    expect(store.version("author/2")).toBe(before);
+    expect(subscriber).not.toHaveBeenCalled();
+  });
+
   it("preserves existing sortName when rename event omits canonical sortName", () => {
     store.set("tag/1", "detail", {
       books: [{ id: 1, authors: [{ id: 7, name: "Old", sortName: "Old Sort" }], series: { id: 9, name: "Series", sortName: "Series Sort" } }],

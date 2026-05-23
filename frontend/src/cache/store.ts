@@ -361,6 +361,54 @@ export class MetadataCacheStore {
     return created;
   }
 
+  private setEntryIfChanged(ns: Namespace, key: string, next: CacheEntry): boolean {
+    const current = ns.entries.get(key);
+    if (current && Object.is(current.context, next.context) && deepEqual(current.value, next.value)) {
+      return false;
+    }
+    ns.entries.set(key, next);
+    return true;
+  }
+
+  private updateNamespaceEntries(
+    namespace: string,
+    updater: (entry: CacheEntry) => CacheEntry | undefined,
+  ): void {
+    this.hydratePersistedNamespaces();
+    const ns = this.namespaces.get(namespace);
+    if (!ns) return;
+    let changed = false;
+    for (const [key, entry] of ns.entries) {
+      const next = updater(entry);
+      if (next === undefined) continue;
+      changed = this.setEntryIfChanged(ns, key, next) || changed;
+    }
+    if (!changed) return;
+    ns.version += 1;
+    this.persist(namespace);
+    this.notify(namespace);
+  }
+
+  private updateNamespacePrefixEntries(
+    prefix: string,
+    updater: (namespace: string, entry: CacheEntry) => CacheEntry | undefined,
+  ): void {
+    this.hydratePersistedNamespaces();
+    for (const [namespace, ns] of this.namespaces) {
+      if (!namespace.startsWith(prefix)) continue;
+      let changed = false;
+      for (const [key, entry] of ns.entries) {
+        const next = updater(namespace, entry);
+        if (next === undefined) continue;
+        changed = this.setEntryIfChanged(ns, key, next) || changed;
+      }
+      if (!changed) continue;
+      ns.version += 1;
+      this.persist(namespace);
+      this.notify(namespace);
+    }
+  }
+
   private updateBookListEntries(
     updater: (entry: CacheEntry & { value: BookListValue }) => { value?: BookListValue; delete?: boolean },
   ): void {
@@ -376,8 +424,8 @@ export class MetadataCacheStore {
           changed = true;
           invalidated = true;
         } else if (result.value) {
-          ns.entries.set(key, { ...entry, value: result.value });
-          changed = true;
+          const nextEntry = { ...entry, value: result.value };
+          changed = this.setEntryIfChanged(ns, key, nextEntry) || changed;
         }
       }
       if (changed) {
@@ -416,6 +464,10 @@ export class MetadataCacheStore {
 
 function subscriberSnapshot(ns: Namespace): Array<() => void> {
   return Array.from(ns.subscribers);
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 type BookListRow = { id: number } & Record<string, unknown>;
