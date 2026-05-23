@@ -306,6 +306,143 @@ describe("MetadataCacheStore", () => {
     expect(other?.series.name).toBe("Untouched");
   });
 
+  it("applyAuthorRename patches cached book detail author refs", () => {
+    const store = new MetadataCacheStore();
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [{ id: 7, name: "Old", sortName: "Old" }],
+        series: null,
+        tags: [],
+      },
+    });
+
+    store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
+
+    expect(store.get<{ book: { authors: unknown[] } }>("book/10", "detail")?.book.authors).toEqual([
+      { id: 7, name: "New", sortName: "New" },
+    ]);
+  });
+
+  it("does not notify or bump version for no-op book detail author rename with malformed refs", () => {
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [null, "bad", { id: "7", name: "Old", sortName: "Old" }, { id: 8, name: "Other" }],
+        series: null,
+        tags: [],
+      },
+    });
+    const subscriber = vi.fn();
+    store.subscribe("book/10", subscriber);
+    const before = store.version("book/10");
+
+    expect(() => {
+      store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
+    }).not.toThrow();
+
+    expect(store.version("book/10")).toBe(before);
+    expect(subscriber).not.toHaveBeenCalled();
+    expect(store.get<{ book: { authors: unknown[] } }>("book/10", "detail")?.book.authors).toEqual([
+      null,
+      "bad",
+      { id: "7", name: "Old", sortName: "Old" },
+      { id: 8, name: "Other" },
+    ]);
+  });
+
+  it("applySeriesRename patches cached book detail series ref", () => {
+    const store = new MetadataCacheStore();
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [],
+        series: { id: 9, name: "Old", sortName: "Old" },
+        tags: [],
+      },
+    });
+
+    store.applySeriesRename({ seriesId: 9, name: "New", sortName: "New" });
+
+    expect(store.get<{ book: { series: unknown } }>("book/10", "detail")?.book.series).toEqual({
+      id: 9,
+      name: "New",
+      sortName: "New",
+    });
+  });
+
+  it("does not notify or bump version for no-op book detail series rename when values are unchanged", () => {
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [],
+        series: { id: 9, name: "Old Series", sortName: "Series Sort" },
+        tags: [],
+      },
+    });
+    const subscriber = vi.fn();
+    store.subscribe("book/10", subscriber);
+    const before = store.version("book/10");
+
+    store.applySeriesRename({ seriesId: 9, name: "Old Series", sortName: "Series Sort" });
+
+    expect(store.version("book/10")).toBe(before);
+    expect(subscriber).not.toHaveBeenCalled();
+    expect(store.get<{ book: { series: { name: string; sortName: string } } }>("book/10", "detail")?.book.series)
+      .toEqual({ id: 9, name: "Old Series", sortName: "Series Sort" });
+  });
+
+  it("applyTagRename patches cached book detail tag refs", () => {
+    const store = new MetadataCacheStore();
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [],
+        series: null,
+        tags: [{ id: 3, name: "Old" }],
+      },
+    });
+
+    store.applyTagRename({ tagId: 3, name: "New" });
+
+    expect(store.get<{ book: { tags: unknown[] } }>("book/10", "detail")?.book.tags).toEqual([
+      { id: 3, name: "New" },
+    ]);
+  });
+
+  it("does not notify or bump version for no-op book detail tag rename with malformed refs", () => {
+    store.set("book/10", "detail", {
+      book: {
+        id: 10,
+        title: "Book",
+        authors: [],
+        series: null,
+        tags: [undefined, "bad", { id: "3", name: "Old Tag" }, { id: 4, name: "Other" }],
+      },
+    });
+    const subscriber = vi.fn();
+    store.subscribe("book/10", subscriber);
+    const before = store.version("book/10");
+
+    expect(() => {
+      store.applyTagRename({ tagId: 3, name: "New" });
+    }).not.toThrow();
+
+    expect(store.version("book/10")).toBe(before);
+    expect(subscriber).not.toHaveBeenCalled();
+    expect(store.get<{ book: { tags: unknown[] } }>("book/10", "detail")?.book.tags).toEqual([
+      undefined,
+      "bad",
+      { id: "3", name: "Old Tag" },
+      { id: 4, name: "Other" },
+    ]);
+  });
+
   it("applySeriesRename патчит persisted namespace, который ещё не материализован в памяти", () => {
     sessionStorage.setItem(
       "librarium_metadata_cache_series/9",

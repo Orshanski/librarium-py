@@ -1,6 +1,8 @@
 import { classifyAuthorRenameForBookList, classifyBookUpdateForBookList, classifySeriesRenameForBookList, classifyTagRenameForBookList } from "@/domain/read-models";
 import type { DomainEventMap } from "@/domain/events";
 import type { BookListContext } from "@/domain/read-models";
+import { patchBookDetailBook } from "./projection/book-detail";
+import { patchNamedRefs } from "./projection/refs";
 
 type CacheEntry = {
   value: unknown;
@@ -113,6 +115,21 @@ export class MetadataCacheStore {
       };
     });
 
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const authors = Array.isArray(book.authors)
+          ? patchNamedRefs(
+            book.authors as Array<{ id: number; name: string; sortName?: string }>,
+            payload.authorId,
+            { name: payload.name, ...sortNamePatch(payload.sortName) },
+          ).refs
+          : book.authors;
+
+        return { ...book, authors };
+      }),
+    }));
+
     this.hydratePersistedNamespaces();
     const namespace = `author/${payload.authorId}`;
     const ns = this.namespaces.get(namespace);
@@ -156,6 +173,21 @@ export class MetadataCacheStore {
       };
     });
 
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const series = hasNumericId(book.series) && book.series.id === payload.seriesId
+          ? {
+            ...book.series,
+            name: payload.name,
+            ...sortNamePatch(payload.sortName),
+          }
+          : book.series;
+
+        return { ...book, series };
+      }),
+    }));
+
     this.hydratePersistedNamespaces();
     const namespace = `series/${payload.seriesId}`;
     const ns = this.namespaces.get(namespace);
@@ -198,6 +230,21 @@ export class MetadataCacheStore {
         },
       };
     });
+
+    this.updateNamespacePrefixEntries("book/", (_namespace, entry) => ({
+      ...entry,
+      value: patchBookDetailBook(entry.value, (book) => {
+        const tags = Array.isArray(book.tags)
+          ? patchNamedRefs(
+            book.tags as Array<{ id: number; name: string }>,
+            payload.tagId,
+            { name: payload.name },
+          ).refs
+          : book.tags;
+
+        return { ...book, tags };
+      }),
+    }));
 
     this.hydratePersistedNamespaces();
     const namespace = `tag/${payload.tagId}`;

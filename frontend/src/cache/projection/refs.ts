@@ -1,3 +1,5 @@
+import { isRecord } from "./guards";
+
 export type NamedRef = { id: number; name: string; sortName?: string } & Record<string, unknown>;
 
 export function patchNamedRefs<T extends NamedRef>(
@@ -9,9 +11,9 @@ export function patchNamedRefs<T extends NamedRef>(
 
   let changed = false;
   const next = refs.map((ref) => {
-    if (ref.id !== id) return ref;
-    const merged = { ...ref, ...patch };
+    if (!isRecord(ref) || typeof ref.id !== "number" || ref.id !== id) return ref as T;
     const refAny = ref as Record<string, unknown>;
+    const merged = { ...ref, ...patch };
     const mergedAny = merged as Record<string, unknown>;
 
     if (
