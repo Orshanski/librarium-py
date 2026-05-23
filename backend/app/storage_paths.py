@@ -275,6 +275,18 @@ def cover_from_db_path(book_id: int, db_path: str) -> Path:
     return _library_path_from_db(book_id, db_path, COVER_EXTS, expected_stem="cover")
 
 
+def frontend_dist_exists() -> bool:
+    return _FRONTEND_DIST.exists()
+
+
+def frontend_assets_dir() -> Path:
+    return _resolve_under(_FRONTEND_DIST, "assets")
+
+
+def frontend_index_file() -> Path:
+    return _resolve_under(_FRONTEND_DIST, "index.html")
+
+
 def frontend_static_file(path: str) -> Path | None:
     try:
         candidate = _resolve_under(_FRONTEND_DIST, path)

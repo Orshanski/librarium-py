@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pathlib import Path
 
+from . import storage_paths
 from .auth import create_token
 from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
 from .error_handlers import register_error_handlers
@@ -113,35 +113,22 @@ app.include_router(similar_router.router)
 app.include_router(reader_router.router)
 app.include_router(events_router.router)
 
-# Static files (Vite build) — added last so API routes take priority
-FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-
-
 @app.get("/api/health")
 def health():
     return {"ok": True}
 
 
 # SPA fallback — must be after all API routes
-if FRONTEND_DIST.exists():
-    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+if storage_paths.frontend_dist_exists():
+    app.mount("/assets", StaticFiles(directory=str(storage_paths.frontend_assets_dir())), name="assets")
 
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
-        # Containment через relative_to (не startswith — у того parallel-prefix
-        # bypass: /foo/bar".startswith("/foo/ba") = True для соседней папки).
-        frontend_root = FRONTEND_DIST.resolve()
-        candidate = (FRONTEND_DIST / path).resolve()
-        try:
-            candidate.relative_to(frontend_root)
-            inside = True
-        except ValueError:
-            inside = False
-
-        if inside and candidate.is_file():
-            response = FileResponse(str(candidate))
+        file_path = storage_paths.frontend_static_file(path)
+        if file_path is not None:
+            response = FileResponse(str(file_path))
             if path == "version.txt":
                 response.headers["Cache-Control"] = "no-store"
             return response
 
-        return FileResponse(str(FRONTEND_DIST / "index.html"))
+        return FileResponse(str(storage_paths.frontend_index_file()))
