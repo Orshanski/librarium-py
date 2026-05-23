@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
+from app.exceptions import NotFoundError
 from tests._helpers import assert_error, assert_ok
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
@@ -181,6 +182,98 @@ class TestCoverEdgeCases:
         preview = admin_client.get("/api/uploads/cover/2")
         assert preview.status_code == 200
         assert preview.content == second_jpeg
+
+    def test_temp_preview_skips_symlinked_cover_candidate(self, reader_client):
+        from app.config import LIBRARY_DIR, UPLOADS_DIR
+        from app.services import cover_service
+
+        symlink = Path(UPLOADS_DIR) / "2-cover.jpg"
+        symlink.symlink_to(Path(LIBRARY_DIR) / "2" / "cover.jpg")
+
+        with pytest.raises(NotFoundError, match="Temp cover not found"):
+            cover_service.get_temp_cover_path("2")
+
+        assert symlink.is_symlink()
+
+    def test_discard_removes_only_policy_matched_temp_cover(self, db):
+        from app.config import LIBRARY_DIR, UPLOADS_DIR
+        from app.services import cover_service
+
+        valid = Path(UPLOADS_DIR) / "2-cover.png"
+        unsupported = Path(UPLOADS_DIR) / "2-cover.txt"
+        symlink = Path(UPLOADS_DIR) / "2-cover.jpg"
+        valid.write_bytes(b"valid")
+        unsupported.write_bytes(b"unsupported")
+        symlink.symlink_to(Path(LIBRARY_DIR) / "2" / "cover.jpg")
+
+        cover_service.discard_temp(db, book_id=2)
+
+        assert not valid.exists()
+        assert unsupported.exists()
+        assert symlink.is_symlink()
+
+    def test_get_cover_path_ignores_symlinked_library_cover(self):
+        from app.config import LIBRARY_DIR
+        from app.services import cover_service
+
+        symlink = Path(LIBRARY_DIR) / "1" / "cover.jpg"
+        symlink.symlink_to(Path(LIBRARY_DIR) / "2" / "cover.jpg")
+
+        with pytest.raises(NotFoundError, match="Cover not found"):
+            cover_service.get_cover_path(1)
+
+        assert symlink.is_symlink()
+
+    def test_get_thumb_uses_policy_thumb_path(self, monkeypatch, tmp_path):
+        from app import storage_paths
+        from app.config import LIBRARY_DIR
+        from app.services import cover_service
+
+        policy_thumb = tmp_path / "policy-thumb.jpg"
+        calls = []
+        original_thumb_file = storage_paths.thumb_file
+
+        def spy_thumb_file(book_id):
+            calls.append(book_id)
+            assert original_thumb_file(book_id).name == f"{book_id}.jpg"
+            return policy_thumb
+
+        monkeypatch.setattr(storage_paths, "thumb_file", spy_thumb_file)
+
+        result = cover_service.get_thumb(2, str(Path(LIBRARY_DIR) / "2" / "cover.jpg"))
+
+        assert result == str(policy_thumb)
+        assert policy_thumb.exists()
+        assert calls == [2]
+
+    def test_commit_uses_policy_upload_and_library_cover_paths(self, admin_client, db, monkeypatch):
+        from app import storage_paths
+        from app.services import cover_service
+
+        resp = admin_client.post(
+            "/api/books/2/cover",
+            files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+        )
+        assert resp.status_code == 200
+
+        calls = []
+        original_upload_cover_file = storage_paths.upload_cover_file
+        original_library_cover_file = storage_paths.library_cover_file
+
+        def spy_upload_cover_file(temp_id, ext):
+            calls.append(("upload", temp_id, ext))
+            return original_upload_cover_file(temp_id, ext)
+
+        def spy_library_cover_file(book_id, ext):
+            calls.append(("library", book_id, ext))
+            return original_library_cover_file(book_id, ext)
+
+        monkeypatch.setattr(storage_paths, "upload_cover_file", spy_upload_cover_file)
+        monkeypatch.setattr(storage_paths, "library_cover_file", spy_library_cover_file)
+
+        assert cover_service._commit(db, book_id=2) is True
+        assert ("upload", "2", "jpg") in calls
+        assert ("library", 2, "jpg") in calls
 
 
 def test_commit_move_failure_preserves_old_cover(admin_client, db):

@@ -241,6 +241,25 @@ class TestCoverServiceRaises:
         with pytest.raises(BadInputError, match="не является изображением|повреждён"):
             cover_service.upload_temp(db, book_id=1, content=b"not-an-image", ext="jpg")
 
+    def test_thumb_invalidate_uses_policy_thumb_path(self, monkeypatch, tmp_path):
+        from app import storage_paths
+        from app.services import thumb
+
+        policy_thumb = tmp_path / "7.jpg"
+        policy_thumb.write_bytes(b"cached")
+        calls = []
+
+        def spy_thumb_file(book_id):
+            calls.append(book_id)
+            return policy_thumb
+
+        monkeypatch.setattr(storage_paths, "thumb_file", spy_thumb_file)
+
+        thumb.invalidate(7)
+
+        assert calls == [7]
+        assert not policy_thumb.exists()
+
 
 # ---------- T3: upload_service migration ----------
 

@@ -1,19 +1,20 @@
-import glob
 import io
 import logging
 import os
 import sqlite3
 import zipfile
+from pathlib import Path
 
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from PIL import Image
 
-from ..config import LIBRARY_DIR, UPLOADS_DIR, db_path_for
+from .. import storage_paths
+from ..config import db_path_for
 from ..cover_embedder import embed_cover
 from ..dal import books as books_dal
 from ..dal.books import update_cover_path
 from ..exceptions import BadInputError, NotFoundError
-from ..fs_utils import assert_within, move_with_rollback, safe_extension
+from ..fs_utils import move_with_rollback, safe_extension
 from ..logging_utils import safe as safe_log
 from . import thumb
 from .temp_cleanup import cleanup_old_uploads
@@ -85,24 +86,24 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
     except Exception:
         raise BadInputError("Файл не является изображением или повреждён")
 
-    # Clean old temp covers for this book — все пути под UPLOADS_DIR.
-    for old in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
-        os.remove(assert_within(UPLOADS_DIR, old))
+    # Clean old temp covers for this book — policy skips unsafe/symlink entries.
+    for old in storage_paths.upload_cover_candidates(book_id):
+        if old.is_file():
+            old.unlink()
 
-    temp_path = assert_within(UPLOADS_DIR, UPLOADS_DIR / f"{book_id}-cover.{ext}")
+    temp_path = storage_paths.upload_cover_file(str(book_id), ext)
     with open(temp_path, "wb") as f:
         f.write(content)
 
     return f"/api/uploads/cover/{book_id}"
 
 
-def _find_temp_cover(book_id: int) -> str | None:
-    """Найти временную обложку для книги в UPLOADS_DIR, вернуть basename или None."""
-    matches = glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*"))
-    return os.path.basename(matches[0]) if matches else None
+def _find_temp_cover(book_id: int) -> Path | None:
+    """Найти временную обложку для книги в UPLOADS_DIR."""
+    return next((path for path in storage_paths.upload_cover_candidates(book_id) if path.is_file()), None)
 
 
-def _backup_existing(old_path: str) -> str:
+def _backup_existing(old_path: str | Path) -> str:
     """Переименовать существующую обложку в .bak, вернуть путь bak."""
     # Это снимает проблему с одноименным overwrite'ом: `shutil.move` в
     # move_with_rollback без backup'а перетёр бы старый файл, а при
@@ -110,9 +111,9 @@ def _backup_existing(old_path: str) -> str:
     # перетёртое содержимое целиком, оставив книгу без файла обложки.
     # `find_cover` игнорирует *.bak, так что промежуточное состояние
     # снаружи не видно.
-    old_bak = f"{old_path}.bak"
+    old_bak = storage_paths.library_backup_file(old_path)
     os.rename(old_path, old_bak)
-    return old_bak
+    return str(old_bak)
 
 
 def _restore_from_backup(dst: str, old_bak: str, old_path: str) -> None:
@@ -145,7 +146,7 @@ def _commit(db: sqlite3.Connection, book_id: int) -> bool:
     """
     if not books_dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
-    book_dir = str(LIBRARY_DIR / str(book_id))
+    book_dir = storage_paths.library_book_dir(book_id)
     os.makedirs(book_dir, exist_ok=True)
 
     temp_file = _find_temp_cover(book_id)
@@ -155,11 +156,10 @@ def _commit(db: sqlite3.Connection, book_id: int) -> bool:
     # Defense-in-depth: ext-whitelist даже на temp_file, который сам прошёл
     # валидацию в upload_temp — если UPLOADS_DIR будет скомпрометирован любым
     # другим путём, glob может вернуть имя с traversal-ext.
-    ext = safe_extension(temp_file, _COVER_EXTS, default="jpg")
-    src = assert_within(UPLOADS_DIR, UPLOADS_DIR / temp_file)
-    dst = assert_within(LIBRARY_DIR, os.path.join(book_dir, f"cover.{ext}"))
-    old = find_cover(book_dir)
-    old_path = assert_within(LIBRARY_DIR, os.path.join(book_dir, old)) if old else None
+    ext = safe_extension(temp_file.name, _COVER_EXTS, default="jpg")
+    src = str(storage_paths.upload_cover_file(str(book_id), ext))
+    dst = str(storage_paths.library_cover_file(book_id, ext))
+    old_path = storage_paths.current_library_cover(book_id)
 
     old_bak = _backup_existing(old_path) if old_path is not None else None
 
@@ -183,18 +183,20 @@ def _commit(db: sqlite3.Connection, book_id: int) -> bool:
 
 def find_cover(book_dir: str) -> str | None:
     """Find cover file in book directory, excluding backups."""
-    if not os.path.isdir(book_dir):
+    try:
+        book_id = int(Path(book_dir).name)
+    except ValueError:
         return None
-    return next((f for f in os.listdir(book_dir) if f.startswith("cover.") and "bak" not in f), None)
+    cover = storage_paths.current_library_cover(book_id)
+    return cover.name if cover is not None else None
 
 
 def get_cover_path(book_id: int) -> str:
     """Resolve full cover path for a book. Raises NotFoundError if no cover exists."""
-    book_dir = str(LIBRARY_DIR / str(book_id))
-    cover = find_cover(book_dir)
+    cover = storage_paths.current_library_cover(book_id)
     if not cover:
         raise NotFoundError("Cover not found")
-    return os.path.join(book_dir, cover)
+    return str(cover)
 
 
 def get_thumb(book_id: int, cover_path: str) -> str | None:
@@ -203,10 +205,10 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
     Returns thumb path on success, or None on any failure. Caller (router)
     decides fallback (e.g. serve full cover when thumb generation failed).
     """
-    thumb_path = str(thumb.THUMBS_DIR / f"{book_id}.jpg")
+    thumb_path = storage_paths.thumb_file(book_id)
     try:
         if os.path.exists(thumb_path) and os.path.getmtime(thumb_path) >= os.path.getmtime(cover_path):
-            return thumb_path
+            return str(thumb_path)
         original = Image.open(cover_path)
         try:
             ratio = _THUMB_HEIGHT / original.height
@@ -219,10 +221,11 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
         finally:
             resized.close()
         try:
+            thumb_path.parent.mkdir(exist_ok=True)
             converted.save(thumb_path, "JPEG", quality=80)
         finally:
             converted.close()
-        return thumb_path
+        return str(thumb_path)
     except Exception as e:
         log.warning("Failed to generate thumbnail for book=%d: %s", book_id, safe_log(e))
         return None
@@ -230,9 +233,9 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
 
 def get_temp_cover_path(temp_id: str) -> str:
     """Resolve temp cover path by temp_id. Raises NotFoundError if absent."""
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if f.startswith(f"{temp_id}-cover."):
-            return str(UPLOADS_DIR / f)
+    for path in storage_paths.upload_cover_candidates(temp_id):
+        if path.is_file():
+            return str(path)
     raise NotFoundError("Temp cover not found")
 
 
@@ -240,5 +243,6 @@ def discard_temp(db: sqlite3.Connection, book_id: int) -> None:
     """Remove any temp cover files for a book. Raises NotFoundError if book doesn't exist."""
     if not books_dal.book_exists(db, book_id):
         raise NotFoundError(_BOOK_NOT_FOUND)
-    for f in glob.glob(str(UPLOADS_DIR / f"{book_id}-cover.*")):
-        os.remove(f)
+    for path in storage_paths.upload_cover_candidates(book_id):
+        if path.is_file():
+            path.unlink()

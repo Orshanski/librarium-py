@@ -96,15 +96,16 @@ def library_book_file(book_id: int, ext: str) -> Path:
 
 
 def library_cover_file(book_id: int, ext: str) -> Path:
-    return _resolve_under(
-        LIBRARY_DIR,
-        _book_id_segment(book_id),
-        f"cover.{_ext(ext, COVER_EXTS)}",
-    )
+    book_dir = _library_book_dir_lexical(book_id)
+    return _managed_file_under(book_dir, f"cover.{_ext(ext, COVER_EXTS)}")
 
 
 def library_cover_candidates(book_id: int) -> list[Path]:
-    return [library_cover_file(book_id, ext) for ext in sorted(COVER_EXTS)]
+    paths: list[Path] = []
+    for ext in sorted(COVER_EXTS):
+        with contextlib.suppress(BadInputError):
+            paths.append(library_cover_file(book_id, ext))
+    return paths
 
 
 def current_library_cover(book_id: int) -> Path | None:
@@ -218,9 +219,13 @@ def upload_policy_files() -> list[Path]:
 
 
 
-def upload_cover_candidates(book_id: int) -> list[Path]:
-    temp_id = _book_id_segment(book_id)
-    return [upload_cover_file(temp_id, ext) for ext in sorted(COVER_EXTS)]
+def upload_cover_candidates(temp_id: int | str) -> list[Path]:
+    temp_segment = _book_id_segment(temp_id) if isinstance(temp_id, int) else _temp_id_segment(temp_id)
+    paths: list[Path] = []
+    for ext in sorted(COVER_EXTS):
+        with contextlib.suppress(BadInputError):
+            paths.append(upload_cover_file(temp_segment, ext))
+    return paths
 
 
 def thumb_file(book_id: int) -> Path:
