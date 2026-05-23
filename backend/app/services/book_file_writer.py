@@ -32,8 +32,8 @@ def book_dir_and_dst(book_id: int, ext: str) -> tuple[str, str]:
     Возвращает `(book_dir, dst)`. Каталог может существовать — `exist_ok=True`.
     """
     book_dir = storage_paths.library_book_dir(book_id)
-    book_dir.mkdir(parents=True, exist_ok=True)
     dst = storage_paths.library_book_file(book_id, ext)
+    book_dir.mkdir(parents=True, exist_ok=True)
     return str(book_dir), str(dst)
 
 

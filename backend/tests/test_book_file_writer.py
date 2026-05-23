@@ -34,6 +34,7 @@ class TestBookDirAndDst:
         monkeypatch.setattr(storage_paths, "LIBRARY_DIR", tmp_path)
         with pytest.raises(BadInputError):
             book_dir_and_dst(book_id=42, ext=ext)
+        assert not (tmp_path / "42").exists()
 
 
 class TestPrepareBookFormatPath:
