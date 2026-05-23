@@ -8,7 +8,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import cast
 
-from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
+from .. import storage_paths
+from ..config import MAX_BOOK_SIZE, db_path_for
 from ..dtos.books import BookCreateData, DuplicateHit, DuplicateHitItem
 from ..dtos.upload import CreateBookMetadataIn, CreateBookMetadataOut, UploadParseResponse
 from ..exceptions import BadInputError
@@ -33,11 +34,11 @@ BOOK_EXTENSIONS = {"fb2", "epub", "pdf"}
 
 
 def _temp_book_path(temp_id: str, ext: str) -> str:
-    return str(UPLOADS_DIR / f"{temp_id}.{ext}")
+    return str(storage_paths.upload_book_file(temp_id, ext))
 
 
 def _temp_cover_path(temp_id: str, cover_ext: str) -> str:
-    return str(UPLOADS_DIR / f"{temp_id}-cover.{cover_ext}")
+    return str(storage_paths.upload_cover_file(temp_id, cover_ext))
 
 
 def _is_macos_junk(name: str) -> bool:
@@ -50,7 +51,7 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
 
     Raises ValueError with user-facing error message on failure.
     """
-    zip_path = str(UPLOADS_DIR / f"{temp_id}.zip")
+    zip_path = str(storage_paths.upload_zip_file(temp_id))
     with open(zip_path, "wb") as f:
         f.write(content)
     try:
@@ -222,7 +223,7 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetada
     book_id = dal_create_book(db, create_data)
 
     book_dir, book_dst = book_dir_and_dst(book_id, ext)
-    src = str(UPLOADS_DIR / temp_file)
+    src = str(storage_paths.upload_book_file(temp_id, ext))
 
     try:
         with ExitStack() as stack:
@@ -231,9 +232,9 @@ def create_book(db: sqlite3.Connection, temp_id: str, metadata: CreateBookMetada
 
             cover_files = find_temp_covers(temp_id)
             if cover_files:
-                cover_src = str(UPLOADS_DIR / cover_files[0])
-                cover_ext = cover_src.rsplit(".", 1)[-1]
-                cover_dst = os.path.join(book_dir, f"cover.{cover_ext}")
+                cover_ext = cover_files[0].rsplit(".", 1)[-1]
+                cover_src = str(storage_paths.upload_cover_file(temp_id, cover_ext))
+                cover_dst = str(storage_paths.library_cover_file(book_id, cover_ext))
                 stack.enter_context(move_with_rollback(cover_src, cover_dst))
                 update_cover_path(db, book_id, db_path_for(book_id, f"cover.{cover_ext}"))
 
@@ -264,7 +265,7 @@ def add_format(db: sqlite3.Connection, book_id: int, temp_id: str) -> str:
     ext = temp_file.rsplit(".", 1)[-1]
     fmt = ext.upper()
     dst = prepare_book_format_path(db, book_id, fmt, ext)
-    src = str(UPLOADS_DIR / temp_file)
+    src = str(storage_paths.upload_book_file(temp_id, ext))
 
     with move_with_rollback(src, dst):
         register_and_linearize(db, book_id, dst, ext)

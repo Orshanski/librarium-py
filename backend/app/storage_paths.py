@@ -5,6 +5,7 @@ before filesystem callers receive them.
 """
 
 from pathlib import Path, PurePosixPath
+import os
 import re
 
 from .config import DATA_DIR, DB_PATH_PREFIX, LIBRARY_DIR, PROJECT_ROOT, UPLOADS_DIR
@@ -14,6 +15,11 @@ BOOK_EXTS = {"fb2", "epub", "pdf"}
 COVER_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 
 _TEMP_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_UPLOAD_BOOK_RE = re.compile(r"^(?P<temp_id>[A-Za-z0-9_-]{1,64})\.(?P<ext>fb2|epub|pdf)$")
+_UPLOAD_COVER_RE = re.compile(
+    r"^(?P<temp_id>[A-Za-z0-9_-]{1,64})-cover\.(?P<ext>jpg|jpeg|png|webp|gif)$"
+)
+_UPLOAD_ZIP_RE = re.compile(r"^(?P<temp_id>[A-Za-z0-9_-]{1,64})\.zip$")
 _THUMBS_DIR = DATA_DIR / "thumbs"
 _FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
@@ -152,6 +158,25 @@ def upload_zip_file(temp_id: str) -> Path:
     return _resolve_under(UPLOADS_DIR, f"{_temp_id_segment(temp_id)}.zip")
 
 
+def upload_file_from_basename(name: str) -> Path | None:
+    if not isinstance(name, str) or "/" in name or "\\" in name:
+        return None
+
+    match = _UPLOAD_BOOK_RE.fullmatch(name)
+    if match:
+        return upload_book_file(match.group("temp_id"), match.group("ext"))
+
+    match = _UPLOAD_COVER_RE.fullmatch(name)
+    if match:
+        return upload_cover_file(match.group("temp_id"), match.group("ext"))
+
+    match = _UPLOAD_ZIP_RE.fullmatch(name)
+    if match:
+        return upload_zip_file(match.group("temp_id"))
+
+    return None
+
+
 def upload_session_files(temp_id: str) -> list[Path]:
     temp_segment = _temp_id_segment(temp_id)
     candidates = [
@@ -159,7 +184,27 @@ def upload_session_files(temp_id: str) -> list[Path]:
         *(upload_cover_file(temp_segment, ext) for ext in sorted(COVER_EXTS)),
         upload_zip_file(temp_segment),
     ]
-    return [path for path in candidates if path.exists()]
+    return [path for path in candidates if path.is_file()]
+
+
+def upload_policy_files() -> list[Path]:
+    upload_root = _root(UPLOADS_DIR)
+    paths: list[Path] = []
+    try:
+        with os.scandir(str(upload_root)) as entries:
+            for entry in entries:
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                try:
+                    path = upload_file_from_basename(entry.name)
+                except BadInputError:
+                    continue
+                if path is not None and path.is_file():
+                    paths.append(path)
+    except FileNotFoundError:
+        return []
+    return paths
+
 
 
 def upload_cover_candidates(book_id: int) -> list[Path]:

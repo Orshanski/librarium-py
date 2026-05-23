@@ -54,6 +54,34 @@ def test_upload_book_file_rejects_unsafe_temp_ids(temp_id):
         sp.upload_book_file(temp_id, "fb2")
 
 
+@pytest.mark.parametrize("temp_id", ["../x", "/tmp/x", "a/b", "", "x" * 65])
+def test_upload_cover_file_rejects_unsafe_temp_ids(temp_id):
+    with pytest.raises(BadInputError):
+        sp.upload_cover_file(temp_id, "jpg")
+
+
+@pytest.mark.parametrize("temp_id", ["../x", "/tmp/x", "a/b", "", "x" * 65])
+def test_upload_zip_file_rejects_unsafe_temp_ids(temp_id):
+    with pytest.raises(BadInputError):
+        sp.upload_zip_file(temp_id)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["abc123.fb2", "abc123-cover.jpg", "abc123.zip"],
+)
+def test_upload_file_from_basename_accepts_policy_shapes(name):
+    assert sp.upload_file_from_basename(name).name == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["../abc123.fb2", "abc123.txt", "abc123-cover.txt", "abc123.fb2.bak", "nested/name.fb2", ""],
+)
+def test_upload_file_from_basename_ignores_unexpected_shapes(name):
+    assert sp.upload_file_from_basename(name) is None
+
+
 def test_library_backup_file_requires_managed_library_path():
     original = sp.library_book_file(42, "pdf")
     assert sp.library_backup_file(original).name == "book.pdf.bak"

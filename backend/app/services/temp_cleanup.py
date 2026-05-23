@@ -1,17 +1,16 @@
 """Lookup и чистка temp-артефактов по temp_id.
 
-Leaf-модуль: импортирует только stdlib + app.config. upload_service и
+Leaf-модуль: импортирует только stdlib + storage path policy. upload_service и
 routers/upload.py импортируют отсюда find_temp_file / find_temp_covers /
 cleanup_temp_session. Плюс lazy orphan-GC `cleanup_old_uploads`, который
 зовут upload-пути в начале своей работы (self-healing без scheduler/cron).
 """
 import logging
-import os
-import re
 import time
 from contextlib import suppress
 
-from ..config import UPLOADS_DIR
+from .. import storage_paths
+from ..exceptions import BadInputError
 
 log = logging.getLogger("librarium.services.temp_cleanup")
 
@@ -24,17 +23,26 @@ _GRACE_SECONDS = 3600
 
 def find_temp_file(temp_id: str) -> str | None:
     """Найти temp-файл по точному совпадению: `{temp_id}.{ext}`."""
-    pattern = re.compile(rf"^{re.escape(temp_id)}\.(\w+)$")
-    for f in os.listdir(str(UPLOADS_DIR)):
-        if pattern.match(f):
-            return f
+    try:
+        for ext in sorted(storage_paths.BOOK_EXTS):
+            path = storage_paths.upload_book_file(temp_id, ext)
+            if path.is_file():
+                return path.name
+    except BadInputError:
+        return None
     return None
 
 
 def find_temp_covers(temp_id: str) -> list[str]:
     """Найти temp-cover файлы: `{temp_id}-cover.{ext}`."""
-    pattern = re.compile(rf"^{re.escape(temp_id)}-cover\.(\w+)$")
-    return [f for f in os.listdir(str(UPLOADS_DIR)) if pattern.match(f)]
+    try:
+        paths = [
+            storage_paths.upload_cover_file(temp_id, ext)
+            for ext in sorted(storage_paths.COVER_EXTS)
+        ]
+    except BadInputError:
+        return []
+    return [path.name for path in paths if path.is_file()]
 
 
 def cleanup_temp_session(temp_id: str) -> None:
@@ -43,15 +51,15 @@ def cleanup_temp_session(temp_id: str) -> None:
     Идемпотентна: повторный вызов на уже очищенной сессии — no-op. Не
     потокобезопасна в смысле коллизии temp_id (8-char uuid, практически
     невозможно). `suppress(FileNotFoundError)` защищает от race между
-    `find_*` и `os.remove`.
+    lookup и unlink.
     """
-    book_file = find_temp_file(temp_id)
-    if book_file:
+    try:
+        paths = storage_paths.upload_session_files(temp_id)
+    except BadInputError:
+        return
+    for path in paths:
         with suppress(FileNotFoundError):
-            os.remove(str(UPLOADS_DIR / book_file))
-    for f in find_temp_covers(temp_id):
-        with suppress(FileNotFoundError):
-            os.remove(str(UPLOADS_DIR / f))
+            path.unlink()
 
 
 def cleanup_old_uploads() -> int:
@@ -61,25 +69,21 @@ def cleanup_old_uploads() -> int:
     upload_service.upload_and_parse) — self-healing GC, без scheduler/cron.
     Возвращает количество удалённых файлов; логирует только при >0.
 
-    Идемпотентна и безопасна при параллельных вызовах: race между scandir и
-    remove гасится `suppress(FileNotFoundError)`. Directories не трогаем —
+    Идемпотентна и безопасна при параллельных вызовах: race между lookup и
+    unlink гасится `suppress(FileNotFoundError)`. Directories не трогаем —
     UPLOADS_DIR плоский, только файлы.
     """
     cutoff = time.time() - _GRACE_SECONDS
     removed = 0
-    with suppress(FileNotFoundError):
-        with os.scandir(str(UPLOADS_DIR)) as entries:
-            for entry in entries:
-                if not entry.is_file():
-                    continue
-                try:
-                    if entry.stat().st_mtime < cutoff:
-                        with suppress(FileNotFoundError):
-                            os.remove(entry.path)
-                            removed += 1
-                except OSError:
-                    # stat мог упасть если файл снесли параллельно — нестрашно.
-                    continue
+    for path in storage_paths.upload_policy_files():
+        try:
+            if path.stat().st_mtime < cutoff:
+                with suppress(FileNotFoundError):
+                    path.unlink()
+                    removed += 1
+        except OSError:
+            # stat мог упасть если файл снесли параллельно — нестрашно.
+            continue
     if removed > 0:
         log.info("Cleaned %d orphan upload(s) older than %ds", removed, _GRACE_SECONDS)
     return removed
