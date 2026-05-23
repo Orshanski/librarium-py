@@ -165,7 +165,6 @@ Cover replace goes through `POST /api/books/{id}/cover` (temp upload) + `PUT /ap
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/books/{id}/status | yes | Rating, read, hidden |
 | PUT | /api/books/{id}/rating | yes | Set 1-5 or null |
 | PUT | /api/books/{id}/read | yes | Mark read/unread. Marking read also clears server reading progress for that user/book. |
 | PUT | /api/books/{id}/hidden | yes | Hide/unhide |
@@ -183,19 +182,23 @@ Cover replace goes through `POST /api/books/{id}/cover` (temp upload) + `PUT /ap
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/authors | yes | List with book counts, filters |
+| GET | /api/authors | yes | List with book counts, filters; includes authors without books (`bookCount=0`, `tags=[]`) |
 | GET | /api/authors/{id} | yes | Detail + books |
 | PUT | /api/authors/{id} | admin | Update author name/sort_name |
 | POST | /api/authors/{id}/merge | admin | Merge author into another |
 | DELETE | /api/authors/{id} | admin | Delete author (if no books) |
-| GET | /api/series | yes | List with book counts, filters |
+| GET | /api/series | yes | List with book counts, filters; includes series without books (`bookCount=0`, `authors=[]`) |
 | GET | /api/series/{id} | yes | Detail + ordered books |
 | PUT | /api/series/{id} | admin | Update series name/sort_name |
 | POST | /api/series/{id}/merge | admin | Merge series into another |
 | DELETE | /api/series/{id} | admin | Delete series (if no books) |
-| GET | /api/tags | yes | List with book counts |
+| GET | /api/tags/cloud | yes | Tag cloud with book counts; includes tags without books (`bookCount=0`) |
 | GET | /api/tags/{id} | yes | Detail + books with filters |
-| PUT | /api/tags/{id}/map | admin | Map tag to existing (merge) or new name (rename). Updates tag_mappings for future imports |
+| PUT | /api/tags/{id} | admin | Rename tag |
+| POST | /api/tags/{id}/merge | admin | Merge tag into another; updates `tag_mappings` for future imports |
+| DELETE | /api/tags/{id} | admin | Delete tag (if no books) |
+
+Authors, series, and tags are library-scoped metadata directories, not only projections of currently attached books. Manually-created empty entities remain visible in the top-level directory views and tag cloud with `bookCount=0`. Book-backed filters still narrow through `books b`; empty entities only survive the user hidden-book scope via the explicit `b.id IS NULL OR ...` guard in `build_book_where`.
 
 ### Shelves
 
@@ -371,19 +374,25 @@ frontend/
     ├── auth.tsx            # AuthContext, useAuth(), ProtectedRoute, offline auth cache
     ├── api/                # API client package (see "API client layer" below)
     ├── cache/              # SessionStorage metadata cache (namespaces, persistence, invalidation)
+    │   └── projection/     # Local patch helpers for book/detail/list/entity read models
+    ├── config/             # Client-side manifests, currently sort config
+    ├── constants/          # Reader defaults and theme constants
     ├── domain/             # Typed domain events and read-model classifiers
+    ├── offline/            # Offline bootstrap and book-deletion cache cleanup
     ├── sse/                # EventSource bridge: `/api/events/stream` → domain event bus
     ├── scroll/             # List scroll validity and non-bumping navigation support
-    ├── types.ts            # TypeScript interfaces
+    ├── types/              # Reader-specific TypeScript contracts
+    ├── types.ts            # Shared API/domain interfaces
     ├── theme.ts            # Color palette + layout constants (mobileBreakpoint 820)
     ├── responsive.ts       # ResponsiveProvider, useIsMobile()
     ├── vendor/foliate-js/  # Forked copy of foliate-js — owned code, not upstream vendor
     ├── hooks/              # Reader/book/offline/PWA/cache-aware hooks
     ├── utils/              # Offline storage, reader sync/input/footnotes, book download, sanitize-html …
-    ├── pages/              # Route-level pages
+    ├── pages/              # Route-level pages + desktop/mobile reader page split
     ├── components/         # Shared components (logic + types, incl. OfflineShell, CloudBadge, EbookReader, PdfReader, MetadataSearch, …)
-    ├── components/desktop/ # 10 desktop layout components
-    └── components/mobile/  # 13 mobile layout components
+    ├── components/desktop/ # Desktop layout components
+    ├── components/mobile/  # Mobile layout components
+    └── test/               # Vitest/MSW setup and shared test references
 ```
 
 Public `frontend/public/pdfjs/` — PDF.js distribution (cmaps, fonts, worker). Loaded via `<script type=module>` tag to bypass Vite dev server's .mjs transform that breaks PDF.js workers.
@@ -409,6 +418,13 @@ Metadata/read-model screens use `frontend/src/cache/`, not TanStack Query. The c
 - `useCachedResource()` returns cached data synchronously, fetches only on miss, aborts stale fetches, and ignores fetch results that started before a namespace invalidation.
 - Book-list entries carry `BookListContext`; domain classifiers decide whether an event can patch rows in place or must invalidate the whole list.
 - The cache is namespaced: `books`, `book/{id}`, `authors`, `author/{id}`, `series`, `series/{id}`, `tags`, `tag/{id}`, `shelves`, `shelf/{id}`, `book-shelves/{id}`, `publishers`, `filter-options/*`, etc.
+
+Patch model:
+
+- Library metadata events patch shared read models in place where the payload is sufficient: book title/sort fields, author/series/tag names, nested refs, and affected directory rows.
+- User overlay events (`rating`, `isRead`, `isHidden`, shelf membership) remain user-scoped. They patch cached rows for the current user only and never fan out full per-user book objects over SSE.
+- When a user-scoped mutation needs data not present in the event payload, the frontend refetches only the narrow user-scoped resource it needs and applies a local patch; shared book/entity objects are not reloaded just to update overlay state.
+- Directory/list sort invalidation is explicit: local patches preserve scroll when the active sort key is unaffected, and invalidate/refetch when a changed field can reorder the visible list.
 
 Invalidation sources:
 

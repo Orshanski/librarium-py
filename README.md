@@ -14,7 +14,7 @@ We needed a simple way to keep our family book collection — FB2, EPUB, PDF —
 
 Books are displayed as a grid of covers. Filters by author, series, genre, and language are interdependent — picking an author narrows down the available genres, and so on. Sort by date added, title, author, or rating. Infinite scroll that remembers your position when you come back.
 
-Catalog and detail screens use a small sessionStorage-backed metadata cache. Mutations and live server events invalidate only the affected namespaces, so returning to a page is instant without keeping stale book, shelf, filter, or entity data around.
+Catalog and detail screens use a small sessionStorage-backed metadata cache. Mutations and live server events patch shared library metadata in place when possible, while per-user overlays such as rating, read state, hidden state, and shelves stay user-scoped and refetch only their narrow data when needed. Returning to a page is instant without keeping stale book, shelf, filter, or entity data around.
 
 ![Catalog with filters](docs/screenshots/12-tag-detail.png)
 
@@ -57,7 +57,7 @@ Two built-in smart shelves: "Best" collects books rated 4–5 stars, "Reading No
 
 ### Authors, series, genres
 
-Dedicated pages with filters and book counts. Genre cloud sized by popularity. Navigate freely: author → books → series → all books in series.
+Dedicated pages with filters and book counts. Authors, series, and genres are library metadata directories: manually-created entries are visible even before books are attached, with `0` book count. Genre cloud is sized by popularity but still includes empty genres. Navigate freely: author → books → series → all books in series.
 
 Admins can rename and merge authors and series. Genres support smart mapping: when a book arrives with a raw genre code (e.g., `fantasy_fight`), it's stored as-is. On the genre page, an admin can map it to an existing genre like "Боевое фэнтези" — all books are reassigned, and future imports with the same code are resolved automatically.
 
@@ -243,15 +243,21 @@ librarium-py/
 │   ├── public/sw.js            # Service Worker (precache template)
 │   ├── scripts/                # Build scripts (SW asset injection)
 │   ├── src/
-│   │   ├── pages/              # route-level page components
+│   │   ├── pages/              # route-level page components + desktop/mobile reader pages
 │   │   ├── components/         # shared components (incl. OfflineShell, EbookReader, PdfReader)
 │   │   ├── components/desktop/ # desktop layout components
 │   │   ├── components/mobile/  # mobile layout components
 │   │   ├── hooks/              # custom hooks (reader, offline, PWA, cache-aware pages)
 │   │   ├── utils/              # utilities (offline-storage IDB, reader sync/input, sanitize-html, …)
-│   │   ├── cache/              # sessionStorage metadata cache + invalidation handlers
+│   │   ├── cache/              # sessionStorage metadata cache + projection patch helpers
+│   │   ├── config/             # client-side manifests (sort config)
+│   │   ├── constants/          # reader defaults and theme constants
 │   │   ├── domain/             # typed domain events and read-model classifiers
+│   │   ├── offline/            # offline bootstrap and cache cleanup hooks
 │   │   ├── sse/                # EventSource bridge for server domain events
+│   │   ├── scroll/             # list scroll validity / restoration counters
+│   │   ├── types/              # reader-specific TypeScript contracts
+│   │   ├── test/               # Vitest/MSW setup
 │   │   ├── vendor/foliate-js/  # Forked reader (owned code, no upstream sync)
 │   │   └── responsive.ts       # Breakpoint provider (820px)
 │   └── vite.config.ts
