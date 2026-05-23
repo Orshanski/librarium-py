@@ -13,6 +13,7 @@ from ..dtos.books import (
 )
 from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
+from ..fs_utils import assert_within
 from ..logging_utils import safe as safe_log
 from . import cover_service, filters_service, thumb
 from ..dtos.book_card import BookCardItem
@@ -182,7 +183,7 @@ def _resolve_add_formats(add_formats: list[str]) -> list[tuple[str, str, str, st
             raise BadInputError(f"Temp file not found: {tid}")
         ext = basename.rsplit(".", 1)[-1].lower()
         fmt = ext.upper()
-        src_path = str(UPLOADS_DIR / basename)
+        src_path = assert_within(UPLOADS_DIR, UPLOADS_DIR / basename)
         resolved.append((tid, src_path, fmt, ext))
     added_fmts = [r[2] for r in resolved]
     if len(set(added_fmts)) != len(added_fmts):
@@ -260,7 +261,8 @@ def _apply_add_formats(
     copied_dsts: list[str] = []
     try:
         for (_, src, fmt, ext) in resolved_adds:
-            dst = prepare_book_format_path(db, book_id, fmt, ext)
+            src = assert_within(UPLOADS_DIR, src)
+            dst = _library_path(prepare_book_format_path(db, book_id, fmt, ext))
             copied_dsts.append(dst)
             shutil.copyfile(src, dst)
             register_and_linearize(db, book_id, dst, ext)

@@ -199,6 +199,41 @@ class TestBookServiceUpdateBook:
                 [(str(tmp_path / "book.fb2"), str(outside_bak))],
             )
 
+    def test_update_rejects_add_format_source_outside_uploads(self, monkeypatch):
+        monkeypatch.setattr(book_service, "find_temp_file", lambda _tid: "../evil.epub")
+
+        with pytest.raises(BadInputError, match="Path escapes allowed root"):
+            book_service._resolve_add_formats(["badtemp"])  # pyright: ignore[reportPrivateUsage]
+
+    def test_update_rejects_add_format_destination_outside_library(
+        self,
+        db,
+        monkeypatch,
+        tmp_path,
+    ):
+        from app.config import UPLOADS_DIR
+
+        src = UPLOADS_DIR / "safe.epub"
+        src.write_bytes(b"epub")
+        outside_dst = tmp_path / "book.epub"
+        monkeypatch.setattr(
+            book_service,
+            "prepare_book_format_path",
+            lambda _db, _book_id, _fmt, _ext: str(outside_dst),
+        )
+
+        try:
+            with pytest.raises(BadInputError, match="Path escapes allowed root"):
+                book_service._apply_add_formats(  # pyright: ignore[reportPrivateUsage]
+                    db,
+                    1,
+                    [("safe", str(src), "EPUB", "epub")],
+                    [],
+                )
+        finally:
+            if src.exists():
+                src.unlink()
+
     def test_library_path_rejects_path_outside_library(self, tmp_path):
         with pytest.raises(BadInputError, match="Path escapes allowed root"):
             book_service._library_path(tmp_path / "book.fb2")  # pyright: ignore[reportPrivateUsage]
