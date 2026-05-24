@@ -42,6 +42,22 @@ pytest                     # Тесты — ВСЕГДА последовате�
   `app/routers/shelves.py:90-95` (`log.warning(..., int(shelf_id),
   int(body.book_id), str(user.user_id))`).
 
+- **CodeQL `py/path-injection` — sanitizer, не suppression.** Не глушить
+  `# codeql[py/path-injection]`. Канонический barrier перед FS-sink'ом
+  (`os.remove`/`os.rename`/`shutil.rmtree`):
+
+  ```python
+  path = os.path.normpath(os.path.join(_LIBRARY_ROOT, str(int(book_id)), name))
+  if not path.startswith(_LIBRARY_ROOT_PREFIX):
+      raise BadInputError(f"Path escapes allowed root: {path}")
+  ```
+
+  Тонкости: `normpath`, не `realpath` (CodeQL trace'ит только синтаксис);
+  префикс с `+ os.sep` (иначе `/lib/books` пройдёт `startswith("/lib/book")`);
+  inline у sink'а — через helper barrier CodeQL не доказывает. Для UPLOADS_DIR
+  — готовый `fs_utils.assert_within(UPLOADS_DIR, candidate)`. Примеры —
+  `book_service.py:135-136`, `:244-251`, `:188`.
+
 ## Type Checking (pyright)
 
 Конфиг в корне репо: `pyrightconfig.json`. Запуск:
