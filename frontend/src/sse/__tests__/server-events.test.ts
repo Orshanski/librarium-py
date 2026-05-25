@@ -118,6 +118,40 @@ describe("dispatchServerEvent", () => {
     });
   });
 
+  it("accepts precise affected values for membership book updates", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+
+    dispatchServerEvent({
+      eventId: 8,
+      scope: { kind: "library" },
+      event: {
+        type: "bookUpdated",
+        payload: {
+          book: { id: 9 },
+          changedFields: ["authors", "series", "tags", "language"],
+          affected: {
+            authorIds: [1, 2],
+            seriesIds: [3, 4],
+            tagIds: [5, 6],
+            languages: ["ru", "en"],
+          },
+        },
+      },
+    });
+
+    expect(handler).toHaveBeenCalledWith({
+      book: { id: 9 },
+      changedFields: ["authors", "series", "tags", "language"],
+      affected: {
+        authorIds: [1, 2],
+        seriesIds: [3, 4],
+        tagIds: [5, 6],
+        languages: ["ru", "en"],
+      },
+    });
+  });
+
   it("rejects server bookUpdated detail before publishing", () => {
     const handler = vi.fn();
     domainEvents.subscribe("bookUpdated", handler);

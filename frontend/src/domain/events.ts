@@ -31,8 +31,10 @@ export type DomainEventMap = {
     affected?: {
       authorIds?: number[];
       seriesId?: number | null;
+      seriesIds?: Array<number | null>;
       tagIds?: number[];
       language?: string | null;
+      languages?: Array<string | null>;
     };
   };
   bookCreated: { bookId: number; book?: MinimalBook };

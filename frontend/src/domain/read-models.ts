@@ -65,11 +65,20 @@ export function classifyBookUpdateForBookList(
   affected?: {
     authorIds?: number[];
     seriesId?: number | null;
+    seriesIds?: Array<number | null>;
     tagIds?: number[];
     language?: string | null;
+    languages?: Array<string | null>;
   },
 ): ValidityDecision {
   if (context.source === "search") return "structural";
+  if (
+    changedFields.includes("authors")
+    && (context.sort === "authorAsc" || context.sort === "authorDesc")
+    && canMembershipChangedBookAppearInContext(context, affected)
+  ) {
+    return "structural";
+  }
   if (changedFields.some((field) => MEMBERSHIP_FIELDS.has(field)) && isContextAffectedByMembership(context, affected)) {
     return "structural";
   }
@@ -84,17 +93,60 @@ export function classifyBookUpdateForBookList(
 
 function isContextAffectedByMembership(
   context: BookListContext,
-  affected?: { authorIds?: number[]; seriesId?: number | null; tagIds?: number[]; language?: string | null },
+  affected?: {
+    authorIds?: number[];
+    seriesId?: number | null;
+    seriesIds?: Array<number | null>;
+    tagIds?: number[];
+    language?: string | null;
+    languages?: Array<string | null>;
+  },
 ): boolean {
   if (!affected) return true;
   if (context.authorId !== undefined) return affected.authorIds?.includes(context.authorId) ?? false;
-  if (context.seriesId !== undefined) return affected.seriesId === context.seriesId;
+  if (context.seriesId !== undefined) return affectedSeriesIds(affected).includes(context.seriesId);
   if (context.tagId !== undefined) return affected.tagIds?.includes(context.tagId) ?? false;
   if (context.filters?.authorIds?.some((id) => affected.authorIds?.includes(id))) return true;
-  if (context.filters?.seriesIds?.some((id) => affected.seriesId === id)) return true;
+  if (context.filters?.seriesIds?.some((id) => affectedSeriesIds(affected).includes(id))) return true;
   if (context.filters?.tagIds?.some((id) => affected.tagIds?.includes(id))) return true;
-  if (affected.language && context.filters?.languages?.includes(affected.language)) return true;
+  if (context.filters?.languages?.some((language) => affectedLanguages(affected).includes(language))) return true;
+  return false;
+}
+
+function canMembershipChangedBookAppearInContext(
+  context: BookListContext,
+  affected?: {
+    authorIds?: number[];
+    seriesId?: number | null;
+    seriesIds?: Array<number | null>;
+    tagIds?: number[];
+    language?: string | null;
+    languages?: Array<string | null>;
+  },
+): boolean {
+  if (!affected) return true;
+  if (isContextAffectedByMembership(context, affected)) return true;
+  if (hasMembershipFilters(context)) return false;
   return context.source === "catalog" || context.source === "shelf-regular" || context.source === "shelf-best";
+}
+
+function hasMembershipFilters(context: BookListContext): boolean {
+  return Boolean(
+    context.filters?.authorIds?.length
+    || context.filters?.seriesIds?.length
+    || context.filters?.tagIds?.length
+    || context.filters?.languages?.length,
+  );
+}
+
+function affectedSeriesIds(affected: { seriesId?: number | null; seriesIds?: Array<number | null> }): number[] {
+  return [...(affected.seriesIds ?? []), affected.seriesId]
+    .filter((id): id is number => typeof id === "number");
+}
+
+function affectedLanguages(affected: { language?: string | null; languages?: Array<string | null> }): string[] {
+  return [...(affected.languages ?? []), affected.language]
+    .filter((language): language is string => typeof language === "string" && language.length > 0);
 }
 
 export function classifyAuthorRenameForBookList(context: BookListContext): ValidityDecision {

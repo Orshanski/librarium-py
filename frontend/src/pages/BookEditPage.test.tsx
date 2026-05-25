@@ -8,7 +8,7 @@ import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
 import { domainEvents } from "@/domain/events";
-import BookEditPage from "./BookEditPage";
+import BookEditPage, { buildBookUpdateAffected } from "./BookEditPage";
 
 const mockBookDetail = {
   id: 42,
@@ -136,6 +136,23 @@ describe("BookEditPage", () => {
       },
     });
     expect(putBody).toMatchObject({ isbn: "9780000000000" });
+  });
+
+  it("buildBookUpdateAffected includes old and new membership values only for changed fields", () => {
+    expect(buildBookUpdateAffected(["authors", "series", "tags", "language"], mockBookDetail, {
+      ...mockBookDetail,
+      authors: [{ id: 2, name: "Новый Автор" }],
+      series: { id: 20, name: "Новая серия" },
+      tags: [{ id: 200, name: "Новый тег" }],
+      language: "en",
+    })).toEqual({
+      authorIds: [1, 2],
+      seriesIds: [20],
+      tagIds: [200],
+      languages: ["ru", "en"],
+    });
+
+    expect(buildBookUpdateAffected(["title"], mockBookDetail, { ...mockBookDetail, title: "Другое" })).toBeUndefined();
   });
 
   it("save: navigate state.origin взят из editOrigin.bookOrigin (цепочка crumb к источнику)", async () => {

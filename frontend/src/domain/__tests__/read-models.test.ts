@@ -145,6 +145,35 @@ describe("read-model validity", () => {
     expect(classifyBookUpdateForBookList(seriesDetail, ["series"], { seriesId: 9 })).toBe("patchable");
   });
 
+  it("keeps unfiltered catalog patchable for precise membership edits", () => {
+    expect(classifyBookUpdateForBookList(catalogAdded, ["authors"], { authorIds: [3, 8] })).toBe("patchable");
+    expect(classifyBookUpdateForBookList(catalogAdded, ["series"], { seriesIds: [4, 9] })).toBe("patchable");
+    expect(classifyBookUpdateForBookList(catalogAdded, ["tags"], { tagIds: [1, 2] })).toBe("patchable");
+    expect(classifyBookUpdateForBookList(catalogAdded, ["language"], { languages: ["ru", "en"] })).toBe("patchable");
+  });
+
+  it("invalidates filtered lists touched by precise membership edits", () => {
+    expect(classifyBookUpdateForBookList(
+      { ...catalogAdded, filters: { seriesIds: [4] } },
+      ["series"],
+      { seriesIds: [4, 9] },
+    )).toBe("structural");
+    expect(classifyBookUpdateForBookList(
+      { ...catalogAdded, filters: { languages: ["de"] } },
+      ["language"],
+      { languages: ["ru", "en"] },
+    )).toBe("patchable");
+  });
+
+  it("keeps author-sorted lists structural when authors change", () => {
+    expect(classifyBookUpdateForBookList({ ...catalogAdded, sort: "authorAsc" }, ["authors"], { authorIds: [3, 8] })).toBe("structural");
+    expect(classifyBookUpdateForBookList(
+      { ...catalogAdded, sort: "authorAsc", filters: { authorIds: [9] } },
+      ["authors"],
+      { authorIds: [3, 8] },
+    )).toBe("patchable");
+  });
+
   it("treats reading progress as structural for reading-now only", () => {
     expect(classifyReadingProgressForContext(readingNow, { hasPositionChanged: true, lastReadAtChanged: false })).toBe("structural");
     expect(classifyReadingProgressForContext(catalogAdded, { hasPositionChanged: true, lastReadAtChanged: true })).toBe("unaffected");

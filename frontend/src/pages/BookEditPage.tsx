@@ -49,6 +49,42 @@ function hasMembershipChange(changedFields: BookChangedField[]): boolean {
   return changedFields.some((field) => field === "authors" || field === "series" || field === "tags" || field === "language");
 }
 
+function uniqueNumbers(values: Array<number | null | undefined>): number[] {
+  return [...new Set(values.filter((value): value is number => typeof value === "number"))];
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === "string" && value.length > 0))];
+}
+
+export function buildBookUpdateAffected(
+  changedFields: BookChangedField[],
+  previous: BookDetail,
+  next: BookDetail,
+): NonNullable<Parameters<typeof domainEvents.publish<"bookUpdated">>[1]["affected"]> | undefined {
+  if (!hasMembershipChange(changedFields)) return undefined;
+  const affected: NonNullable<Parameters<typeof domainEvents.publish<"bookUpdated">>[1]["affected"]> = {};
+  if (changedFields.includes("authors")) {
+    affected.authorIds = uniqueNumbers([
+      ...previous.authors.map((author) => author.id),
+      ...next.authors.map((author) => author.id),
+    ]);
+  }
+  if (changedFields.includes("series")) {
+    affected.seriesIds = uniqueNumbers([previous.series?.id, next.series?.id]);
+  }
+  if (changedFields.includes("tags")) {
+    affected.tagIds = uniqueNumbers([
+      ...previous.tags.map((tag) => tag.id),
+      ...next.tags.map((tag) => tag.id),
+    ]);
+  }
+  if (changedFields.includes("language")) {
+    affected.languages = uniqueStrings([previous.language, next.language]);
+  }
+  return affected;
+}
+
 export default function BookEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -201,12 +237,7 @@ export default function BookEditPage() {
       book: updated.book,
       detail: updated,
       changedFields,
-      affected: hasMembershipChange(changedFields) ? undefined : {
-        authorIds: currentBook.authors.map((author) => author.id),
-        seriesId: currentBook.series?.id ?? null,
-        tagIds: currentBook.tags.map((tag) => tag.id),
-        language: currentBook.language,
-      },
+      affected: buildBookUpdateAffected(changedFields, currentBook, updated.book),
     });
     navigate(`/book/${id}`, {
       replace: true,

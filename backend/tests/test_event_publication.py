@@ -248,6 +248,29 @@ def test_update_book_changed_fields_mapping(
     assert captured_domain_events[0]["event"]["payload"]["changedFields"] == changed_fields
 
 
+def test_update_book_membership_event_includes_precise_affected(admin_client, captured_domain_events):
+    assert_ok(
+        admin_client.put(
+            "/api/books/1",
+            json={
+                "authorIds": [2],
+                "seriesId": 2,
+                "tagIds": [2],
+                "language": "en",
+            },
+        )
+    )
+
+    payload = captured_domain_events[0]["event"]["payload"]
+    assert payload["changedFields"] == ["authors", "series", "tags", "language"]
+    assert payload["affected"] == {
+        "authorIds": [1, 2],
+        "seriesIds": [1, 2],
+        "tagIds": [1, 2],
+        "languages": ["ru", "en"],
+    }
+
+
 def test_update_book_full_semantic_no_op_publishes_nothing(
     admin_client,
     captured_domain_events,

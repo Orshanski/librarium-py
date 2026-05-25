@@ -167,6 +167,49 @@ describe("metadata cache handlers", () => {
     expect(store.get("tags", "cloud?top=30")).toBeUndefined();
   });
 
+  it("patches unfiltered catalog and invalidates only affected membership lists", () => {
+    const updated = {
+      id: 1,
+      title: "Book",
+      authors: [{ id: 2, name: "New Author" }],
+      series: { id: 20, name: "New Series" },
+      tags: [{ id: 200, name: "New Tag" }],
+      language: "en",
+    };
+    store.set("books", "/", { books: [makeBook(1, "Book")], hasMore: false }, {
+      context: { kind: "book-list", key: "/", source: "catalog", sort: "addedDesc" },
+    });
+    store.set("books", "/?authorIds=1", { books: [makeBook(1, "Book")], hasMore: false }, {
+      context: { kind: "book-list", key: "/?authorIds=1", source: "catalog", sort: "addedDesc", filters: { authorIds: [1] } },
+    });
+    store.set("books", "/?authorIds=3", { books: [makeBook(1, "Book")], hasMore: false }, {
+      context: { kind: "book-list", key: "/?authorIds=3", source: "catalog", sort: "addedDesc", filters: { authorIds: [3] } },
+    });
+    store.set("series/10", "detail", { books: [makeBook(1, "Book")], hasMore: false }, {
+      context: { kind: "book-list", key: "series/10", source: "series-detail", seriesId: 10, sort: "seriesNumber" },
+    });
+    store.set("tag/200", "detail", { books: [makeBook(1, "Book")], hasMore: false }, {
+      context: { kind: "book-list", key: "tag/200", source: "tag-detail", tagId: 200, sort: "addedDesc" },
+    });
+
+    domainEvents.publish("bookUpdated", {
+      book: updated,
+      changedFields: ["authors", "series", "tags", "language"],
+      affected: {
+        authorIds: [1, 2],
+        seriesIds: [10, 20],
+        tagIds: [100, 200],
+        languages: ["ru", "en"],
+      },
+    });
+
+    expect(store.get<{ books: Array<{ authors: Array<{ id: number }>; series: { id: number }; tags: Array<{ id: number }>; language: string }> }>("books", "/")?.books[0]).toMatchObject(updated);
+    expect(store.get("books", "/?authorIds=1")).toBeUndefined();
+    expect(store.get("series/10", "detail")).toBeUndefined();
+    expect(store.get("tag/200", "detail")).toBeUndefined();
+    expect(store.get("books", "/?authorIds=3")).toBeDefined();
+  });
+
   it("invalidates cached book details after entity metadata changes", () => {
     store.set("book/1", "detail", {
       book: { id: 1, authors: [{ id: 7, name: "Old" }] },

@@ -120,6 +120,48 @@ def _changed_book_fields(
     return fields
 
 
+def _unique_ints(values: list[int | None]) -> list[int]:
+    result: list[int] = []
+    for value in values:
+        if value is not None and value not in result:
+            result.append(value)
+    return result
+
+
+def _unique_strings(values: list[str | None]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value and value not in result:
+            result.append(value)
+    return result
+
+
+def _membership_affected_payload(
+    changed_fields: list[str],
+    previous: BookDetailResponse,
+    current: UpdateBookResponse,
+) -> dict[str, object] | None:
+    affected: dict[str, object] = {}
+    if "authors" in changed_fields:
+        affected["authorIds"] = _unique_ints(
+            [author.id for author in previous.book.authors]
+            + [author.id for author in current.book.authors]
+        )
+    if "series" in changed_fields:
+        affected["seriesIds"] = _unique_ints([
+            previous.book.series.id if previous.book.series else None,
+            current.book.series.id if current.book.series else None,
+        ])
+    if "tags" in changed_fields:
+        affected["tagIds"] = _unique_ints(
+            [tag.id for tag in previous.book.tags]
+            + [tag.id for tag in current.book.tags]
+        )
+    if "language" in changed_fields:
+        affected["languages"] = _unique_strings([previous.book.language, current.book.language])
+    return affected or None
+
+
 def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     """Delete book. FS first, then DB.
 
@@ -391,14 +433,18 @@ def update_book(
         cover_changed=cover_changed,
     )
     if changed_fields:
+        payload: dict[str, object] = {
+            "book": _library_event_book_payload(response),
+            "changedFields": changed_fields,
+        }
+        affected = _membership_affected_payload(changed_fields, current_detail, response)
+        if affected:
+            payload["affected"] = affected
         publish_domain_event_after_commit(
             db,
             scope=EventScope(kind="library"),
             event_type="bookUpdated",
-            payload={
-                "book": _library_event_book_payload(response),
-                "changedFields": changed_fields,
-            },
+            payload=payload,
         )
     return response
 

@@ -234,10 +234,12 @@ function validateAffected(raw: unknown): void {
   if (affected.seriesId !== undefined && !(typeof affected.seriesId === "number" || affected.seriesId === null)) {
     throw new Error("bad server event payload");
   }
+  if (affected.seriesIds !== undefined && !isNullableNumberArray(affected.seriesIds)) throw new Error("bad server event payload");
   if (affected.tagIds !== undefined && !isNumberArray(affected.tagIds)) throw new Error("bad server event payload");
   if (affected.language !== undefined && !(typeof affected.language === "string" || affected.language === null)) {
     throw new Error("bad server event payload");
   }
+  if (affected.languages !== undefined && !isNullableStringArray(affected.languages)) throw new Error("bad server event payload");
 }
 
 function expectRecord(value: unknown, message: string): Record<string, unknown> {
@@ -251,6 +253,14 @@ function isBookChangedField(value: unknown): value is BookChangedField {
 
 function isNumberArray(value: unknown): value is number[] {
   return Array.isArray(value) && value.every((item) => typeof item === "number");
+}
+
+function isNullableNumberArray(value: unknown): value is Array<number | null> {
+  return Array.isArray(value) && value.every((item) => typeof item === "number" || item === null);
+}
+
+function isNullableStringArray(value: unknown): value is Array<string | null> {
+  return Array.isArray(value) && value.every((item) => typeof item === "string" || item === null);
 }
 
 function requireNumber(value: unknown): void {
