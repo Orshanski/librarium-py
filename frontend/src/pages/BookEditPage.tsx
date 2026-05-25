@@ -18,9 +18,10 @@ import { NotFoundError } from "@/api/errors";
 
 const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
 
-function arraysEqual(left: unknown[], right: unknown[]): boolean {
+function arraysEqualAsSets(left: unknown[], right: unknown[]): boolean {
   if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
+  const rightValues = new Set(right);
+  return left.every((value) => rightValues.has(value));
 }
 
 function changedBookEditBody(body: Record<string, unknown>, original: BookDetail, originalIsbn: string | null): Record<string, unknown> {
@@ -31,12 +32,12 @@ function changedBookEditBody(body: Record<string, unknown>, original: BookDetail
   if ((body.publisher || null) !== (original.publisher || null)) changed.publisher = body.publisher;
   if ((body.pubDate || null) !== (original.pubDate || null)) changed.pubDate = body.pubDate;
   if ((body.isbn || null) !== (originalIsbn || null)) changed.isbn = body.isbn;
-  if (!arraysEqual(body.authorIds as unknown[], original.authors.map((author) => author.id))) {
+  if (!arraysEqualAsSets(body.authorIds as unknown[], original.authors.map((author) => author.id))) {
     changed.authorIds = body.authorIds;
   }
   if ((body.seriesId ?? null) !== (original.series?.id ?? null)) changed.seriesId = body.seriesId;
   if ((body.seriesNumber ?? null) !== (original.seriesNumber ?? null)) changed.seriesNumber = body.seriesNumber;
-  if (!arraysEqual(body.tagIds as unknown[], original.tags.map((tag) => tag.id))) {
+  if (!arraysEqualAsSets(body.tagIds as unknown[], original.tags.map((tag) => tag.id))) {
     changed.tagIds = body.tagIds;
   }
   if (Array.isArray(body.addFormats) && body.addFormats.length > 0) changed.addFormats = body.addFormats;
@@ -233,12 +234,14 @@ export default function BookEditPage() {
 
     const updated = await updateBook(Number(id), body);
     const changedFields = deriveBookChangedFields(changedBookEditBody(body, currentBook, isbn));
-    domainEvents.publish("bookUpdated", {
-      book: updated.book,
-      detail: updated,
-      changedFields,
-      affected: buildBookUpdateAffected(changedFields, currentBook, updated.book),
-    });
+    if (changedFields.length > 0) {
+      domainEvents.publish("bookUpdated", {
+        book: updated.book,
+        detail: updated,
+        changedFields,
+        affected: buildBookUpdateAffected(changedFields, currentBook, updated.book),
+      });
+    }
     navigate(`/book/${id}`, {
       replace: true,
       state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },

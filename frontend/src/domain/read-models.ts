@@ -103,9 +103,9 @@ function isContextAffectedByMembership(
   },
 ): boolean {
   if (!affected) return true;
-  if (context.authorId !== undefined) return affected.authorIds?.includes(context.authorId) ?? false;
-  if (context.seriesId !== undefined) return affectedSeriesIds(affected).includes(context.seriesId);
-  if (context.tagId !== undefined) return affected.tagIds?.includes(context.tagId) ?? false;
+  if (context.authorId !== undefined && affected.authorIds?.includes(context.authorId)) return true;
+  if (context.seriesId !== undefined && affectedSeriesIds(affected).includes(context.seriesId)) return true;
+  if (context.tagId !== undefined && affected.tagIds?.includes(context.tagId)) return true;
   if (context.filters?.authorIds?.some((id) => affected.authorIds?.includes(id))) return true;
   if (context.filters?.seriesIds?.some((id) => affectedSeriesIds(affected).includes(id))) return true;
   if (context.filters?.tagIds?.some((id) => affected.tagIds?.includes(id))) return true;
@@ -126,7 +126,9 @@ function canMembershipChangedBookAppearInContext(
 ): boolean {
   if (!affected) return true;
   if (isContextAffectedByMembership(context, affected)) return true;
-  if (hasMembershipFilters(context)) return false;
+  if (hasMembershipFilters(context)) {
+    return !context.filters?.authorIds?.length;
+  }
   return context.source === "catalog" || context.source === "shelf-regular" || context.source === "shelf-best";
 }
 

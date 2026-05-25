@@ -155,6 +155,79 @@ describe("BookEditPage", () => {
     expect(buildBookUpdateAffected(["title"], mockBookDetail, { ...mockBookDetail, title: "Другое" })).toBeUndefined();
   });
 
+  it("does not publish membership changes for author/tag reorder-only saves", async () => {
+    setupAllHandlers();
+    const original = {
+      ...mockBookDetail,
+      authors: [{ id: 1, name: "Автор Тестов" }, { id: 2, name: "Второй автор" }],
+      tags: [{ id: 1, name: "Фэнтези" }, { id: 2, name: "Детектив" }],
+    };
+    const events: unknown[] = [];
+    domainEvents.subscribe("bookUpdated", (payload) => events.push(payload));
+
+    server.use(
+      http.get("/api/books/:id", () =>
+        HttpResponse.json({
+          book: original,
+          files: [{ format: "epub", fileSize: 512000 }],
+          identifiers: [],
+        }),
+      ),
+      http.get("/api/filter-options/authors", () =>
+        HttpResponse.json({ authors: original.authors }),
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: original.tags }),
+      ),
+      http.put("/api/books/:id", async ({ request }) => {
+        const body = await request.json() as { authorIds: unknown[]; tagIds: unknown[] };
+        expect(body.authorIds).toEqual([2, 1]);
+        expect(body.tagIds).toEqual([2, 1]);
+        return HttpResponse.json({
+          ok: true,
+          book: { ...original, authors: [...original.authors].reverse(), tags: [...original.tags].reverse() },
+          files: [{ format: "epub", fileSize: 512000 }],
+          identifiers: [],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id/edit" element={<BookEditPage />} />
+        <Route path="/book/:id" element={<div>Book Detail</div>} />
+      </Routes>,
+      { initialEntries: ["/book/42/edit"] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Тестовая книга")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Удалить Автор Тестов" }));
+    await user.click(screen.getByRole("button", { name: "Удалить Второй автор" }));
+    await user.type(screen.getByPlaceholderText("Найти или добавить автора..."), "Второй");
+    await user.click(screen.getByText("Второй автор"));
+    await user.type(screen.getByPlaceholderText("Найти или добавить автора..."), "Автор");
+    await user.click(screen.getByText("Автор Тестов"));
+
+    await user.click(screen.getByRole("button", { name: "Удалить Фэнтези" }));
+    await user.click(screen.getByRole("button", { name: "Удалить Детектив" }));
+    await user.type(screen.getByPlaceholderText("Найти или добавить жанр..."), "Детектив");
+    await user.click(screen.getByText("Детектив"));
+    await user.type(screen.getByPlaceholderText("Найти или добавить жанр..."), "Фэнтези");
+    await user.click(screen.getByText("Фэнтези"));
+
+    await user.click(screen.getByRole("button", { name: /сохранить/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Book Detail")).toBeInTheDocument();
+    });
+
+    expect(events).toEqual([]);
+  });
+
   it("save: navigate state.origin взят из editOrigin.bookOrigin (цепочка crumb к источнику)", async () => {
     setupAllHandlers();
     server.use(

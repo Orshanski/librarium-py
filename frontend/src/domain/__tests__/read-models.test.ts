@@ -163,10 +163,20 @@ describe("read-model validity", () => {
       ["language"],
       { languages: ["ru", "en"] },
     )).toBe("patchable");
+    expect(classifyBookUpdateForBookList(
+      { kind: "book-list", key: "/tags/5?authorIds=1", source: "tag-detail", tagId: 5, sort: "addedDesc", filters: { authorIds: [1] } },
+      ["authors"],
+      { authorIds: [1, 2] },
+    )).toBe("structural");
   });
 
   it("keeps author-sorted lists structural when authors change", () => {
     expect(classifyBookUpdateForBookList({ ...catalogAdded, sort: "authorAsc" }, ["authors"], { authorIds: [3, 8] })).toBe("structural");
+    expect(classifyBookUpdateForBookList(
+      { ...catalogAdded, sort: "authorAsc", filters: { tagIds: [5] } },
+      ["authors"],
+      { authorIds: [3, 8] },
+    )).toBe("structural");
     expect(classifyBookUpdateForBookList(
       { ...catalogAdded, sort: "authorAsc", filters: { authorIds: [9] } },
       ["authors"],
