@@ -19,6 +19,7 @@ interface CardTitleMetaProps {
   series?: string;
   seriesNumber?: number | null;
   tokens: CardTitleMetaTokens;
+  opacity?: number;
 }
 
 function ellipsisStyle(enabled?: boolean): CSSProperties {
@@ -37,11 +38,13 @@ export default function CardTitleMeta({
   series,
   seriesNumber,
   tokens,
+  opacity,
 }: Readonly<CardTitleMetaProps>) {
   const titleStyle: CSSProperties = {
     fontSize: tokens.titleSize,
     fontWeight: tokens.titleFontWeight ?? 500,
     color: colors.text,
+    opacity,
     lineHeight: tokens.titleLineHeight,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -54,6 +57,7 @@ export default function CardTitleMeta({
   const authorsStyle: CSSProperties = {
     fontSize: tokens.authorsSize,
     color: colors.textDim,
+    opacity,
     overflow: "hidden",
     textOverflow: "ellipsis",
     display: "-webkit-box",
@@ -65,6 +69,7 @@ export default function CardTitleMeta({
   const seriesBaseStyle: CSSProperties = {
     fontSize: tokens.seriesSize ?? tokens.authorsSize,
     color: colors.textDim,
+    opacity,
     marginTop: 1,
   };
 

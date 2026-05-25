@@ -33,6 +33,7 @@ export const SERIES_RAIL_BORDER_PLACEHOLDER =
 
 export const SERIES_RAIL_OPACITY_INACTIVE = 0.6;
 export const SERIES_RAIL_OPACITY_ACTIVE = 1;
+export const READ_BOOK_OPACITY = 0.7;
 
 // === Title meta (catalog desktop golden) ===
 export const TITLE_META_TOKENS: CardTitleMetaTokens = {
@@ -165,7 +166,7 @@ export function buildCoverFrameTokens(input: BuildCoverFrameTokensInput): CoverF
  */
 export function bookToBookCardCommonProps(book: Book): Pick<
   BookCardProps,
-  "src" | "alt" | "title" | "authors" | "series" | "seriesNumber" | "rating" | "href"
+  "src" | "alt" | "title" | "authors" | "series" | "seriesNumber" | "rating" | "href" | "muted"
 > {
   return {
     src: book.coverPath,
@@ -176,6 +177,7 @@ export function bookToBookCardCommonProps(book: Book): Pick<
     seriesNumber: book.seriesNumber ?? undefined,
     rating: toStarRating(book.rating),
     href: `/book/${book.id}`,
+    muted: book.isRead,
   };
 }
 

@@ -33,4 +33,13 @@ describe("CardTitleMeta", () => {
     );
     expect(container.textContent).toContain("Серия (3)");
   });
+
+  it("applies opacity to title, authors, and series text", () => {
+    const { getByText } = render(
+      <CardTitleMeta title="X" authors={["Y"]} series="Серия" seriesNumber={3} tokens={tokens} opacity={0.8} />,
+    );
+    expect(getByText("X").style.opacity).toBe("0.8");
+    expect(getByText("Y").style.opacity).toBe("0.8");
+    expect(getByText("Серия", { exact: false }).style.opacity).toBe("0.8");
+  });
 });

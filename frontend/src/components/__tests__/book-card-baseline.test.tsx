@@ -54,4 +54,16 @@ describe("BookCard — golden baseline", () => {
     expect(innerDiv).toBeTruthy();
     expect(innerDiv.style.width).toBe("130px");
   });
+
+  it("applies read opacity to cover and text", () => {
+    const { getByText, container } = render(
+      <MemoryRouter>
+        <BookCard {...bookToBookCardCommonProps({ ...baselineBook, isRead: true })} width={130} />
+      </MemoryRouter>,
+    );
+    const coverFrame = container.querySelector("a > div > div") as HTMLElement;
+    expect(coverFrame.style.opacity).toBe("0.7");
+    expect(getByText("Война и мир").style.opacity).toBe("0.7");
+    expect(getByText("Толстой Л.Н.").style.opacity).toBe("0.7");
+  });
 });

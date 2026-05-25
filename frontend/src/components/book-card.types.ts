@@ -18,6 +18,7 @@ export interface BookCardProps {
   // визуал frame'а — опциональные override'ы
   opacity?: number;
   border?: string;
+  muted?: boolean;
 
   // мета под frame'ом
   title: string;

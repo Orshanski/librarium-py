@@ -23,6 +23,7 @@ import {
   OFFLINE_BADGE_INNER_SIZE_PX,
   OFFLINE_BADGE_OUTER_SIZE_PX,
   OFFLINE_BADGE_RIGHT_PX,
+  READ_BOOK_OPACITY,
   RATING_CHIP_TOKENS,
   RATING_STARS_TOKENS,
   REMOVE_BUTTON_TOKENS,
@@ -111,6 +112,16 @@ function renderExternalSourceLabel(label: string | undefined): ReactNode {
   );
 }
 
+function resolveCoverOpacity(props: Readonly<BookCardProps>): number | undefined {
+  if (props.muted) return READ_BOOK_OPACITY;
+  return props.opacity;
+}
+
+function resolveTextOpacity(props: Readonly<BookCardProps>): number | undefined {
+  if (props.muted) return READ_BOOK_OPACITY;
+  return undefined;
+}
+
 function renderLink(props: Readonly<BookCardProps>, children: ReactNode): ReactNode {
   if (props.external) {
     return (
@@ -135,7 +146,7 @@ function renderLink(props: Readonly<BookCardProps>, children: ReactNode): ReactN
 export default function BookCard(props: Readonly<BookCardProps>) {
   const frameTokens = buildCoverFrameTokens({
     width: props.width,
-    opacity: props.opacity,
+    opacity: resolveCoverOpacity(props),
     border: props.border,
   });
   const inner = (
@@ -153,6 +164,7 @@ export default function BookCard(props: Readonly<BookCardProps>) {
         series={props.series}
         seriesNumber={props.seriesNumber}
         tokens={TITLE_META_TOKENS}
+        opacity={resolveTextOpacity(props)}
       />
     </div>
   );
