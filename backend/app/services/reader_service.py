@@ -89,6 +89,9 @@ def save_progress(
                 "hadPosition": bool(previous["position"]),
                 "hasPosition": bool(body.position),
                 "lastReadAtChanged": previous["last_read_at"] != current["last_read_at"],
+                "fraction": current["fraction"],
+                "lastFormat": current["last_format"],
+                "lastReadAt": current["last_read_at"],
             },
         )
     response = ProgressRejectedResponse(

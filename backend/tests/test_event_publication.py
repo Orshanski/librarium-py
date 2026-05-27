@@ -804,6 +804,7 @@ def test_accepted_reading_progress_publishes_user_scoped_event(
     )
 
     assert response["accepted"] is True
+    progress = assert_ok(reader_client.get("/api/reader/progress/1"))
     _assert_single_user_event(
         captured_domain_events,
         "readingProgressChanged",
@@ -812,6 +813,9 @@ def test_accepted_reading_progress_publishes_user_scoped_event(
             "hadPosition": False,
             "hasPosition": True,
             "lastReadAtChanged": True,
+            "fraction": 0.1,
+            "lastFormat": "EPUB",
+            "lastReadAt": progress["lastReadAt"],
         },
     )
 
@@ -848,6 +852,7 @@ def test_accepted_reading_progress_empty_position_reports_position_state(
     )
 
     assert response["accepted"] is True
+    progress = assert_ok(reader_client.get("/api/reader/progress/1"))
     _assert_single_user_event(
         captured_domain_events,
         "readingProgressChanged",
@@ -856,6 +861,9 @@ def test_accepted_reading_progress_empty_position_reports_position_state(
             "hadPosition": True,
             "hasPosition": False,
             "lastReadAtChanged": True,
+            "fraction": 0.2,
+            "lastFormat": "EPUB",
+            "lastReadAt": progress["lastReadAt"],
         },
     )
 

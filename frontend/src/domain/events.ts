@@ -60,6 +60,9 @@ export type DomainEventMap = {
     hadPosition: boolean;
     hasPosition: boolean;
     lastReadAtChanged: boolean;
+    fraction: number;
+    lastFormat: string;
+    lastReadAt: string;
   };
 };
 
