@@ -451,7 +451,14 @@ describe("metadata cache handlers", () => {
     expect(store.get<{ books: { isRead: boolean }[] }>("books", "rating")?.books[0].isRead).toBe(true);
     expect(store.get<{ book: { isRead: boolean } }>("book/10", "detail")?.book.isRead).toBe(true);
 
-    store.set("shelf/2", "/shelves/2?sort=lastReadDesc", { books: [{ id: 10, fraction: 0.2 }], hasMore: false }, {
+    store.set("shelf/2", "/shelves/2?sort=lastReadDesc", {
+      shelf: { id: 2, systemCode: "reading_now" },
+      books: [{ id: 20 }, { id: 10 }],
+      progressByBookId: {
+        10: { fraction: 0.2, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:00:00Z" },
+        20: { fraction: 0.4, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:03:00Z" },
+      },
+    }, {
       context: {
         kind: "book-list",
         key: "/shelves/2?sort=lastReadDesc",
@@ -463,12 +470,111 @@ describe("metadata cache handlers", () => {
     store.set("shelf/7", "/shelves/7", { books: [{ id: 10, fraction: 0.1 }], hasMore: false });
     domainEvents.publish("readingProgressChanged", {
       bookId: 10,
-      hadPosition: false,
+      hadPosition: true,
+      hasPosition: true,
+      lastReadAtChanged: false,
+      fraction: 0.7,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:05:00Z",
+    });
+    expect(store.get<{
+      progressByBookId: Record<number, { fraction: number; lastFormat: string; lastReadAt: string }>;
+    }>("shelf/2", "/shelves/2?sort=lastReadDesc")?.progressByBookId[10]).toEqual({
+      fraction: 0.7,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:05:00Z",
+    });
+    expect(store.get("shelf/7", "/shelves/7")).toEqual({ books: [{ id: 10, fraction: 0.1 }], hasMore: false });
+
+    domainEvents.publish("readingProgressChanged", {
+      bookId: 10,
+      hadPosition: true,
       hasPosition: true,
       lastReadAtChanged: true,
+      fraction: 0.8,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:10:00Z",
     });
+    expect(store.get<{
+      books: Array<{ id: number }>;
+      progressByBookId: Record<number, { fraction: number; lastFormat: string; lastReadAt: string }>;
+    }>("shelf/2", "/shelves/2?sort=lastReadDesc")).toMatchObject({
+      books: [{ id: 10 }, { id: 20 }],
+      progressByBookId: {
+        10: { fraction: 0.8, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:10:00Z" },
+        20: { fraction: 0.4, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:03:00Z" },
+      },
+    });
+    expect(store.get("shelf/7", "/shelves/7")).toEqual({ books: [{ id: 10, fraction: 0.1 }], hasMore: false });
+  });
+
+  it("invalidates cached reading-now entries when progress arrives for a missing book", () => {
+    store.set("shelf/2", "/shelves/2?sort=lastReadDesc", {
+      books: [{ id: 20 }],
+      progressByBookId: {
+        20: { fraction: 0.4, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:03:00Z" },
+      },
+    }, {
+      context: {
+        kind: "book-list",
+        key: "/shelves/2?sort=lastReadDesc",
+        source: "shelf-reading-now",
+        shelfId: 2,
+        sort: "lastReadDesc",
+      },
+    });
+    store.set("shelf/7", "/shelves/7", { books: [{ id: 10 }], hasMore: false });
+
+    domainEvents.publish("readingProgressChanged", {
+      bookId: 10,
+      hadPosition: true,
+      hasPosition: true,
+      lastReadAtChanged: true,
+      fraction: 0.8,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:10:00Z",
+    });
+
     expect(store.get("shelf/2", "/shelves/2?sort=lastReadDesc")).toBeUndefined();
-    expect(store.get("shelf/7", "/shelves/7")).toBeUndefined();
+    expect(store.get("shelf/7", "/shelves/7")).toEqual({ books: [{ id: 10 }], hasMore: false });
+  });
+
+  it("uses reading-now books membership, not stale progress entries, to decide patch vs invalidate", () => {
+    store.set("shelf/2", "/shelves/2?sort=lastReadDesc", {
+      books: [{ id: 10 }, { id: 20 }],
+      progressByBookId: {
+        99: { fraction: 0.4, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:03:00Z" },
+      },
+    }, {
+      context: {
+        kind: "book-list",
+        key: "/shelves/2?sort=lastReadDesc",
+        source: "shelf-reading-now",
+        shelfId: 2,
+        sort: "lastReadDesc",
+      },
+    });
+
+    domainEvents.publish("readingProgressChanged", {
+      bookId: 10,
+      hadPosition: true,
+      hasPosition: true,
+      lastReadAtChanged: true,
+      fraction: 0.8,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:10:00Z",
+    });
+
+    expect(store.get<{
+      books: Array<{ id: number }>;
+      progressByBookId: Record<number, { fraction: number; lastFormat: string; lastReadAt: string }>;
+    }>("shelf/2", "/shelves/2?sort=lastReadDesc")).toMatchObject({
+      books: [{ id: 10 }, { id: 20 }],
+      progressByBookId: {
+        10: { fraction: 0.8, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:10:00Z" },
+        99: { fraction: 0.4, lastFormat: "EPUB", lastReadAt: "2026-05-27T10:03:00Z" },
+      },
+    });
   });
 
   it("invalidates shelf namespaces and book-shelves prefixes on shelf delete", () => {

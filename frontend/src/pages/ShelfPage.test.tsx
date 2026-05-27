@@ -192,7 +192,7 @@ describe("ShelfPage", () => {
     expect(requestCount).toBe(1);
   });
 
-  it("refetches an open reading-now shelf when reading progress changes", async () => {
+  it("patches an open reading-now shelf when visible reading progress changes", async () => {
     let requestCount = 0;
     server.use(
       http.get("/api/shelves/:id", () => {
@@ -238,10 +238,13 @@ describe("ShelfPage", () => {
       hadPosition: true,
       hasPosition: true,
       lastReadAtChanged: true,
+      fraction: 0.8,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-04T07:05:00Z",
     });
 
     await waitFor(() => {
-      expect(requestCount).toBe(2);
+      expect(requestCount).toBe(1);
       expect(document.querySelector('[style*="width: 80%"]')).toBeInTheDocument();
     });
   });

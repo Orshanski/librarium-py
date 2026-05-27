@@ -144,6 +144,40 @@ export class MetadataCacheStore {
     }
   }
 
+  applyReadingProgressChange(payload: DomainEventMap["readingProgressChanged"]): void {
+    if (payload.hadPosition !== payload.hasPosition) {
+      this.updateBookListEntries((entry) => (
+        entry.context?.source === "shelf-reading-now" ? { delete: true } : {}
+      ));
+      return;
+    }
+    if (!payload.hasPosition) return;
+    this.updateBookListEntries((entry) => {
+      if (entry.context?.source !== "shelf-reading-now") return {};
+      if (!entry.value.books.some((book) => book.id === payload.bookId)) {
+        return payload.lastReadAtChanged ? { delete: true } : {};
+      }
+      const progressByBookId = readProgressByBookId(entry.value.progressByBookId) ?? {};
+      const nextProgressByBookId = {
+        ...progressByBookId,
+        [payload.bookId]: {
+          fraction: payload.fraction,
+          lastFormat: payload.lastFormat,
+          lastReadAt: payload.lastReadAt,
+        },
+      };
+      return {
+        value: {
+          ...entry.value,
+          books: payload.lastReadAtChanged
+            ? sortBooksByLastReadAtDesc(entry.value.books, nextProgressByBookId)
+            : entry.value.books,
+          progressByBookId: nextProgressByBookId,
+        },
+      };
+    });
+  }
+
   applyShelfRename(payload: DomainEventMap["shelfRenamed"]): void {
     applyShelfRenameProjection(this.projectionWriter, payload);
   }
@@ -366,4 +400,21 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function sameContext(left: BookListContext | undefined, right: BookListContext | undefined): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function readProgressByBookId(value: unknown): Record<number, unknown> | undefined {
+  return isRecord(value) ? value as Record<number, unknown> : undefined;
+}
+
+function sortBooksByLastReadAtDesc<T extends { id: number }>(
+  books: T[],
+  progressByBookId: Record<number, unknown>,
+): T[] {
+  return [...books].sort((left, right) => (
+    readProgressLastReadAt(progressByBookId[right.id]).localeCompare(readProgressLastReadAt(progressByBookId[left.id]))
+  ));
+}
+
+function readProgressLastReadAt(value: unknown): string {
+  return isRecord(value) && typeof value.lastReadAt === "string" ? value.lastReadAt : "";
 }

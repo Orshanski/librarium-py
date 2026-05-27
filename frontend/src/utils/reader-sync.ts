@@ -66,9 +66,12 @@ export async function pushProgressToServerCAS(
       await markProgressSynced(progress.bookId);
       domainEvents.publish("readingProgressChanged", {
         bookId: progress.bookId,
-        hadPosition: Boolean(progress.position),
+        hadPosition: true,
         hasPosition: Boolean(progress.position),
         lastReadAtChanged: true,
+        fraction: progress.fraction,
+        lastFormat: progress.lastFormat,
+        lastReadAt: new Date(progress.lastReadAt).toISOString(),
       });
       return {
         status: data.rebased === true ? "rebased" : "accepted",

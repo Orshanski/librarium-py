@@ -84,6 +84,9 @@ describe("list scroll validity", () => {
       hadPosition: true,
       hasPosition: true,
       lastReadAtChanged: false,
+      fraction: 0.4,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:00:00Z",
     });
 
     expect(readScrollEntries()).toEqual(entries);
@@ -103,6 +106,9 @@ describe("list scroll validity", () => {
       hadPosition: false,
       hasPosition: true,
       lastReadAtChanged: true,
+      fraction: 0.4,
+      lastFormat: "EPUB",
+      lastReadAt: "2026-05-27T10:00:00Z",
     });
 
     expect(readScrollEntries()).toEqual([]);

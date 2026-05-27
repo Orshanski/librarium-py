@@ -123,8 +123,8 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
       store.invalidate(`book/${payload.bookId}`);
       invalidateUserFilteredMetadataViewsAfterHiddenChange(store);
     }),
-    bus.subscribe("readingProgressChanged", () => {
-      store.invalidateNamespacePrefix("shelf/");
+    bus.subscribe("readingProgressChanged", (payload) => {
+      store.applyReadingProgressChange(payload);
     }),
   ];
 

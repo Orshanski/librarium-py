@@ -210,6 +210,9 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
       requireBoolean(value.hadPosition);
       requireBoolean(value.hasPosition);
       requireBoolean(value.lastReadAtChanged);
+      requireNumber(value.fraction);
+      requireString(value.lastFormat);
+      requireString(value.lastReadAt);
       return;
   }
 }
