@@ -176,10 +176,7 @@ def _load_envelope(row: sqlite3.Row) -> ServerEvent:
     scope_kind = scope.get("kind")
     if scope_kind == "user":
         user_id = scope.get("userId")
-        if (
-            not isinstance(user_id, (int, float))
-            or isinstance(user_id, bool)
-        ):
+        if type(user_id) is not int:
             _raise_malformed_envelope()
     elif scope_kind != "library":
         _raise_malformed_envelope()

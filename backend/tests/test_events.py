@@ -324,6 +324,39 @@ def test_next_publication_rejects_matching_id_envelope_missing_wire_fields(db_te
         next_publication_after(user_id=2, cursor=11)
 
 
+def test_next_publication_rejects_float_user_scope_in_stored_envelope(db_test):
+    from app.events import MalformedPublicationError, next_publication_after
+
+    db_test.execute(
+        """
+        INSERT INTO sse_publications (
+            event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            12,
+            "user",
+            2,
+            "bookReadChanged",
+            "{}",
+            json.dumps(
+                {
+                    "eventId": 12,
+                    "publishedAt": "2026-05-27T08:00:00Z",
+                    "scope": {"kind": "user", "userId": 2.5},
+                    "event": {"type": "bookReadChanged", "payload": {}},
+                }
+            ),
+            "2026-05-27T08:00:00Z",
+        ),
+    )
+    db_test.commit()
+
+    with pytest.raises(MalformedPublicationError, match="malformed SSE publication envelope"):
+        next_publication_after(user_id=2, cursor=11)
+
+
 def test_current_publication_tail_starts_new_clients_after_existing_rows():
     from app.events import EventBroker, EventScope, current_publication_tail
 
