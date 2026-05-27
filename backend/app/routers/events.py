@@ -1,42 +1,80 @@
 import asyncio
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from ..auth import CurrentUser, get_current_user
-from ..events import broker, format_sse_event
+from ..events import (
+    MalformedPublicationError,
+    broker,
+    current_publication_tail,
+    format_sse_event,
+    next_publication_after,
+)
 
 router = APIRouter(tags=["events"])
 SSE_KEEPALIVE_INTERVAL_SECONDS = 15.0
+log = logging.getLogger("librarium.events")
 
 
 def close_event_streams() -> None:
     broker.close_all()
 
 
+def parse_since(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 @router.get("/api/events/stream")
 async def stream_events(request: Request, user: Annotated[CurrentUser, Depends(get_current_user)]):
-    subscription = broker.subscribe(user.user_id)
+    explicit_cursor = parse_since(request.query_params.get("since"))
+    cursor = current_publication_tail() if explicit_cursor is None else explicit_cursor
 
     async def event_stream():
-        try:
-            while True:
+        nonlocal cursor
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                event = next_publication_after(user_id=user.user_id, cursor=cursor)
+            except MalformedPublicationError:
+                log.exception(
+                    "Malformed SSE publication at cursor=%s user_id=%s",
+                    cursor,
+                    user.user_id,
+                )
+                break
+            except Exception:
+                log.exception(
+                    "Failed to read SSE publication at cursor=%s user_id=%s",
+                    cursor,
+                    user.user_id,
+                )
+                break
+            if event is not None:
+                cursor = int(event["eventId"])
+                yield format_sse_event(event)
+                continue
+
+            try:
+                await broker.wait_for_publication(
+                    user_id=user.user_id,
+                    timeout=SSE_KEEPALIVE_INTERVAL_SECONDS,
+                )
+            except asyncio.TimeoutError:
                 if await request.is_disconnected():
                     break
-                try:
-                    event = await asyncio.wait_for(
-                        subscription.get(),
-                        timeout=SSE_KEEPALIVE_INTERVAL_SECONDS,
-                    )
-                except asyncio.TimeoutError:
-                    if await request.is_disconnected():
-                        break
-                    yield ":ping\n\n"
-                    continue
-                yield format_sse_event(event)
-        finally:
-            broker.unsubscribe(subscription)
+                yield ":ping\n\n"
+            except asyncio.CancelledError:
+                break
 
     return StreamingResponse(
         event_stream(),

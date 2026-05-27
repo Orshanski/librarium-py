@@ -38,36 +38,29 @@ class ServerEvent(TypedDict):
 @dataclass
 class EventSubscription:
     user_id: int
-    queue: asyncio.Queue[ServerEvent | None]
+    event: asyncio.Event
     loop: asyncio.AbstractEventLoop
     closed: bool = False
 
-    async def get(self) -> ServerEvent:
+    async def wait(self, timeout: float) -> None:
         if self.closed:
             raise asyncio.CancelledError
-        item = await self.queue.get()
-        if item is None or self.closed:
+        try:
+            await asyncio.wait_for(self.event.wait(), timeout=timeout)
+        finally:
+            self.event.clear()
+        if self.closed:
             raise asyncio.CancelledError
-        return item
 
     def close(self) -> None:
         if self.closed:
             return
         self.closed = True
-        self.loop.call_soon_threadsafe(self._wake_closed)
-
-    def _wake_closed(self) -> None:
-        while True:
-            try:
-                self.queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-        self.queue.put_nowait(None)
+        self.loop.call_soon_threadsafe(self.event.set)
 
 
 class EventBroker:
     def __init__(self, queue_size: int = 100) -> None:
-        self._queue_size = queue_size
         self._lock = threading.Lock()
         self._subscriptions: list[EventSubscription] = []
 
@@ -75,7 +68,7 @@ class EventBroker:
         loop = asyncio.get_running_loop()
         subscription = EventSubscription(
             user_id=user_id,
-            queue=asyncio.Queue(maxsize=self._queue_size),
+            event=asyncio.Event(),
             loop=loop,
         )
         with self._lock:
@@ -94,23 +87,21 @@ class EventBroker:
         for subscription in subscriptions:
             subscription.close()
 
+    async def wait_for_publication(self, *, user_id: int, timeout: float) -> None:
+        subscription = self.subscribe(user_id)
+        try:
+            await subscription.wait(timeout)
+        finally:
+            self.unsubscribe(subscription)
+
     def publish_nowait(self, *, scope: EventScope, event_type: str, payload: dict[str, Any]) -> None:
         with self._lock:
             subscriptions = [sub for sub in self._subscriptions if not sub.closed and scope.matches(sub.user_id)]
 
-        wire_event = append_publication(scope=scope, event_type=event_type, payload=payload)
+        append_publication(scope=scope, event_type=event_type, payload=payload)
 
         for subscription in subscriptions:
-            subscription.loop.call_soon_threadsafe(self._deliver, subscription, wire_event)
-
-    def _deliver(self, subscription: EventSubscription, event: ServerEvent) -> None:
-        if subscription.closed:
-            return
-        try:
-            subscription.queue.put_nowait(event)
-        except asyncio.QueueFull:
-            log.warning("Dropping slow SSE client user_id=%s", subscription.user_id)
-            self.unsubscribe(subscription)
+            subscription.loop.call_soon_threadsafe(subscription.event.set)
 
 
 broker = EventBroker()
@@ -150,6 +141,57 @@ def append_publication(*, scope: EventScope, event_type: str, payload: dict[str,
     except Exception:
         db.rollback()
         raise
+    finally:
+        db.close()
+
+
+class MalformedPublicationError(ValueError):
+    pass
+
+
+def _load_envelope(row: sqlite3.Row) -> ServerEvent:
+    try:
+        envelope = json.loads(row["envelope_json"])
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise MalformedPublicationError("malformed SSE publication envelope") from exc
+    if not isinstance(envelope, dict):
+        raise MalformedPublicationError("malformed SSE publication envelope")
+    if envelope.get("eventId") != row["event_id"]:
+        raise MalformedPublicationError("malformed SSE publication envelope")
+    return envelope
+
+
+def next_publication_after(*, user_id: int, cursor: int) -> ServerEvent | None:
+    db = open_event_db()
+    try:
+        row = db.execute(
+            """
+            SELECT event_id, envelope_json
+            FROM sse_publications
+            WHERE event_id > ?
+              AND (
+                scope_kind = 'library'
+                OR (scope_kind = 'user' AND user_id = ?)
+              )
+            ORDER BY event_id
+            LIMIT 1
+            """,
+            (cursor, user_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return _load_envelope(row)
+    finally:
+        db.close()
+
+
+def current_publication_tail() -> int:
+    db = open_event_db()
+    try:
+        row = db.execute(
+            "SELECT COALESCE(MAX(event_id), 0) AS event_id FROM sse_publications"
+        ).fetchone()
+        return int(row["event_id"])
     finally:
         db.close()
 
