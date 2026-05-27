@@ -143,6 +143,18 @@ CREATE TABLE IF NOT EXISTS reading_progress (
 
 CREATE INDEX IF NOT EXISTS idx_reading_progress_book ON reading_progress(book_id);
 
+-- Durable SSE publication log
+CREATE TABLE IF NOT EXISTS sse_publications (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_kind TEXT NOT NULL CHECK (scope_kind IN ('library', 'user')),
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    envelope_json TEXT NOT NULL,
+    published_at TEXT NOT NULL,
+    CHECK ((scope_kind = 'library' AND user_id IS NULL) OR (scope_kind = 'user' AND user_id IS NOT NULL))
+);
+
 -- Default settings
 INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Librarium');
 
@@ -161,3 +173,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_shelves_system_code ON shelves(user_id, sy
 CREATE INDEX IF NOT EXISTS idx_user_books_book ON user_books(book_id);
 CREATE INDEX IF NOT EXISTS idx_authors_sort ON authors(sort_name);
 CREATE INDEX IF NOT EXISTS idx_series_sort ON series(sort_name);
+CREATE INDEX IF NOT EXISTS idx_sse_publications_scope_event ON sse_publications(scope_kind, user_id, event_id);

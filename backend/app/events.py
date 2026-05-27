@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 import json
 import logging
 import sqlite3
@@ -6,7 +7,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
-from .database import add_after_commit_hook
+from .database import add_after_commit_hook, open_event_db
 
 log = logging.getLogger("librarium.events")
 
@@ -29,6 +30,7 @@ class EventScope:
 
 class ServerEvent(TypedDict):
     eventId: int
+    publishedAt: str
     scope: dict[str, Any]
     event: dict[str, Any]
 
@@ -68,7 +70,6 @@ class EventBroker:
         self._queue_size = queue_size
         self._lock = threading.Lock()
         self._subscriptions: list[EventSubscription] = []
-        self._next_event_id = 1
 
     def subscribe(self, user_id: int) -> EventSubscription:
         loop = asyncio.get_running_loop()
@@ -94,15 +95,8 @@ class EventBroker:
             subscription.close()
 
     def publish_nowait(self, *, scope: EventScope, event_type: str, payload: dict[str, Any]) -> None:
-        wire_event: ServerEvent
+        wire_event = append_publication(scope=scope, event_type=event_type, payload=payload)
         with self._lock:
-            event_id = self._next_event_id
-            self._next_event_id += 1
-            wire_event = {
-                "eventId": event_id,
-                "scope": scope.to_wire(),
-                "event": {"type": event_type, "payload": payload},
-            }
             subscriptions = [sub for sub in self._subscriptions if not sub.closed and scope.matches(sub.user_id)]
 
         for subscription in subscriptions:
@@ -119,6 +113,44 @@ class EventBroker:
 
 
 broker = EventBroker()
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def append_publication(*, scope: EventScope, event_type: str, payload: dict[str, Any]) -> ServerEvent:
+    db = open_event_db()
+    published_at = _utc_now_iso()
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    try:
+        cursor = db.execute(
+            """
+            INSERT INTO sse_publications (
+                scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (scope.kind, scope.user_id, event_type, payload_json, "{}", published_at),
+        )
+        event_id = int(cursor.lastrowid)
+        envelope: ServerEvent = {
+            "eventId": event_id,
+            "publishedAt": published_at,
+            "scope": scope.to_wire(),
+            "event": {"type": event_type, "payload": payload},
+        }
+        db.execute(
+            "UPDATE sse_publications SET envelope_json = ? WHERE event_id = ?",
+            (json.dumps(envelope, ensure_ascii=False, separators=(",", ":")), event_id),
+        )
+        db.commit()
+        return envelope
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def publish_domain_event_after_commit(

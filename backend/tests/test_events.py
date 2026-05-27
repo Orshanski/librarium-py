@@ -20,13 +20,17 @@ def test_broker_delivers_library_events_to_all_connections():
             payload={"bookId": 7},
         )
 
-        assert await asyncio.wait_for(left.get(), timeout=0.1) == {
+        left_event = await asyncio.wait_for(left.get(), timeout=0.1)
+        right_event = await asyncio.wait_for(right.get(), timeout=0.1)
+        assert left_event == {
             "eventId": 1,
+            "publishedAt": left_event["publishedAt"],
             "scope": {"kind": "library"},
             "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
         }
-        assert await asyncio.wait_for(right.get(), timeout=0.1) == {
+        assert right_event == {
             "eventId": 1,
+            "publishedAt": left_event["publishedAt"],
             "scope": {"kind": "library"},
             "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
         }
@@ -48,8 +52,10 @@ def test_broker_delivers_user_events_only_to_matching_user():
             payload={"bookId": 7, "rating": 5},
         )
 
-        assert await asyncio.wait_for(reader.get(), timeout=0.1) == {
+        event = await asyncio.wait_for(reader.get(), timeout=0.1)
+        assert event == {
             "eventId": 1,
+            "publishedAt": event["publishedAt"],
             "scope": {"kind": "user", "userId": 2},
             "event": {"type": "bookRatingChanged", "payload": {"bookId": 7, "rating": 5}},
         }
@@ -80,13 +86,71 @@ def test_broker_publish_nowait_is_safe_from_worker_thread():
         thread.start()
         thread.join(timeout=1)
 
-        assert await asyncio.wait_for(sub.get(), timeout=0.1) == {
+        event = await asyncio.wait_for(sub.get(), timeout=0.1)
+        assert event == {
             "eventId": 1,
+            "publishedAt": event["publishedAt"],
             "scope": {"kind": "library"},
             "event": {"type": "bookCreated", "payload": {"bookId": 8}},
         }
 
     asyncio.run(scenario())
+
+
+def test_publish_nowait_persists_exact_envelope(db_test):
+    from app.events import EventBroker, EventScope
+
+    broker = EventBroker(queue_size=2)
+    payload = {"bookId": 7, "isRead": True}
+
+    broker.publish_nowait(
+        scope=EventScope(kind="user", user_id=2),
+        event_type="bookReadChanged",
+        payload=payload,
+    )
+
+    row = db_test.execute(
+        """
+        SELECT event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        FROM sse_publications
+        """
+    ).fetchone()
+
+    assert row["event_id"] == 1
+    assert row["scope_kind"] == "user"
+    assert row["user_id"] == 2
+    assert row["event_type"] == "bookReadChanged"
+    assert json.loads(row["payload_json"]) == payload
+    assert json.loads(row["envelope_json"]) == {
+        "eventId": row["event_id"],
+        "publishedAt": row["published_at"],
+        "scope": {"kind": "user", "userId": 2},
+        "event": {"type": "bookReadChanged", "payload": payload},
+    }
+
+
+def test_publish_nowait_uses_dedicated_connection(monkeypatch, db):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    real_open_event_db = events_module.open_event_db
+    captured_connections = []
+
+    def capture_open_event_db():
+        conn = real_open_event_db()
+        captured_connections.append(conn)
+        return conn
+
+    monkeypatch.setattr(events_module, "open_event_db", capture_open_event_db)
+
+    EventBroker(queue_size=2).publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 7},
+    )
+
+    assert captured_connections
+    assert all(conn is not db for conn in captured_connections)
 
 
 def test_broker_queue_overflow_wakes_closed_subscription():
@@ -190,6 +254,7 @@ def test_sse_format_uses_domain_event_name_and_json_payload():
 
     text = format_sse_event({
         "eventId": 3,
+        "publishedAt": "2026-05-27T12:00:00Z",
         "scope": {"kind": "library"},
         "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
     })
@@ -199,6 +264,7 @@ def test_sse_format_uses_domain_event_name_and_json_payload():
     data_line = next(line for line in text.splitlines() if line.startswith("data: "))
     assert json.loads(data_line.removeprefix("data: ")) == {
         "eventId": 3,
+        "publishedAt": "2026-05-27T12:00:00Z",
         "scope": {"kind": "library"},
         "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
     }

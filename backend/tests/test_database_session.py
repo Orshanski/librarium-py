@@ -78,6 +78,17 @@ def test_db_session_teardown_can_run_on_different_thread():
     assert calls == ["committed", "next"]
 
 
+def test_open_event_db_is_not_thread_local_session_connection(db):
+    from app.database import open_event_db
+
+    event_db = open_event_db()
+    try:
+        assert event_db is not db
+        assert event_db.execute("SELECT 1").fetchone()[0] == 1
+    finally:
+        event_db.close()
+
+
 def test_overlapping_cross_thread_teardown_does_not_leave_closed_db_in_local_state():
     from app.database import _get_db, add_after_commit_hook, db_session
 

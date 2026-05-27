@@ -27,10 +27,7 @@ class _SessionHooks:
 def _open_db() -> sqlite3.Connection:
     global _schema_initialized
     db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA journal_mode=WAL")
-    db.execute("PRAGMA foreign_keys=ON")
-    db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
+    _configure_db(db)
 
     with _init_lock:
         if not _schema_initialized:
@@ -38,6 +35,20 @@ def _open_db() -> sqlite3.Connection:
             db.executescript(schema)
             _schema_initialized = True
     return db
+
+
+def _configure_db(db: sqlite3.Connection) -> sqlite3.Connection:
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.create_function("lower_utf8", 1, lambda s: s.lower() if isinstance(s, str) else s)
+    return db
+
+
+def open_event_db() -> sqlite3.Connection:
+    """Open a dedicated event-log connection without thread-local state or DDL."""
+    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    return _configure_db(db)
 
 
 def _get_db() -> sqlite3.Connection:
