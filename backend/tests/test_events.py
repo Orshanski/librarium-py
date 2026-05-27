@@ -373,6 +373,67 @@ def test_current_publication_tail_starts_new_clients_after_existing_rows():
     assert current_publication_tail() == 1
 
 
+def test_prune_publications_keeps_recent_rows(db_test):
+    from app.events import EventBroker, EventScope, prune_old_publications
+
+    broker = EventBroker(queue_size=2)
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 2},
+    )
+    db_test.execute(
+        "UPDATE sse_publications SET published_at = ? WHERE event_id = ?",
+        ("2026-04-01T00:00:00Z", 1),
+    )
+    db_test.commit()
+
+    removed = prune_old_publications(
+        retention_days=30,
+        now_iso="2026-05-27T00:00:00Z",
+    )
+
+    rows = db_test.execute(
+        "SELECT event_id FROM sse_publications ORDER BY event_id"
+    ).fetchall()
+    assert removed == 1
+    assert [row["event_id"] for row in rows] == [2]
+
+
+def test_publish_triggers_throttled_opportunistic_prune(monkeypatch):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    prune_calls = []
+
+    def fake_prune_old_publications(now_iso=None):
+        prune_calls.append(now_iso)
+        return 0
+
+    monkeypatch.setattr(events_module, "_last_prune_at", None)
+    monkeypatch.setattr(events_module, "_utc_now_iso", lambda: "2026-05-27T12:00:00Z")
+    monkeypatch.setattr(events_module, "prune_old_publications", fake_prune_old_publications)
+
+    broker = EventBroker(queue_size=2)
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 2},
+    )
+
+    assert prune_calls == ["2026-05-27T12:00:00Z"]
+
+
 def test_sse_format_uses_domain_event_name_and_json_payload():
     from app.events import format_sse_event
 
@@ -522,6 +583,35 @@ def test_events_stream_missing_since_starts_at_current_tail(monkeypatch):
     assert seen == [44]
 
 
+def test_events_stream_sends_reset_when_cursor_is_before_retained_floor(monkeypatch):
+    from app.auth import CurrentUser
+    from app.routers import events as events_router
+
+    class FakeRequest:
+        query_params = {"since": "4"}
+
+        async def is_disconnected(self):
+            return True
+
+    async def scenario():
+        monkeypatch.setattr(events_router, "current_publication_tail", lambda: 15)
+        monkeypatch.setattr(events_router, "oldest_publication_id", lambda: 10)
+        response = await events_router.stream_events(
+            FakeRequest(),
+            CurrentUser(user_id=2, role="reader"),
+        )
+        iterator = response.body_iterator.__aiter__()
+        text = await iterator.__anext__()
+        assert text.startswith("event: reset\n")
+        data_line = next(line for line in text.splitlines() if line.startswith("data: "))
+        assert json.loads(data_line.removeprefix("data: ")) == {
+            "reason": "publication_cursor_expired",
+            "resumeAfterEventId": 15,
+        }
+
+    asyncio.run(scenario())
+
+
 def test_events_stream_rechecks_log_after_missed_notification_timeout(monkeypatch):
     from app.auth import CurrentUser
     from app.routers import events as events_router
@@ -602,3 +692,33 @@ def test_events_stream_logs_and_closes_on_malformed_publication(monkeypatch, cap
         asyncio.run(scenario())
 
     assert "Malformed SSE publication" in caplog.text
+
+
+def test_lifespan_prunes_publications_on_startup(monkeypatch):
+    from app import main
+
+    calls = []
+
+    def fake_prune_old_publications():
+        calls.append("prune")
+        return 0
+
+    def fake_close_event_streams():
+        calls.append("close")
+
+    async def scenario():
+        monkeypatch.setattr(
+            main.events_module,
+            "prune_old_publications",
+            fake_prune_old_publications,
+        )
+        monkeypatch.setattr(
+            main.events_router,
+            "close_event_streams",
+            fake_close_event_streams,
+        )
+        async with main.lifespan(main.app):
+            assert calls == ["prune"]
+        assert calls == ["prune", "close"]
+
+    asyncio.run(scenario())

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 import logging
 import sqlite3
@@ -10,6 +10,7 @@ from typing import Any, Literal, TypedDict
 from .database import add_after_commit_hook, open_event_db
 
 log = logging.getLogger("librarium.events")
+_last_prune_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,7 @@ class EventBroker:
             subscriptions = [sub for sub in self._subscriptions if not sub.closed and scope.matches(sub.user_id)]
 
         append_publication(scope=scope, event_type=event_type, payload=payload)
+        maybe_prune_old_publications_after_publish()
 
         for subscription in subscriptions:
             subscription.loop.call_soon_threadsafe(subscription.event.set)
@@ -109,6 +111,10 @@ broker = EventBroker()
 
 def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _parse_utc_iso(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def append_publication(*, scope: EventScope, event_type: str, payload: dict[str, Any]) -> ServerEvent:
@@ -225,6 +231,61 @@ def current_publication_tail() -> int:
         return int(row["event_id"])
     finally:
         db.close()
+
+
+def oldest_publication_id() -> int | None:
+    db = open_event_db()
+    try:
+        row = db.execute(
+            "SELECT MIN(event_id) AS event_id FROM sse_publications"
+        ).fetchone()
+        if row["event_id"] is None:
+            return None
+        return int(row["event_id"])
+    finally:
+        db.close()
+
+
+def format_sse_reset(resume_after_event_id: int) -> str:
+    payload = {
+        "reason": "publication_cursor_expired",
+        "resumeAfterEventId": resume_after_event_id,
+    }
+    return f"event: reset\ndata: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
+
+
+def prune_old_publications(retention_days: int = 30, now_iso: str | None = None) -> int:
+    now = _parse_utc_iso(now_iso or _utc_now_iso())
+    cutoff = (now - timedelta(days=retention_days)).isoformat(
+        timespec="microseconds"
+    ).replace("+00:00", "Z")
+    db = open_event_db()
+    try:
+        cursor = db.execute(
+            "DELETE FROM sse_publications WHERE published_at < ?",
+            (cutoff,),
+        )
+        db.commit()
+        return cursor.rowcount
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def maybe_prune_old_publications_after_publish(now_iso: str | None = None) -> None:
+    global _last_prune_at
+
+    now = now_iso or _utc_now_iso()
+    prune_day = now[:10]
+    if _last_prune_at == prune_day:
+        return
+    _last_prune_at = prune_day
+    try:
+        prune_old_publications(now_iso=now)
+    except Exception:
+        log.exception("Failed to prune old SSE publications")
 
 
 def publish_domain_event_after_commit(
