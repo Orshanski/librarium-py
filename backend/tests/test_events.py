@@ -434,6 +434,31 @@ def test_publish_triggers_throttled_opportunistic_prune(monkeypatch):
     assert prune_calls == ["2026-05-27T12:00:00Z"]
 
 
+def test_failed_publish_triggered_prune_does_not_consume_daily_throttle(monkeypatch):
+    import app.events as events_module
+    from app.events import maybe_prune_old_publications_after_publish
+
+    prune_calls = []
+
+    def flaky_prune_old_publications(now_iso=None):
+        prune_calls.append(now_iso)
+        if len(prune_calls) == 1:
+            raise RuntimeError("db down")
+        return 0
+
+    monkeypatch.setattr(events_module, "_last_prune_at", None)
+    monkeypatch.setattr(events_module, "_utc_now_iso", lambda: "2026-05-27T12:00:00Z")
+    monkeypatch.setattr(events_module, "prune_old_publications", flaky_prune_old_publications)
+
+    maybe_prune_old_publications_after_publish()
+    assert prune_calls == ["2026-05-27T12:00:00Z"]
+    assert events_module._last_prune_at is None
+
+    maybe_prune_old_publications_after_publish()
+    assert prune_calls == ["2026-05-27T12:00:00Z", "2026-05-27T12:00:00Z"]
+    assert events_module._last_prune_at == "2026-05-27"
+
+
 def test_sse_format_uses_domain_event_name_and_json_payload():
     from app.events import format_sse_event
 

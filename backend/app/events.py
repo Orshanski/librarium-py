@@ -281,11 +281,12 @@ def maybe_prune_old_publications_after_publish(now_iso: str | None = None) -> No
     prune_day = now[:10]
     if _last_prune_at == prune_day:
         return
-    _last_prune_at = prune_day
     try:
         prune_old_publications(now_iso=now)
     except Exception:
         log.exception("Failed to prune old SSE publications")
+        return
+    _last_prune_at = prune_day
 
 
 def publish_domain_event_after_commit(
