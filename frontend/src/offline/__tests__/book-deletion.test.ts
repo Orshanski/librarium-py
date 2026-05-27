@@ -13,7 +13,9 @@ import {
 } from "@/utils/offline-storage";
 import {
   handleDeletedBookOfflineState,
+  handleReadBookOfflineState,
   registerOfflineBookDeletionHandler,
+  registerOfflineBookReadHandler,
 } from "../book-deletion";
 
 function makeBook(id: number, title: string): Book {
@@ -73,6 +75,54 @@ describe("offline book deletion subscriber", () => {
 
     await waitFor(() => {
       expect(warn).toHaveBeenCalledWith("Failed to remove deleted book local state", expect.any(Error));
+    });
+    warn.mockRestore();
+  });
+
+  it("removes offline book data and local progress for a read book", async () => {
+    await saveOfflineBook(makeBook(1, "Read"), files, cover);
+    await saveOfflineBook(makeBook(2, "Kept"), files, cover);
+    await saveProgress(1, { position: "p1", fraction: 0.3, lastFormat: "epub", lastReadAt: 1000 });
+    await saveProgress(2, { position: "p2", fraction: 0.7, lastFormat: "epub", lastReadAt: 2000 });
+
+    await handleReadBookOfflineState({ bookId: 1, isRead: true });
+
+    expect(await hasOfflineBook(1)).toBe(false);
+    expect(await getProgress(1)).toBeNull();
+    expect(await hasOfflineBook(2)).toBe(true);
+    expect(await getProgress(2)).not.toBeNull();
+  });
+
+  it("does not change offline book data when a read state changes to false", async () => {
+    await saveOfflineBook(makeBook(1, "Unread"), files, cover);
+    await saveProgress(1, { position: "p1", fraction: 0.3, lastFormat: "epub", lastReadAt: 1000 });
+
+    await handleReadBookOfflineState({ bookId: 1, isRead: false });
+
+    expect(await hasOfflineBook(1)).toBe(true);
+    expect(await getProgress(1)).not.toBeNull();
+  });
+
+  it("subscribes to read changes and cleans up only when a book becomes read", async () => {
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    registerOfflineBookReadHandler(domainEvents, cleanup);
+
+    domainEvents.publish("bookReadChanged", { bookId: 7, isRead: false });
+    domainEvents.publish("bookReadChanged", { bookId: 8, isRead: true });
+
+    await waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
+    expect(cleanup).toHaveBeenCalledWith({ bookId: 8, isRead: true });
+  });
+
+  it("logs read cleanup failures without throwing from domain publication", async () => {
+    const cleanup = vi.fn().mockRejectedValue(new Error("idb failed"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    registerOfflineBookReadHandler(domainEvents, cleanup);
+
+    expect(() => domainEvents.publish("bookReadChanged", { bookId: 7, isRead: true })).not.toThrow();
+
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith("Failed to remove read book local state", expect.any(Error));
     });
     warn.mockRestore();
   });

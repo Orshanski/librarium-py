@@ -5,10 +5,19 @@ import {
   dispatchServerEvent,
   registerCursorCriticalServerEventHandler,
 } from "../server-events";
+import { installOfflineStorageHandlersForApp, resetOfflineStorageHandlersForTests } from "@/offline/bootstrap";
+import { removeBookFromLocalStorage } from "@/utils/offline-storage";
+
+vi.mock("@/utils/offline-storage", () => ({
+  removeBookFromLocalStorage: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("dispatchServerEvent", () => {
   beforeEach(() => {
     domainEvents.clear();
+    resetOfflineStorageHandlersForTests();
+    vi.mocked(removeBookFromLocalStorage).mockReset();
+    vi.mocked(removeBookFromLocalStorage).mockResolvedValue(undefined);
   });
 
   it("forwards committed server domain events to the local bus", () => {
@@ -337,6 +346,34 @@ describe("dispatchServerEvent", () => {
       unsubscribeFirst();
       unsubscribeSecond();
     }
+  });
+
+  it("awaits offline read cleanup failure before resolving replayed read events", async () => {
+    vi.mocked(removeBookFromLocalStorage).mockRejectedValue(new Error("idb failed"));
+    installOfflineStorageHandlersForApp();
+
+    await expect(applyServerEvent({
+      eventId: 19,
+      publishedAt: "2026-05-27T10:00:00Z",
+      scope: { kind: "user", userId: 2 },
+      event: { type: "bookReadChanged", payload: { bookId: 7, isRead: true } },
+    })).rejects.toThrow("idb failed");
+
+    expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
+  });
+
+  it("resolves replayed unread events without offline cleanup", async () => {
+    vi.mocked(removeBookFromLocalStorage).mockRejectedValue(new Error("should not run"));
+    installOfflineStorageHandlersForApp();
+
+    await expect(applyServerEvent({
+      eventId: 20,
+      publishedAt: "2026-05-27T10:00:00Z",
+      scope: { kind: "user", userId: 2 },
+      event: { type: "bookReadChanged", payload: { bookId: 7, isRead: false } },
+    })).resolves.toMatchObject({ eventId: 20 });
+
+    expect(removeBookFromLocalStorage).not.toHaveBeenCalled();
   });
 
 });
