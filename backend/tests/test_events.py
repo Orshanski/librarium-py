@@ -324,7 +324,11 @@ def test_next_publication_rejects_matching_id_envelope_missing_wire_fields(db_te
         next_publication_after(user_id=2, cursor=11)
 
 
-def test_next_publication_rejects_float_user_scope_in_stored_envelope(db_test):
+@pytest.mark.parametrize("invalid_user_id", [2.5, True])
+def test_next_publication_rejects_non_integer_user_scope_in_stored_envelope(
+    db_test,
+    invalid_user_id,
+):
     from app.events import MalformedPublicationError, next_publication_after
 
     db_test.execute(
@@ -344,7 +348,7 @@ def test_next_publication_rejects_float_user_scope_in_stored_envelope(db_test):
                 {
                     "eventId": 12,
                     "publishedAt": "2026-05-27T08:00:00Z",
-                    "scope": {"kind": "user", "userId": 2.5},
+                    "scope": {"kind": "user", "userId": invalid_user_id},
                     "event": {"type": "bookReadChanged", "payload": {}},
                 }
             ),
