@@ -21,7 +21,7 @@ Personal digital library for family use. Self-hosted replacement for Calibre-Web
 | Styling | Inline CSS, theme in `theme.ts`, no framework |
 | Responsive | Desktop/Mobile layout (breakpoint 820px) |
 | Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
-| Live data | Domain events over SSE + sessionStorage metadata cache |
+| Live data | Durable domain publications over SSE + sessionStorage metadata cache |
 | Tests | pytest, Vitest, TypeScript |
 | Quality gate | SonarCloud (coverage tracked from `coverage.xml` / `lcov.info`; current values live on SonarCloud) |
 | CI/CD | GitHub Actions → SSH deploy |
@@ -53,7 +53,7 @@ Browser → React SPA (:5173 dev / static prod)
 - Auth — JWT in HTTP-only cookie `librarium_token`, 168h (7-day) TTL with rolling refresh after 84h
 - Roles: `admin` (full access), `reader` (view, rate, shelves, download, in-app reader)
 - CSRF — every non-GET/HEAD/OPTIONS request to `/api/*` must carry `X-Requested-With: XMLHttpRequest` (middleware in `main.py`)
-- Live data — authenticated clients open `/api/events/stream` with EventSource. Backend publishes typed domain events after DB commit; frontend validates envelopes and routes them through the local domain event bus for cache invalidation.
+- Live data — authenticated clients open `/api/events/stream` with EventSource. Backend publishes typed domain events after DB commit, persists each SSE publication in `sse_publications`, and streams durable catch-up events after the client cursor. Frontend validates envelopes, applies events through the local domain event bus, and advances the cursor only after successful application.
 
 ### File Storage
 
@@ -109,6 +109,10 @@ data/
 
 **reading_progress** — user_id, book_id, position (JSON: `{kind: "cfi"|"page", value: ...}`), last_device, last_format, fraction (0..1), last_read_at, version (CAS counter for conflict resolution) — PK (user_id, book_id). Indexed on book_id. `PUT /api/books/{id}/read` with `isRead=true` deletes this row, so marking a book read resets the reading position.
 
+### Event Tables
+
+**sse_publications** — durable SSE publication log. `event_id` is the monotonic stream cursor; `scope_kind` is `library` or `user`; `user_id` is set only for user-scoped publications; `event_type` and `payload_json` mirror the domain event for diagnostics; `envelope_json` stores the exact wire envelope sent to clients; `published_at` is the publication timestamp. This is a publication stream for SSE replay, not event sourcing or a domain outbox.
+
 ### Search
 
 UI catalog search is **fuzzy**, not LIKE — see «Catalog search» under Backend Structure for the scorer and parameters. SQL side just SELECTs all rows (`search_books_books.sql` / `_authors.sql` / `_series.sql`) and ranking happens in Python via rapidfuzz. There is no FTS5 (dropped in `migrations/002_drop_fts5.sql`).
@@ -119,7 +123,7 @@ Two narrow callsites still use LIKE — they are intentionally separate from the
 
 ### Indexes
 
-On: books(series_id, added_at DESC, sort_title), book_authors(author_id), book_tags(tag_id), tag_mappings(tag_id), book_files(book_id), book_identifiers(book_id, type+value), shelf_books(book_id), user_books(book_id), reading_progress(book_id), authors(sort_name), series(sort_name), shelves(user_id, system_code) — UNIQUE partial index where system_code IS NOT NULL (single-system-shelf-per-user invariant).
+On: books(series_id, added_at DESC, sort_title), book_authors(author_id), book_tags(tag_id), tag_mappings(tag_id), book_files(book_id), book_identifiers(book_id, type+value), shelf_books(book_id), user_books(book_id), reading_progress(book_id), sse_publications(scope_kind, user_id, event_id), authors(sort_name), series(sort_name), shelves(user_id, system_code) — UNIQUE partial index where system_code IS NOT NULL (single-system-shelf-per-user invariant).
 
 ### Read-model JSON shape
 
@@ -251,7 +255,7 @@ Each endpoint excludes its own dimension from the WHERE clause (so the multi-sel
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | /api/events/stream | yes | Server-Sent Events stream. Emits `event: domain` envelopes `{eventId, scope, event}` and `:ping` keepalives every 15s. |
+| GET | /api/events/stream?since={eventId} | yes | Server-Sent Events stream. Reads durable `sse_publications` rows visible to the authenticated user after the application-success cursor, emits `event: domain` envelopes `{eventId, scope, event, publishedAt}`, then keeps tailing the same log with `:ping` keepalives every 15s. Missing or invalid `since` starts at the current tail. If the requested cursor is older than retained history, emits `event: reset` with `publication_cursor_expired`. |
 | GET | /api/publishers | reader | Distinct publisher list (for Edit form autocomplete) |
 | GET | /api/health | — | Health check `{"ok": true}` |
 
@@ -295,6 +299,8 @@ backend/
     ├── providers/      # Litres, Google Books → MetadataResult
     └── templates/      # Email templates (SMTP test)
 ```
+
+Root-level `scripts/migrations/` contains one-off SQL migrations for existing SQLite databases that are not tied to backend package imports, including `2026-05-27-sse-publications.sql` for the durable SSE publication log. Fresh and test databases still use `backend/schema.sql`.
 
 ### Book Parsing
 
@@ -429,8 +435,10 @@ Patch model:
 Invalidation sources:
 
 - Local mutations publish typed domain events immediately after successful API calls.
-- Backend mutations publish the same event types after DB commit via `/api/events/stream` (`EventSource`, `event: domain`).
-- On SSE reconnect after an error or offline gap, the frontend clears the metadata cache and list-scroll validity, because exact missed-event replay is not implemented.
+- Backend mutations publish the same event types after DB commit via `/api/events/stream` (`EventSource`, `event: domain`). The publication point first persists the exact wire envelope in `sse_publications`, then wakes active stream readers; no live-only message is delivered without a durable row.
+- On SSE reconnect after an error, offline gap, or closed-PWA gap, the frontend reconnects with its stored `since` cursor and the server replays all visible durable publications after that cursor in `event_id` order. Library publications are visible to every authenticated user; user-scoped publications replay only for the matching user. Existing reopen/resync handling still clears metadata cache/list-scroll validity around stream recovery as a conservative guard; durable replay is the correctness path for event-driven side effects such as offline read cleanup.
+- Frontend cursor persistence is application-success-based: the cursor advances only after cursor-critical handlers and normal domain event application finish. This avoids skipping a publication when cleanup or cache handling fails.
+- If the retained log no longer contains the requested cursor range, the server sends a reset event. The frontend clears metadata cache/list-scroll validity, refreshes offline snapshots so read books can be cleaned up best-effort, and then moves to the current tail.
 - `readingProgressChanged` invalidates shelf namespaces; `bookReadChanged` patches cached book read state and invalidates `shelf/reading-now`; marking read also clears the persisted reading position server-side.
 
 Important invariant: list scroll restoration is not owned by metadata cache. Scroll validity uses the separate scroll module/counter so cache invalidation cannot accidentally bump or preserve scroll positions beyond the explicit scroll policy.
@@ -559,7 +567,7 @@ Available only in installed PWA mode (`display-mode: standalone`). In regular br
 - **Cloud badge in catalog**: yellow cloud icon on cached book covers (only in PWA mode)
 - **TTL**: 14 days from last access. Expired books evicted on app startup and on offline transition
 - **LRU eviction**: when storage is full (QuotaExceededError), least-recently-accessed non-manual books are evicted
-- **Mark as read → evict + reset progress**: marking a book as "Прочитано" removes its offline copy and local `reading_progress`; the backend clears the server `reading_progress` row in the same read-state mutation
+- **Mark as read → evict + reset progress**: marking a book as "Прочитано" removes its offline copy and local `reading_progress`; the backend clears the server `reading_progress` row in the same read-state mutation. If another device marks the book read while this PWA is offline or closed, durable SSE replay delivers the missed `bookReadChanged(true)` after reconnect and runs the same local cleanup. A device that remains fully offline can still show stale local data until it reconnects.
 
 ### Offline Shell
 

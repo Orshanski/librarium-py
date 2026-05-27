@@ -111,6 +111,28 @@ def test_publish_domain_event_after_commit_does_not_publish_on_rollback(monkeypa
     assert calls == []
 
 
+def test_publish_domain_event_after_commit_rollback_does_not_append_sse_publication(
+    db_test,
+):
+    from app.database import db_session
+    from app.events import EventScope, publish_domain_event_after_commit
+
+    session = db_session()
+    conn = next(session)
+
+    with pytest.raises(RuntimeError):
+        publish_domain_event_after_commit(
+            conn,
+            scope=EventScope(kind="library"),
+            event_type="bookDeleted",
+            payload={"bookId": 7},
+        )
+        session.throw(RuntimeError("rollback"))
+
+    row = db_test.execute("SELECT COUNT(*) AS count FROM sse_publications").fetchone()
+    assert row["count"] == 0
+
+
 def test_publish_domain_event_after_commit_publishes_immediately_outside_managed_session(
     monkeypatch,
 ):

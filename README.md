@@ -95,9 +95,9 @@ Install Librarium as a PWA on your tablet or phone — it works without an inter
 
 **Offline shell.** When the network drops, the app switches to a minimal screen showing only your cached books with reading progress. Tap a cover — the reader opens directly from local storage, no server needed. Reading progress and settings keep saving locally while offline.
 
-**Sync on reconnect.** When the connection returns, accumulated reading positions and settings are pushed to the server automatically. Reading positions use a versioned CAS protocol: forward progress is accepted or rebased, while stale rewinds adopt the newer server position instead of overwriting it.
+**Sync on reconnect.** When the connection returns, accumulated reading positions and settings are pushed to the server automatically. Reading positions use a versioned CAS protocol: forward progress is accepted or rebased, while stale rewinds adopt the newer server position instead of overwriting it. Missed SSE publications are replayed from the durable publication log after the local cursor, so offline or closed PWAs catch up on user-scoped changes such as a book being marked read on another device.
 
-**Housekeeping.** Books untouched for 14 days are evicted automatically. Marking a book as "read" clears its offline copy and local reading position immediately; the server reading position is cleared as well. If the device runs low on storage, least-recently-read books are evicted first to make room for new ones. The cloud icon in the catalog shows which books are available offline (yellow = cached).
+**Housekeeping.** Books untouched for 14 days are evicted automatically. Marking a book as "read" clears its offline copy and local reading position immediately; the server reading position is cleared as well. If another device marks that book read while this PWA is offline, the missed `bookReadChanged` publication is replayed after reconnect and performs the same local cleanup. If the device runs low on storage, least-recently-read books are evicted first to make room for new ones. The cloud icon in the catalog shows which books are available offline (yellow = cached).
 
 **Updates.** When a new version is deployed, the Service Worker detects the change and shows an "Update available" banner — tap to reload with the latest code.
 
@@ -148,7 +148,7 @@ add_header Content-Security-Policy "
 | Frontend | React 19, TypeScript, React Router 7 |
 | Reader | Forked foliate-js for EPUB/FB2 flow, PDF.js for PDF |
 | Offline | Service Worker (precache), IndexedDB (idb), local-first reader |
-| Live data | Domain events over SSE + sessionStorage metadata cache |
+| Live data | Durable domain publications over SSE + sessionStorage metadata cache |
 | Responsive | Desktop + mobile layouts (820px breakpoint), PWA |
 | Build | Vite 6 |
 | Styling | Inline CSS, no framework |
@@ -237,8 +237,10 @@ librarium-py/
 │   │   ├── pdf_linearize.py # pikepdf linearize for Fast Web View
 │   │   └── cover_embedder.py # Embed cover into FB2/EPUB for exported files
 │   ├── scripts/            # One-off scripts (create_admin, seed_tag_mappings, normalize_tag_names, linearize_existing_pdfs)
-│   ├── migrations/         # Manual schema migrations on top of schema.sql (001_user_cascade, 002_drop_fts5)
+│   ├── migrations/         # Historical manual backend migrations (001_user_cascade, 002_drop_fts5)
 │   └── tests/              # pytest suite
+├── scripts/
+│   └── migrations/         # Manual operational migrations for existing SQLite databases
 ├── frontend/
 │   ├── public/sw.js            # Service Worker (precache template)
 │   ├── scripts/                # Build scripts (SW asset injection)

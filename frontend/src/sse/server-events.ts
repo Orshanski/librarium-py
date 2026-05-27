@@ -1,9 +1,10 @@
 import { domainEvents, type BookChangedField, type DomainEventMap } from "@/domain/events";
 
-type ServerEventScope = { kind: "library" } | { kind: "user"; userId: number };
+export type ServerEventScope = { kind: "library" } | { kind: "user"; userId: number };
 
-type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> = {
+export type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> = {
   eventId: number;
+  publishedAt: string;
   scope: ServerEventScope;
   event: { type: E; payload: DomainEventMap[E] };
   originClientId?: string;
@@ -11,6 +12,8 @@ type ServerEventEnvelope<E extends keyof DomainEventMap = keyof DomainEventMap> 
 
 type BookBooleanPayloadField = "isRead" | "isHidden";
 type RenamedPayloadIdField = "authorId" | "seriesId" | "tagId";
+type CursorCriticalHandler<E extends keyof DomainEventMap> = (payload: DomainEventMap[E]) => Promise<void>;
+type CursorCriticalRegistration<E extends keyof DomainEventMap> = { handler: CursorCriticalHandler<E> };
 
 const KNOWN_EVENTS = [
   "bookUpdated",
@@ -65,14 +68,53 @@ const BOOK_CHANGED_FIELDS = new Set<BookChangedField>([
   "identifiers",
 ]);
 
+const cursorCriticalHandlers: {
+  [E in keyof DomainEventMap]?: Array<CursorCriticalRegistration<E>>;
+} = {};
+
 export function dispatchServerEvent(raw: unknown): void {
   const envelope = parseServerEvent(raw);
   domainEvents.publish(envelope.event.type, envelope.event.payload);
 }
 
+export function registerCursorCriticalServerEventHandler<E extends keyof DomainEventMap>(
+  type: E,
+  handler: CursorCriticalHandler<E>,
+): () => void {
+  const registrations = (cursorCriticalHandlers[type] ??= []) as Array<CursorCriticalRegistration<E>>;
+  const registration: CursorCriticalRegistration<E> = { handler };
+  registrations.push(registration);
+  return () => {
+    const current = cursorCriticalHandlers[type] as Array<CursorCriticalRegistration<E>> | undefined;
+    if (!current) return;
+    const index = current.indexOf(registration);
+    if (index === -1) return;
+    current.splice(index, 1);
+    if (current.length === 0) delete cursorCriticalHandlers[type];
+  };
+}
+
+export async function applyServerEvent(raw: unknown): Promise<ServerEventEnvelope> {
+  const envelope = parseServerEvent(raw);
+  domainEvents.publish(envelope.event.type, envelope.event.payload);
+  await applyCursorCriticalHandlers(envelope.event.type, envelope.event.payload);
+  return envelope;
+}
+
+async function applyCursorCriticalHandlers<E extends keyof DomainEventMap>(
+  type: E,
+  payload: DomainEventMap[E],
+): Promise<void> {
+  const registrations = cursorCriticalHandlers[type] as Array<CursorCriticalRegistration<E>> | undefined;
+  if (!registrations) return;
+  const snapshot = [...registrations];
+  await Promise.all(snapshot.map(({ handler }) => handler(payload)));
+}
+
 function parseServerEvent(raw: unknown): ServerEventEnvelope {
   const envelope = expectRecord(raw, "bad server event");
   if (typeof envelope.eventId !== "number") throw new Error("bad server event id");
+  if (typeof envelope.publishedAt !== "string") throw new Error("bad server event publishedAt");
 
   const scope = parseScope(envelope.scope);
   const event = expectRecord(envelope.event, "bad server event payload");

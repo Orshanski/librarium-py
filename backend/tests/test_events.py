@@ -1,18 +1,21 @@
 import asyncio
 import json
+import sqlite3
 import threading
-from dataclasses import dataclass
 
 import pytest
 
 
-def test_broker_delivers_library_events_to_all_connections():
+def test_broker_wakes_library_publications_for_all_connections():
     from app.events import EventBroker, EventScope
 
     async def scenario():
         broker = EventBroker(queue_size=2)
         left = broker.subscribe(user_id=1)
         right = broker.subscribe(user_id=2)
+        left_wait = asyncio.create_task(left.wait(timeout=0.1))
+        right_wait = asyncio.create_task(right.wait(timeout=0.1))
+        await asyncio.sleep(0)
 
         broker.publish_nowait(
             scope=EventScope(kind="library"),
@@ -20,27 +23,22 @@ def test_broker_delivers_library_events_to_all_connections():
             payload={"bookId": 7},
         )
 
-        assert await asyncio.wait_for(left.get(), timeout=0.1) == {
-            "eventId": 1,
-            "scope": {"kind": "library"},
-            "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
-        }
-        assert await asyncio.wait_for(right.get(), timeout=0.1) == {
-            "eventId": 1,
-            "scope": {"kind": "library"},
-            "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
-        }
+        await left_wait
+        await right_wait
 
     asyncio.run(scenario())
 
 
-def test_broker_delivers_user_events_only_to_matching_user():
+def test_broker_wakes_user_publications_only_for_matching_user():
     from app.events import EventBroker, EventScope
 
     async def scenario():
         broker = EventBroker(queue_size=2)
         reader = broker.subscribe(user_id=2)
         other = broker.subscribe(user_id=3)
+        reader_wait = asyncio.create_task(reader.wait(timeout=0.1))
+        other_wait = asyncio.create_task(other.wait(timeout=0.05))
+        await asyncio.sleep(0)
 
         broker.publish_nowait(
             scope=EventScope(kind="user", user_id=2),
@@ -48,27 +46,21 @@ def test_broker_delivers_user_events_only_to_matching_user():
             payload={"bookId": 7, "rating": 5},
         )
 
-        assert await asyncio.wait_for(reader.get(), timeout=0.1) == {
-            "eventId": 1,
-            "scope": {"kind": "user", "userId": 2},
-            "event": {"type": "bookRatingChanged", "payload": {"bookId": 7, "rating": 5}},
-        }
-        try:
-            await asyncio.wait_for(other.get(), timeout=0.05)
-        except asyncio.TimeoutError:
-            pass
-        else:
-            raise AssertionError("event leaked to another user")
+        await reader_wait
+        with pytest.raises(asyncio.TimeoutError):
+            await other_wait
 
     asyncio.run(scenario())
 
 
-def test_broker_publish_nowait_is_safe_from_worker_thread():
+def test_broker_wake_notification_is_safe_from_worker_thread():
     from app.events import EventBroker, EventScope
 
     async def scenario():
         broker = EventBroker(queue_size=2)
         sub = broker.subscribe(user_id=1)
+        pending_wait = asyncio.create_task(sub.wait(timeout=0.1))
+        await asyncio.sleep(0)
 
         thread = threading.Thread(
             target=lambda: broker.publish_nowait(
@@ -80,97 +72,187 @@ def test_broker_publish_nowait_is_safe_from_worker_thread():
         thread.start()
         thread.join(timeout=1)
 
-        assert await asyncio.wait_for(sub.get(), timeout=0.1) == {
+        await pending_wait
+
+    asyncio.run(scenario())
+
+
+def test_publish_nowait_persists_exact_envelope(db_test):
+    from app.events import EventBroker, EventScope
+
+    broker = EventBroker(queue_size=2)
+    payload = {"bookId": 7, "isRead": True}
+
+    broker.publish_nowait(
+        scope=EventScope(kind="user", user_id=2),
+        event_type="bookReadChanged",
+        payload=payload,
+    )
+
+    row = db_test.execute(
+        """
+        SELECT event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        FROM sse_publications
+        """
+    ).fetchone()
+
+    assert row["event_id"] == 1
+    assert row["scope_kind"] == "user"
+    assert row["user_id"] == 2
+    assert row["event_type"] == "bookReadChanged"
+    assert json.loads(row["payload_json"]) == payload
+    assert json.loads(row["envelope_json"]) == {
+        "eventId": row["event_id"],
+        "publishedAt": row["published_at"],
+        "scope": {"kind": "user", "userId": 2},
+        "event": {"type": "bookReadChanged", "payload": payload},
+    }
+
+
+def test_publish_nowait_uses_dedicated_connection(monkeypatch, db):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    real_open_event_db = events_module.open_event_db
+    captured_connections = []
+
+    def capture_open_event_db():
+        conn = real_open_event_db()
+        captured_connections.append(conn)
+        return conn
+
+    monkeypatch.setattr(events_module, "open_event_db", capture_open_event_db)
+
+    EventBroker(queue_size=2).publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 7},
+    )
+
+    assert captured_connections
+    assert all(conn is not db for conn in captured_connections)
+
+
+def test_publish_nowait_wakes_only_subscribers_snapshotted_before_append(monkeypatch):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    async def scenario():
+        broker = EventBroker(queue_size=2)
+        initial = broker.subscribe(user_id=2)
+        initial_wait = asyncio.create_task(initial.wait(timeout=0.1))
+        late = None
+        envelope = {
             "eventId": 1,
-            "scope": {"kind": "library"},
-            "event": {"type": "bookCreated", "payload": {"bookId": 8}},
+            "publishedAt": "2026-05-27T12:00:00Z",
+            "scope": {"kind": "user", "userId": 2},
+            "event": {"type": "bookReadChanged", "payload": {"bookId": 7, "isRead": True}},
         }
 
+        def append_during_subscribe(*, scope, event_type, payload):
+            nonlocal late
+            late = broker.subscribe(user_id=2)
+            return envelope
+
+        monkeypatch.setattr(events_module, "append_publication", append_during_subscribe)
+
+        broker.publish_nowait(
+            scope=EventScope(kind="user", user_id=2),
+            event_type="bookReadChanged",
+            payload={"bookId": 7, "isRead": True},
+        )
+
+        await initial_wait
+        assert late is not None
+        with pytest.raises(asyncio.TimeoutError):
+            await late.wait(timeout=0.05)
+
     asyncio.run(scenario())
 
 
-def test_broker_queue_overflow_wakes_closed_subscription():
+def test_publish_nowait_raises_and_does_not_wake_when_append_fails(monkeypatch):
+    import app.events as events_module
     from app.events import EventBroker, EventScope
 
     async def scenario():
         broker = EventBroker(queue_size=2)
-        sub = broker.subscribe(user_id=1)
+        sub = broker.subscribe(user_id=2)
+        pending_wait = asyncio.create_task(sub.wait(timeout=0.05))
+        await asyncio.sleep(0)
+
+        def fail_append(*, scope, event_type, payload):
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(events_module, "append_publication", fail_append)
+
+        with pytest.raises(RuntimeError, match="db down"):
+            broker.publish_nowait(
+                scope=EventScope(kind="user", user_id=2),
+                event_type="bookReadChanged",
+                payload={"bookId": 7, "isRead": True},
+            )
+
+        with pytest.raises(asyncio.TimeoutError):
+            await pending_wait
+        assert sub.closed is False
+
+    asyncio.run(scenario())
+
+
+def test_broker_matching_publication_wakes_waiting_stream_subscription():
+    from app.events import EventBroker, EventScope
+
+    async def scenario():
+        broker = EventBroker(queue_size=2)
+        pending_wait = asyncio.create_task(
+            broker.wait_for_publication(user_id=1, timeout=0.1)
+        )
+        await asyncio.sleep(0)
 
         broker.publish_nowait(
             scope=EventScope(kind="library"),
             event_type="bookCreated",
             payload={"bookId": 8},
         )
-        broker.publish_nowait(
-            scope=EventScope(kind="library"),
-            event_type="bookUpdated",
-            payload={"bookId": 8},
-        )
-        broker.publish_nowait(
-            scope=EventScope(kind="library"),
-            event_type="bookDeleted",
-            payload={"bookId": 8},
-        )
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
 
-        assert sub.closed
-
-        with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(sub.get(), timeout=0.1)
-
-        broker.publish_nowait(
-            scope=EventScope(kind="library"),
-            event_type="bookRestored",
-            payload={"bookId": 8},
-        )
-        with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(sub.get(), timeout=0.05)
+        await pending_wait
 
     asyncio.run(scenario())
 
 
-def test_broker_queue_overflow_cancels_pending_get_before_stale_event_yields():
+def test_broker_non_matching_user_publication_does_not_wake_before_timeout():
     from app.events import EventBroker, EventScope
 
     async def scenario():
         broker = EventBroker(queue_size=2)
-        sub = broker.subscribe(user_id=1)
-        pending_get = asyncio.create_task(sub.get())
+        pending_wait = asyncio.create_task(
+            broker.wait_for_publication(user_id=1, timeout=0.05)
+        )
         await asyncio.sleep(0)
 
         broker.publish_nowait(
-            scope=EventScope(kind="library"),
+            scope=EventScope(kind="user", user_id=2),
             event_type="bookCreated",
             payload={"bookId": 8},
         )
-        broker.publish_nowait(
-            scope=EventScope(kind="library"),
-            event_type="bookUpdated",
-            payload={"bookId": 8},
-        )
-        broker.publish_nowait(
-            scope=EventScope(kind="library"),
-            event_type="bookDeleted",
-            payload={"bookId": 8},
-        )
 
-        with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(pending_get, timeout=0.1)
-        assert sub.closed
+        with pytest.raises(asyncio.TimeoutError):
+            await pending_wait
 
     asyncio.run(scenario())
 
 
-def test_broker_close_all_wakes_pending_subscriptions():
+def test_broker_close_all_wakes_and_cancels_pending_waiters():
     from app.events import EventBroker
 
     async def scenario():
         broker = EventBroker(queue_size=2)
-        left = broker.subscribe(user_id=1)
-        right = broker.subscribe(user_id=2)
-        pending_left = asyncio.create_task(left.get())
-        pending_right = asyncio.create_task(right.get())
+        pending_left = asyncio.create_task(
+            broker.wait_for_publication(user_id=1, timeout=1.0)
+        )
+        pending_right = asyncio.create_task(
+            broker.wait_for_publication(user_id=2, timeout=1.0)
+        )
         await asyncio.sleep(0)
 
         broker.close_all()
@@ -179,10 +261,218 @@ def test_broker_close_all_wakes_pending_subscriptions():
             await asyncio.wait_for(pending_left, timeout=0.1)
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(pending_right, timeout=0.1)
-        assert left.closed
-        assert right.closed
 
     asyncio.run(scenario())
+
+
+def test_next_publication_filters_visible_stream_by_user():
+    from app.events import EventBroker, EventScope, next_publication_after
+
+    broker = EventBroker(queue_size=2)
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="user", user_id=2),
+        event_type="bookReadChanged",
+        payload={"bookId": 2, "isRead": True},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="user", user_id=3),
+        event_type="bookReadChanged",
+        payload={"bookId": 3, "isRead": True},
+    )
+
+    first = next_publication_after(user_id=2, cursor=0)
+    assert first is not None
+    second = next_publication_after(user_id=2, cursor=first["eventId"])
+    assert second is not None
+    third = next_publication_after(user_id=2, cursor=second["eventId"])
+
+    assert first["event"] == {"type": "bookDeleted", "payload": {"bookId": 1}}
+    assert second["event"] == {
+        "type": "bookReadChanged",
+        "payload": {"bookId": 2, "isRead": True},
+    }
+    assert third is None
+
+
+def test_next_publication_rejects_matching_id_envelope_missing_wire_fields(db_test):
+    from app.events import MalformedPublicationError, next_publication_after
+
+    db_test.execute(
+        """
+        INSERT INTO sse_publications (
+            event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            12,
+            "library",
+            None,
+            "bookDeleted",
+            "{}",
+            json.dumps({"eventId": 12}),
+            "2026-05-27T08:00:00Z",
+        ),
+    )
+    db_test.commit()
+
+    with pytest.raises(MalformedPublicationError, match="malformed SSE publication envelope"):
+        next_publication_after(user_id=2, cursor=11)
+
+
+@pytest.mark.parametrize("invalid_user_id", [2.5, True])
+def test_next_publication_rejects_non_integer_user_scope_in_stored_envelope(
+    db_test,
+    invalid_user_id,
+):
+    from app.events import MalformedPublicationError, next_publication_after
+
+    db_test.execute(
+        """
+        INSERT INTO sse_publications (
+            event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            12,
+            "user",
+            2,
+            "bookReadChanged",
+            "{}",
+            json.dumps(
+                {
+                    "eventId": 12,
+                    "publishedAt": "2026-05-27T08:00:00Z",
+                    "scope": {"kind": "user", "userId": invalid_user_id},
+                    "event": {"type": "bookReadChanged", "payload": {}},
+                }
+            ),
+            "2026-05-27T08:00:00Z",
+        ),
+    )
+    db_test.commit()
+
+    with pytest.raises(MalformedPublicationError, match="malformed SSE publication envelope"):
+        next_publication_after(user_id=2, cursor=11)
+
+
+def test_current_publication_tail_starts_new_clients_after_existing_rows():
+    from app.events import EventBroker, EventScope, current_publication_tail
+
+    assert current_publication_tail() == 0
+    EventBroker(queue_size=2).publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    assert current_publication_tail() == 1
+
+
+def test_prune_publications_keeps_recent_rows(db_test):
+    from app.events import EventBroker, EventScope, prune_old_publications
+
+    broker = EventBroker(queue_size=2)
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 2},
+    )
+    db_test.execute(
+        "UPDATE sse_publications SET published_at = ? WHERE event_id = ?",
+        ("2026-04-01T00:00:00Z", 1),
+    )
+    db_test.commit()
+
+    removed = prune_old_publications(
+        retention_days=30,
+        now_iso="2026-05-27T00:00:00Z",
+    )
+
+    rows = db_test.execute(
+        "SELECT event_id FROM sse_publications ORDER BY event_id"
+    ).fetchall()
+    assert removed == 1
+    assert [row["event_id"] for row in rows] == [2]
+
+
+def test_publish_triggers_throttled_opportunistic_prune(monkeypatch):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    prune_calls = []
+
+    def fake_prune_old_publications(now_iso=None):
+        prune_calls.append(now_iso)
+        return 0
+
+    monkeypatch.setattr(events_module, "_last_prune_at", None)
+    monkeypatch.setattr(events_module, "_utc_now_iso", lambda: "2026-05-27T12:00:00Z")
+    monkeypatch.setattr(events_module, "prune_old_publications", fake_prune_old_publications)
+
+    broker = EventBroker(queue_size=2)
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 1},
+    )
+    broker.publish_nowait(
+        scope=EventScope(kind="library"),
+        event_type="bookDeleted",
+        payload={"bookId": 2},
+    )
+
+    assert prune_calls == ["2026-05-27T12:00:00Z"]
+
+
+def test_failed_publish_triggered_prune_does_not_consume_daily_throttle(monkeypatch):
+    import app.events as events_module
+    from app.events import maybe_prune_old_publications_after_publish
+
+    prune_calls = []
+
+    def flaky_prune_old_publications(now_iso=None):
+        prune_calls.append(now_iso)
+        if len(prune_calls) == 1:
+            raise RuntimeError("db down")
+        return 0
+
+    monkeypatch.setattr(events_module, "_last_prune_at", None)
+    monkeypatch.setattr(events_module, "_utc_now_iso", lambda: "2026-05-27T12:00:00Z")
+    monkeypatch.setattr(events_module, "prune_old_publications", flaky_prune_old_publications)
+
+    maybe_prune_old_publications_after_publish()
+    assert prune_calls == ["2026-05-27T12:00:00Z"]
+    assert events_module._last_prune_at is None
+
+    maybe_prune_old_publications_after_publish()
+    assert prune_calls == ["2026-05-27T12:00:00Z", "2026-05-27T12:00:00Z"]
+    assert events_module._last_prune_at == "2026-05-27"
+
+
+def test_prune_old_publications_noops_when_publication_table_is_missing(tmp_path, monkeypatch):
+    import app.events as events
+
+    db_path = tmp_path / "fresh.sqlite"
+
+    def open_without_schema():
+        db = sqlite3.connect(str(db_path))
+        db.row_factory = sqlite3.Row
+        return db
+
+    monkeypatch.setattr(events, "open_event_db", open_without_schema)
+
+    assert events.prune_old_publications(now_iso="2026-05-27T10:00:00Z") == 0
 
 
 def test_sse_format_uses_domain_event_name_and_json_payload():
@@ -190,6 +480,7 @@ def test_sse_format_uses_domain_event_name_and_json_payload():
 
     text = format_sse_event({
         "eventId": 3,
+        "publishedAt": "2026-05-27T12:00:00Z",
         "scope": {"kind": "library"},
         "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
     })
@@ -199,6 +490,7 @@ def test_sse_format_uses_domain_event_name_and_json_payload():
     data_line = next(line for line in text.splitlines() if line.startswith("data: "))
     assert json.loads(data_line.removeprefix("data: ")) == {
         "eventId": 3,
+        "publishedAt": "2026-05-27T12:00:00Z",
         "scope": {"kind": "library"},
         "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
     }
@@ -214,24 +506,18 @@ def test_events_stream_sets_sse_proxy_safe_headers(monkeypatch):
     from app.auth import CurrentUser
     from app.routers import events as events_router
 
-    @dataclass
-    class FakeSubscription:
-        async def get(self):
-            await asyncio.Event().wait()
-
     class FakeBroker:
-        def subscribe(self, user_id):
-            assert user_id == 2
-            return FakeSubscription()
-
-        def unsubscribe(self, subscription):
-            pass
+        async def wait_for_publication(self, *, user_id, timeout):
+            raise AssertionError("stream should stop before waiting")
 
     class FakeRequest:
+        query_params = {}
+
         async def is_disconnected(self):
             return True
 
     monkeypatch.setattr(events_router, "broker", FakeBroker())
+    monkeypatch.setattr(events_router, "current_publication_tail", lambda: 0)
 
     response = asyncio.run(
         events_router.stream_events(FakeRequest(), CurrentUser(user_id=2, role="reader"))
@@ -242,50 +528,238 @@ def test_events_stream_sets_sse_proxy_safe_headers(monkeypatch):
     assert response.headers["x-accel-buffering"] == "no"
 
 
-def test_events_stream_yields_keepalive_ping_and_unsubscribes_on_disconnect(monkeypatch):
+def test_events_stream_reads_from_since_and_then_pings(monkeypatch):
     from app.auth import CurrentUser
     from app.routers import events as events_router
 
-    @dataclass
-    class FakeSubscription:
-        async def get(self):
-            await asyncio.Event().wait()
+    sent = [
+        {
+            "eventId": 11,
+            "scope": {"kind": "library"},
+            "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
+            "publishedAt": "2026-05-27T08:00:00Z",
+        }
+    ]
+    cursors = []
+
+    def fake_next_publication_after(*, user_id, cursor):
+        assert user_id == 2
+        cursors.append(cursor)
+        return sent.pop(0) if sent else None
 
     class FakeBroker:
-        def __init__(self):
-            self.subscription = FakeSubscription()
-            self.unsubscribed = False
-
-        def subscribe(self, user_id):
+        async def wait_for_publication(self, *, user_id, timeout):
             assert user_id == 2
-            return self.subscription
-
-        def unsubscribe(self, subscription):
-            assert subscription is self.subscription
-            self.unsubscribed = True
+            await asyncio.sleep(0)
+            raise asyncio.TimeoutError
 
     class FakeRequest:
+        query_params = {"since": "10"}
+
         def __init__(self):
-            self.calls = 0
+            self.disconnect_checks = 0
 
         async def is_disconnected(self):
-            self.calls += 1
-            return self.calls > 2
+            self.disconnect_checks += 1
+            return self.disconnect_checks > 3
 
     async def scenario():
-        fake_broker = FakeBroker()
-        monkeypatch.setattr(events_router, "broker", fake_broker)
+        monkeypatch.setattr(events_router, "next_publication_after", fake_next_publication_after)
+        monkeypatch.setattr(events_router, "broker", FakeBroker())
         monkeypatch.setattr(events_router, "SSE_KEEPALIVE_INTERVAL_SECONDS", 0.001)
-
         response = await events_router.stream_events(
             FakeRequest(),
             CurrentUser(user_id=2, role="reader"),
         )
         iterator = response.body_iterator.__aiter__()
 
+        first = await iterator.__anext__()
+        assert first.startswith("event: domain\n")
+        assert '"eventId":11' in first
         assert await iterator.__anext__() == ":ping\n\n"
+
+    asyncio.run(scenario())
+    assert cursors[:2] == [10, 11]
+
+
+def test_events_stream_missing_since_starts_at_current_tail(monkeypatch):
+    from app.auth import CurrentUser
+    from app.routers import events as events_router
+
+    seen = []
+
+    def fake_next_publication_after(*, user_id, cursor):
+        assert user_id == 2
+        seen.append(cursor)
+        return None
+
+    class FakeBroker:
+        async def wait_for_publication(self, *, user_id, timeout):
+            assert user_id == 2
+            raise asyncio.TimeoutError
+
+    class FakeRequest:
+        query_params = {}
+
+        def __init__(self):
+            self.disconnect_checks = 0
+
+        async def is_disconnected(self):
+            self.disconnect_checks += 1
+            return self.disconnect_checks > 1
+
+    async def scenario():
+        monkeypatch.setattr(events_router, "current_publication_tail", lambda: 44)
+        monkeypatch.setattr(events_router, "next_publication_after", fake_next_publication_after)
+        monkeypatch.setattr(events_router, "broker", FakeBroker())
+        response = await events_router.stream_events(
+            FakeRequest(),
+            CurrentUser(user_id=2, role="reader"),
+        )
+        iterator = response.body_iterator.__aiter__()
         with pytest.raises(StopAsyncIteration):
             await iterator.__anext__()
-        assert fake_broker.unsubscribed is True
+
+    asyncio.run(scenario())
+    assert seen == [44]
+
+
+def test_events_stream_sends_reset_when_cursor_is_before_retained_floor(monkeypatch):
+    from app.auth import CurrentUser
+    from app.routers import events as events_router
+
+    class FakeRequest:
+        query_params = {"since": "4"}
+
+        async def is_disconnected(self):
+            return True
+
+    async def scenario():
+        monkeypatch.setattr(events_router, "current_publication_tail", lambda: 15)
+        monkeypatch.setattr(events_router, "oldest_publication_id", lambda: 10)
+        response = await events_router.stream_events(
+            FakeRequest(),
+            CurrentUser(user_id=2, role="reader"),
+        )
+        iterator = response.body_iterator.__aiter__()
+        text = await iterator.__anext__()
+        assert text.startswith("event: reset\n")
+        data_line = next(line for line in text.splitlines() if line.startswith("data: "))
+        assert json.loads(data_line.removeprefix("data: ")) == {
+            "reason": "publication_cursor_expired",
+            "resumeAfterEventId": 15,
+        }
+
+    asyncio.run(scenario())
+
+
+def test_events_stream_rechecks_log_after_missed_notification_timeout(monkeypatch):
+    from app.auth import CurrentUser
+    from app.routers import events as events_router
+
+    calls = 0
+
+    def fake_next_publication_after(*, user_id, cursor):
+        nonlocal calls
+        assert user_id == 2
+        calls += 1
+        if calls == 1:
+            return None
+        return {
+            "eventId": 12,
+            "scope": {"kind": "library"},
+            "event": {"type": "bookDeleted", "payload": {"bookId": 7}},
+            "publishedAt": "2026-05-27T08:00:00Z",
+        }
+
+    class FakeBroker:
+        async def wait_for_publication(self, *, user_id, timeout):
+            assert user_id == 2
+            raise asyncio.TimeoutError
+
+    class FakeRequest:
+        query_params = {"since": "11"}
+
+        def __init__(self):
+            self.disconnected = False
+
+        async def is_disconnected(self):
+            return self.disconnected
+
+    async def scenario():
+        request = FakeRequest()
+        monkeypatch.setattr(events_router, "next_publication_after", fake_next_publication_after)
+        monkeypatch.setattr(events_router, "broker", FakeBroker())
+        monkeypatch.setattr(events_router, "SSE_KEEPALIVE_INTERVAL_SECONDS", 0.001)
+        response = await events_router.stream_events(
+            request,
+            CurrentUser(user_id=2, role="reader"),
+        )
+        iterator = response.body_iterator.__aiter__()
+        assert await iterator.__anext__() == ":ping\n\n"
+        text = await iterator.__anext__()
+        request.disconnected = True
+        assert text.startswith("event: domain\n")
+        assert '"eventId":12' in text
+
+    asyncio.run(scenario())
+
+
+def test_events_stream_logs_and_closes_on_malformed_publication(monkeypatch, caplog):
+    from app.auth import CurrentUser
+    from app.events import MalformedPublicationError
+    from app.routers import events as events_router
+
+    def fake_next_publication_after(*, user_id, cursor):
+        raise MalformedPublicationError("malformed SSE publication envelope")
+
+    class FakeRequest:
+        query_params = {"since": "1"}
+
+        async def is_disconnected(self):
+            return False
+
+    async def scenario():
+        monkeypatch.setattr(events_router, "next_publication_after", fake_next_publication_after)
+        response = await events_router.stream_events(
+            FakeRequest(),
+            CurrentUser(user_id=2, role="reader"),
+        )
+        iterator = response.body_iterator.__aiter__()
+        with pytest.raises(StopAsyncIteration):
+            await iterator.__anext__()
+
+    with caplog.at_level("ERROR", logger="librarium.events"):
+        asyncio.run(scenario())
+
+    assert "Malformed SSE publication" in caplog.text
+
+
+def test_lifespan_prunes_publications_on_startup(monkeypatch):
+    from app import main
+
+    calls = []
+
+    def fake_prune_old_publications():
+        calls.append("prune")
+        return 0
+
+    def fake_close_event_streams():
+        calls.append("close")
+
+    async def scenario():
+        monkeypatch.setattr(
+            main.events_module,
+            "prune_old_publications",
+            fake_prune_old_publications,
+        )
+        monkeypatch.setattr(
+            main.events_router,
+            "close_event_streams",
+            fake_close_event_streams,
+        )
+        async with main.lifespan(main.app):
+            assert calls == ["prune"]
+        assert calls == ["prune", "close"]
 
     asyncio.run(scenario())

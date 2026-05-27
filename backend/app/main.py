@@ -36,10 +36,12 @@ from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
 from .routers import events as events_router
+from . import events as events_module
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    events_module.prune_old_publications()
     yield
     events_router.close_event_streams()
 
