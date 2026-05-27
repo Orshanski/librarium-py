@@ -360,6 +360,50 @@ describe("dispatchServerEvent", () => {
     })).rejects.toThrow("idb failed");
 
     expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
+    expect(removeBookFromLocalStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs offline deletion cleanup once for replayed delete events", async () => {
+    installOfflineStorageHandlersForApp();
+
+    await expect(applyServerEvent({
+      eventId: 21,
+      publishedAt: "2026-05-27T10:00:00Z",
+      scope: { kind: "library" },
+      event: { type: "bookDeleted", payload: { bookId: 7 } },
+    })).resolves.toMatchObject({ eventId: 21 });
+
+    expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
+    expect(removeBookFromLocalStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it("awaits offline deletion cleanup failure before resolving replayed delete events", async () => {
+    vi.mocked(removeBookFromLocalStorage).mockRejectedValue(new Error("idb failed"));
+    installOfflineStorageHandlersForApp();
+
+    await expect(applyServerEvent({
+      eventId: 22,
+      publishedAt: "2026-05-27T10:00:00Z",
+      scope: { kind: "library" },
+      event: { type: "bookDeleted", payload: { bookId: 7 } },
+    })).rejects.toThrow("idb failed");
+
+    expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
+    expect(removeBookFromLocalStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs offline read cleanup once for replayed read events", async () => {
+    installOfflineStorageHandlersForApp();
+
+    await expect(applyServerEvent({
+      eventId: 23,
+      publishedAt: "2026-05-27T10:00:00Z",
+      scope: { kind: "user", userId: 2 },
+      event: { type: "bookReadChanged", payload: { bookId: 7, isRead: true } },
+    })).resolves.toMatchObject({ eventId: 23 });
+
+    expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
+    expect(removeBookFromLocalStorage).toHaveBeenCalledTimes(1);
   });
 
   it("resolves replayed unread events without offline cleanup", async () => {

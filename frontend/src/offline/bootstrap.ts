@@ -1,8 +1,8 @@
 import { domainEvents } from "@/domain/events";
 import { registerCursorCriticalServerEventHandler } from "@/sse/server-events";
 import {
-  handleDeletedBookOfflineState,
-  handleReadBookOfflineState,
+  handleDeletedBookOfflineStateForServerEvent,
+  handleReadBookOfflineStateForServerEvent,
   registerOfflineBookDeletionHandler,
   registerOfflineBookReadHandler,
 } from "./book-deletion";
@@ -15,8 +15,8 @@ export function installOfflineStorageHandlersForApp(): void {
   unsubscribeHandlers = [
     registerOfflineBookDeletionHandler(domainEvents),
     registerOfflineBookReadHandler(domainEvents),
-    registerCursorCriticalServerEventHandler("bookDeleted", handleDeletedBookOfflineState),
-    registerCursorCriticalServerEventHandler("bookReadChanged", handleReadBookOfflineState),
+    registerCursorCriticalServerEventHandler("bookDeleted", handleDeletedBookOfflineStateForServerEvent),
+    registerCursorCriticalServerEventHandler("bookReadChanged", handleReadBookOfflineStateForServerEvent),
   ];
   installed = true;
 }

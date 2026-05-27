@@ -26,4 +26,13 @@ describe("installOfflineStorageHandlersForApp", () => {
     expect(removeBookFromLocalStorage).toHaveBeenCalledWith(7);
     expect(removeBookFromLocalStorage).toHaveBeenCalledWith(8);
   });
+
+  it("runs offline read cleanup once for local read events", async () => {
+    installOfflineStorageHandlersForApp();
+
+    domainEvents.publish("bookReadChanged", { bookId: 8, isRead: true });
+
+    await waitFor(() => expect(removeBookFromLocalStorage).toHaveBeenCalledWith(8));
+    expect(removeBookFromLocalStorage).toHaveBeenCalledTimes(1);
+  });
 });
