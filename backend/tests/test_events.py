@@ -153,6 +153,77 @@ def test_publish_nowait_uses_dedicated_connection(monkeypatch, db):
     assert all(conn is not db for conn in captured_connections)
 
 
+def test_publish_nowait_delivers_only_to_subscribers_snapshotted_before_append(monkeypatch):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    async def scenario():
+        broker = EventBroker(queue_size=2)
+        initial = broker.subscribe(user_id=2)
+        late = None
+        envelope = {
+            "eventId": 1,
+            "publishedAt": "2026-05-27T12:00:00Z",
+            "scope": {"kind": "user", "userId": 2},
+            "event": {"type": "bookReadChanged", "payload": {"bookId": 7, "isRead": True}},
+        }
+
+        def append_during_subscribe(*, scope, event_type, payload):
+            nonlocal late
+            late = broker.subscribe(user_id=2)
+            return envelope
+
+        monkeypatch.setattr(events_module, "append_publication", append_during_subscribe)
+
+        broker.publish_nowait(
+            scope=EventScope(kind="user", user_id=2),
+            event_type="bookReadChanged",
+            payload={"bookId": 7, "isRead": True},
+        )
+
+        assert await asyncio.wait_for(initial.get(), timeout=0.1) == envelope
+        assert late is not None
+        try:
+            await asyncio.wait_for(late.get(), timeout=0.05)
+        except asyncio.TimeoutError:
+            pass
+        else:
+            raise AssertionError("event leaked to subscriber added during append")
+
+    asyncio.run(scenario())
+
+
+def test_publish_nowait_raises_and_does_not_deliver_when_append_fails(monkeypatch):
+    import app.events as events_module
+    from app.events import EventBroker, EventScope
+
+    async def scenario():
+        broker = EventBroker(queue_size=2)
+        sub = broker.subscribe(user_id=2)
+
+        def fail_append(*, scope, event_type, payload):
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(events_module, "append_publication", fail_append)
+
+        with pytest.raises(RuntimeError, match="db down"):
+            broker.publish_nowait(
+                scope=EventScope(kind="user", user_id=2),
+                event_type="bookReadChanged",
+                payload={"bookId": 7, "isRead": True},
+            )
+
+        try:
+            await asyncio.wait_for(sub.get(), timeout=0.05)
+        except asyncio.TimeoutError:
+            pass
+        else:
+            raise AssertionError("event delivered despite append failure")
+        assert sub.closed is False
+
+    asyncio.run(scenario())
+
+
 def test_broker_queue_overflow_wakes_closed_subscription():
     from app.events import EventBroker, EventScope
 

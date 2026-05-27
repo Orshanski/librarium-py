@@ -95,9 +95,10 @@ class EventBroker:
             subscription.close()
 
     def publish_nowait(self, *, scope: EventScope, event_type: str, payload: dict[str, Any]) -> None:
-        wire_event = append_publication(scope=scope, event_type=event_type, payload=payload)
         with self._lock:
             subscriptions = [sub for sub in self._subscriptions if not sub.closed and scope.matches(sub.user_id)]
+
+        wire_event = append_publication(scope=scope, event_type=event_type, payload=payload)
 
         for subscription in subscriptions:
             subscription.loop.call_soon_threadsafe(self._deliver, subscription, wire_event)

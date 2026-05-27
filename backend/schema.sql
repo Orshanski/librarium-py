@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_reading_progress_book ON reading_progress(book_id
 CREATE TABLE IF NOT EXISTS sse_publications (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('library', 'user')),
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER,
     event_type TEXT NOT NULL,
     payload_json TEXT NOT NULL,
     envelope_json TEXT NOT NULL,
