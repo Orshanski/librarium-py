@@ -298,6 +298,32 @@ def test_next_publication_filters_visible_stream_by_user():
     assert third is None
 
 
+def test_next_publication_rejects_matching_id_envelope_missing_wire_fields(db_test):
+    from app.events import MalformedPublicationError, next_publication_after
+
+    db_test.execute(
+        """
+        INSERT INTO sse_publications (
+            event_id, scope_kind, user_id, event_type, payload_json, envelope_json, published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            12,
+            "library",
+            None,
+            "bookDeleted",
+            "{}",
+            json.dumps({"eventId": 12}),
+            "2026-05-27T08:00:00Z",
+        ),
+    )
+    db_test.commit()
+
+    with pytest.raises(MalformedPublicationError, match="malformed SSE publication envelope"):
+        next_publication_after(user_id=2, cursor=11)
+
+
 def test_current_publication_tail_starts_new_clients_after_existing_rows():
     from app.events import EventBroker, EventScope, current_publication_tail
 

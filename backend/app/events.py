@@ -149,15 +149,49 @@ class MalformedPublicationError(ValueError):
     pass
 
 
+def _raise_malformed_envelope() -> None:
+    raise MalformedPublicationError("malformed SSE publication envelope")
+
+
 def _load_envelope(row: sqlite3.Row) -> ServerEvent:
     try:
         envelope = json.loads(row["envelope_json"])
     except (TypeError, json.JSONDecodeError) as exc:
         raise MalformedPublicationError("malformed SSE publication envelope") from exc
     if not isinstance(envelope, dict):
-        raise MalformedPublicationError("malformed SSE publication envelope")
-    if envelope.get("eventId") != row["event_id"]:
-        raise MalformedPublicationError("malformed SSE publication envelope")
+        _raise_malformed_envelope()
+    event_id = envelope.get("eventId")
+    if (
+        not isinstance(event_id, int)
+        or isinstance(event_id, bool)
+        or event_id != row["event_id"]
+    ):
+        _raise_malformed_envelope()
+    if not isinstance(envelope.get("publishedAt"), str):
+        _raise_malformed_envelope()
+
+    scope = envelope.get("scope")
+    if not isinstance(scope, dict):
+        _raise_malformed_envelope()
+    scope_kind = scope.get("kind")
+    if scope_kind == "user":
+        user_id = scope.get("userId")
+        if (
+            not isinstance(user_id, (int, float))
+            or isinstance(user_id, bool)
+        ):
+            _raise_malformed_envelope()
+    elif scope_kind != "library":
+        _raise_malformed_envelope()
+
+    event = envelope.get("event")
+    if not isinstance(event, dict):
+        _raise_malformed_envelope()
+    if not isinstance(event.get("type"), str):
+        _raise_malformed_envelope()
+    if not isinstance(event.get("payload"), dict):
+        _raise_malformed_envelope()
+
     return envelope
 
 
