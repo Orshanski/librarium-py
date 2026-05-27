@@ -1,4 +1,5 @@
 const CURSOR_PREFIX = "librarium_sse_last_applied_event_id:user:";
+const DECIMAL_CURSOR_PATTERN = /^(0|[1-9]\d*)$/;
 
 export function buildSseCursorStorageKey(userId: number): string {
   return `${CURSOR_PREFIX}${userId}`;
@@ -8,6 +9,7 @@ export function readLastAppliedEventId(userId: number): number {
   try {
     const raw = localStorage.getItem(buildSseCursorStorageKey(userId));
     if (raw === null) return 0;
+    if (!DECIMAL_CURSOR_PATTERN.test(raw)) return 0;
 
     const parsed = Number(raw);
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;

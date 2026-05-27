@@ -23,7 +23,7 @@ describe("SSE cursor storage", () => {
   it("ignores malformed stored values", () => {
     const key = buildSseCursorStorageKey(2);
 
-    for (const stored of ["not-json", "12.5", "-1", ""]) {
+    for (const stored of ["not-json", "12.5", "-1", "", "1e6", "0x10", " 10 "]) {
       localStorage.setItem(key, stored);
       expect(readLastAppliedEventId(2)).toBe(0);
     }
