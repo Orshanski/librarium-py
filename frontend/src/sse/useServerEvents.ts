@@ -24,40 +24,55 @@ export function useServerEvents(enabled: boolean, options: UseServerEventsOption
 
     const since = readLastAppliedEventId(userId);
     const events = new EventSource(`/api/events/stream?since=${since}`, { withCredentials: true });
+    let closed = false;
+    let chain = Promise.resolve();
+
+    const closeAfterFailure = () => {
+      closed = true;
+      events.close();
+    };
+
+    const enqueue = (task: () => Promise<void>, warning: string) => {
+      chain = chain.then(async () => {
+        if (closed) return;
+        try {
+          await task();
+        } catch (error) {
+          console.warn(warning, error);
+          closeAfterFailure();
+        }
+      });
+    };
 
     events.addEventListener("domain", (message) => {
-      void (async () => {
-        try {
-          const raw = JSON.parse((message as MessageEvent<string>).data);
-          if (typeof raw?.eventId === "number" && raw.eventId <= readLastAppliedEventId(userId)) {
-            return;
-          }
-          const envelope = await applyServerEvent(raw);
-          writeLastAppliedEventId(userId, envelope.eventId);
-        } catch (error) {
-          console.warn("Failed to dispatch server event", error);
+      enqueue(async () => {
+        const raw = JSON.parse((message as MessageEvent<string>).data);
+        if (typeof raw?.eventId === "number" && raw.eventId <= readLastAppliedEventId(userId)) {
+          return;
         }
-      })();
+        const envelope = await applyServerEvent(raw);
+        if (!closed) {
+          writeLastAppliedEventId(userId, envelope.eventId);
+        }
+      }, "Failed to dispatch server event");
     });
 
     events.addEventListener("reset", (message) => {
-      void (async () => {
-        try {
-          const raw = JSON.parse((message as MessageEvent<string>).data);
-          if (
-            raw?.reason !== "publication_cursor_expired" ||
-            !Number.isInteger(raw.resumeAfterEventId) ||
-            raw.resumeAfterEventId < 0
-          ) {
-            throw new Error("bad server reset event");
-          }
-          metadataCache.clear();
-          writeScrollEntries([]);
-          writeLastAppliedEventId(userId, raw.resumeAfterEventId);
-        } catch (error) {
-          console.warn("Failed to handle server reset event", error);
+      enqueue(async () => {
+        const raw = JSON.parse((message as MessageEvent<string>).data);
+        if (
+          raw?.reason !== "publication_cursor_expired" ||
+          !Number.isInteger(raw.resumeAfterEventId) ||
+          raw.resumeAfterEventId < 0
+        ) {
+          throw new Error("bad server reset event");
         }
-      })();
+        metadataCache.clear();
+        writeScrollEntries([]);
+        if (!closed) {
+          writeLastAppliedEventId(userId, raw.resumeAfterEventId);
+        }
+      }, "Failed to handle server reset event");
     });
 
     events.onerror = () => {
@@ -73,6 +88,7 @@ export function useServerEvents(enabled: boolean, options: UseServerEventsOption
     };
 
     return () => {
+      closed = true;
       events.close();
     };
   }, [enabled, userId]);

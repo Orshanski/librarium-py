@@ -11,6 +11,7 @@ import { ResponsiveProvider } from "@/responsive";
 import { readScrollEntries, writeScrollEntries } from "@/scroll/list-scroll-validity";
 import { server } from "@/test/msw/server";
 import { AuthProvider } from "@/auth";
+import { registerCursorCriticalServerEventHandler } from "../server-events";
 import { useServerEvents } from "../useServerEvents";
 
 class FakeEventSource {
@@ -77,6 +78,16 @@ function mockOnlineStatus(online: boolean) {
     configurable: true,
     value: online,
   });
+}
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }
 
 function renderAuthenticatedApp(initialEntry: string, navigateTo?: string) {
@@ -156,21 +167,96 @@ describe("useServerEvents", () => {
     expect(handler).toHaveBeenCalledWith({ bookId: 7 });
   });
 
+  it("applies domain events serially before advancing the cursor", async () => {
+    const firstApplication = deferred();
+    const handler = vi.fn();
+    const unregister = registerCursorCriticalServerEventHandler("bookDeleted", (payload) => (
+      payload.bookId === 7 ? firstApplication.promise : Promise.resolve()
+    ));
+    domainEvents.subscribe("bookDeleted", handler);
+
+    try {
+      render(<Harness enabled={true} userId={2} />);
+      FakeEventSource.instances[0].emitDomain({
+        eventId: 5,
+        publishedAt: "2026-05-27T08:00:00Z",
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      });
+      FakeEventSource.instances[0].emitDomain({
+        eventId: 6,
+        publishedAt: "2026-05-27T08:00:01Z",
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 8 } },
+      });
+
+      await waitFor(() => expect(handler).toHaveBeenCalledWith({ bookId: 7 }));
+      expect(handler).not.toHaveBeenCalledWith({ bookId: 8 });
+      expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBeNull();
+
+      firstApplication.resolve();
+
+      await waitFor(() => expect(handler).toHaveBeenCalledWith({ bookId: 8 }));
+      expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("6");
+    } finally {
+      unregister();
+    }
+  });
+
+  it("closes the stream and does not advance past a failed domain event", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const firstApplication = deferred();
+    const handler = vi.fn();
+    const unregister = registerCursorCriticalServerEventHandler("bookDeleted", (payload) => (
+      payload.bookId === 7 ? firstApplication.promise : Promise.resolve()
+    ));
+    domainEvents.subscribe("bookDeleted", handler);
+
+    try {
+      render(<Harness enabled={true} userId={2} />);
+      const source = FakeEventSource.instances[0];
+      source.emitDomain({
+        eventId: 5,
+        publishedAt: "2026-05-27T08:00:00Z",
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      });
+      source.emitDomain({
+        eventId: 6,
+        publishedAt: "2026-05-27T08:00:01Z",
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 8 } },
+      });
+
+      await waitFor(() => expect(handler).toHaveBeenCalledWith({ bookId: 7 }));
+      firstApplication.reject(new Error("apply failed"));
+
+      await waitFor(() => expect(source.closed).toBe(true));
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(handler).not.toHaveBeenCalledWith({ bookId: 8 });
+      expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBeNull();
+    } finally {
+      unregister();
+    }
+  });
+
   it("does not advance cursor when JSON parse or apply fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const handler = vi.fn();
     domainEvents.subscribe("bookDeleted", handler);
 
     render(<Harness enabled={true} userId={2} />);
-    FakeEventSource.instances[0].emitRawDomain("{bad json");
-    FakeEventSource.instances[0].emitDomain({
+    const source = FakeEventSource.instances[0];
+    source.emitRawDomain("{bad json");
+    source.emitDomain({
       eventId: 6,
       publishedAt: "2026-05-27T08:00:00Z",
       scope: { kind: "library" },
       event: { type: "bookDeleted", payload: { bookId: "bad" } },
     });
 
-    await waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(source.closed).toBe(true);
     expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBeNull();
     expect(handler).not.toHaveBeenCalled();
   });
@@ -207,17 +293,70 @@ describe("useServerEvents", () => {
     expect(readScrollEntries()).toEqual([]);
   });
 
+  it("serializes reset handling after prior domain application", async () => {
+    const firstApplication = deferred();
+    const unregister = registerCursorCriticalServerEventHandler("bookDeleted", (payload) => (
+      payload.bookId === 7 ? firstApplication.promise : Promise.resolve()
+    ));
+    metadataCache.set("books", "catalog", { books: [{ id: 1 }], hasMore: false });
+    writeScrollEntries([{ url: "/", scrollTop: 100, version: 1 }]);
+
+    try {
+      render(<Harness enabled={true} userId={2} />);
+      FakeEventSource.instances[0].emitDomain({
+        eventId: 5,
+        publishedAt: "2026-05-27T08:00:00Z",
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      });
+      FakeEventSource.instances[0].emitReset({
+        reason: "publication_cursor_expired",
+        resumeAfterEventId: 44,
+      });
+
+      expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBeNull();
+      expect(metadataCache.get("books", "catalog")).toEqual({ books: [{ id: 1 }], hasMore: false });
+      expect(readScrollEntries()).toEqual([
+        expect.objectContaining({ url: "/", scrollTop: 100, version: 1 }),
+      ]);
+
+      firstApplication.resolve();
+
+      await waitFor(() => expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("44"));
+      expect(metadataCache.get("books", "catalog")).toBeUndefined();
+      expect(readScrollEntries()).toEqual([]);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("does not lower the cursor when a reset resumes after an older event", async () => {
+    localStorage.setItem("librarium_sse_last_applied_event_id:user:2", "50");
+    metadataCache.set("books", "catalog", { books: [{ id: 1 }], hasMore: false });
+
+    render(<Harness enabled={true} userId={2} />);
+    FakeEventSource.instances[0].emitReset({
+      reason: "publication_cursor_expired",
+      resumeAfterEventId: 44,
+    });
+
+    await waitFor(() => expect(metadataCache.get("books", "catalog")).toBeUndefined());
+    expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("50");
+  });
+
   it("warns and does not write cursor for invalid reset events", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     render(<Harness enabled={true} userId={2} />);
-    FakeEventSource.instances[0].emitReset({
+    const source = FakeEventSource.instances[0];
+    source.emitReset({
       reason: "other",
       resumeAfterEventId: 44,
     });
-    FakeEventSource.instances[0].emitRawReset("{bad json");
+    source.emitRawReset("{bad json");
 
-    await waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(source.closed).toBe(true);
     expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBeNull();
   });
 
