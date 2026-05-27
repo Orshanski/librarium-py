@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { domainEvents } from "@/domain/events";
-import { dispatchServerEvent } from "../server-events";
+import {
+  applyServerEvent,
+  dispatchServerEvent,
+  registerCursorCriticalServerEventHandler,
+} from "../server-events";
 
 describe("dispatchServerEvent", () => {
   beforeEach(() => {
@@ -203,6 +207,69 @@ describe("dispatchServerEvent", () => {
       expect(handler).not.toHaveBeenCalled();
     },
   );
+
+  it("awaits cursor-critical async handlers before resolving", async () => {
+    const calls: string[] = [];
+    const unsubscribe = registerCursorCriticalServerEventHandler("bookDeleted", async (payload) => {
+      calls.push(`start:${payload.bookId}`);
+      await Promise.resolve();
+      calls.push(`done:${payload.bookId}`);
+    });
+
+    try {
+      const applied = applyServerEvent({
+        eventId: 12,
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      }).then((envelope) => {
+        calls.push(`resolved:${envelope.eventId}`);
+      });
+
+      expect(calls).toEqual(["start:7"]);
+      await Promise.resolve();
+      expect(calls).toEqual(["start:7", "done:7"]);
+
+      await applied;
+      expect(calls).toEqual(["start:7", "done:7", "resolved:12"]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("rejects when cursor-critical async handler fails", async () => {
+    const unsubscribe = registerCursorCriticalServerEventHandler("bookDeleted", async () => {
+      throw new Error("idb failed");
+    });
+
+    try {
+      await expect(applyServerEvent({
+        eventId: 13,
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      })).rejects.toThrow("idb failed");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("keeps dispatchServerEvent sync and separate from cursor-critical handlers", async () => {
+    const handler = vi.fn(async () => undefined);
+    const unsubscribe = registerCursorCriticalServerEventHandler("bookDeleted", handler);
+
+    try {
+      dispatchServerEvent({
+        eventId: 14,
+        scope: { kind: "library" },
+        event: { type: "bookDeleted", payload: { bookId: 7 } },
+      });
+
+      expect(handler).not.toHaveBeenCalled();
+      await Promise.resolve();
+      expect(handler).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
 
 });
 
