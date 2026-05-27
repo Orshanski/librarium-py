@@ -25,7 +25,7 @@ describe("SSE cursor storage", () => {
 
     for (const stored of ["not-json", "12.5", "-1", "", "1e6", "0x10", " 10 "]) {
       localStorage.setItem(key, stored);
-      expect(readLastAppliedEventId(2)).toBe(0);
+      expect(readLastAppliedEventId(2)).toBeNull();
     }
   });
 
@@ -47,11 +47,13 @@ describe("SSE cursor storage", () => {
     expect(readLastAppliedEventId(2)).toBe(15);
   });
 
-  it("returns 0 when storage is inaccessible", () => {
+  it("returns null when no cursor is stored or storage is inaccessible", () => {
+    expect(readLastAppliedEventId(2)).toBeNull();
+
     vi.spyOn(localStorage, "getItem").mockImplementation(() => {
       throw new Error("storage blocked");
     });
 
-    expect(readLastAppliedEventId(2)).toBe(0);
+    expect(readLastAppliedEventId(2)).toBeNull();
   });
 });

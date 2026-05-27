@@ -1,4 +1,4 @@
-import { getOfflineBooks, updateOfflineBookMetadata } from "./offline-storage";
+import { getOfflineBooks, removeBookFromLocalStorage, updateOfflineBookMetadata } from "./offline-storage";
 import { getBook } from "../api/endpoints/books";
 
 /**
@@ -22,6 +22,10 @@ export async function refreshOfflineSnapshots(): Promise<void> {
     try {
       const detail = await getBook(local.bookId);
       const fresh = detail.book;
+      if (fresh.isRead) {
+        await removeBookFromLocalStorage(local.bookId);
+        return;
+      }
       await updateOfflineBookMetadata(local.bookId, {
         title: fresh.title,
         authors: fresh.authors,

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { metadataCache } from "@/cache";
 import { writeScrollEntries } from "@/scroll/list-scroll-validity";
+import { refreshOfflineSnapshots } from "@/utils/offline-metadata-refresh";
 import { readLastAppliedEventId, writeLastAppliedEventId } from "./cursor";
 import { applyServerEvent } from "./server-events";
 
@@ -23,7 +24,8 @@ export function useServerEvents(enabled: boolean, options: UseServerEventsOption
     if (!enabled || userId === undefined) return;
 
     const since = readLastAppliedEventId(userId);
-    const events = new EventSource(`/api/events/stream?since=${since}`, { withCredentials: true });
+    const streamUrl = since === null ? "/api/events/stream" : `/api/events/stream?since=${since}`;
+    const events = new EventSource(streamUrl, { withCredentials: true });
     let closed = false;
     let chain = Promise.resolve();
 
@@ -47,7 +49,8 @@ export function useServerEvents(enabled: boolean, options: UseServerEventsOption
     events.addEventListener("domain", (message) => {
       enqueue(async () => {
         const raw = JSON.parse((message as MessageEvent<string>).data);
-        if (typeof raw?.eventId === "number" && raw.eventId <= readLastAppliedEventId(userId)) {
+        const lastApplied = readLastAppliedEventId(userId);
+        if (typeof raw?.eventId === "number" && lastApplied !== null && raw.eventId <= lastApplied) {
           return;
         }
         const envelope = await applyServerEvent(raw);
@@ -69,6 +72,7 @@ export function useServerEvents(enabled: boolean, options: UseServerEventsOption
         }
         metadataCache.clear();
         writeScrollEntries([]);
+        await refreshOfflineSnapshots();
         if (!closed) {
           writeLastAppliedEventId(userId, raw.resumeAfterEventId);
         }

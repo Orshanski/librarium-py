@@ -26,7 +26,7 @@ describe("refreshOfflineSnapshots", () => {
     ]);
     const updateMetaSpy = vi.spyOn(offlineStorage, "updateOfflineBookMetadata").mockResolvedValue();
     vi.spyOn(booksApi, "getBook").mockResolvedValue(
-      mockBookDetailResponse({ title: "New", series: { id: 5, name: "S" }, rating: 5, isRead: true }) as unknown as booksApi.BookDetailResponse,
+      mockBookDetailResponse({ title: "New", series: { id: 5, name: "S" }, rating: 5, isRead: false }) as unknown as booksApi.BookDetailResponse,
     );
 
     await refreshOfflineSnapshots();
@@ -36,6 +36,22 @@ describe("refreshOfflineSnapshots", () => {
     expect(updateMetaSpy.mock.calls[0][1]).toMatchObject({
       title: "New", rating: 5, series: { id: 5, name: "S" },
     });
+  });
+
+  it("removes local offline book data when fresh metadata says the book is read", async () => {
+    vi.spyOn(offlineStorage, "getOfflineBooks").mockResolvedValue([
+      { bookId: 1, title: "Old" } as unknown as offlineStorage.OfflineBook,
+    ]);
+    const updateMetaSpy = vi.spyOn(offlineStorage, "updateOfflineBookMetadata").mockResolvedValue();
+    const removeSpy = vi.spyOn(offlineStorage, "removeBookFromLocalStorage").mockResolvedValue();
+    vi.spyOn(booksApi, "getBook").mockResolvedValue(
+      mockBookDetailResponse({ title: "Read remotely", isRead: true }) as unknown as booksApi.BookDetailResponse,
+    );
+
+    await refreshOfflineSnapshots();
+
+    expect(removeSpy).toHaveBeenCalledWith(1);
+    expect(updateMetaSpy).not.toHaveBeenCalled();
   });
 
   it("skips books that fail to fetch (404 or network)", async () => {

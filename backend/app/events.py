@@ -267,6 +267,12 @@ def prune_old_publications(retention_days: int = 30, now_iso: str | None = None)
         )
         db.commit()
         return cursor.rowcount
+    except sqlite3.OperationalError as exc:
+        db.rollback()
+        if "no such table: sse_publications" in str(exc):
+            log.warning("Skipping SSE publication prune: sse_publications table is missing")
+            return 0
+        raise
     except Exception:
         db.rollback()
         raise

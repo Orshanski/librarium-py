@@ -11,6 +11,7 @@ import { ResponsiveProvider } from "@/responsive";
 import { readScrollEntries, writeScrollEntries } from "@/scroll/list-scroll-validity";
 import { server } from "@/test/msw/server";
 import { AuthProvider } from "@/auth";
+import * as offlineRefresh from "@/utils/offline-metadata-refresh";
 import { registerCursorCriticalServerEventHandler } from "../server-events";
 import { useServerEvents } from "../useServerEvents";
 
@@ -111,6 +112,7 @@ describe("useServerEvents", () => {
     metadataCache.clear();
     domainEvents.clear();
     mockOnlineStatus(true);
+    vi.spyOn(offlineRefresh, "refreshOfflineSnapshots").mockResolvedValue();
   });
 
   afterEach(() => {
@@ -120,7 +122,7 @@ describe("useServerEvents", () => {
 
   it("opens and closes an EventSource when enabled changes", () => {
     const { rerender, unmount } = render(<Harness enabled={true} userId={2} />);
-    expect(FakeEventSource.instances[0].url).toBe("/api/events/stream?since=0");
+    expect(FakeEventSource.instances[0].url).toBe("/api/events/stream");
     expect(FakeEventSource.instances[0].init).toEqual({ withCredentials: true });
 
     rerender(<Harness enabled={false} userId={2} />);
@@ -149,6 +151,14 @@ describe("useServerEvents", () => {
     render(<Harness enabled={true} userId={2} />);
 
     expect(FakeEventSource.instances[0].url).toBe("/api/events/stream?since=41");
+  });
+
+  it("omits since for malformed stored cursors so the server starts at current tail", () => {
+    localStorage.setItem("librarium_sse_last_applied_event_id:user:2", "1e6");
+
+    render(<Harness enabled={true} userId={2} />);
+
+    expect(FakeEventSource.instances[0].url).toBe("/api/events/stream");
   });
 
   it("advances the user cursor only after successful application", async () => {
@@ -278,7 +288,7 @@ describe("useServerEvents", () => {
     expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("5");
   });
 
-  it("handles reset by clearing metadata and scroll state then storing resumeAfterEventId", async () => {
+  it("handles reset by clearing metadata and scroll state, refreshing offline snapshots, then storing resumeAfterEventId", async () => {
     metadataCache.set("books", "catalog", { books: [{ id: 1 }], hasMore: false });
     writeScrollEntries([{ url: "/", scrollTop: 100, version: 1 }]);
 
@@ -289,6 +299,7 @@ describe("useServerEvents", () => {
     });
 
     await waitFor(() => expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("44"));
+    expect(offlineRefresh.refreshOfflineSnapshots).toHaveBeenCalledTimes(1);
     expect(metadataCache.get("books", "catalog")).toBeUndefined();
     expect(readScrollEntries()).toEqual([]);
   });
@@ -341,6 +352,7 @@ describe("useServerEvents", () => {
     });
 
     await waitFor(() => expect(metadataCache.get("books", "catalog")).toBeUndefined());
+    expect(offlineRefresh.refreshOfflineSnapshots).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem("librarium_sse_last_applied_event_id:user:2")).toBe("50");
   });
 
@@ -421,7 +433,7 @@ describe("useServerEvents", () => {
     renderAuthenticatedApp(route);
 
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
-    expect(FakeEventSource.instances[0].url).toBe("/api/events/stream?since=0");
+    expect(FakeEventSource.instances[0].url).toBe("/api/events/stream");
   });
 
   it("does not install an EventSource when auth has no user", async () => {

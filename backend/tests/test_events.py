@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sqlite3
 import threading
 
 import pytest
@@ -457,6 +458,21 @@ def test_failed_publish_triggered_prune_does_not_consume_daily_throttle(monkeypa
     maybe_prune_old_publications_after_publish()
     assert prune_calls == ["2026-05-27T12:00:00Z", "2026-05-27T12:00:00Z"]
     assert events_module._last_prune_at == "2026-05-27"
+
+
+def test_prune_old_publications_noops_when_publication_table_is_missing(tmp_path, monkeypatch):
+    import app.events as events
+
+    db_path = tmp_path / "fresh.sqlite"
+
+    def open_without_schema():
+        db = sqlite3.connect(str(db_path))
+        db.row_factory = sqlite3.Row
+        return db
+
+    monkeypatch.setattr(events, "open_event_db", open_without_schema)
+
+    assert events.prune_old_publications(now_iso="2026-05-27T10:00:00Z") == 0
 
 
 def test_sse_format_uses_domain_event_name_and_json_payload():
