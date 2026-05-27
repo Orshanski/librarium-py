@@ -41,7 +41,10 @@ function ShellLayout() {
 function AuthenticatedEventStream({ online }: Readonly<{ online: boolean }>) {
   const { user } = useAuth();
   const authenticated = Boolean(user);
-  useServerEvents(authenticated && online, { resyncOnNextOpen: authenticated && !online });
+  useServerEvents(authenticated && online, {
+    userId: user?.id,
+    resyncOnNextOpen: authenticated && !online,
+  });
   return null;
 }
 
