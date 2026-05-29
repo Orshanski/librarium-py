@@ -3,6 +3,7 @@ import { createNavigation } from './fb2-locator.js'
 import { createCoverSection } from './fb2-cover.js'
 import { buildContentSegments } from './fb2-render-sections.js'
 import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
+import { applyGrouping } from './fb2-grouping.js'
 
 export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -237,7 +238,7 @@ p, li, dd {
 a:link { color: var(--user-accent, #0066cc); }
 
 /* Structural styles */
-body > img, section > img {
+body > img, section > img, .keep-together > img {
     display: block;
     margin: auto;
 }
@@ -245,11 +246,35 @@ body > img, section > img {
 .title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
 .title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
 .title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
-body > section > .title, body.notesBodyType > .title {
-    margin: 0 0 1em;
+/* Heading spacing — per level. A STANDALONE heading (a section break with no
+   adjacent .title sibling, at any nesting depth) gets per-level margins from the
+   mockup, INCLUDING the top margin that separates it from the preceding section.
+   The margin sits on the inner heading and collapses through the header.title
+   wrapper, so it works no matter how deep the section nests. */
+.title h1 { margin: 0 0 1.1em; }
+.title h2 { margin: 1.6em 0 0.8em; }
+.title h3 { margin: 1.4em 0 0.7em; }
+.title h4 { margin: 1.3em 0 0.6em; }
+/* A run of adjacent .title siblings is an opening stack (book -> part -> chapter,
+   gathered into one flat block): collapse it compact — zero the stacked titles'
+   inner margins and replace them with one tight uniform gap. The first title
+   keeps its top margin; the last keeps its bottom margin before the body. */
+.title + .title h1, .title + .title h2, .title + .title h3, .title + .title h4 {
+    margin-top: 0;
 }
-.title + .title {
-    margin-top: 0.5em;
+.title:has(+ .title) h1, .title:has(+ .title) h2, .title:has(+ .title) h3, .title:has(+ .title) h4 {
+    margin-bottom: 0;
+}
+.title + .title { margin-top: 0.35em; }
+/* A multi-line title (several same-level <p> become sibling headings inside ONE
+   .title, e.g. "Глава первая." + "ЗВАНЫЕ ГОСТИ"): keep the lines tight — they are
+   one title on two lines, spaced only by line-height, not the per-level margins. */
+.title :is(h1, h2, h3, h4) + :is(h1, h2, h3, h4) { margin-top: 0; }
+.title :is(h1, h2, h3, h4):has(+ :is(h1, h2, h3, h4)) { margin-bottom: 0; }
+/* Neutral keep-together box: break-inside is the only cross-engine keep-together
+   tool; NO background/border/padding (decoration fragments across columns). */
+.keep-together {
+    break-inside: avoid;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
@@ -271,10 +296,20 @@ p {
 .poem {
     font-style: italic;
     max-width: 26em;
-    margin: 1.6em auto;
+    margin: 1.2em auto;
 }
 .poem p { text-indent: 0; }
 .poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
+/* A poem/cite nested inside an epigraph (or another quote) must not add its own
+   block margin on top of the container's — otherwise the vertical gaps stack
+   (epigraph 1.6/1.8em + poem 1.6em) into one huge gap. The container owns the
+   spacing; the nested quote keeps only its horizontal centering. */
+.epigraph .poem, .epigraph .cite, .epigraph .epigraph,
+.cite .poem, .cite .cite,
+.annotation .poem, .annotation .cite, .annotation .epigraph {
+    margin-top: 0;
+    margin-bottom: 0;
+}
 .stanza { margin: 0; }
 .stanza + .stanza { margin-top: 0.8em; }
 .verse-line { display: block; text-indent: 0; }
@@ -288,7 +323,7 @@ p {
     font-style: italic;
     font-size: 0.94em;
     max-width: 80%;
-    margin: 1.6em 0 1.8em auto;
+    margin: 1.2em 0 1.2em auto;
 }
 .epigraph p { text-indent: 0; }
 .annotation {
@@ -303,6 +338,8 @@ body .subtitle {
     font-weight: 600;
     color: var(--muted);
     text-indent: 0;
+    /* explicit spacing (subtitle is an h2/h3/h4 tag, UA margin now zeroed) */
+    margin: 1.3em 0;
 }
 .text-author {
     text-align: end;
@@ -326,7 +363,8 @@ a[epub|type~="noteref"] {
     font-size: .75em;
     vertical-align: super;
 }
-body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
+body:not(.notesBodyType) > .title,
+body:not(.notesBodyType) > .epigraph {
     margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
@@ -402,7 +440,17 @@ export const makeFB2 = async blob => {
     const originalToc = collectToc(bodyData[0][0], dataID)
 
     // Build render sections with el preserved for anchor mapping
-    const renderSections = buildContentSegments(bodyData[0][0], { dataID })
+    const contentSegments = buildContentSegments(bodyData[0][0], { dataID })
+    // Late keep-together grouping pass (kfl7 Phase 2): mutate each content
+    // segment's el BEFORE serialisation; data-foliate-id stays on the titles, so
+    // the foliateId->section map (built below from el) and the serialised blob
+    // both see the grouped DOM. Skip the Pass-A frontmatter wrapper (render-section
+    // index 0 when present): it is preamble (author/title/epigraph), dropped from
+    // the TOC and not navigable, so grouping its opening is pointless.
+    for (const seg of contentSegments) {
+        if (!seg.el.classList?.contains('frontmatter')) applyGrouping(seg.el)
+    }
+    const renderSections = contentSegments
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
