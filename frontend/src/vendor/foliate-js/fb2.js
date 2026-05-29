@@ -246,8 +246,15 @@ body > img, section > img {
 .title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
 .title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
 .title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
-body > section > .title, body.notesBodyType > .title {
+body > section > .title,
+body > section > .keep-together > .title,
+body.notesBodyType > .title {
     margin: 0 0 1em;
+}
+/* Neutral keep-together box: break-inside is the only cross-engine keep-together
+   tool; NO background/border/padding (decoration fragments across columns). */
+.keep-together {
+    break-inside: avoid;
 }
 /* Compact title-stack: a run of consecutive opening headings (book -> part ->
    chapter, gathered onto one spread by the unwrap-merge) reads as one tight
@@ -335,7 +342,10 @@ a[epub|type~="noteref"] {
     font-size: .75em;
     vertical-align: super;
 }
-body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
+body:not(.notesBodyType) > .title,
+body:not(.notesBodyType) > .keep-together > .title,
+body:not(.notesBodyType) > .epigraph,
+body:not(.notesBodyType) > .keep-together > .epigraph {
     margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
