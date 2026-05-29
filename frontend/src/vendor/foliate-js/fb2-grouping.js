@@ -41,7 +41,11 @@ const groupSectionOpening = (sectionEl) => {
     // first content block — only if it is not a nested section and not a poem
     // (poems have their own keep-together tail grouping; consuming a poem here
     // would break the .poem + br + .poem sibling relationship used by the CSS
-    // run-spacing rules)
+    // run-spacing rules).
+    // Known trade-off: when the first block IS a poem, the title is wrapped
+    // alone, so a title that directly precedes a leading poem (no prose between)
+    // can still orphan from the poem at a column edge. Accepted to keep poem runs
+    // intact; flagged for visual acceptance on a real book.
     if (i < children.length) {
         const tag = children[i].tagName.toLowerCase()
         if (tag !== 'section' && !children[i].classList?.contains('poem')) {
