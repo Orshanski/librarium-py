@@ -1,11 +1,15 @@
 import * as CFI from './epubcfi.js'
+import { createNavigation } from './fb2-locator.js'
+import { createCoverSection } from './fb2-cover.js'
+import { buildContentSegments } from './fb2-render-sections.js'
+import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
 
-const normalizeWhitespace = str => str ? str
+export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
     .replace(/^[\t\n\f\r ]+/, '')
     .replace(/[\t\n\f\r ]+$/, '') : ''
 
-const getElementText = el => normalizeWhitespace(el?.textContent)
+export const getElementText = el => normalizeWhitespace(el?.textContent)
 const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
 const getEmbeddedSrcLength = el =>
     getSrcLength(el) + Array.from(el.querySelectorAll('[src]'), getSrcLength)
@@ -85,46 +89,6 @@ const BODY = {
     }],
     'epigraph': ['section', SECTION],
     'section': ['section', SECTION],
-}
-
-// Frontmatter merging (b4ci.1, branch feature/b4ci.1-fb2-frontmatter-merging).
-const DECORATIVE_TAGS = new Set(['header', 'aside', 'blockquote'])
-const DECORATIVE_CLASSES = new Set([
-    'title', 'subtitle', 'epigraph', 'cite', 'annotation',
-    'text-author', 'date', 'poem', 'stanza',
-])
-const PROSE_BUDGET = 1500
-
-const isDecorativeWrapper = el => {
-    if (!el || el.nodeType !== 1) return false
-    if (DECORATIVE_TAGS.has(el.tagName?.toLowerCase())) return true
-    for (const cls of el.classList) {
-        if (DECORATIVE_CLASSES.has(cls)) return true
-    }
-    return false
-}
-
-const hasProseContent = (root, budget = PROSE_BUDGET) => {
-    if (isDecorativeWrapper(root)) return false
-    let chars = 0
-    for (const p of root.querySelectorAll('p')) {
-        let cursor = p
-        let decorative = false
-        // walker terminates at root: the early-return above already handled
-        // the case where root itself is decorative
-        while (cursor && cursor !== root) {
-            if (isDecorativeWrapper(cursor)) {
-                decorative = true
-                break
-            }
-            cursor = cursor.parentElement
-        }
-        if (!decorative) {
-            chars += p.textContent?.length ?? 0
-            if (chars >= budget) return true
-        }
-    }
-    return false
 }
 
 class FB2Converter {
@@ -395,189 +359,11 @@ export const makeFB2 = async blob => {
 
     const urls = []
 
-    // Step 1: Collect TOC from original structure BEFORE splitting
-    let tocCounter = 0
-    const collectTitles = (parentEl) => {
-        const sections = parentEl.querySelectorAll(':scope > section')
-        return Array.from(sections, (section) => {
-            const titleEl = section.querySelector(':scope > .title')
-            if (!titleEl) return null
-            const index = tocCounter++
-            titleEl.setAttribute(dataID, index)
-            const subitems = collectTitles(section)
-            return {
-                title: getElementText(titleEl),
-                index,
-                subitems: subitems.length ? subitems : null,
-            }
-        }).filter(x => x)
-    }
-    // Collect TOC from each top-level element before any splitting
-    // Assign data-foliate-id to top-level title elements too
-    const originalToc = bodyData[0][0].map(({ el }) => {
-        const titleEl = el.querySelector(':scope > .title')
-        let topIndex = null
-        if (titleEl) {
-            topIndex = tocCounter++
-            titleEl.setAttribute(dataID, topIndex)
-        }
-        return {
-            title: normalizeWhitespace(
-                el.querySelector('.title, .subtitle, p')?.textContent
-                ?? (el.classList.contains('title') ? el.textContent : '')),
-            titles: collectTitles(el),
-            topIndex,
-        }
-    })
+    // Collect TOC from the original structure, before splitting
+    const originalToc = collectToc(bodyData[0][0], dataID)
 
-    // Step 2: Adaptive section splitting
-    const MAX_CHARS = 180000
-    const splitSection = ({ el, ids }) => {
-        const charCount = el.textContent?.length ?? 0
-        const childSections = el.querySelectorAll(':scope > section')
-        if (charCount <= MAX_CHARS || childSections.length === 0) {
-            return [{ ids, el, charCount }]
-        }
-        // Remember parent's own id to attach to first segment
-        const parentId = el.id
-        const segments = []
-        const ownerDoc = el.ownerDocument
-        let currentNodes = []
-        const flushNodes = () => {
-            if (!currentNodes.some(n => n.textContent?.trim())) return
-            const wrapper = ownerDoc.createElement('section')
-            for (const n of currentNodes) wrapper.appendChild(n.cloneNode(true))
-            const wIds = [wrapper, ...wrapper.querySelectorAll('[id]')].map(e => e.id)
-            segments.push({ el: wrapper, ids: wIds, charCount: wrapper.textContent?.length ?? 0 })
-        }
-        for (const child of Array.from(el.childNodes)) {
-            if (child.nodeType === 1 && child.tagName?.toLowerCase() === 'section') {
-                flushNodes()
-                currentNodes = []
-                const childIds = [child, ...child.querySelectorAll('[id]')].map(e => e.id)
-                segments.push(...splitSection({ el: child, ids: childIds }))
-            } else {
-                currentNodes.push(child)
-            }
-        }
-        flushNodes()
-        // Attach parent's id to first segment so anchors resolve correctly
-        if (parentId && segments.length > 0) {
-            if (!segments[0].ids.includes(parentId)) {
-                segments[0].ids.push(parentId)
-            }
-        }
-        return segments
-    }
-
-    // Post-process: merge thin segments into next via wrapper-clone primitive (b4ci.1).
-    // Pass B — per-top-level-item, no cross-boundary merges (Part I tail can't reach
-    // Part II head). Predicate isThinSegment uses hasProseContent + checks for
-    // nested sections.
-    const isThinSegment = (seg) =>
-        seg.el.querySelectorAll('section').length === 0
-        && !hasProseContent(seg.el, PROSE_BUDGET)
-
-    const mergeThinSegments = (segments) => {
-        let merged = true
-        while (merged) {
-            merged = false
-            const result = []
-            for (let i = 0; i < segments.length; i++) {
-                const seg = segments[i]
-                const next = segments[i + 1]
-                if (next && isThinSegment(seg)) {
-                    const beforeFirst = next.el.firstChild
-                    next.el.insertBefore(seg.el.cloneNode(true), beforeFirst)
-                    next.ids = [...seg.ids, ...next.ids]
-                    next.charCount = next.el.textContent?.length ?? 0
-                    merged = true
-                    continue
-                }
-                result.push(seg)
-            }
-            segments = result
-        }
-        return segments
-    }
-
-    // Pass A — wraps decorative top-level prefix into a separate frontmatter
-    // render-section. Content items follow standard flatMap, untouched.
-    // The first content item (Prologue / Part I / Foreword) gets its own
-    // render-section, paginator opens it on a fresh spread.
-    //
-    // Special case for "lone author title" pattern (e.g. Erikson "Gardens of
-    // the Moon": body-level <title> contains only the author name, while
-    // book-title + epigraphs are inside the first content section): when
-    // preamble has exactly one item, also pull the first segment of
-    // splitSection(items[i]) into frontmatter if it's thin. That gathers
-    // author + book-title + epigraphs into one cohesive frontmatter block.
-    const applyPassA = (items) => {
-        const preamble = []
-        let i = 0
-        while (i < items.length && !hasProseContent(items[i].el, PROSE_BUDGET)) {
-            preamble.push(items[i])
-            i += 1
-        }
-        if (preamble.length === 0 || i === items.length) {
-            return items.flatMap(item => mergeThinSegments(splitSection(item)))
-        }
-        // When cloning into the frontmatter wrapper, strip data-foliate-id
-        // attributes — those ids stay on the original elements (still rendered
-        // inside their content render-section), and a duplicate in frontmatter
-        // collides in foliateIdToSection map (frontmatter is index 0, scanned
-        // first, so the original chapter resolves to the wrong section).
-        const cloneForFrontmatter = (el) => {
-            const cloned = el.cloneNode(true)
-            cloned.removeAttribute(dataID)
-            for (const inner of cloned.querySelectorAll(`[${dataID}]`)) {
-                inner.removeAttribute(dataID)
-            }
-            return cloned
-        }
-
-        const ownerDoc = items[0].el.ownerDocument
-        const frontmatterEl = ownerDoc.createElement('section')
-        frontmatterEl.classList.add('frontmatter')
-        for (const src of preamble) {
-            frontmatterEl.appendChild(cloneForFrontmatter(src.el))
-        }
-        const frontmatterIds = preamble.flatMap(p => p.ids)
-
-        // Lone-author special case: when preamble is a single body-level title
-        // (just the author name) and the first content item is a big section
-        // whose first segment is decorative (book-title + dedication + epigraph),
-        // pull that first segment into frontmatter so author and book-title sit
-        // together. Otherwise use the same splitSection result for the standard
-        // pipeline below — avoids re-splitting the same large item twice.
-        let firstItemSegments = null
-        if (preamble.length === 1) {
-            firstItemSegments = splitSection(items[i])
-            if (firstItemSegments.length > 1 && isThinSegment(firstItemSegments[0])) {
-                frontmatterEl.appendChild(cloneForFrontmatter(firstItemSegments[0].el))
-                frontmatterIds.push(...firstItemSegments[0].ids)
-                firstItemSegments = firstItemSegments.slice(1)
-            }
-        }
-
-        const frontmatterSegment = {
-            el: frontmatterEl,
-            ids: frontmatterIds,
-            charCount: frontmatterEl.textContent?.length ?? 0,
-        }
-        const renderedContent = firstItemSegments !== null
-            ? [
-                ...mergeThinSegments(firstItemSegments),
-                ...items.slice(i + 1).flatMap(item =>
-                    mergeThinSegments(splitSection(item))),
-            ]
-            : items.slice(i).flatMap(item =>
-                mergeThinSegments(splitSection(item)))
-        return [frontmatterSegment, ...renderedContent]
-    }
-
-    // Step 3: Build render sections with el preserved for anchor mapping
-    const renderSections = applyPassA(bodyData[0][0])
+    // Build render sections with el preserved for anchor mapping
+    const renderSections = buildContentSegments(bodyData[0][0], { dataID })
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
@@ -600,49 +386,14 @@ export const makeFB2 = async blob => {
             }
         })
 
-    const escapeCoverText = value => String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-    const coverAuthor = book.metadata.author
-        ?.map(author => author.name).filter(Boolean).join(', ') ?? ''
-    const coverInnerHTML = coverSrc
-        ? `<img src="${coverSrc}" alt=""/>`
-        : `<h1>${escapeCoverText(book.metadata.title ?? '')}</h1>`
-            + `<p>${escapeCoverText(coverAuthor)}</p>`
-    const coverHTML = template(`<section class="cover-page">${coverInnerHTML}</section>`)
-    const coverBlob = new Blob([coverHTML], { type: MIME.XHTML })
-    const coverUrl = URL.createObjectURL(coverBlob)
-    urls.push(coverUrl)
-    renderSections.unshift({
-        ids: [],
-        title: 'Обложка',
-        load: () => coverUrl,
-        createDocument: () => new DOMParser().parseFromString(coverHTML, MIME.XHTML),
-        size: 0,
-        charCount: 0,
-        counted: false,
-        isCover: true,
-        isOpening: true,
-        cfi: '__cover__',
+    const { section: coverSection, url: coverUrl } = createCoverSection({
+        coverSrc, metadata: book.metadata, template,
     })
+    urls.push(coverUrl)
+    renderSections.unshift(coverSection)
 
-    // Step 4: Build foliateId -> render section index map
-    const foliateIdToSection = new Map()
-    for (let i = 0; i < renderSections.length; i++) {
-        const el = renderSections[i].el
-        if (!el) continue
-        const selfFid = el.getAttribute?.(dataID)
-        if (selfFid && !foliateIdToSection.has(selfFid)) {
-            foliateIdToSection.set(selfFid, i)
-        }
-        for (const titled of el.querySelectorAll(`[${dataID}]`)) {
-            const fid = titled.getAttribute(dataID)
-            if (fid && !foliateIdToSection.has(fid)) {
-                foliateIdToSection.set(fid, i)
-            }
-        }
-    }
+    // Build foliateId -> render section index map
+    const foliateIdToSection = buildFoliateIdToSection(renderSections, dataID)
 
     // Whether Pass A produced a <section class="frontmatter"> wrapper as
     // render-section[0]. If yes, TOC entries pointing to render-section 0
@@ -656,7 +407,7 @@ export const makeFB2 = async blob => {
     // Release DOM references — no longer needed after mapping
     for (const s of renderSections) delete s.el
 
-    // Step 5: Build book.sections
+    // Build book.sections
     const idMap = new Map()
     book.sections = renderSections.map((section, index) => {
         const {
@@ -681,74 +432,13 @@ export const makeFB2 = async blob => {
     })
 
     // Build TOC from original structure, resolving to render section indices
-    const buildTocItems = (titles) =>
-        titles?.map(({ title, index, subitems }) => {
-            const sectionIdx = foliateIdToSection.get(String(index)) ?? textStartIndex
-            return {
-                label: title,
-                href: `${sectionIdx}#${index}`,
-                subitems: subitems?.length ? buildTocItems(subitems) : null,
-            }
-        }) ?? null
+    book.toc = buildToc({ originalToc, foliateIdToSection, frontmatterIndex, textStartIndex })
 
-    const rawToc = originalToc.map(({ title, titles, topIndex }) => {
-        const sectionIdx = topIndex != null
-            ? (foliateIdToSection.get(String(topIndex)) ?? textStartIndex)
-            : textStartIndex
-        return {
-            label: title,
-            href: topIndex != null ? `${sectionIdx}#${topIndex}` : String(sectionIdx),
-            subitems: buildTocItems(titles),
-        }
-    }).filter(item => item.label)
-
-    // If frontmatter wrapper exists, drop TOC entries that resolve into
-    // render-section[0] (author title, copyrights, dedication, epigraphs
-    // pulled in via lone-author special case). When such an entry has
-    // subitems pointing into content (e.g. lone-author case where the
-    // whole-book section has inner chapters), promote those to the top
-    // level. Subitems that also point at render-section[0] — e.g. praise
-    // pages whose <cite>-wrapped endorsements made the whole praise block
-    // count as decorative and slip into frontmatter — are dropped, not
-    // promoted; they'd just be broken navigation links.
-    // Subitems-of-subitems can never resolve to render-section[0]: their
-    // elements live inside content render-sections, so depth-1 promotion
-    // here suffices.
-    book.toc = frontmatterExists
-        ? rawToc.flatMap(item => {
-            const sectionIdx = Number(item.href.split('#')[0])
-            if (sectionIdx === frontmatterIndex) {
-                return (item.subitems ?? []).filter(sub =>
-                    Number(sub.href.split('#')[0]) > frontmatterIndex)
-            }
-            return [item]
-        })
-        : rawToc
-    book.toc = [{ label: 'Обложка', href: '__cover__' }, ...book.toc]
-
-    book.resolveHref = href => {
-        if (href === '__cover__') return { index: 0 }
-        const [a, b] = href.split('#')
-        if (!a) {
-            // link from within the page: #someId
-            return { index: idMap.get(b), anchor: doc => doc.getElementById(b) }
-        }
-        if (b != null) {
-            // TOC link with fragment: sectionIndex#foliateId
-            return { index: Number(a), anchor: doc => doc.querySelector(`[${dataID}="${b}"]`) }
-        }
-        // TOC link without fragment: just section index
-        return { index: Number(a) }
-    }
-    book.resolveCFI = cfi => {
-        if (cfi === '__cover__') return { index: 0 }
-        const parts = CFI.parse(cfi)
-        const oldIndex = CFI.fake.toIndex((parts.parent ?? parts).shift())
-        return { index: oldIndex + 1, anchor: doc => CFI.toRange(doc, parts) }
-    }
-    book.splitTOCHref = href =>
-        href === '__cover__' ? [0] : href?.split('#')?.map(x => Number(x)) ?? []
-    book.getTOCFragment = (doc, id) => doc.querySelector(`[${dataID}="${id}"]`)
+    const navigation = createNavigation({ idMap, dataID })
+    book.resolveHref = navigation.resolveHref
+    book.resolveCFI = navigation.resolveCFI
+    book.splitTOCHref = navigation.splitTOCHref
+    book.getTOCFragment = navigation.getTOCFragment
 
     book.destroy = () => {
         for (const url of urls) URL.revokeObjectURL(url)
