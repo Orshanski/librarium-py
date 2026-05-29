@@ -765,6 +765,22 @@ describe("foliate FB2 kfl7 typography", () => {
     );
   });
 
+  it("renders epigraph (italic) and annotation (muted aside) box-free with body content", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>E</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <epigraph><p>Мотто</p><text-author>Автор</text-author></epigraph>
+    <annotation><p>Редакторская заметка</p></annotation>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    expect(doc.querySelector(".epigraph p")?.textContent).toContain("Мотто");
+    expect(doc.querySelector("aside.annotation")?.textContent).toContain("Редакторская заметка");
+  });
+
   it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">

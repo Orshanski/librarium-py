@@ -62,7 +62,7 @@ const makeSectionDef = (level) => {
         }],
         'epigraph': ['blockquote', 'self'],
         'image': 'image',
-        'annotation': ['aside'],
+        'annotation': ['aside', 'self'],
         'p': ['p', STYLE],
         'poem': ['blockquote', POEM],
         'subtitle': [level <= 2 ? 'h3' : 'h4', STYLE],
@@ -275,8 +275,17 @@ p {
 }
 .epigraph {
     font-style: italic;
-    font-size: 0.85em;
+    font-size: 0.94em;
+    max-width: 80%;
+    margin: 1.6em 0 1.8em auto;
 }
+.epigraph p { text-indent: 0; }
+.annotation {
+    color: var(--muted);
+    font-size: 0.95em;
+    margin: 1.3em 1.6em;
+}
+.annotation p { text-indent: 0; }
 .poem + br { display: none; }
 .poem + br + .poem { margin-top: 0.5em; }
 .text-author, .date {
