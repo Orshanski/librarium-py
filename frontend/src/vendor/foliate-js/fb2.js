@@ -4,6 +4,7 @@ import { createCoverSection } from './fb2-cover.js'
 import { buildContentSegments } from './fb2-render-sections.js'
 import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
 import { applyGrouping } from './fb2-grouping.js'
+import { classifyImages } from './fb2-image-classify.js'
 
 export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -242,6 +243,21 @@ body > img, section > img, .keep-together > img {
     display: block;
     margin: auto;
 }
+/* pxb2: картинки внутри боди-<p>, классифицированные по позиции (fb2-image-classify.js).
+   Размер (max-width/height/object-fit/break-inside) форсит paginator.setImageSize — здесь
+   только раскладка. Блок-child не наследует абзацный text-indent, поэтому отступа нет. */
+img.block-image { display: block; margin-inline: auto; }
+img.float-image {
+    float: inline-start;
+    margin-inline-end: 1em;
+    margin-block-end: 0.3em;
+    max-inline-size: 40%;
+}
+/* height (НЕ max-height: его paginator форсит !important на той же оси — max-* logical
+   ненадёжен против него). paginator height НЕ задаёт → явная height применяется чисто;
+   object-fit:contain (от paginator) держит аспект, ширина авто. Нормализует inline-глиф к
+   высоте строки (величина 1.2em — стартовая, тюнится на визуалке Alexey). */
+img.inline-glyph { height: 1.2em; }
 .title h1 { text-align: center; font-size: 1.5em; font-weight: 700; line-height: 1.2; }
 .title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
 .title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
@@ -448,7 +464,10 @@ export const makeFB2 = async blob => {
     // index 0 when present): it is preamble (author/title/epigraph), dropped from
     // the TOC and not navigable, so grouping its opening is pointless.
     for (const seg of contentSegments) {
-        if (!seg.el.classList?.contains('frontmatter')) applyGrouping(seg.el)
+        if (!seg.el.classList?.contains('frontmatter')) {
+            applyGrouping(seg.el)
+            classifyImages(seg.el)
+        }
     }
     const renderSections = contentSegments
         .concat(bodyData.slice(1).map(([sections, body]) => {
