@@ -261,6 +261,13 @@ p {
     text-indent: 2em;
     margin: 0;
 }
+.cite {
+    font-style: italic;
+    font-size: 0.94em;
+    margin: 1.6em 2.6em;
+}
+.cite p { text-indent: 0; }
+.cite .subtitle { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.5em; }
 .poem p {
     text-indent: 0;
     margin: 1em 0;

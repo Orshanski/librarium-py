@@ -764,4 +764,20 @@ describe("foliate FB2 kfl7 typography", () => {
       expect.arrayContaining([expect.stringContaining("L4"), expect.stringContaining("L5deep")])
     );
   });
+
+  it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>C</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><subtitle>Лейбл</subtitle><p>${"А".repeat(2000)}</p><text-author>Источник</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const cite = doc.querySelector("blockquote.cite");
+    expect(cite).not.toBeNull();
+    expect(cite?.querySelector(".subtitle")?.textContent).toContain("Лейбл");
+    expect(cite?.querySelector(".text-author")?.textContent).toBe("Источник");
+  });
 });
