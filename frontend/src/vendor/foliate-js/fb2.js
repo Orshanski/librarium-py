@@ -278,6 +278,12 @@ p {
 .stanza { margin: 0; }
 .stanza + .stanza { margin-top: 0.8em; }
 .verse-line { display: block; text-indent: 0; }
+/* A run of separate <poem>s separated by <empty-line/> (→ <br>): hide the
+   separator and tighten poem-to-poem spacing, while a standalone poem keeps its
+   full margin. */
+.poem + br { display: none; }
+.poem + br + .poem { margin-top: 0.8em; }
+.poem:has(+ br + .poem) { margin-bottom: 0.8em; }
 .epigraph {
     font-style: italic;
     font-size: 0.94em;

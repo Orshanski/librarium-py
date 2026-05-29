@@ -818,6 +818,30 @@ describe("foliate FB2 kfl7 typography", () => {
     expect(doc.querySelector(".poem .date")?.textContent).toContain("1227");
   });
 
+  it("separates consecutive poems with a <br> sibling (empty-line) that the run-spacing CSS targets", async () => {
+    // Regression guard: a run of separate <poem>s split by <empty-line/> (a common
+    // LotR-style structure) must render as `.poem`, `<br>`, `.poem` siblings so the
+    // `.poem + br` / `.poem + br + .poem` rules can collapse the separator and
+    // tighten the run. (Dropping that CSS reopened huge inter-poem gaps.)
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>PR</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><stanza><v>Первая строфа</v></stanza></poem>
+    <empty-line/>
+    <poem><stanza><v>Вторая строфа</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const poems = [...doc.querySelectorAll(".poem")];
+    expect(poems.length).toBe(2);
+    const between = poems[0].nextElementSibling;
+    expect(between?.tagName.toLowerCase()).toBe("br");
+    expect(between?.nextElementSibling).toBe(poems[1]);
+  });
+
   it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
