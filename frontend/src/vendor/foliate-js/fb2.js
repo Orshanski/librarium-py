@@ -246,31 +246,30 @@ body > img, section > img {
 .title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
 .title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
 .title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
-/* Kill the browser's default heading margins everywhere (h1..h4 are only ever
-   section titles or subtitles here). All heading spacing is then set
-   explicitly below — nothing relies on UA defaults, so the stack reads compact
-   like the mockup instead of as a loose ladder. */
-h1, h2, h3, h4 { margin: 0; }
-body > section > .title,
-body > section > .keep-together > .title,
-body.notesBodyType > .title {
-    margin: 0 0 1em;
+/* Heading spacing — per level. A STANDALONE heading (a section break with no
+   adjacent .title sibling, at any nesting depth) gets per-level margins from the
+   mockup, INCLUDING the top margin that separates it from the preceding section.
+   The margin sits on the inner heading and collapses through the header.title
+   wrapper, so it works no matter how deep the section nests. */
+.title h1 { margin: 0 0 1.1em; }
+.title h2 { margin: 1.6em 0 0.8em; }
+.title h3 { margin: 1.4em 0 0.7em; }
+.title h4 { margin: 1.3em 0 0.6em; }
+/* A run of adjacent .title siblings is an opening stack (book -> part -> chapter,
+   gathered into one flat block): collapse it compact — zero the stacked titles'
+   inner margins and replace them with one tight uniform gap. The first title
+   keeps its top margin; the last keeps its bottom margin before the body. */
+.title + .title h1, .title + .title h2, .title + .title h3, .title + .title h4 {
+    margin-top: 0;
 }
+.title:has(+ .title) h1, .title:has(+ .title) h2, .title:has(+ .title) h3, .title:has(+ .title) h4 {
+    margin-bottom: 0;
+}
+.title + .title { margin-top: 0.35em; }
 /* Neutral keep-together box: break-inside is the only cross-engine keep-together
    tool; NO background/border/padding (decoration fragments across columns). */
 .keep-together {
     break-inside: avoid;
-}
-/* Compact title-stack: a run of consecutive opening headings (book -> part ->
-   chapter, gathered onto one spread by the unwrap-merge) reads as one tight
-   block, not a ladder. A title followed by another title drops its bottom
-   margin so the gap is the small uniform .35em from the next title's top; the
-   last title in the run keeps its normal margin before body text. */
-.title:has(+ .title) {
-    margin-bottom: 0;
-}
-.title + .title {
-    margin-top: 0.35em;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
