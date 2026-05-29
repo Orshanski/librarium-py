@@ -726,3 +726,19 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(sectionIdx).toBe(2);
   });
 });
+
+describe("foliate FB2 kfl7 typography", () => {
+  it("renders text-author without a generated leading dash", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Cite</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><p>${"А".repeat(2000)}</p><text-author>Иван Петров</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const author = doc.querySelector(".text-author");
+    expect(author?.textContent).toBe("Иван Петров");
+  });
+});

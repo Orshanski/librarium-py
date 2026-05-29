@@ -274,9 +274,6 @@ p {
 .text-author, .date {
     text-align: end;
 }
-.text-author:before {
-    content: "—";
-}
 table {
     border-collapse: collapse;
 }
