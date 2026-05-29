@@ -1,5 +1,6 @@
 import * as CFI from './epubcfi.js'
 import { createNavigation } from './fb2-locator.js'
+import { createCoverSection } from './fb2-cover.js'
 
 const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -601,32 +602,11 @@ export const makeFB2 = async blob => {
             }
         })
 
-    const escapeCoverText = value => String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-    const coverAuthor = book.metadata.author
-        ?.map(author => author.name).filter(Boolean).join(', ') ?? ''
-    const coverInnerHTML = coverSrc
-        ? `<img src="${coverSrc}" alt=""/>`
-        : `<h1>${escapeCoverText(book.metadata.title ?? '')}</h1>`
-            + `<p>${escapeCoverText(coverAuthor)}</p>`
-    const coverHTML = template(`<section class="cover-page">${coverInnerHTML}</section>`)
-    const coverBlob = new Blob([coverHTML], { type: MIME.XHTML })
-    const coverUrl = URL.createObjectURL(coverBlob)
-    urls.push(coverUrl)
-    renderSections.unshift({
-        ids: [],
-        title: 'Обложка',
-        load: () => coverUrl,
-        createDocument: () => new DOMParser().parseFromString(coverHTML, MIME.XHTML),
-        size: 0,
-        charCount: 0,
-        counted: false,
-        isCover: true,
-        isOpening: true,
-        cfi: '__cover__',
+    const { section: coverSection, url: coverUrl } = createCoverSection({
+        coverSrc, metadata: book.metadata, template,
     })
+    urls.push(coverUrl)
+    renderSections.unshift(coverSection)
 
     // Step 4: Build foliateId -> render section index map
     const foliateIdToSection = new Map()
