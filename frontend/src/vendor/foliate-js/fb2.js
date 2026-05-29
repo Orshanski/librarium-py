@@ -286,6 +286,13 @@ p {
     margin: 1.3em 1.6em;
 }
 .annotation p { text-indent: 0; }
+body .subtitle {
+    text-align: center;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--muted);
+    text-indent: 0;
+}
 .poem + br { display: none; }
 .poem + br + .poem { margin-top: 0.5em; }
 .text-author, .date {

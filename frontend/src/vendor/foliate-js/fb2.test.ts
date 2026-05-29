@@ -781,6 +781,23 @@ describe("foliate FB2 kfl7 typography", () => {
     expect(doc.querySelector("aside.annotation")?.textContent).toContain("Редакторская заметка");
   });
 
+  it("renders section subtitle (heading-tag) and stanza subtitle (p) with the subtitle class", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <subtitle>Сцена</subtitle>
+    <poem><stanza><subtitle>Строфа-подзаголовок</subtitle><v>Строка</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // section subtitle is a heading tag with class subtitle; stanza subtitle is a p with class subtitle
+    expect(doc.querySelector("h3.subtitle, h4.subtitle")?.textContent).toContain("Сцена");
+    expect(doc.querySelector("p.subtitle")?.textContent).toContain("Строфа-подзаголовок");
+  });
+
   it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
