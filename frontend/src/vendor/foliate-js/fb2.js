@@ -45,6 +45,10 @@ const TABLE = {
 }
 
 const POEM = {
+    'title': ['header', {
+        'p': ['p', STYLE, null, ['poem-title']],
+        'empty-line': ['br'],
+    }],
     'epigraph': ['blockquote'],
     'subtitle': ['h2', STYLE],
     'text-author': ['p', STYLE],
@@ -62,7 +66,7 @@ const makeSectionDef = (level) => {
         }],
         'epigraph': ['blockquote', 'self'],
         'image': 'image',
-        'annotation': ['aside'],
+        'annotation': ['aside', 'self'],
         'p': ['p', STYLE],
         'poem': ['blockquote', POEM],
         'subtitle': [level <= 2 ? 'h3' : 'h4', STYLE],
@@ -131,32 +135,27 @@ class FB2Converter {
         return el
     }
     stanza(node) {
-        const el = this.convert(node, {
-            'stanza': ['p', {
-                'title': ['header', {
-                    'p': ['strong', STYLE],
-                    'empty-line': ['br'],
-                }],
-                'subtitle': ['p', STYLE],
-            }],
-        })
-        for (const child of node.children) if (child.nodeName === 'v') {
-            for (const vChild of child.childNodes) {
-                if (vChild.nodeType === 3) el.append(this.doc.createTextNode(vChild.textContent))
-                else if (vChild.nodeName === 'a') el.append(this.anchor(vChild))
-                else if (vChild.nodeName === 'emphasis') {
-                    const em = this.doc.createElement('em')
-                    em.textContent = vChild.textContent
-                    el.append(em)
+        const el = this.doc.createElement('p')
+        if (node.id) el.id = node.id
+        el.classList.add('stanza')
+        for (const child of node.children) {
+            if (child.nodeName === 'title') {
+                el.append(this.convert(child, { 'title': ['header', { 'p': ['strong', STYLE], 'empty-line': ['br'] }] }))
+            } else if (child.nodeName === 'subtitle') {
+                el.append(this.convert(child, { 'subtitle': ['p', STYLE] }))
+            } else if (child.nodeName === 'v') {
+                const line = this.doc.createElement('span')
+                if (child.id) line.id = child.id
+                line.classList.add('v'); line.classList.add('verse-line')
+                for (const vChild of child.childNodes) {
+                    if (vChild.nodeType === 3) line.append(this.doc.createTextNode(vChild.textContent))
+                    else if (vChild.nodeName === 'a') line.append(this.anchor(vChild))
+                    else if (vChild.nodeName === 'emphasis') { const em = this.doc.createElement('em'); em.textContent = vChild.textContent; line.append(em) }
+                    else if (vChild.nodeName === 'strong') { const s = this.doc.createElement('strong'); s.textContent = vChild.textContent; line.append(s) }
+                    else line.append(this.doc.createTextNode(vChild.textContent))
                 }
-                else if (vChild.nodeName === 'strong') {
-                    const strong = this.doc.createElement('strong')
-                    strong.textContent = vChild.textContent
-                    el.append(strong)
-                }
-                else el.append(this.doc.createTextNode(vChild.textContent))
+                el.append(line)
             }
-            el.append(this.doc.createElement('br'))
         }
         return el
     }
@@ -170,12 +169,13 @@ class FB2Converter {
         if (!d) return null
         if (typeof d === 'string') return this[d](node)
 
-        const [name, opts, attrs] = d
+        const [name, opts, attrs, extraClasses] = d
         const el = this.doc.createElement(name)
 
         // copy the ID, and set class name from original element name
         if (node.id) el.id = node.id
         el.classList.add(node.nodeName)
+        if (Array.isArray(extraClasses)) for (const cls of extraClasses) el.classList.add(cls)
 
         // copy attributes
         if (Array.isArray(attrs)) for (const attr of attrs) {
@@ -220,6 +220,7 @@ html {
     text-size-adjust: 100%;
     background: var(--user-bg, #fff);
     color: var(--user-color, #000);
+    --muted: color-mix(in srgb, var(--user-color, #000) 62%, var(--user-bg, #fff));
 }
 body {
     background: var(--user-bg, #fff);
@@ -240,10 +241,10 @@ body > img, section > img {
     display: block;
     margin: auto;
 }
-.title h1 { text-align: center; font-size: 1.5em; }
-.title h2 { text-align: center; font-size: 1.3em; }
-.title h3 { text-align: center; font-size: 1.1em; }
-.title h4 { text-align: center; font-size: 1em; }
+.title h1 { text-align: center; font-size: 1.5em; font-weight: 700; line-height: 1.2; }
+.title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
+.title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
+.title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
 body > section > .title, body.notesBodyType > .title {
     margin: 0 0 1em;
 }
@@ -260,22 +261,60 @@ p {
     text-indent: 2em;
     margin: 0;
 }
-.poem p {
-    text-indent: 0;
-    margin: 1em 0;
-    text-align: start;
+.cite {
+    font-style: italic;
+    font-size: 0.94em;
+    margin: 1.6em 2.6em;
 }
+.cite p { text-indent: 0; }
+.cite .subtitle { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.5em; }
+.poem {
+    font-style: italic;
+    max-width: 26em;
+    margin: 1.6em auto;
+}
+.poem p { text-indent: 0; }
+.poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
+.stanza { margin: 0; }
+.stanza + .stanza { margin-top: 0.8em; }
+.verse-line { display: block; text-indent: 0; }
+/* A run of separate <poem>s separated by <empty-line/> (→ <br>): hide the
+   separator and tighten poem-to-poem spacing, while a standalone poem keeps its
+   full margin. */
+.poem + br { display: none; }
+.poem + br + .poem { margin-top: 0.8em; }
+.poem:has(+ br + .poem) { margin-bottom: 0.8em; }
 .epigraph {
     font-style: italic;
-    font-size: 0.85em;
+    font-size: 0.94em;
+    max-width: 80%;
+    margin: 1.6em 0 1.8em auto;
 }
-.poem + br { display: none; }
-.poem + br + .poem { margin-top: 0.5em; }
-.text-author, .date {
+.epigraph p { text-indent: 0; }
+.annotation {
+    color: var(--muted);
+    font-size: 0.95em;
+    margin: 1.3em 1.6em;
+}
+.annotation p { text-indent: 0; }
+body .subtitle {
+    text-align: center;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--muted);
+    text-indent: 0;
+}
+.text-author {
     text-align: end;
+    color: var(--muted);
+    font-weight: 650;
+    margin-top: 0.6em;
 }
-.text-author:before {
-    content: "—";
+.date {
+    text-align: end;
+    color: var(--muted);
+    font-size: 0.92em;
+    margin-top: 0.6em;
 }
 table {
     border-collapse: collapse;

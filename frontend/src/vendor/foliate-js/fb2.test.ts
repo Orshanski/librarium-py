@@ -726,3 +726,135 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(sectionIdx).toBe(2);
   });
 });
+
+describe("foliate FB2 kfl7 typography", () => {
+  it("renders text-author without a generated leading dash", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Cite</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><p>${"А".repeat(2000)}</p><text-author>Иван Петров</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const author = doc.querySelector(".text-author");
+    expect(author?.textContent).toBe("Иван Петров");
+  });
+
+  it("renders nested section titles as capped heading levels", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>H</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>L1</p></title><p>${"А".repeat(2000)}</p>
+    <section><title><p>L2</p></title><p>x</p>
+      <section><title><p>L3</p></title><p>y</p>
+        <section><title><p>L4</p></title><p>z</p>
+          <section><title><p>L5deep</p></title><p>w</p></section>
+        </section>
+      </section>
+    </section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // depth caps at h4: L4 and L5deep both render as h4
+    expect(doc.querySelector(".title h1")?.textContent).toContain("L1");
+    expect([...doc.querySelectorAll(".title h4")].map(e => e.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("L4"), expect.stringContaining("L5deep")])
+    );
+  });
+
+  it("renders epigraph (italic) and annotation (muted aside) box-free with body content", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>E</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <epigraph><p>Мотто</p><text-author>Автор</text-author></epigraph>
+    <annotation><p>Редакторская заметка</p></annotation>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    expect(doc.querySelector(".epigraph p")?.textContent).toContain("Мотто");
+    expect(doc.querySelector("aside.annotation")?.textContent).toContain("Редакторская заметка");
+  });
+
+  it("renders section subtitle (heading-tag) and stanza subtitle (p) with the subtitle class", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <subtitle>Сцена</subtitle>
+    <poem><stanza><subtitle>Строфа-подзаголовок</subtitle><v>Строка</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // section subtitle is a heading tag with class subtitle; stanza subtitle is a p with class subtitle
+    expect(doc.querySelector("h3.subtitle, h4.subtitle")?.textContent).toContain("Сцена");
+    expect(doc.querySelector("p.subtitle")?.textContent).toContain("Строфа-подзаголовок");
+  });
+
+  it("renders verse lines as block .verse-line spans and a poem title", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>P</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><title><p>Песня</p></title>
+      <stanza><v>Строка один</v><v>Строка два</v></stanza>
+      <text-author>Поэт</text-author><date>1227</date>
+    </poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const lines = [...doc.querySelectorAll(".poem .verse-line")];
+    expect(lines.map(l => l.textContent)).toEqual(["Строка один", "Строка два"]);
+    expect(doc.querySelector(".poem-title")?.textContent).toContain("Песня");
+    expect(doc.querySelector(".poem .date")?.textContent).toContain("1227");
+  });
+
+  it("separates consecutive poems with a <br> sibling (empty-line) that the run-spacing CSS targets", async () => {
+    // Regression guard: a run of separate <poem>s split by <empty-line/> (a common
+    // LotR-style structure) must render as `.poem`, `<br>`, `.poem` siblings so the
+    // `.poem + br` / `.poem + br + .poem` rules can collapse the separator and
+    // tighten the run. (Dropping that CSS reopened huge inter-poem gaps.)
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>PR</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><stanza><v>Первая строфа</v></stanza></poem>
+    <empty-line/>
+    <poem><stanza><v>Вторая строфа</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const poems = [...doc.querySelectorAll(".poem")];
+    expect(poems.length).toBe(2);
+    const between = poems[0].nextElementSibling;
+    expect(between?.tagName.toLowerCase()).toBe("br");
+    expect(between?.nextElementSibling).toBe(poems[1]);
+  });
+
+  it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>C</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><subtitle>Лейбл</subtitle><p>${"А".repeat(2000)}</p><text-author>Источник</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const cite = doc.querySelector("blockquote.cite");
+    expect(cite).not.toBeNull();
+    expect(cite?.querySelector(".subtitle")?.textContent).toContain("Лейбл");
+    expect(cite?.querySelector(".text-author")?.textContent).toBe("Источник");
+  });
+});
