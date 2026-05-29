@@ -1253,4 +1253,20 @@ describe("foliate FB2 7fov auxiliary-body notes", () => {
     expect(a.getAttributeNS(NS, "type")).toBeNull();
     expect(a.closest("sup")).toBeNull();
   });
+
+  it("namespaced FB2 (gribuser default ns): aux-body detection still tags comment link as noteref", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <p>Comment <a l:href="#comment-1">[A]</a>.</p>
+  </section></body>
+  <body name="comments"><section id="comment-1"><title><p>A</p></title><p>Comment text.</p></section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    let a: Element | null = null;
+    for (const s of book.sections) { const d = s.createDocument(); a = d.querySelector('a[href="#comment-1"]'); if (a) break; }
+    expect(a).not.toBeNull();
+    expect(a!.getAttributeNS(NS, "type")).toBe("noteref");
+  });
 });
