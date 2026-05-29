@@ -1081,3 +1081,131 @@ describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
     expect(book.resolveHref(glava.href).index).toBeGreaterThan(0);
   });
 });
+
+describe("foliate FB2 pxb2 image classification", () => {
+  const make = async (bodyInner: string) => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body>${bodyInner}</body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+  <binary id="i2.png" content-type="image/png">BBBB</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    return book as { sections: Array<{ createDocument: () => Document }> };
+  };
+  // find the first <img> across all content sections' converted docs
+  const firstImg = (book: { sections: Array<{ createDocument: () => Document }> }) => {
+    for (const s of book.sections) {
+      const img = s.createDocument().querySelector("img");
+      if (img) return img;
+    }
+    return null;
+  };
+  const allImgs = (book: { sections: Array<{ createDocument: () => Document }> }) => {
+    const out: Element[] = [];
+    for (const s of book.sections) out.push(...s.createDocument().querySelectorAll("img"));
+    return out;
+  };
+
+  it("картинка одна в абзаце → block-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/></p><p>Body.</p></section>`);
+    expect(firstImg(book)?.classList.contains("block-image")).toBe(true);
+  });
+
+  it("игнорирует пробельные текст-узлы вокруг картинки → block-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p>\n  <image l:href="#i1.png"/>\n  </p><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(true);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинка первая, после неё текст → float-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/>Текст главы после картинки.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("float-image")).toBe(true);
+    expect(img?.classList.contains("block-image")).toBe(false);
+  });
+
+  it("картинка по тексту абзаца → inline-glyph", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p>До <image l:href="#i1.png"/> после.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("inline-glyph")).toBe(true);
+    expect(img?.classList.contains("float-image")).toBe(false);
+  });
+
+  it("несколько картинок в абзаце без текста → все inline-glyph (дефолт)", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/><image l:href="#i2.png"/></p></section>`);
+    const imgs = allImgs(book);
+    expect(imgs.length).toBe(2);
+    for (const img of imgs) {
+      expect(img.classList.contains("inline-glyph")).toBe(true);
+      expect(img.classList.contains("block-image")).toBe(false);
+      expect(img.classList.contains("float-image")).toBe(false);
+    }
+  });
+
+  it("несколько картинок + текст → первая float, остальные inline (классифицируется только первая)", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/><image l:href="#i2.png"/>Текст абзаца после картинок.</p></section>`);
+    const imgs = allImgs(book);
+    expect(imgs.length).toBe(2);
+    expect(imgs[0].classList.contains("float-image")).toBe(true);
+    expect(imgs[1].classList.contains("float-image")).toBe(false);
+    expect(imgs[1].classList.contains("inline-glyph")).toBe(true);
+  });
+
+  it("картинку внутри cite НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><cite><p><image l:href="#i1.png"/></p></cite></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри эпиграфа НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><epigraph><p><image l:href="#i1.png"/></p></epigraph><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри поэмы НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><poem><title><p><image l:href="#i1.png"/></p></title><stanza><v>x</v></stanza></poem><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри аннотации НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><annotation><p><image l:href="#i1.png"/></p></annotation><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("section-level картинку (не в <p>) НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><image l:href="#i1.png"/><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  // Регрессия-гард (НЕ проверка логики классификатора): обложка строится отдельным путём
+  // (createCoverSection), classifyImages на cover-секции не вызывается, и её img не в <p>.
+  // Тест защищает от случайной классификации обложки, а не «доказывает» скип в classifyImages.
+  it("обложка остаётся без класса (путь cover-секции независим от classifyImages)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title><coverpage><image l:href="#cover.png"/></coverpage></title-info></description>
+  <body><section><title><p>Ch</p></title><p>${"А".repeat(100)}</p></section></body>
+  <binary id="cover.png" content-type="image/png">AAAA</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    const coverImg = book.sections[0].createDocument().querySelector("img");
+    expect(coverImg).toBeTruthy();
+    expect(coverImg?.className ?? "").toBe("");
+  });
+});
