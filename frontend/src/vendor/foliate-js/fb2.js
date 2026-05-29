@@ -105,6 +105,14 @@ class FB2Converter {
         // `<image l:href="#img1.jpg" id="img1.jpg" />`
         this.bins = new Map(Array.from(this.fb2.getElementsByTagName('binary'),
             el => [el.id, el]))
+        // ids living in auxiliary bodies (notes/comments): a link whose target
+        // is here opens as a note-like popup (epub:type=noteref), not linear
+        // navigation into the non-linear body. Built from RAW FB2 — the
+        // converted DOM drops the body `name`. getElementById doesn't resolve
+        // FB2 ids (same reason this.bins uses a Map), so walk [id] descendants.
+        this.auxIds = new Set()
+        for (const body of this.fb2.querySelectorAll('body[name="notes"], body[name="comments"]'))
+            for (const el of body.querySelectorAll('[id]')) if (el.id) this.auxIds.add(el.id)
     }
     getImageSrc(el) {
         const href = el.getAttributeNS(NS.XLINK, 'href')
@@ -125,7 +133,8 @@ class FB2Converter {
     }
     anchor(node) {
         const el = this.convert(node, { 'a': ['a', STYLE] })
-        el.setAttribute('href', node.getAttributeNS(NS.XLINK, 'href'))
+        const href = node.getAttributeNS(NS.XLINK, 'href')
+        el.setAttribute('href', href)
         if (node.getAttribute('type') === 'note') {
             el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
             // Clean brackets from note text: [178] → 178
@@ -134,6 +143,12 @@ class FB2Converter {
             sup.appendChild(el)
             return sup
         }
+        // Link into an auxiliary body (e.g. comments) without type=note: route
+        // it through the footnote popup pipeline via noteref, but keep the
+        // marker inline (no <sup>, no bracket strip) — comments differ from
+        // notes in meaning and stay visually distinct.
+        if (href?.startsWith('#') && this.auxIds.has(href.slice(1)))
+            el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
         return el
     }
     stanza(node) {
@@ -375,7 +390,7 @@ table {
 td, th {
     padding: .25em;
 }
-a[epub|type~="noteref"] {
+sup a[epub|type~="noteref"] {
     font-size: .75em;
     vertical-align: super;
 }
