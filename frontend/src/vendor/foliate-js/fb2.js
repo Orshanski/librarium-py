@@ -238,7 +238,7 @@ p, li, dd {
 a:link { color: var(--user-accent, #0066cc); }
 
 /* Structural styles */
-body > img, section > img {
+body > img, section > img, .keep-together > img {
     display: block;
     margin: auto;
 }
@@ -304,7 +304,9 @@ p {
    block margin on top of the container's — otherwise the vertical gaps stack
    (epigraph 1.6/1.8em + poem 1.6em) into one huge gap. The container owns the
    spacing; the nested quote keeps only its horizontal centering. */
-.epigraph .poem, .epigraph .cite, .cite .poem, .annotation .poem {
+.epigraph .poem, .epigraph .cite, .epigraph .epigraph,
+.cite .poem, .cite .cite,
+.annotation .poem, .annotation .cite, .annotation .epigraph {
     margin-top: 0;
     margin-bottom: 0;
 }
@@ -362,9 +364,7 @@ a[epub|type~="noteref"] {
     vertical-align: super;
 }
 body:not(.notesBodyType) > .title,
-body:not(.notesBodyType) > .keep-together > .title,
-body:not(.notesBodyType) > .epigraph,
-body:not(.notesBodyType) > .keep-together > .epigraph {
+body:not(.notesBodyType) > .epigraph {
     margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
