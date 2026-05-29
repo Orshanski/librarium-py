@@ -266,6 +266,11 @@ body > img, section > img {
     margin-bottom: 0;
 }
 .title + .title { margin-top: 0.35em; }
+/* A multi-line title (several same-level <p> become sibling headings inside ONE
+   .title, e.g. "Глава первая." + "ЗВАНЫЕ ГОСТИ"): keep the lines tight — they are
+   one title on two lines, spaced only by line-height, not the per-level margins. */
+.title :is(h1, h2, h3, h4) + :is(h1, h2, h3, h4) { margin-top: 0; }
+.title :is(h1, h2, h3, h4):has(+ :is(h1, h2, h3, h4)) { margin-bottom: 0; }
 /* Neutral keep-together box: break-inside is the only cross-engine keep-together
    tool; NO background/border/padding (decoration fragments across columns). */
 .keep-together {
