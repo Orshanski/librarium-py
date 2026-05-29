@@ -45,6 +45,10 @@ const TABLE = {
 }
 
 const POEM = {
+    'title': ['header', {
+        'p': ['p', STYLE, null, ['poem-title']],
+        'empty-line': ['br'],
+    }],
     'epigraph': ['blockquote'],
     'subtitle': ['h2', STYLE],
     'text-author': ['p', STYLE],
@@ -131,32 +135,27 @@ class FB2Converter {
         return el
     }
     stanza(node) {
-        const el = this.convert(node, {
-            'stanza': ['p', {
-                'title': ['header', {
-                    'p': ['strong', STYLE],
-                    'empty-line': ['br'],
-                }],
-                'subtitle': ['p', STYLE],
-            }],
-        })
-        for (const child of node.children) if (child.nodeName === 'v') {
-            for (const vChild of child.childNodes) {
-                if (vChild.nodeType === 3) el.append(this.doc.createTextNode(vChild.textContent))
-                else if (vChild.nodeName === 'a') el.append(this.anchor(vChild))
-                else if (vChild.nodeName === 'emphasis') {
-                    const em = this.doc.createElement('em')
-                    em.textContent = vChild.textContent
-                    el.append(em)
+        const el = this.doc.createElement('p')
+        if (node.id) el.id = node.id
+        el.classList.add('stanza')
+        for (const child of node.children) {
+            if (child.nodeName === 'title') {
+                el.append(this.convert(child, { 'title': ['header', { 'p': ['strong', STYLE], 'empty-line': ['br'] }] }))
+            } else if (child.nodeName === 'subtitle') {
+                el.append(this.convert(child, { 'subtitle': ['p', STYLE] }))
+            } else if (child.nodeName === 'v') {
+                const line = this.doc.createElement('span')
+                if (child.id) line.id = child.id
+                line.classList.add('v'); line.classList.add('verse-line')
+                for (const vChild of child.childNodes) {
+                    if (vChild.nodeType === 3) line.append(this.doc.createTextNode(vChild.textContent))
+                    else if (vChild.nodeName === 'a') line.append(this.anchor(vChild))
+                    else if (vChild.nodeName === 'emphasis') { const em = this.doc.createElement('em'); em.textContent = vChild.textContent; line.append(em) }
+                    else if (vChild.nodeName === 'strong') { const s = this.doc.createElement('strong'); s.textContent = vChild.textContent; line.append(s) }
+                    else line.append(this.doc.createTextNode(vChild.textContent))
                 }
-                else if (vChild.nodeName === 'strong') {
-                    const strong = this.doc.createElement('strong')
-                    strong.textContent = vChild.textContent
-                    el.append(strong)
-                }
-                else el.append(this.doc.createTextNode(vChild.textContent))
+                el.append(line)
             }
-            el.append(this.doc.createElement('br'))
         }
         return el
     }
@@ -170,12 +169,13 @@ class FB2Converter {
         if (!d) return null
         if (typeof d === 'string') return this[d](node)
 
-        const [name, opts, attrs] = d
+        const [name, opts, attrs, extraClasses] = d
         const el = this.doc.createElement(name)
 
         // copy the ID, and set class name from original element name
         if (node.id) el.id = node.id
         el.classList.add(node.nodeName)
+        if (Array.isArray(extraClasses)) for (const cls of extraClasses) el.classList.add(cls)
 
         // copy attributes
         if (Array.isArray(attrs)) for (const attr of attrs) {
@@ -268,11 +268,16 @@ p {
 }
 .cite p { text-indent: 0; }
 .cite .subtitle { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.5em; }
-.poem p {
-    text-indent: 0;
-    margin: 1em 0;
-    text-align: start;
+.poem {
+    font-style: italic;
+    max-width: 26em;
+    margin: 1.6em auto;
 }
+.poem p { text-indent: 0; }
+.poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
+.stanza { margin: 0; }
+.stanza + .stanza { margin-top: 0.8em; }
+.verse-line { display: block; text-indent: 0; }
 .epigraph {
     font-style: italic;
     font-size: 0.94em;
@@ -293,8 +298,6 @@ body .subtitle {
     color: var(--muted);
     text-indent: 0;
 }
-.poem + br { display: none; }
-.poem + br + .poem { margin-top: 0.5em; }
 .text-author, .date {
     text-align: end;
 }

@@ -798,6 +798,26 @@ describe("foliate FB2 kfl7 typography", () => {
     expect(doc.querySelector("p.subtitle")?.textContent).toContain("Строфа-подзаголовок");
   });
 
+  it("renders verse lines as block .verse-line spans and a poem title", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>P</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><title><p>Песня</p></title>
+      <stanza><v>Строка один</v><v>Строка два</v></stanza>
+      <text-author>Поэт</text-author><date>1227</date>
+    </poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const lines = [...doc.querySelectorAll(".poem .verse-line")];
+    expect(lines.map(l => l.textContent)).toEqual(["Строка один", "Строка два"]);
+    expect(doc.querySelector(".poem-title")?.textContent).toContain("Песня");
+    expect(doc.querySelector(".poem .date")?.textContent).toContain("1227");
+  });
+
   it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
