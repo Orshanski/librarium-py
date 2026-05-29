@@ -298,8 +298,17 @@ body .subtitle {
     color: var(--muted);
     text-indent: 0;
 }
-.text-author, .date {
+.text-author {
     text-align: end;
+    color: var(--muted);
+    font-weight: 650;
+    margin-top: 0.6em;
+}
+.date {
+    text-align: end;
+    color: var(--muted);
+    font-size: 0.92em;
+    margin-top: 0.6em;
 }
 table {
     border-collapse: collapse;
