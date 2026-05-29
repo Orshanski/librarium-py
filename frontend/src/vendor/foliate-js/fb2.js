@@ -248,8 +248,16 @@ body > img, section > img {
 body > section > .title, body.notesBodyType > .title {
     margin: 0 0 1em;
 }
+/* Compact title-stack: a run of consecutive opening headings (book -> part ->
+   chapter, gathered onto one spread by the unwrap-merge) reads as one tight
+   block, not a ladder. A title followed by another title drops its bottom
+   margin so the gap is the small uniform .35em from the next title's top; the
+   last title in the run keeps its normal margin before body text. */
+.title:has(+ .title) {
+    margin-bottom: 0;
+}
 .title + .title {
-    margin-top: 0.5em;
+    margin-top: 0.35em;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
