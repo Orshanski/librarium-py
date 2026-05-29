@@ -246,6 +246,11 @@ body > img, section > img {
 .title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
 .title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
 .title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
+/* Kill the browser's default heading margins everywhere (h1..h4 are only ever
+   section titles or subtitles here). All heading spacing is then set
+   explicitly below — nothing relies on UA defaults, so the stack reads compact
+   like the mockup instead of as a loose ladder. */
+h1, h2, h3, h4 { margin: 0; }
 body > section > .title,
 body > section > .keep-together > .title,
 body.notesBodyType > .title {
@@ -291,6 +296,14 @@ p {
 }
 .poem p { text-indent: 0; }
 .poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
+/* A poem/cite nested inside an epigraph (or another quote) must not add its own
+   block margin on top of the container's — otherwise the vertical gaps stack
+   (epigraph 1.6/1.8em + poem 1.6em) into one huge gap. The container owns the
+   spacing; the nested quote keeps only its horizontal centering. */
+.epigraph .poem, .epigraph .cite, .cite .poem, .annotation .poem {
+    margin-top: 0;
+    margin-bottom: 0;
+}
 .stanza { margin: 0; }
 .stanza + .stanza { margin-top: 0.8em; }
 .verse-line { display: block; text-indent: 0; }
@@ -319,6 +332,8 @@ body .subtitle {
     font-weight: 600;
     color: var(--muted);
     text-indent: 0;
+    /* explicit spacing (subtitle is an h2/h3/h4 tag, UA margin now zeroed) */
+    margin: 1.3em 0;
 }
 .text-author {
     text-align: end;
