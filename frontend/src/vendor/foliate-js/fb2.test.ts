@@ -1209,3 +1209,48 @@ describe("foliate FB2 pxb2 image classification", () => {
     expect(coverImg?.className ?? "").toBe("");
   });
 });
+
+describe("foliate FB2 7fov auxiliary-body notes", () => {
+  const NS = "http://www.idpf.org/2007/ops";
+  const make = async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <p>Note <a l:href="#note-1" type="note">[1]</a>, comment <a l:href="#comment-1">[A]</a>, plain <a l:href="#sec-2">see</a>.</p>
+  </section><section id="sec-2"><title><p>Two</p></title><p>Body two.</p></section></body>
+  <body name="notes"><section id="note-1"><title><p>1</p></title><p>Note text.</p></section></body>
+  <body name="comments"><section id="comment-1"><title><p>A</p></title><p>Comment text.</p></section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    // find the content doc holding the three links
+    for (const s of book.sections) {
+      const d = s.createDocument();
+      if (d.querySelector('a[href="#comment-1"]')) return d;
+    }
+    throw new Error("content section with links not found");
+  };
+
+  it("comment link (target in comments body) → epub:type=noteref, inline, no <sup>, brackets kept", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#comment-1"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBe("noteref");
+    expect(a.closest("sup")).toBeNull();
+    expect(a.textContent).toBe("[A]");
+  });
+
+  it("note link (type=note) unchanged → noteref + <sup> + stripped brackets", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#note-1"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBe("noteref");
+    expect(a.closest("sup")).not.toBeNull();
+    expect(a.textContent).toBe("1");
+  });
+
+  it("plain link (target in main body) → no noteref", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#sec-2"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBeNull();
+    expect(a.closest("sup")).toBeNull();
+  });
+});
