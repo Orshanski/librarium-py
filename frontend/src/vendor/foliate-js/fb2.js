@@ -2,13 +2,14 @@ import * as CFI from './epubcfi.js'
 import { createNavigation } from './fb2-locator.js'
 import { createCoverSection } from './fb2-cover.js'
 import { buildContentSegments } from './fb2-render-sections.js'
+import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
 
-const normalizeWhitespace = str => str ? str
+export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
     .replace(/^[\t\n\f\r ]+/, '')
     .replace(/[\t\n\f\r ]+$/, '') : ''
 
-const getElementText = el => normalizeWhitespace(el?.textContent)
+export const getElementText = el => normalizeWhitespace(el?.textContent)
 const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
 const getEmbeddedSrcLength = el =>
     getSrcLength(el) + Array.from(el.querySelectorAll('[src]'), getSrcLength)
@@ -359,39 +360,7 @@ export const makeFB2 = async blob => {
     const urls = []
 
     // Step 1: Collect TOC from original structure BEFORE splitting
-    let tocCounter = 0
-    const collectTitles = (parentEl) => {
-        const sections = parentEl.querySelectorAll(':scope > section')
-        return Array.from(sections, (section) => {
-            const titleEl = section.querySelector(':scope > .title')
-            if (!titleEl) return null
-            const index = tocCounter++
-            titleEl.setAttribute(dataID, index)
-            const subitems = collectTitles(section)
-            return {
-                title: getElementText(titleEl),
-                index,
-                subitems: subitems.length ? subitems : null,
-            }
-        }).filter(x => x)
-    }
-    // Collect TOC from each top-level element before any splitting
-    // Assign data-foliate-id to top-level title elements too
-    const originalToc = bodyData[0][0].map(({ el }) => {
-        const titleEl = el.querySelector(':scope > .title')
-        let topIndex = null
-        if (titleEl) {
-            topIndex = tocCounter++
-            titleEl.setAttribute(dataID, topIndex)
-        }
-        return {
-            title: normalizeWhitespace(
-                el.querySelector('.title, .subtitle, p')?.textContent
-                ?? (el.classList.contains('title') ? el.textContent : '')),
-            titles: collectTitles(el),
-            topIndex,
-        }
-    })
+    const originalToc = collectToc(bodyData[0][0], dataID)
 
     // Step 3: Build render sections with el preserved for anchor mapping
     const renderSections = buildContentSegments(bodyData[0][0], { dataID })
@@ -424,21 +393,7 @@ export const makeFB2 = async blob => {
     renderSections.unshift(coverSection)
 
     // Step 4: Build foliateId -> render section index map
-    const foliateIdToSection = new Map()
-    for (let i = 0; i < renderSections.length; i++) {
-        const el = renderSections[i].el
-        if (!el) continue
-        const selfFid = el.getAttribute?.(dataID)
-        if (selfFid && !foliateIdToSection.has(selfFid)) {
-            foliateIdToSection.set(selfFid, i)
-        }
-        for (const titled of el.querySelectorAll(`[${dataID}]`)) {
-            const fid = titled.getAttribute(dataID)
-            if (fid && !foliateIdToSection.has(fid)) {
-                foliateIdToSection.set(fid, i)
-            }
-        }
-    }
+    const foliateIdToSection = buildFoliateIdToSection(renderSections, dataID)
 
     // Whether Pass A produced a <section class="frontmatter"> wrapper as
     // render-section[0]. If yes, TOC entries pointing to render-section 0
@@ -477,50 +432,7 @@ export const makeFB2 = async blob => {
     })
 
     // Build TOC from original structure, resolving to render section indices
-    const buildTocItems = (titles) =>
-        titles?.map(({ title, index, subitems }) => {
-            const sectionIdx = foliateIdToSection.get(String(index)) ?? textStartIndex
-            return {
-                label: title,
-                href: `${sectionIdx}#${index}`,
-                subitems: subitems?.length ? buildTocItems(subitems) : null,
-            }
-        }) ?? null
-
-    const rawToc = originalToc.map(({ title, titles, topIndex }) => {
-        const sectionIdx = topIndex != null
-            ? (foliateIdToSection.get(String(topIndex)) ?? textStartIndex)
-            : textStartIndex
-        return {
-            label: title,
-            href: topIndex != null ? `${sectionIdx}#${topIndex}` : String(sectionIdx),
-            subitems: buildTocItems(titles),
-        }
-    }).filter(item => item.label)
-
-    // If frontmatter wrapper exists, drop TOC entries that resolve into
-    // render-section[0] (author title, copyrights, dedication, epigraphs
-    // pulled in via lone-author special case). When such an entry has
-    // subitems pointing into content (e.g. lone-author case where the
-    // whole-book section has inner chapters), promote those to the top
-    // level. Subitems that also point at render-section[0] — e.g. praise
-    // pages whose <cite>-wrapped endorsements made the whole praise block
-    // count as decorative and slip into frontmatter — are dropped, not
-    // promoted; they'd just be broken navigation links.
-    // Subitems-of-subitems can never resolve to render-section[0]: their
-    // elements live inside content render-sections, so depth-1 promotion
-    // here suffices.
-    book.toc = frontmatterExists
-        ? rawToc.flatMap(item => {
-            const sectionIdx = Number(item.href.split('#')[0])
-            if (sectionIdx === frontmatterIndex) {
-                return (item.subitems ?? []).filter(sub =>
-                    Number(sub.href.split('#')[0]) > frontmatterIndex)
-            }
-            return [item]
-        })
-        : rawToc
-    book.toc = [{ label: 'Обложка', href: '__cover__' }, ...book.toc]
+    book.toc = buildToc({ originalToc, foliateIdToSection, frontmatterIndex, textStartIndex })
 
     const navigation = createNavigation({ idMap, dataID })
     book.resolveHref = navigation.resolveHref
