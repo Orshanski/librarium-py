@@ -241,10 +241,10 @@ body > img, section > img {
     display: block;
     margin: auto;
 }
-.title h1 { text-align: center; font-size: 1.5em; }
-.title h2 { text-align: center; font-size: 1.3em; }
-.title h3 { text-align: center; font-size: 1.1em; }
-.title h4 { text-align: center; font-size: 1em; }
+.title h1 { text-align: center; font-size: 1.5em; font-weight: 700; line-height: 1.2; }
+.title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
+.title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
+.title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
 body > section > .title, body.notesBodyType > .title {
     margin: 0 0 1em;
 }

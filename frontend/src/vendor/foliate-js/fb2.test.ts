@@ -741,4 +741,27 @@ describe("foliate FB2 kfl7 typography", () => {
     const author = doc.querySelector(".text-author");
     expect(author?.textContent).toBe("Иван Петров");
   });
+
+  it("renders nested section titles as capped heading levels", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>H</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>L1</p></title><p>${"А".repeat(2000)}</p>
+    <section><title><p>L2</p></title><p>x</p>
+      <section><title><p>L3</p></title><p>y</p>
+        <section><title><p>L4</p></title><p>z</p>
+          <section><title><p>L5deep</p></title><p>w</p></section>
+        </section>
+      </section>
+    </section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // depth caps at h4: L4 and L5deep both render as h4
+    expect(doc.querySelector(".title h1")?.textContent).toContain("L1");
+    expect([...doc.querySelectorAll(".title h4")].map(e => e.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("L4"), expect.stringContaining("L5deep")])
+    );
+  });
 });
