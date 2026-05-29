@@ -1,4 +1,5 @@
 import * as CFI from './epubcfi.js'
+import { createNavigation } from './fb2-locator.js'
 
 const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -726,29 +727,11 @@ export const makeFB2 = async blob => {
         : rawToc
     book.toc = [{ label: 'Обложка', href: '__cover__' }, ...book.toc]
 
-    book.resolveHref = href => {
-        if (href === '__cover__') return { index: 0 }
-        const [a, b] = href.split('#')
-        if (!a) {
-            // link from within the page: #someId
-            return { index: idMap.get(b), anchor: doc => doc.getElementById(b) }
-        }
-        if (b != null) {
-            // TOC link with fragment: sectionIndex#foliateId
-            return { index: Number(a), anchor: doc => doc.querySelector(`[${dataID}="${b}"]`) }
-        }
-        // TOC link without fragment: just section index
-        return { index: Number(a) }
-    }
-    book.resolveCFI = cfi => {
-        if (cfi === '__cover__') return { index: 0 }
-        const parts = CFI.parse(cfi)
-        const oldIndex = CFI.fake.toIndex((parts.parent ?? parts).shift())
-        return { index: oldIndex + 1, anchor: doc => CFI.toRange(doc, parts) }
-    }
-    book.splitTOCHref = href =>
-        href === '__cover__' ? [0] : href?.split('#')?.map(x => Number(x)) ?? []
-    book.getTOCFragment = (doc, id) => doc.querySelector(`[${dataID}="${id}"]`)
+    const navigation = createNavigation({ idMap, dataID })
+    book.resolveHref = navigation.resolveHref
+    book.resolveCFI = navigation.resolveCFI
+    book.splitTOCHref = navigation.splitTOCHref
+    book.getTOCFragment = navigation.getTOCFragment
 
     book.destroy = () => {
         for (const url of urls) URL.revokeObjectURL(url)
