@@ -3,6 +3,7 @@ import { createNavigation } from './fb2-locator.js'
 import { createCoverSection } from './fb2-cover.js'
 import { buildContentSegments } from './fb2-render-sections.js'
 import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
+import { applyGrouping } from './fb2-grouping.js'
 
 export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -410,7 +411,17 @@ export const makeFB2 = async blob => {
     const originalToc = collectToc(bodyData[0][0], dataID)
 
     // Build render sections with el preserved for anchor mapping
-    const renderSections = buildContentSegments(bodyData[0][0], { dataID })
+    const contentSegments = buildContentSegments(bodyData[0][0], { dataID })
+    // Late keep-together grouping pass (kfl7 Phase 2): mutate each content
+    // segment's el BEFORE serialisation; data-foliate-id stays on the titles, so
+    // the foliateId->section map (built below from el) and the serialised blob
+    // both see the grouped DOM. Skip the Pass-A frontmatter wrapper (render-section
+    // index 0 when present): it is preamble (author/title/epigraph), dropped from
+    // the TOC and not navigable, so grouping its opening is pointless.
+    for (const seg of contentSegments) {
+        if (!seg.el.classList?.contains('frontmatter')) applyGrouping(seg.el)
+    }
+    const renderSections = contentSegments
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')

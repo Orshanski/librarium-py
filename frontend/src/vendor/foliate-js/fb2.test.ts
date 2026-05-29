@@ -929,7 +929,12 @@ describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
       (s.createDocument().body?.textContent ?? "").includes("Глава первая"));
     const root = chapterSection!.createDocument().body!.querySelector("section") ?? chapterSection!.createDocument().body!;
     const leadingTitles: string[] = [];
-    for (const child of Array.from(root.children)) {
+    // After the keep-together grouping pass the leading title run is inside a
+    // .keep-together wrapper box as the first child; look through it.
+    const firstChild = root.children[0];
+    const titleContainer =
+      firstChild?.classList.contains("keep-together") ? firstChild : root;
+    for (const child of Array.from(titleContainer.children)) {
       if (child.classList.contains("title")) leadingTitles.push(child.textContent?.replace(/\s+/g, " ").trim() ?? "");
       else break;
     }
@@ -996,5 +1001,83 @@ describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
     expect(chText).toContain("КНИГА С ЭПИГРАФОМ");
     expect(chText).toContain("эпиграф книги");
     expect(chText).toContain("ЧАСТЬ 1");
+  });
+
+  it("wraps the section opening (title run + first block) in a break-inside keep-together box", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><p>Первый абзац главы.</p><p>Второй.</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[1].createDocument();
+    const keep = doc.querySelector(".keep-together");
+    expect(keep).toBeTruthy();
+    // The opening box holds the title and the first content block, in order.
+    expect(keep!.querySelector(".title")).toBeTruthy();
+    expect(keep!.textContent).toContain("Первый абзац главы");
+    // It does NOT swallow the rest of the chapter.
+    expect(keep!.textContent).not.toContain("Второй.");
+    // It never wraps a nested <section>.
+    expect(keep!.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a cite's opening label (.subtitle) with its first body line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Гл</p></title><p>текст до</p>
+    <cite><subtitle>Лейбл цитаты</subtitle><p>Первая строка цитаты.</p><p>Вторая строка.</p><text-author>Источник</text-author></cite>
+  </section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const cite = doc.querySelector("blockquote.cite")!;
+    // The opening label and the first body line share one keep-together box.
+    const labelBox = (Array.from(cite.querySelectorAll(".keep-together")) as Element[])
+      .find((k: Element) => k.querySelector(".subtitle"));
+    expect(labelBox).toBeTruthy();
+    expect(labelBox!.textContent).toContain("Лейбл цитаты");
+    expect(labelBox!.textContent).toContain("Первая строка цитаты");
+    // It does not swallow the second body line.
+    expect(labelBox!.textContent).not.toContain("Вторая строка");
+    expect(labelBox!.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a poem's closing attribution with its last line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Гл</p></title><p>текст</p>
+    <poem><stanza><v>строка раз</v><v>строка два</v></stanza><text-author>Автор</text-author><date>1227</date></poem>
+  </section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[1].createDocument();
+    const tails = (Array.from(doc.querySelectorAll(".keep-together")) as Element[])
+      .filter((k: Element) => k.querySelector(".text-author") || k.querySelector(".date"));
+    expect(tails.length).toBeGreaterThan(0);
+    const tail = tails[0];
+    // The tail box holds the last verse line plus author plus date together.
+    expect(tail.textContent).toContain("строка два");
+    expect(tail.textContent).toContain("Автор");
+    expect(tail.textContent).toContain("1227");
+    expect(tail.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a TOC entry resolving correctly after grouping", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><p>${"А".repeat(2000)}</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const glava = book.toc.find((i: { label: string }) => i.label.includes("Глава"));
+    expect(glava).toBeTruthy();
+    expect(book.resolveHref(glava.href).index).toBeGreaterThan(0);
   });
 });
