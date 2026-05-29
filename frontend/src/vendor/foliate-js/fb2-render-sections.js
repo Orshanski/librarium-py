@@ -101,7 +101,18 @@ export const buildContentSegments = (topLevelItems, { dataID }) => {
                 const next = segments[i + 1]
                 if (next && isThinSegment(seg)) {
                     const beforeFirst = next.el.firstChild
-                    next.el.insertBefore(seg.el.cloneNode(true), beforeFirst)
+                    // Unwrap: move the thin segment's CONTENT (title headers and any
+                    // decorative front matter) to the front of the next segment — never
+                    // its <section> wrapper. Inserting a <section> would flip the next
+                    // segment's isThinSegment check (which keys off having no nested
+                    // section) and freeze a multi-level bare-heading divider one hop
+                    // short of the chapter, stranding it as an empty render-section.
+                    // Unwrapping keeps the cascade going to the chapter and lays the
+                    // gathered titles out as flat sibling .title headers.
+                    const clone = seg.el.cloneNode(true)
+                    while (clone.firstChild) {
+                        next.el.insertBefore(clone.firstChild, beforeFirst)
+                    }
                     next.ids = [...seg.ids, ...next.ids]
                     next.charCount = next.el.textContent?.length ?? 0
                     merged = true

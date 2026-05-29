@@ -858,3 +858,143 @@ describe("foliate FB2 kfl7 typography", () => {
     expect(cite?.querySelector(".text-author")?.textContent).toBe("Источник");
   });
 });
+
+describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
+  // A book-title section wraps a part-title section wraps a chapter. The chapter
+  // carries >MAX_CHARS (180000) of prose so the book section splits, producing
+  // bare-heading flush segments — the exact shape that strands as an empty page.
+  const bigProse = "А".repeat(190_000);
+  const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Multi-level</book-title></title-info></description>
+  <body>
+    <section>
+      <title><p>КНИГА ПЕРВАЯ</p></title>
+      <section>
+        <title><p>ЧАСТЬ 1</p></title>
+        <section>
+          <title><p>Глава первая</p></title>
+          <p>${bigProse}</p>
+        </section>
+      </section>
+    </section>
+  </body>
+</FictionBook>`;
+
+  it("gathers book + part titles onto the chapter's render section, no empty divider", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+
+    // Find content sections (skip the cover at index 0).
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    // No content section is a titles-only divider (has titles but no paragraph text).
+    for (const s of content) {
+      const doc = s.createDocument();
+      const proseChars = Array.from(doc.querySelectorAll("p"))
+        .reduce((n: number, p) => n + (p.textContent?.length ?? 0), 0);
+      const hasTitle = doc.querySelector(".title") != null;
+      expect(hasTitle && proseChars === 0).toBe(false);
+    }
+
+    // The chapter's render section holds all three titles.
+    const chapterSection = content.find(s => {
+      const t = s.createDocument().body?.textContent ?? "";
+      return t.includes("Глава первая");
+    });
+    expect(chapterSection).toBeTruthy();
+    const chDoc = chapterSection!.createDocument();
+    const titlesText = chDoc.body?.textContent ?? "";
+    expect(titlesText).toContain("КНИГА ПЕРВАЯ");
+    expect(titlesText).toContain("ЧАСТЬ 1");
+    expect(titlesText).toContain("Глава первая");
+  });
+
+  it("resolves all three TOC entries to the same merged section", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const flat = (items: Array<{ label: string; href: string; subitems?: unknown[] }>): Array<{ label: string; href: string }> =>
+      items?.flatMap(i => [i, ...flat((i.subitems as typeof items) ?? [])]) ?? [];
+    const all = flat(book.toc);
+    const find = (needle: string) => all.find(i => i.label.includes(needle));
+    const kniga = find("КНИГА ПЕРВАЯ");
+    const chast = find("ЧАСТЬ 1");
+    const glava = find("Глава первая");
+    expect(kniga && chast && glava).toBeTruthy();
+    const idx = (i: { href: string }) => book.resolveHref(i.href).index;
+    expect(idx(kniga!)).toBe(idx(glava!));
+    expect(idx(chast!)).toBe(idx(glava!));
+  });
+
+  it("lays the gathered titles out as flat sibling .title headers (not nested sections)", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const chapterSection = (book.sections as Array<{ createDocument: () => Document }>).slice(1).find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("Глава первая"));
+    const root = chapterSection!.createDocument().body!.querySelector("section") ?? chapterSection!.createDocument().body!;
+    const leadingTitles: string[] = [];
+    for (const child of Array.from(root.children)) {
+      if (child.classList.contains("title")) leadingTitles.push(child.textContent?.replace(/\s+/g, " ").trim() ?? "");
+      else break;
+    }
+    // All three opening titles are consecutive .title siblings before any prose.
+    expect(leadingTitles.length).toBe(3);
+    expect(leadingTitles.join(" | ")).toContain("КНИГА ПЕРВАЯ");
+    expect(leadingTitles.join(" | ")).toContain("ЧАСТЬ 1");
+    expect(leadingTitles.join(" | ")).toContain("Глава первая");
+  });
+
+  // Acceptance pin (spec: "a foreword-bearing book divider keeps its own spread").
+  // A divider that carries its own prose (≥ PROSE_BUDGET 1500) is NOT thin, so it
+  // is NOT gathered forward. This is a regression guard — green on current code too;
+  // it pins that the unwrap change does not start swallowing prose-bearing dividers.
+  it("leaves a foreword-bearing divider as its own render section (not gathered)", async () => {
+    const foreword = "Ф".repeat(1600);          // ≥ 1500 → hasProseContent → not thin
+    const chapterProse = "А".repeat(190_000);   // > MAX_CHARS → forces the split
+    const fwFb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>FW</book-title></title-info></description>
+  <body><section><title><p>ТОМ С ПРЕДИСЛОВИЕМ</p></title><p>${foreword}</p>
+    <section><title><p>Глава первая</p></title><p>${chapterProse}</p></section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fwFb2], { type: "application/x-fictionbook+xml" }));
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    const fwSection = content.find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("ТОМ С ПРЕДИСЛОВИЕМ"));
+    expect(fwSection).toBeTruthy();
+    const fwText = fwSection!.createDocument().body?.textContent ?? "";
+    expect(fwText).toContain("ТОМ С ПРЕДИСЛОВИЕМ");
+    // The foreword divider keeps its own spread — the chapter is a separate section.
+    expect(fwText.includes("Глава первая")).toBe(false);
+  });
+
+  // Acceptance pin (spec edge: a divider whose only non-title content is decorative
+  // front matter — an epigraph, no prose — is still thin and gathers forward, the
+  // epigraph travelling with it). Multi-level so it also exercises the unwrap fix.
+  it("gathers a multi-level divider that carries an epigraph, the epigraph travelling with it", async () => {
+    const chapterProse = "А".repeat(190_000);
+    const epFb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>EP</book-title></title-info></description>
+  <body><section><title><p>КНИГА С ЭПИГРАФОМ</p></title><epigraph><p>эпиграф книги</p></epigraph>
+    <section><title><p>ЧАСТЬ 1</p></title>
+      <section><title><p>Глава первая</p></title><p>${chapterProse}</p></section>
+    </section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([epFb2], { type: "application/x-fictionbook+xml" }));
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    // No content section is a prose-less divider (opening present, no NON-decorative prose).
+    for (const s of content) {
+      const doc = s.createDocument();
+      const prose = Array.from(doc.querySelectorAll("p"))
+        .filter(p => !p.closest(".epigraph, .annotation, .cite, .poem"))
+        .reduce((n: number, p) => n + (p.textContent?.length ?? 0), 0);
+      const hasOpening = doc.querySelector(".title") != null;
+      expect(hasOpening && prose === 0).toBe(false);
+    }
+    const chapter = content.find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("Глава первая"));
+    const chText = chapter!.createDocument().body?.textContent ?? "";
+    expect(chText).toContain("КНИГА С ЭПИГРАФОМ");
+    expect(chText).toContain("эпиграф книги");
+    expect(chText).toContain("ЧАСТЬ 1");
+  });
+});
