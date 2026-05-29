@@ -660,6 +660,45 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(resolved.anchor(doc)).not.toBeNull();
   });
 
+  it("splits a large multi-section chapter into multiple render-sections at the section boundary", async () => {
+    const big = "Я".repeat(200_000); // > MAX_CHARS (180000), forces splitSection
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Split Test</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body>
+    <section>
+      <title><p>Big Part</p></title>
+      <section><title><p>Sub A</p></title><p>${big}</p></section>
+      <section><title><p>Sub B</p></title><p>${big}</p></section>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    // A >MAX_CHARS chapter with nested sub-sections splits into multiple render
+    // sections (cover + the split sub-sections). Contrast with the small-chapter
+    // test below, which stays a single render-section: the pair pins the split
+    // boundary. Asserting the section count (not a TOC label) keeps the test on
+    // the split behaviour and avoids flattenToc's href-only return type.
+    expect(book.sections.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps a small multi-section chapter as a single render-section (no split)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Small</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body>
+    <section>
+      <title><p>Tiny Part</p></title>
+      <section><title><p>Sub A</p></title><p>${"А".repeat(2000)}</p></section>
+      <section><title><p>Sub B</p></title><p>${"Б".repeat(2000)}</p></section>
+    </section>
+  </body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    // cover + one combined chapter render-section
+    expect(book.sections.length).toBe(2);
+  });
+
   it("preserves TOC labels and resolves them after Pass A merge", async () => {
     const fb2 = `<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
