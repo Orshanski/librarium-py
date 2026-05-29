@@ -296,7 +296,7 @@ p {
 .poem {
     font-style: italic;
     max-width: 26em;
-    margin: 1.6em auto;
+    margin: 1.2em auto;
 }
 .poem p { text-indent: 0; }
 .poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
@@ -321,7 +321,7 @@ p {
     font-style: italic;
     font-size: 0.94em;
     max-width: 80%;
-    margin: 1.6em 0 1.8em auto;
+    margin: 1.2em 0 1.2em auto;
 }
 .epigraph p { text-indent: 0; }
 .annotation {
