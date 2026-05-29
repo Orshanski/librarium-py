@@ -220,6 +220,7 @@ html {
     text-size-adjust: 100%;
     background: var(--user-bg, #fff);
     color: var(--user-color, #000);
+    --muted: color-mix(in srgb, var(--user-color, #000) 62%, var(--user-bg, #fff));
 }
 body {
     background: var(--user-bg, #fff);
