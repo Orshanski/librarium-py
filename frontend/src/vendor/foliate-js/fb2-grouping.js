@@ -26,32 +26,46 @@ const wrap = (ownerDoc, nodes) => {
     for (const n of nodes) box.appendChild(n)
 }
 
-// Wrap the opening of a leaf section: the leading run of .title headers, the
-// attached front matter (epigraph / annotation / opening image, in source
-// order), and the first following content block. Never crosses a nested
-// <section>.
+// Wrap a section opening into ONE flat keep-together block. Crucially it
+// DESCENDS through immediately-nested container sections, gathering the whole
+// run of opening titles (book -> part -> chapter) plus attached front matter,
+// then the first leaf content block. Without the descent, СОДРУЖЕСТВО / ЧАСТЬ /
+// Глава live in separate nested <section>s, each gets its own wrapper, and they
+// never form an adjacent-title sibling run — so the compact-stack CSS
+// (.title + .title, :has(+ .title)) matches nothing and the stack reads loose
+// in every engine. Flattening them into one block makes the titles real
+// siblings, so the spacing rules apply and the stack reads compact like the
+// mockup. Each title keeps its data-foliate-id (TOC resolution is
+// descendant-based), and the now-emptied nested sections keep their remaining
+// prose in source order after the block.
 const groupSectionOpening = (sectionEl) => {
     const ownerDoc = sectionEl.ownerDocument
-    const children = Array.from(sectionEl.children)
-    let i = 0
     const opening = []
-    while (i < children.length && isTitle(children[i])) { opening.push(children[i]); i++ }
-    if (opening.length === 0) return
-    while (i < children.length && isFrontMatter(children[i])) { opening.push(children[i]); i++ }
-    // first content block — only if it is not a nested section and not a poem
-    // (poems have their own keep-together tail grouping; consuming a poem here
-    // would break the .poem + br + .poem sibling relationship used by the CSS
-    // run-spacing rules).
-    // Known trade-off: when the first block IS a poem, the title is wrapped
-    // alone, so a title that directly precedes a leading poem (no prose between)
-    // can still orphan from the poem at a column edge. Accepted to keep poem runs
-    // intact; flagged for visual acceptance on a real book.
-    if (i < children.length) {
-        const tag = children[i].tagName.toLowerCase()
-        if (tag !== 'section' && !children[i].classList?.contains('poem')) {
-            opening.push(children[i]); i++
+    let titleCount = 0
+    let cursor = sectionEl
+    while (cursor) {
+        const children = Array.from(cursor.children)
+        let i = 0
+        while (i < children.length && isTitle(children[i])) { opening.push(children[i]); titleCount++; i++ }
+        while (i < children.length && isFrontMatter(children[i])) { opening.push(children[i]); i++ }
+        const next = children[i]
+        // descend only into an immediately-nested CONTAINER divider — a section
+        // whose own opening is a title — continuing to gather the title run
+        if (next && next.tagName.toLowerCase() === 'section' && isTitle(next.firstElementChild)) {
+            cursor = next
+            continue
         }
+        // leaf: attach the first content block, unless it is a nested section or a
+        // poem (poems keep their own tail grouping and the .poem + br + .poem run)
+        if (next && next.tagName.toLowerCase() !== 'section' && !next.classList?.contains('poem')) {
+            opening.push(next)
+        }
+        break
     }
+    // only group a genuine section opening — it must start with at least one title
+    if (titleCount === 0) return
+    // idempotency: a prior (outer) call may already have wrapped this run
+    if (opening[0].parentElement?.classList?.contains('keep-together')) return
     wrap(ownerDoc, opening)
 }
 
@@ -91,15 +105,18 @@ const groupQuotationTail = (groupEl) => {
 // Apply grouping to one render-section's root element (mutates in place).
 export const applyGrouping = (rootEl) => {
     if (!rootEl || rootEl.nodeType !== 1) return
-    // Section openings: every <section> in the render-section that has a leaf
-    // opening (a leading title run followed by content, not only nested
-    // sections) gets its opening wrapped. Walk sections shallow-to-deep.
+    // Section openings, OUTERMOST FIRST. The root section's groupSectionOpening
+    // descends through its nested container sections and gathers the whole title
+    // run, so it must run before its descendants — otherwise an inner section is
+    // grouped first and the outer descent then trips over the box it created
+    // (producing a separate wrapper per title instead of one flat stack). After
+    // the outer call has consumed a chain, the descendant calls find no leading
+    // title and no-op; sibling sections (separate chapter openings) still get
+    // their own wrapper.
+    if (rootEl.tagName?.toLowerCase() === 'section') groupSectionOpening(rootEl)
     for (const sectionEl of rootEl.querySelectorAll('section')) {
         groupSectionOpening(sectionEl)
     }
-    // Also the render-section root itself may carry the gathered opening when it
-    // is a <section> with the flat title run at its head.
-    if (rootEl.tagName?.toLowerCase() === 'section') groupSectionOpening(rootEl)
     // Quotation/verse opening labels (cite/epigraph): run BEFORE the tail so that
     // on a single-body-line quotation the tail pass simply nests the opening box
     // (label + line) inside the tail box (line-box + author + date) — both carry
