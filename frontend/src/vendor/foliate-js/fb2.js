@@ -359,10 +359,10 @@ export const makeFB2 = async blob => {
 
     const urls = []
 
-    // Step 1: Collect TOC from original structure BEFORE splitting
+    // Collect TOC from the original structure, before splitting
     const originalToc = collectToc(bodyData[0][0], dataID)
 
-    // Step 3: Build render sections with el preserved for anchor mapping
+    // Build render sections with el preserved for anchor mapping
     const renderSections = buildContentSegments(bodyData[0][0], { dataID })
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
@@ -392,7 +392,7 @@ export const makeFB2 = async blob => {
     urls.push(coverUrl)
     renderSections.unshift(coverSection)
 
-    // Step 4: Build foliateId -> render section index map
+    // Build foliateId -> render section index map
     const foliateIdToSection = buildFoliateIdToSection(renderSections, dataID)
 
     // Whether Pass A produced a <section class="frontmatter"> wrapper as
@@ -407,7 +407,7 @@ export const makeFB2 = async blob => {
     // Release DOM references — no longer needed after mapping
     for (const s of renderSections) delete s.el
 
-    // Step 5: Build book.sections
+    // Build book.sections
     const idMap = new Map()
     book.sections = renderSections.map((section, index) => {
         const {
