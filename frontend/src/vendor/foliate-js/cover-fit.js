@@ -48,3 +48,11 @@ export const applyCoverFit = (doc, layout) => {
         marginTop: `${fit.marginTop}px`,
     })
 }
+
+// In single-column layout the cover spacer (added by prepareCoverDocument for spreads) only
+// pushes the cover onto a blank second page. Remove it when there are fewer than 2 columns.
+// (Spread: columns >= 2 keeps it → blank-left, cover-right. Unknown columns → no-op, keep it.)
+export const removeCoverSpacerForSingleColumn = (doc, columns) => {
+    if (!doc || !(columns < 2)) return
+    doc.querySelector('.foliate-cover-left-spacer')?.remove()
+}

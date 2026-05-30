@@ -1,4 +1,4 @@
-import { applyCoverFit } from './cover-fit.js'
+import { applyCoverFit, removeCoverSpacerForSingleColumn } from './cover-fit.js'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -295,6 +295,7 @@ class View {
         if (this.#destroyed || !layout) return
         this.#column = layout.flow !== 'scrolled'
         this.#layout = layout
+        if (layout.isCover) removeCoverSpacerForSingleColumn(this.document, layout.columns)
         if (this.#column) this.columnize(layout)
         else this.scrolled(layout)
         if (layout.isCover) this.fitCover()
@@ -776,7 +777,7 @@ export class Paginator extends HTMLElement {
         this.#header.replaceChildren(...heads)
         this.#footer.replaceChildren(...feet)
 
-        return { height, width, margin, gap, columnWidth, isCover: this.sections?.[this.#index]?.isCover === true }
+        return { height, width, margin, gap, columnWidth, columns: divisor, isCover: this.sections?.[this.#index]?.isCover === true }
     }
     render() {
         if (!this.#view) return

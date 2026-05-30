@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 // @ts-expect-error vendored Foliate JS has no TypeScript declarations.
-import { computeCoverFit, applyCoverFit } from "./cover-fit.js";
+import { computeCoverFit, applyCoverFit, removeCoverSpacerForSingleColumn } from "./cover-fit.js";
 
 describe("computeCoverFit", () => {
   // Page column 400 wide, container 600 tall, margin 20 → Hcap = 560, Hfull = 600.
@@ -68,5 +68,27 @@ describe("applyCoverFit", () => {
     const doc = makeDoc(`<section class="cover-page"><img/></section>`);
     applyCoverFit(doc, layout);
     expect(doc.querySelector("img")!.style.width).toBe("");
+  });
+});
+
+describe("removeCoverSpacerForSingleColumn", () => {
+  const makeDoc = (inner: string) =>
+    new DOMParser().parseFromString(`<html><body>${inner}</body></html>`, "text/html");
+
+  it("removes the spacer when single-column (columns < 2)", () => {
+    const doc = makeDoc(`<div class="foliate-cover-left-spacer"></div><section class="cover-page"><img/></section>`);
+    removeCoverSpacerForSingleColumn(doc, 1);
+    expect(doc.querySelector(".foliate-cover-left-spacer")).toBeNull();
+  });
+
+  it("keeps the spacer in a 2-column spread", () => {
+    const doc = makeDoc(`<div class="foliate-cover-left-spacer"></div>`);
+    removeCoverSpacerForSingleColumn(doc, 2);
+    expect(doc.querySelector(".foliate-cover-left-spacer")).not.toBeNull();
+  });
+
+  it("no-ops when there is no spacer / columns unknown", () => {
+    const doc = makeDoc(`<section class="cover-page"><img/></section>`);
+    expect(() => removeCoverSpacerForSingleColumn(doc, undefined)).not.toThrow();
   });
 });
