@@ -1292,7 +1292,19 @@ describe("foliate FB2 0q2x clean chapter-title field", () => {
     const label = tocLabels(book).find(l => l.includes("ГОСТИ"));
     expect(label).toBeTruthy();
     expect(label).not.toMatch(/49/);
-    expect(label!.trim()).toBe("ЗВАНЫЕ ГОСТИ");
+    expect(label).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("collapses whitespace around a skipped noteref (no residual space)", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ <a l:href="#n1" type="note">[49]</a></p>`);
+    expect(tocLabels(book).find(l => l.includes("ГОСТИ"))).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("strips an aux-body link without type=note from the label", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1">[49]</a></p>`);
+    const label = tocLabels(book).find(l => l.includes("ГОСТИ"));
+    expect(label).not.toMatch(/49/);
+    expect(label).toBe("ЗВАНЫЕ ГОСТИ");
   });
 
   it("keeps the real noteref on the heading in the book body", async () => {
