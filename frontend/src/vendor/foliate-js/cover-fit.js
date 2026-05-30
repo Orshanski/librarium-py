@@ -10,7 +10,7 @@
 export const computeCoverFit = ({ columnWidth, height, margin, imgWidth, imgHeight }) => {
     const W = columnWidth
     const Hfull = height
-    if (!(W > 0) || !(Hfull > 0) || !(imgWidth > 0) || !(imgHeight > 0)) return null
+    if (!(W > 0) || !(Hfull > 0) || !(imgWidth > 0) || !(imgHeight > 0) || !Number.isFinite(margin)) return null
     const Hcap = Math.max(0, Hfull - 2 * margin)
     let targetW = W
     let targetH = W * (imgHeight / imgWidth)

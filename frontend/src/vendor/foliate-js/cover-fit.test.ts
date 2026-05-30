@@ -31,8 +31,11 @@ describe("computeCoverFit", () => {
 
   it("returns null on degenerate input", () => {
     expect(computeCoverFit({ ...page, imgWidth: 0, imgHeight: 150 })).toBeNull();
+    expect(computeCoverFit({ ...page, imgWidth: 100, imgHeight: 0 })).toBeNull();
     expect(computeCoverFit({ columnWidth: 0, height: 600, margin: 20, imgWidth: 100, imgHeight: 150 })).toBeNull();
     expect(computeCoverFit({ columnWidth: 400, height: undefined, margin: 20, imgWidth: 100, imgHeight: 150 })).toBeNull();
+    // NaN/undefined margin must not silently disable the height cap → null.
+    expect(computeCoverFit({ columnWidth: 400, height: 600, margin: NaN, imgWidth: 100, imgHeight: 150 })).toBeNull();
   });
 });
 
@@ -68,6 +71,19 @@ describe("applyCoverFit", () => {
     const doc = makeDoc(`<section class="cover-page"><img/></section>`);
     applyCoverFit(doc, layout);
     expect(doc.querySelector("img")!.style.width).toBe("");
+  });
+
+  it("applies the fit once the image loads (deferred dims branch)", () => {
+    const doc = makeDoc(`<section class="cover-page"><img/></section>`);
+    const img = doc.querySelector("img")!;
+    applyCoverFit(doc, layout);
+    expect(img.style.width).toBe(""); // deferred — listener registered, not yet sized
+    img.setAttribute("width", "200");
+    img.setAttribute("height", "100");
+    img.dispatchEvent(new Event("load"));
+    expect(img.style.width).toBe("400px");
+    expect(img.style.height).toBe("200px");
+    expect(img.style.marginTop).toBe("200px");
   });
 });
 

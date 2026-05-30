@@ -742,6 +742,7 @@ export class Paginator extends HTMLElement {
         const gap = -g / (g - 1) * size
 
         const flow = this.getAttribute('flow')
+        const isCover = this.sections?.[this.#index]?.isCover === true
         if (flow === 'scrolled') {
             // FIXME: vertical-rl only, not -lr
             this.setAttribute('dir', vertical ? 'rtl' : 'ltr')
@@ -753,7 +754,7 @@ export class Paginator extends HTMLElement {
             this.#header.replaceChildren()
             this.#footer.replaceChildren()
 
-            return { flow, margin, gap, columnWidth, isCover: this.sections?.[this.#index]?.isCover === true }
+            return { flow, margin, gap, columnWidth, isCover }
         }
 
         const divisor = Math.min(maxColumnCount, Math.ceil(size / maxInlineSize))
@@ -777,7 +778,7 @@ export class Paginator extends HTMLElement {
         this.#header.replaceChildren(...heads)
         this.#footer.replaceChildren(...feet)
 
-        return { height, width, margin, gap, columnWidth, columns: divisor, isCover: this.sections?.[this.#index]?.isCover === true }
+        return { height, width, margin, gap, columnWidth, columns: divisor, isCover }
     }
     render() {
         if (!this.#view) return
