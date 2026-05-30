@@ -17,6 +17,7 @@ frontend/dist/
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
+.claude/hooks/__pycache__/
 !.claude/skills/
 !.claude/skills/**
 # Перебивает whitelist выше — .DS_Store не должен попадать в репо нигде
