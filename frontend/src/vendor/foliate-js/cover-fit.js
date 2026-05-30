@@ -27,6 +27,11 @@ export const computeCoverFit = ({ columnWidth, height, margin, imgWidth, imgHeig
 // the first <img>; a native cover may be SVG-wrapped or text-only, then there is no <img>
 // and we do nothing, leaving the paginator's caps). Image dims come from naturalWidth/Height
 // or the width/height attributes; if neither is known yet, retry once on image load.
+//
+// We do NOT second-guess whether a cover section is "really" a cover (e.g. gating the bare-img
+// fallback to dodge a decorative image on an engine-marked `titlepage`): identifying the cover is
+// the EPUB/FB2 engine's responsibility (it sets `isCover`). An engine mis-mark is the engine's bug
+// to fix there, not this scaler's. (Decision: Alexey 2026-05-30 — responsibility principle.)
 export const applyCoverFit = (doc, layout) => {
     if (!doc?.body || !layout) return
     const img = doc.querySelector('.cover-page img') ?? doc.querySelector('img')
