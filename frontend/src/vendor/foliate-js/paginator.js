@@ -1,3 +1,5 @@
+import { applyCoverFit } from './cover-fit.js'
+
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const debounce = (f, wait, immediate) => {
@@ -295,6 +297,7 @@ class View {
         this.#layout = layout
         if (this.#column) this.columnize(layout)
         else this.scrolled(layout)
+        if (layout.isCover) this.fitCover()
     }
     scrolled({ gap, columnWidth }) {
         if (this.#destroyed) return
@@ -371,6 +374,10 @@ class View {
                 'box-sizing': 'border-box',
             })
         }
+    }
+    fitCover() {
+        if (this.#destroyed || !this.#layout) return
+        applyCoverFit(this.document, this.#layout)
     }
     expand() {
         if (this.#destroyed || !this.#layout) return
@@ -745,7 +752,7 @@ export class Paginator extends HTMLElement {
             this.#header.replaceChildren()
             this.#footer.replaceChildren()
 
-            return { flow, margin, gap, columnWidth }
+            return { flow, margin, gap, columnWidth, isCover: this.sections?.[this.#index]?.isCover === true }
         }
 
         const divisor = Math.min(maxColumnCount, Math.ceil(size / maxInlineSize))
@@ -769,7 +776,7 @@ export class Paginator extends HTMLElement {
         this.#header.replaceChildren(...heads)
         this.#footer.replaceChildren(...feet)
 
-        return { height, width, margin, gap, columnWidth }
+        return { height, width, margin, gap, columnWidth, isCover: this.sections?.[this.#index]?.isCover === true }
     }
     render() {
         if (!this.#view) return
