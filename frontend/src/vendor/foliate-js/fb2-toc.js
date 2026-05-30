@@ -1,4 +1,4 @@
-import { normalizeWhitespace, getElementText } from './fb2.js'
+import { readLabel } from './fb2.js'
 
 // Collects the table of contents and assigns data-foliate-id to titles on the
 // clean structure, before splitting. Preserves the exact tocCounter ordering.
@@ -13,7 +13,7 @@ export const collectToc = (topLevelItems, dataID) => {
             titleEl.setAttribute(dataID, index)
             const subitems = collectTitles(section)
             return {
-                title: getElementText(titleEl),
+                title: readLabel(titleEl),
                 index,
                 subitems: subitems.length ? subitems : null,
             }
@@ -29,9 +29,9 @@ export const collectToc = (topLevelItems, dataID) => {
             titleEl.setAttribute(dataID, topIndex)
         }
         return {
-            title: normalizeWhitespace(
-                el.querySelector('.title, .subtitle, p')?.textContent
-                ?? (el.classList.contains('title') ? el.textContent : '')),
+            title: readLabel(
+                el.querySelector('.title, .subtitle, p')
+                ?? (el.classList.contains('title') ? el : null)),
             titles: collectTitles(el),
             topIndex,
         }

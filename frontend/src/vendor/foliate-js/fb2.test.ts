@@ -1270,3 +1270,54 @@ describe("foliate FB2 7fov auxiliary-body notes", () => {
     expect(a!.getAttributeNS(NS, "type")).toBe("noteref");
   });
 });
+
+describe("foliate FB2 0q2x clean chapter-title field", () => {
+  const EPUB_NS = "http://www.idpf.org/2007/ops";
+  const make = async (titleInner: string) => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title>${titleInner}</title><p>${"А".repeat(2000)}</p></section></body>
+  <body name="notes"><section id="n1"><title><p>прим.</p></title><p>Note text.</p></section></body>
+</FictionBook>`;
+    return await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as {
+      sections: Array<{ createDocument: () => Document }>;
+      toc: Array<{ label: string; subitems?: unknown[] | null }>;
+    };
+  };
+  const tocLabels = (book: { toc: Array<{ label: string }> }) => book.toc.map(t => t.label);
+
+  it("note marker does not leak into the TOC label (footer source)", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1" type="note">[49]</a></p>`);
+    const label = tocLabels(book).find(l => l.includes("ГОСТИ"));
+    expect(label).toBeTruthy();
+    expect(label).not.toMatch(/49/);
+    expect(label!.trim()).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("keeps the real noteref on the heading in the book body", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1" type="note">[49]</a></p>`);
+    let heading: Element | null = null;
+    for (const s of book.sections) {
+      const h = s.createDocument().querySelector(".title");
+      if (h?.textContent?.includes("ГОСТИ")) { heading = h; break; }
+    }
+    expect(heading).toBeTruthy();
+    const noteref = [...heading!.querySelectorAll("a")]
+      .find(a => (a.getAttributeNS(EPUB_NS, "type") || "").includes("noteref"));
+    expect(noteref).toBeTruthy();
+    expect(noteref!.textContent).toBe("49");
+  });
+
+  it("does not mangle a numeric title", async () => {
+    const book = await make(`<p>1984</p>`);
+    expect(tocLabels(book).find(l => l.includes("1984"))).toBe("1984");
+  });
+
+  it("keeps a note-free multi-line title identical (whitespace preserved)", async () => {
+    const book = await make(`
+      <p>Глава первая.</p>
+      <p>ЗВАНЫЕ ГОСТИ</p>`);
+    expect(tocLabels(book).find(l => l.includes("ГОСТИ"))).toBe("Глава первая. ЗВАНЫЕ ГОСТИ");
+  });
+});

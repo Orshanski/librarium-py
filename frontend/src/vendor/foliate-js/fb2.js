@@ -12,6 +12,16 @@ export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+$/, '') : ''
 
 export const getElementText = el => normalizeWhitespace(el?.textContent)
+
+// Clean chapter-title text, stamped on the title element at conversion time and
+// read by the TOC builder (and thence the footer). One field, computed once.
+const CLEAN_TITLE_ATTR = 'data-clean-title'
+
+// Read a label off an element: the clean field if present, else its text. Used by
+// the TOC builder so it never re-derives the label from the rendered DOM.
+export const readLabel = el =>
+    el ? (el.getAttribute(CLEAN_TITLE_ATTR) ?? getElementText(el)) : ''
+
 const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
 const getEmbeddedSrcLength = el =>
     getSrcLength(el) + Array.from(el.querySelectorAll('[src]'), getSrcLength)
@@ -131,6 +141,32 @@ class FB2Converter {
         el.setAttribute('src', this.getImageSrc(node))
         return el
     }
+    // Single source of truth for "this <a> is a footnote/aux link": type=note, or a
+    // link whose target id lives in an auxiliary body (notes/comments). Shared by
+    // anchor() and the clean-title walk so the definition lives in one place.
+    isNoteLink(node) {
+        if (node.getAttribute?.('type') === 'note') return true
+        const href = node.getAttributeNS?.(NS.XLINK, 'href')
+        return Boolean(href?.startsWith('#') && this.auxIds.has(href.slice(1)))
+    }
+    // Clean title text from the SOURCE <title>/<subtitle>: depth-first over childNodes
+    // (the noteref <a> is nested inside <p>, so skip its whole subtree), preserving
+    // inter-<p> whitespace text nodes so normalizeWhitespace reproduces the old label
+    // for note-free titles. Read-only on the source — the built heading is untouched.
+    cleanTitleText(node) {
+        let text = ''
+        const walk = n => {
+            for (const child of n.childNodes) {
+                if (child.nodeType === 3) text += child.textContent
+                else if (child.nodeType === 1) {
+                    if (child.nodeName === 'a' && this.isNoteLink(child)) continue
+                    walk(child)
+                }
+            }
+        }
+        walk(node)
+        return normalizeWhitespace(text)
+    }
     anchor(node) {
         const el = this.convert(node, { 'a': ['a', STYLE] })
         const href = node.getAttributeNS(NS.XLINK, 'href')
@@ -147,7 +183,7 @@ class FB2Converter {
         // it through the footnote popup pipeline via noteref, but keep the
         // marker inline (no <sup>, no bracket strip) — comments differ from
         // notes in meaning and stay visually distinct.
-        if (href?.startsWith('#') && this.auxIds.has(href.slice(1)))
+        if (this.isNoteLink(node))
             el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
         return el
     }
@@ -208,6 +244,8 @@ class FB2Converter {
             if (childEl) el.append(childEl)
             child = child.nextSibling
         }
+        if (node.nodeName === 'title' || node.nodeName === 'subtitle')
+            el.setAttribute(CLEAN_TITLE_ATTR, this.cleanTitleText(node))
         return el
     }
 }
@@ -495,11 +533,8 @@ export const makeFB2 = async blob => {
             const blob = new Blob([str], { type: MIME.XHTML })
             const url = URL.createObjectURL(blob)
             urls.push(url)
-            const title = normalizeWhitespace(
-                el.querySelector('.title, .subtitle, p')?.textContent
-                ?? (el.classList.contains('title') ? el.textContent : ''))
             return {
-                ids, el, title, load: () => url,
+                ids, el, load: () => url,
                 createDocument: () => new DOMParser().parseFromString(str, MIME.XHTML),
                 size: blob.size - getEmbeddedSrcLength(el),
                 charCount: charCount ?? el.textContent?.length ?? 0,
