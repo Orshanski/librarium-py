@@ -726,3 +726,610 @@ describe("foliate FB2 frontmatter merging", () => {
     expect(sectionIdx).toBe(2);
   });
 });
+
+describe("foliate FB2 kfl7 typography", () => {
+  it("renders text-author without a generated leading dash", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Cite</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><p>${"А".repeat(2000)}</p><text-author>Иван Петров</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const author = doc.querySelector(".text-author");
+    expect(author?.textContent).toBe("Иван Петров");
+  });
+
+  it("renders nested section titles as capped heading levels", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>H</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>L1</p></title><p>${"А".repeat(2000)}</p>
+    <section><title><p>L2</p></title><p>x</p>
+      <section><title><p>L3</p></title><p>y</p>
+        <section><title><p>L4</p></title><p>z</p>
+          <section><title><p>L5deep</p></title><p>w</p></section>
+        </section>
+      </section>
+    </section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // depth caps at h4: L4 and L5deep both render as h4
+    expect(doc.querySelector(".title h1")?.textContent).toContain("L1");
+    expect([...doc.querySelectorAll(".title h4")].map(e => e.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("L4"), expect.stringContaining("L5deep")])
+    );
+  });
+
+  it("renders epigraph (italic) and annotation (muted aside) box-free with body content", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>E</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <epigraph><p>Мотто</p><text-author>Автор</text-author></epigraph>
+    <annotation><p>Редакторская заметка</p></annotation>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    expect(doc.querySelector(".epigraph p")?.textContent).toContain("Мотто");
+    expect(doc.querySelector("aside.annotation")?.textContent).toContain("Редакторская заметка");
+  });
+
+  it("renders section subtitle (heading-tag) and stanza subtitle (p) with the subtitle class", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <subtitle>Сцена</subtitle>
+    <poem><stanza><subtitle>Строфа-подзаголовок</subtitle><v>Строка</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    // section subtitle is a heading tag with class subtitle; stanza subtitle is a p with class subtitle
+    expect(doc.querySelector("h3.subtitle, h4.subtitle")?.textContent).toContain("Сцена");
+    expect(doc.querySelector("p.subtitle")?.textContent).toContain("Строфа-подзаголовок");
+  });
+
+  it("renders verse lines as block .verse-line spans and a poem title", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>P</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><title><p>Песня</p></title>
+      <stanza><v>Строка один</v><v>Строка два</v></stanza>
+      <text-author>Поэт</text-author><date>1227</date>
+    </poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const lines = [...doc.querySelectorAll(".poem .verse-line")];
+    expect(lines.map(l => l.textContent)).toEqual(["Строка один", "Строка два"]);
+    expect(doc.querySelector(".poem-title")?.textContent).toContain("Песня");
+    expect(doc.querySelector(".poem .date")?.textContent).toContain("1227");
+  });
+
+  it("separates consecutive poems with a <br> sibling (empty-line) that the run-spacing CSS targets", async () => {
+    // Regression guard: a run of separate <poem>s split by <empty-line/> (a common
+    // LotR-style structure) must render as `.poem`, `<br>`, `.poem` siblings so the
+    // `.poem + br` / `.poem + br + .poem` rules can collapse the separator and
+    // tighten the run. (Dropping that CSS reopened huge inter-poem gaps.)
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>PR</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <poem><stanza><v>Первая строфа</v></stanza></poem>
+    <empty-line/>
+    <poem><stanza><v>Вторая строфа</v></stanza></poem>
+    <p>${"А".repeat(2000)}</p>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const poems = [...doc.querySelectorAll(".poem")];
+    expect(poems.length).toBe(2);
+    const between = poems[0].nextElementSibling;
+    expect(between?.tagName.toLowerCase()).toBe("br");
+    expect(between?.nextElementSibling).toBe(poems[1]);
+  });
+
+  it("renders cite as an italic blockquote with the cite class and no inline box styles", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>C</book-title><author><first-name>A</first-name><last-name>B</last-name></author></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <cite><subtitle>Лейбл</subtitle><p>${"А".repeat(2000)}</p><text-author>Источник</text-author></cite>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const cite = doc.querySelector("blockquote.cite");
+    expect(cite).not.toBeNull();
+    expect(cite?.querySelector(".subtitle")?.textContent).toContain("Лейбл");
+    expect(cite?.querySelector(".text-author")?.textContent).toBe("Источник");
+  });
+});
+
+describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
+  // A book-title section wraps a part-title section wraps a chapter. The chapter
+  // carries >MAX_CHARS (180000) of prose so the book section splits, producing
+  // bare-heading flush segments — the exact shape that strands as an empty page.
+  const bigProse = "А".repeat(190_000);
+  const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>Multi-level</book-title></title-info></description>
+  <body>
+    <section>
+      <title><p>КНИГА ПЕРВАЯ</p></title>
+      <section>
+        <title><p>ЧАСТЬ 1</p></title>
+        <section>
+          <title><p>Глава первая</p></title>
+          <p>${bigProse}</p>
+        </section>
+      </section>
+    </section>
+  </body>
+</FictionBook>`;
+
+  it("gathers book + part titles onto the chapter's render section, no empty divider", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+
+    // Find content sections (skip the cover at index 0).
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    // No content section is a titles-only divider (has titles but no paragraph text).
+    for (const s of content) {
+      const doc = s.createDocument();
+      const proseChars = Array.from(doc.querySelectorAll("p"))
+        .reduce((n: number, p) => n + (p.textContent?.length ?? 0), 0);
+      const hasTitle = doc.querySelector(".title") != null;
+      expect(hasTitle && proseChars === 0).toBe(false);
+    }
+
+    // The chapter's render section holds all three titles.
+    const chapterSection = content.find(s => {
+      const t = s.createDocument().body?.textContent ?? "";
+      return t.includes("Глава первая");
+    });
+    expect(chapterSection).toBeTruthy();
+    const chDoc = chapterSection!.createDocument();
+    const titlesText = chDoc.body?.textContent ?? "";
+    expect(titlesText).toContain("КНИГА ПЕРВАЯ");
+    expect(titlesText).toContain("ЧАСТЬ 1");
+    expect(titlesText).toContain("Глава первая");
+  });
+
+  it("resolves all three TOC entries to the same merged section", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const flat = (items: Array<{ label: string; href: string; subitems?: unknown[] }>): Array<{ label: string; href: string }> =>
+      items?.flatMap(i => [i, ...flat((i.subitems as typeof items) ?? [])]) ?? [];
+    const all = flat(book.toc);
+    const find = (needle: string) => all.find(i => i.label.includes(needle));
+    const kniga = find("КНИГА ПЕРВАЯ");
+    const chast = find("ЧАСТЬ 1");
+    const glava = find("Глава первая");
+    expect(kniga && chast && glava).toBeTruthy();
+    const idx = (i: { href: string }) => book.resolveHref(i.href).index;
+    expect(idx(kniga!)).toBe(idx(glava!));
+    expect(idx(chast!)).toBe(idx(glava!));
+  });
+
+  it("lays the gathered titles out as flat sibling .title headers (not nested sections)", async () => {
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    const chapterSection = (book.sections as Array<{ createDocument: () => Document }>).slice(1).find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("Глава первая"));
+    const root = chapterSection!.createDocument().body!.querySelector("section") ?? chapterSection!.createDocument().body!;
+    const leadingTitles: string[] = [];
+    // After the keep-together grouping pass the leading title run is inside a
+    // .keep-together wrapper box as the first child; look through it.
+    const firstChild = root.children[0];
+    const titleContainer =
+      firstChild?.classList.contains("keep-together") ? firstChild : root;
+    for (const child of Array.from(titleContainer.children)) {
+      if (child.classList.contains("title")) leadingTitles.push(child.textContent?.replace(/\s+/g, " ").trim() ?? "");
+      else break;
+    }
+    // All three opening titles are consecutive .title siblings before any prose.
+    expect(leadingTitles.length).toBe(3);
+    expect(leadingTitles.join(" | ")).toContain("КНИГА ПЕРВАЯ");
+    expect(leadingTitles.join(" | ")).toContain("ЧАСТЬ 1");
+    expect(leadingTitles.join(" | ")).toContain("Глава первая");
+  });
+
+  // Acceptance pin (spec: "a foreword-bearing book divider keeps its own spread").
+  // A divider that carries its own prose (≥ PROSE_BUDGET 1500) is NOT thin, so it
+  // is NOT gathered forward. This is a regression guard — green on current code too;
+  // it pins that the unwrap change does not start swallowing prose-bearing dividers.
+  it("leaves a foreword-bearing divider as its own render section (not gathered)", async () => {
+    const foreword = "Ф".repeat(1600);          // ≥ 1500 → hasProseContent → not thin
+    const chapterProse = "А".repeat(190_000);   // > MAX_CHARS → forces the split
+    const fwFb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>FW</book-title></title-info></description>
+  <body><section><title><p>ТОМ С ПРЕДИСЛОВИЕМ</p></title><p>${foreword}</p>
+    <section><title><p>Глава первая</p></title><p>${chapterProse}</p></section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fwFb2], { type: "application/x-fictionbook+xml" }));
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    const fwSection = content.find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("ТОМ С ПРЕДИСЛОВИЕМ"));
+    expect(fwSection).toBeTruthy();
+    const fwText = fwSection!.createDocument().body?.textContent ?? "";
+    expect(fwText).toContain("ТОМ С ПРЕДИСЛОВИЕМ");
+    // The foreword divider keeps its own spread — the chapter is a separate section.
+    expect(fwText.includes("Глава первая")).toBe(false);
+  });
+
+  // Acceptance pin (spec edge: a divider whose only non-title content is decorative
+  // front matter — an epigraph, no prose — is still thin and gathers forward, the
+  // epigraph travelling with it). Multi-level so it also exercises the unwrap fix.
+  it("gathers a multi-level divider that carries an epigraph, the epigraph travelling with it", async () => {
+    const chapterProse = "А".repeat(190_000);
+    const epFb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>EP</book-title></title-info></description>
+  <body><section><title><p>КНИГА С ЭПИГРАФОМ</p></title><epigraph><p>эпиграф книги</p></epigraph>
+    <section><title><p>ЧАСТЬ 1</p></title>
+      <section><title><p>Глава первая</p></title><p>${chapterProse}</p></section>
+    </section>
+  </section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([epFb2], { type: "application/x-fictionbook+xml" }));
+    const content = (book.sections as Array<{ createDocument: () => Document }>).slice(1);
+    // No content section is a prose-less divider (opening present, no NON-decorative prose).
+    for (const s of content) {
+      const doc = s.createDocument();
+      const prose = Array.from(doc.querySelectorAll("p"))
+        .filter(p => !p.closest(".epigraph, .annotation, .cite, .poem"))
+        .reduce((n: number, p) => n + (p.textContent?.length ?? 0), 0);
+      const hasOpening = doc.querySelector(".title") != null;
+      expect(hasOpening && prose === 0).toBe(false);
+    }
+    const chapter = content.find(s =>
+      (s.createDocument().body?.textContent ?? "").includes("Глава первая"));
+    const chText = chapter!.createDocument().body?.textContent ?? "";
+    expect(chText).toContain("КНИГА С ЭПИГРАФОМ");
+    expect(chText).toContain("эпиграф книги");
+    expect(chText).toContain("ЧАСТЬ 1");
+  });
+
+  it("wraps the section opening (title run + first block) in a break-inside keep-together box", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><p>Первый абзац главы.</p><p>Второй.</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[1].createDocument();
+    const keep = doc.querySelector(".keep-together");
+    expect(keep).toBeTruthy();
+    // The opening box holds the title and the first content block, in order.
+    expect(keep!.querySelector(".title")).toBeTruthy();
+    expect(keep!.textContent).toContain("Первый абзац главы");
+    // It does NOT swallow the rest of the chapter.
+    expect(keep!.textContent).not.toContain("Второй.");
+    // It never wraps a nested <section>.
+    expect(keep!.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a cite's opening label (.subtitle) with its first body line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Гл</p></title><p>текст до</p>
+    <cite><subtitle>Лейбл цитаты</subtitle><p>Первая строка цитаты.</p><p>Вторая строка.</p><text-author>Источник</text-author></cite>
+  </section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[book.sections.length - 1].createDocument();
+    const cite = doc.querySelector("blockquote.cite")!;
+    // The opening label and the first body line share one keep-together box.
+    const labelBox = (Array.from(cite.querySelectorAll(".keep-together")) as Element[])
+      .find((k: Element) => k.querySelector(".subtitle"));
+    expect(labelBox).toBeTruthy();
+    expect(labelBox!.textContent).toContain("Лейбл цитаты");
+    expect(labelBox!.textContent).toContain("Первая строка цитаты");
+    // It does not swallow the second body line.
+    expect(labelBox!.textContent).not.toContain("Вторая строка");
+    expect(labelBox!.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a poem's closing attribution with its last line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Гл</p></title><p>текст</p>
+    <poem><stanza><v>строка раз</v><v>строка два</v></stanza><text-author>Автор</text-author><date>1227</date></poem>
+  </section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[1].createDocument();
+    const tails = (Array.from(doc.querySelectorAll(".keep-together")) as Element[])
+      .filter((k: Element) => k.querySelector(".text-author") || k.querySelector(".date"));
+    expect(tails.length).toBeGreaterThan(0);
+    const tail = tails[0];
+    // The tail box holds the last verse line plus author plus date together.
+    expect(tail.textContent).toContain("строка два");
+    expect(tail.textContent).toContain("Автор");
+    expect(tail.textContent).toContain("1227");
+    expect(tail.querySelector("section")).toBeNull();
+  });
+
+  it("keeps a TOC entry resolving correctly after grouping", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><p>${"А".repeat(2000)}</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const glava = book.toc.find((i: { label: string }) => i.label.includes("Глава"));
+    expect(glava).toBeTruthy();
+    expect(book.resolveHref(glava.href).index).toBeGreaterThan(0);
+  });
+});
+
+describe("foliate FB2 pxb2 image classification", () => {
+  const make = async (bodyInner: string) => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body>${bodyInner}</body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+  <binary id="i2.png" content-type="image/png">BBBB</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" }));
+    return book as { sections: Array<{ createDocument: () => Document }> };
+  };
+  // find the first <img> across all content sections' converted docs
+  const firstImg = (book: { sections: Array<{ createDocument: () => Document }> }) => {
+    for (const s of book.sections) {
+      const img = s.createDocument().querySelector("img");
+      if (img) return img;
+    }
+    return null;
+  };
+  const allImgs = (book: { sections: Array<{ createDocument: () => Document }> }) => {
+    const out: Element[] = [];
+    for (const s of book.sections) out.push(...s.createDocument().querySelectorAll("img"));
+    return out;
+  };
+
+  it("картинка одна в абзаце → block-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/></p><p>Body.</p></section>`);
+    expect(firstImg(book)?.classList.contains("block-image")).toBe(true);
+  });
+
+  it("игнорирует пробельные текст-узлы вокруг картинки → block-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p>\n  <image l:href="#i1.png"/>\n  </p><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(true);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинка первая, после неё текст → float-image", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/>Текст главы после картинки.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("float-image")).toBe(true);
+    expect(img?.classList.contains("block-image")).toBe(false);
+  });
+
+  it("картинка по тексту абзаца → inline-glyph", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p>До <image l:href="#i1.png"/> после.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("inline-glyph")).toBe(true);
+    expect(img?.classList.contains("float-image")).toBe(false);
+  });
+
+  it("несколько картинок в абзаце без текста → все inline-glyph (дефолт)", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/><image l:href="#i2.png"/></p></section>`);
+    const imgs = allImgs(book);
+    expect(imgs.length).toBe(2);
+    for (const img of imgs) {
+      expect(img.classList.contains("inline-glyph")).toBe(true);
+      expect(img.classList.contains("block-image")).toBe(false);
+      expect(img.classList.contains("float-image")).toBe(false);
+    }
+  });
+
+  it("несколько картинок + текст → первая float, остальные inline (классифицируется только первая)", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><p><image l:href="#i1.png"/><image l:href="#i2.png"/>Текст абзаца после картинок.</p></section>`);
+    const imgs = allImgs(book);
+    expect(imgs.length).toBe(2);
+    expect(imgs[0].classList.contains("float-image")).toBe(true);
+    expect(imgs[1].classList.contains("float-image")).toBe(false);
+    expect(imgs[1].classList.contains("inline-glyph")).toBe(true);
+  });
+
+  it("картинку внутри cite НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><cite><p><image l:href="#i1.png"/></p></cite></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри эпиграфа НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><epigraph><p><image l:href="#i1.png"/></p></epigraph><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри поэмы НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><poem><title><p><image l:href="#i1.png"/></p></title><stanza><v>x</v></stanza></poem><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("картинку внутри аннотации НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><annotation><p><image l:href="#i1.png"/></p></annotation><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  it("section-level картинку (не в <p>) НЕ классифицирует", async () => {
+    const book = await make(`<section><title><p>Ch</p></title><image l:href="#i1.png"/><p>Body.</p></section>`);
+    const img = firstImg(book);
+    expect(img?.classList.contains("block-image")).toBe(false);
+    expect(img?.classList.contains("float-image")).toBe(false);
+    expect(img?.classList.contains("inline-glyph")).toBe(false);
+  });
+
+  // Регрессия-гард (НЕ проверка логики классификатора): обложка строится отдельным путём
+  // (createCoverSection), classifyImages на cover-секции не вызывается, и её img не в <p>.
+  // Тест защищает от случайной классификации обложки, а не «доказывает» скип в classifyImages.
+  it("обложка остаётся без класса (путь cover-секции независим от classifyImages)", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title><coverpage><image l:href="#cover.png"/></coverpage></title-info></description>
+  <body><section><title><p>Ch</p></title><p>${"А".repeat(100)}</p></section></body>
+  <binary id="cover.png" content-type="image/png">AAAA</binary>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    const coverImg = book.sections[0].createDocument().querySelector("img");
+    expect(coverImg).toBeTruthy();
+    expect(coverImg?.className ?? "").toBe("");
+  });
+});
+
+describe("foliate FB2 7fov auxiliary-body notes", () => {
+  const NS = "http://www.idpf.org/2007/ops";
+  const make = async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <p>Note <a l:href="#note-1" type="note">[1]</a>, comment <a l:href="#comment-1">[A]</a>, plain <a l:href="#sec-2">see</a>.</p>
+  </section><section id="sec-2"><title><p>Two</p></title><p>Body two.</p></section></body>
+  <body name="notes"><section id="note-1"><title><p>1</p></title><p>Note text.</p></section></body>
+  <body name="comments"><section id="comment-1"><title><p>A</p></title><p>Comment text.</p></section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    // find the content doc holding the three links
+    for (const s of book.sections) {
+      const d = s.createDocument();
+      if (d.querySelector('a[href="#comment-1"]')) return d;
+    }
+    throw new Error("content section with links not found");
+  };
+
+  it("comment link (target in comments body) → epub:type=noteref, inline, no <sup>, brackets kept", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#comment-1"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBe("noteref");
+    expect(a.closest("sup")).toBeNull();
+    expect(a.textContent).toBe("[A]");
+  });
+
+  it("note link (type=note) unchanged → noteref + <sup> + stripped brackets", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#note-1"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBe("noteref");
+    expect(a.closest("sup")).not.toBeNull();
+    expect(a.textContent).toBe("1");
+  });
+
+  it("plain link (target in main body) → no noteref", async () => {
+    const doc = await make();
+    const a = doc.querySelector('a[href="#sec-2"]')!;
+    expect(a.getAttributeNS(NS, "type")).toBeNull();
+    expect(a.closest("sup")).toBeNull();
+  });
+
+  it("namespaced FB2 (gribuser default ns): aux-body detection still tags comment link as noteref", async () => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title><p>Ch</p></title>
+    <p>Comment <a l:href="#comment-1">[A]</a>.</p>
+  </section></body>
+  <body name="comments"><section id="comment-1"><title><p>A</p></title><p>Comment text.</p></section></body>
+</FictionBook>`;
+    const book = await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as { sections: Array<{ createDocument: () => Document }> };
+    let a: Element | null = null;
+    for (const s of book.sections) { const d = s.createDocument(); a = d.querySelector('a[href="#comment-1"]'); if (a) break; }
+    expect(a).not.toBeNull();
+    expect(a!.getAttributeNS(NS, "type")).toBe("noteref");
+  });
+});
+
+describe("foliate FB2 0q2x clean chapter-title field", () => {
+  const EPUB_NS = "http://www.idpf.org/2007/ops";
+  const make = async (titleInner: string) => {
+    const fb2 = `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>T</book-title></title-info></description>
+  <body><section><title>${titleInner}</title><p>${"А".repeat(2000)}</p></section></body>
+  <body name="notes"><section id="n1"><title><p>прим.</p></title><p>Note text.</p></section></body>
+</FictionBook>`;
+    return await makeFB2(new Blob([fb2], { type: "application/x-fictionbook+xml" })) as {
+      sections: Array<{ createDocument: () => Document }>;
+      toc: Array<{ label: string; subitems?: unknown[] | null }>;
+    };
+  };
+  const tocLabels = (book: { toc: Array<{ label: string }> }) => book.toc.map(t => t.label);
+
+  it("note marker does not leak into the TOC label (footer source)", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1" type="note">[49]</a></p>`);
+    const label = tocLabels(book).find(l => l.includes("ГОСТИ"));
+    expect(label).toBeTruthy();
+    expect(label).not.toMatch(/49/);
+    expect(label).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("collapses whitespace around a skipped noteref (no residual space)", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ <a l:href="#n1" type="note">[49]</a></p>`);
+    expect(tocLabels(book).find(l => l.includes("ГОСТИ"))).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("strips an aux-body link without type=note from the label", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1">[49]</a></p>`);
+    const label = tocLabels(book).find(l => l.includes("ГОСТИ"));
+    expect(label).not.toMatch(/49/);
+    expect(label).toBe("ЗВАНЫЕ ГОСТИ");
+  });
+
+  it("keeps the real noteref on the heading in the book body", async () => {
+    const book = await make(`<p>ЗВАНЫЕ ГОСТИ<a l:href="#n1" type="note">[49]</a></p>`);
+    let heading: Element | null = null;
+    for (const s of book.sections) {
+      const h = s.createDocument().querySelector(".title");
+      if (h?.textContent?.includes("ГОСТИ")) { heading = h; break; }
+    }
+    expect(heading).toBeTruthy();
+    const noteref = [...heading!.querySelectorAll("a")]
+      .find(a => (a.getAttributeNS(EPUB_NS, "type") || "").includes("noteref"));
+    expect(noteref).toBeTruthy();
+    expect(noteref!.textContent).toBe("49");
+  });
+
+  it("does not mangle a numeric title", async () => {
+    const book = await make(`<p>1984</p>`);
+    expect(tocLabels(book).find(l => l.includes("1984"))).toBe("1984");
+  });
+
+  it("keeps a note-free multi-line title identical (whitespace preserved)", async () => {
+    const book = await make(`
+      <p>Глава первая.</p>
+      <p>ЗВАНЫЕ ГОСТИ</p>`);
+    expect(tocLabels(book).find(l => l.includes("ГОСТИ"))).toBe("Глава первая. ЗВАНЫЕ ГОСТИ");
+  });
+});

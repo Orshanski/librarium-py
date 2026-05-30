@@ -3,6 +3,8 @@ import { createNavigation } from './fb2-locator.js'
 import { createCoverSection } from './fb2-cover.js'
 import { buildContentSegments } from './fb2-render-sections.js'
 import { collectToc, buildFoliateIdToSection, buildToc } from './fb2-toc.js'
+import { applyGrouping } from './fb2-grouping.js'
+import { classifyImages } from './fb2-image-classify.js'
 
 export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+/g, ' ')
@@ -10,6 +12,16 @@ export const normalizeWhitespace = str => str ? str
     .replace(/[\t\n\f\r ]+$/, '') : ''
 
 export const getElementText = el => normalizeWhitespace(el?.textContent)
+
+// Clean chapter-title text, stamped on the title element at conversion time and
+// read by the TOC builder (and thence the footer). One field, computed once.
+const CLEAN_TITLE_ATTR = 'data-clean-title'
+
+// Read a label off an element: the clean field if present, else its text. Used by
+// the TOC builder so it never re-derives the label from the rendered DOM.
+export const readLabel = el =>
+    el ? (el.getAttribute(CLEAN_TITLE_ATTR) ?? getElementText(el)) : ''
+
 const getSrcLength = el => el.getAttribute?.('src')?.length ?? 0
 const getEmbeddedSrcLength = el =>
     getSrcLength(el) + Array.from(el.querySelectorAll('[src]'), getSrcLength)
@@ -45,6 +57,10 @@ const TABLE = {
 }
 
 const POEM = {
+    'title': ['header', {
+        'p': ['p', STYLE, null, ['poem-title']],
+        'empty-line': ['br'],
+    }],
     'epigraph': ['blockquote'],
     'subtitle': ['h2', STYLE],
     'text-author': ['p', STYLE],
@@ -62,7 +78,7 @@ const makeSectionDef = (level) => {
         }],
         'epigraph': ['blockquote', 'self'],
         'image': 'image',
-        'annotation': ['aside'],
+        'annotation': ['aside', 'self'],
         'p': ['p', STYLE],
         'poem': ['blockquote', POEM],
         'subtitle': [level <= 2 ? 'h3' : 'h4', STYLE],
@@ -99,6 +115,14 @@ class FB2Converter {
         // `<image l:href="#img1.jpg" id="img1.jpg" />`
         this.bins = new Map(Array.from(this.fb2.getElementsByTagName('binary'),
             el => [el.id, el]))
+        // ids living in auxiliary bodies (notes/comments): a link whose target
+        // is here opens as a note-like popup (epub:type=noteref), not linear
+        // navigation into the non-linear body. Built from RAW FB2 — the
+        // converted DOM drops the body `name`. getElementById doesn't resolve
+        // FB2 ids (same reason this.bins uses a Map), so walk [id] descendants.
+        this.auxIds = new Set()
+        for (const body of this.fb2.querySelectorAll('body[name="notes"], body[name="comments"]'))
+            for (const el of body.querySelectorAll('[id]')) if (el.id) this.auxIds.add(el.id)
     }
     getImageSrc(el) {
         const href = el.getAttributeNS(NS.XLINK, 'href')
@@ -117,9 +141,36 @@ class FB2Converter {
         el.setAttribute('src', this.getImageSrc(node))
         return el
     }
+    // Single source of truth for "this <a> is a footnote/aux link": type=note, or a
+    // link whose target id lives in an auxiliary body (notes/comments). Shared by
+    // anchor() and the clean-title walk so the definition lives in one place.
+    isNoteLink(node) {
+        if (node.getAttribute?.('type') === 'note') return true
+        const href = node.getAttributeNS?.(NS.XLINK, 'href')
+        return Boolean(href?.startsWith('#') && this.auxIds.has(href.slice(1)))
+    }
+    // Clean title text from the SOURCE <title>/<subtitle>: depth-first over childNodes
+    // (the noteref <a> is nested inside <p>, so skip its whole subtree), preserving
+    // inter-<p> whitespace text nodes so normalizeWhitespace reproduces the old label
+    // for note-free titles. Read-only on the source — the built heading is untouched.
+    cleanTitleText(node) {
+        let text = ''
+        const walk = n => {
+            for (const child of n.childNodes) {
+                if (child.nodeType === 3) text += child.textContent
+                else if (child.nodeType === 1) {
+                    if (child.nodeName === 'a' && this.isNoteLink(child)) continue
+                    walk(child)
+                }
+            }
+        }
+        walk(node)
+        return normalizeWhitespace(text)
+    }
     anchor(node) {
         const el = this.convert(node, { 'a': ['a', STYLE] })
-        el.setAttribute('href', node.getAttributeNS(NS.XLINK, 'href'))
+        const href = node.getAttributeNS(NS.XLINK, 'href')
+        el.setAttribute('href', href)
         if (node.getAttribute('type') === 'note') {
             el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
             // Clean brackets from note text: [178] → 178
@@ -128,35 +179,36 @@ class FB2Converter {
             sup.appendChild(el)
             return sup
         }
+        // Link into an auxiliary body (e.g. comments) without type=note: route
+        // it through the footnote popup pipeline via noteref, but keep the
+        // marker inline (no <sup>, no bracket strip) — comments differ from
+        // notes in meaning and stay visually distinct.
+        if (this.isNoteLink(node))
+            el.setAttributeNS(NS.EPUB, 'epub:type', 'noteref')
         return el
     }
     stanza(node) {
-        const el = this.convert(node, {
-            'stanza': ['p', {
-                'title': ['header', {
-                    'p': ['strong', STYLE],
-                    'empty-line': ['br'],
-                }],
-                'subtitle': ['p', STYLE],
-            }],
-        })
-        for (const child of node.children) if (child.nodeName === 'v') {
-            for (const vChild of child.childNodes) {
-                if (vChild.nodeType === 3) el.append(this.doc.createTextNode(vChild.textContent))
-                else if (vChild.nodeName === 'a') el.append(this.anchor(vChild))
-                else if (vChild.nodeName === 'emphasis') {
-                    const em = this.doc.createElement('em')
-                    em.textContent = vChild.textContent
-                    el.append(em)
+        const el = this.doc.createElement('p')
+        if (node.id) el.id = node.id
+        el.classList.add('stanza')
+        for (const child of node.children) {
+            if (child.nodeName === 'title') {
+                el.append(this.convert(child, { 'title': ['header', { 'p': ['strong', STYLE], 'empty-line': ['br'] }] }))
+            } else if (child.nodeName === 'subtitle') {
+                el.append(this.convert(child, { 'subtitle': ['p', STYLE] }))
+            } else if (child.nodeName === 'v') {
+                const line = this.doc.createElement('span')
+                if (child.id) line.id = child.id
+                line.classList.add('v'); line.classList.add('verse-line')
+                for (const vChild of child.childNodes) {
+                    if (vChild.nodeType === 3) line.append(this.doc.createTextNode(vChild.textContent))
+                    else if (vChild.nodeName === 'a') line.append(this.anchor(vChild))
+                    else if (vChild.nodeName === 'emphasis') { const em = this.doc.createElement('em'); em.textContent = vChild.textContent; line.append(em) }
+                    else if (vChild.nodeName === 'strong') { const s = this.doc.createElement('strong'); s.textContent = vChild.textContent; line.append(s) }
+                    else line.append(this.doc.createTextNode(vChild.textContent))
                 }
-                else if (vChild.nodeName === 'strong') {
-                    const strong = this.doc.createElement('strong')
-                    strong.textContent = vChild.textContent
-                    el.append(strong)
-                }
-                else el.append(this.doc.createTextNode(vChild.textContent))
+                el.append(line)
             }
-            el.append(this.doc.createElement('br'))
         }
         return el
     }
@@ -170,12 +222,13 @@ class FB2Converter {
         if (!d) return null
         if (typeof d === 'string') return this[d](node)
 
-        const [name, opts, attrs] = d
+        const [name, opts, attrs, extraClasses] = d
         const el = this.doc.createElement(name)
 
         // copy the ID, and set class name from original element name
         if (node.id) el.id = node.id
         el.classList.add(node.nodeName)
+        if (Array.isArray(extraClasses)) for (const cls of extraClasses) el.classList.add(cls)
 
         // copy attributes
         if (Array.isArray(attrs)) for (const attr of attrs) {
@@ -191,6 +244,8 @@ class FB2Converter {
             if (childEl) el.append(childEl)
             child = child.nextSibling
         }
+        if (node.nodeName === 'title' || node.nodeName === 'subtitle')
+            el.setAttribute(CLEAN_TITLE_ATTR, this.cleanTitleText(node))
         return el
     }
 }
@@ -220,6 +275,7 @@ html {
     text-size-adjust: 100%;
     background: var(--user-bg, #fff);
     color: var(--user-color, #000);
+    --muted: color-mix(in srgb, var(--user-color, #000) 62%, var(--user-bg, #fff));
 }
 body {
     background: var(--user-bg, #fff);
@@ -236,19 +292,58 @@ p, li, dd {
 a:link { color: var(--user-accent, #0066cc); }
 
 /* Structural styles */
-body > img, section > img {
+body > img, section > img, .keep-together > img {
     display: block;
     margin: auto;
 }
-.title h1 { text-align: center; font-size: 1.5em; }
-.title h2 { text-align: center; font-size: 1.3em; }
-.title h3 { text-align: center; font-size: 1.1em; }
-.title h4 { text-align: center; font-size: 1em; }
-body > section > .title, body.notesBodyType > .title {
-    margin: 0 0 1em;
+/* pxb2: картинки внутри боди-<p>, классифицированные по позиции (fb2-image-classify.js).
+   Размер (max-width/height/object-fit/break-inside) форсит paginator.setImageSize — здесь
+   только раскладка. Блок-child не наследует абзацный text-indent, поэтому отступа нет. */
+img.block-image { display: block; margin-inline: auto; }
+img.float-image {
+    float: inline-start;
+    margin-inline-end: 1em;
+    margin-block-end: 0.3em;
+    max-inline-size: 40%;
 }
-.title + .title {
-    margin-top: 0.5em;
+/* height (НЕ max-height: его paginator форсит !important на той же оси — max-* logical
+   ненадёжен против него). paginator height НЕ задаёт → явная height применяется чисто;
+   object-fit:contain (от paginator) держит аспект, ширина авто. Нормализует inline-глиф к
+   высоте строки (величина 1.2em — стартовая, тюнится на визуалке Alexey). */
+img.inline-glyph { height: 1.2em; }
+.title h1 { text-align: center; font-size: 1.5em; font-weight: 700; line-height: 1.2; }
+.title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
+.title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
+.title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
+/* Heading spacing — per level. A STANDALONE heading (a section break with no
+   adjacent .title sibling, at any nesting depth) gets per-level margins from the
+   mockup, INCLUDING the top margin that separates it from the preceding section.
+   The margin sits on the inner heading and collapses through the header.title
+   wrapper, so it works no matter how deep the section nests. */
+.title h1 { margin: 0 0 1.1em; }
+.title h2 { margin: 1.6em 0 0.8em; }
+.title h3 { margin: 1.4em 0 0.7em; }
+.title h4 { margin: 1.3em 0 0.6em; }
+/* A run of adjacent .title siblings is an opening stack (book -> part -> chapter,
+   gathered into one flat block): collapse it compact — zero the stacked titles'
+   inner margins and replace them with one tight uniform gap. The first title
+   keeps its top margin; the last keeps its bottom margin before the body. */
+.title + .title h1, .title + .title h2, .title + .title h3, .title + .title h4 {
+    margin-top: 0;
+}
+.title:has(+ .title) h1, .title:has(+ .title) h2, .title:has(+ .title) h3, .title:has(+ .title) h4 {
+    margin-bottom: 0;
+}
+.title + .title { margin-top: 0.35em; }
+/* A multi-line title (several same-level <p> become sibling headings inside ONE
+   .title, e.g. "Глава первая." + "ЗВАНЫЕ ГОСТИ"): keep the lines tight — they are
+   one title on two lines, spaced only by line-height, not the per-level margins. */
+.title :is(h1, h2, h3, h4) + :is(h1, h2, h3, h4) { margin-top: 0; }
+.title :is(h1, h2, h3, h4):has(+ :is(h1, h2, h3, h4)) { margin-bottom: 0; }
+/* Neutral keep-together box: break-inside is the only cross-engine keep-together
+   tool; NO background/border/padding (decoration fragments across columns). */
+.keep-together {
+    break-inside: avoid;
 }
 body.notesBodyType > section .title h1 {
     text-align: start;
@@ -260,22 +355,72 @@ p {
     text-indent: 2em;
     margin: 0;
 }
-.poem p {
-    text-indent: 0;
-    margin: 1em 0;
-    text-align: start;
+.cite {
+    font-style: italic;
+    font-size: 0.94em;
+    margin: 1.6em 2.6em;
 }
+.cite p { text-indent: 0; }
+.cite .subtitle { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.5em; }
+.poem {
+    font-style: italic;
+    max-width: 26em;
+    margin: 1.2em auto;
+}
+.poem p { text-indent: 0; }
+.poem-title { font-style: normal; font-weight: 700; text-align: center; margin: 0 0 0.6em; }
+/* A poem/cite nested inside an epigraph (or another quote) must not add its own
+   block margin on top of the container's — otherwise the vertical gaps stack
+   (epigraph 1.6/1.8em + poem 1.6em) into one huge gap. The container owns the
+   spacing; the nested quote keeps only its horizontal centering. */
+.epigraph .poem, .epigraph .cite, .epigraph .epigraph,
+.cite .poem, .cite .cite,
+.annotation .poem, .annotation .cite, .annotation .epigraph {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.stanza { margin: 0; }
+.stanza + .stanza { margin-top: 0.8em; }
+.verse-line { display: block; text-indent: 0; }
+/* A run of separate <poem>s separated by <empty-line/> (→ <br>): hide the
+   separator and tighten poem-to-poem spacing, while a standalone poem keeps its
+   full margin. */
+.poem + br { display: none; }
+.poem + br + .poem { margin-top: 0.8em; }
+.poem:has(+ br + .poem) { margin-bottom: 0.8em; }
 .epigraph {
     font-style: italic;
-    font-size: 0.85em;
+    font-size: 0.94em;
+    max-width: 80%;
+    margin: 1.2em 0 1.2em auto;
 }
-.poem + br { display: none; }
-.poem + br + .poem { margin-top: 0.5em; }
-.text-author, .date {
+.epigraph p { text-indent: 0; }
+.annotation {
+    color: var(--muted);
+    font-size: 0.95em;
+    margin: 1.3em 1.6em;
+}
+.annotation p { text-indent: 0; }
+body .subtitle {
+    text-align: center;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--muted);
+    text-indent: 0;
+    /* explicit spacing (subtitle is an h2/h3/h4 tag, UA margin now zeroed) */
+    margin: 1.3em 0;
+}
+.text-author {
     text-align: end;
+    color: var(--muted);
+    font-weight: 650;
+    margin-top: 0.6em;
 }
-.text-author:before {
-    content: "—";
+.date {
+    text-align: end;
+    color: var(--muted);
+    font-size: 0.92em;
+    margin-top: 0.6em;
 }
 table {
     border-collapse: collapse;
@@ -283,11 +428,12 @@ table {
 td, th {
     padding: .25em;
 }
-a[epub|type~="noteref"] {
+sup a[epub|type~="noteref"] {
     font-size: .75em;
     vertical-align: super;
 }
-body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
+body:not(.notesBodyType) > .title,
+body:not(.notesBodyType) > .epigraph {
     margin: 3em 0 1em;
 }
 `], { type: 'text/css' }))
@@ -363,7 +509,20 @@ export const makeFB2 = async blob => {
     const originalToc = collectToc(bodyData[0][0], dataID)
 
     // Build render sections with el preserved for anchor mapping
-    const renderSections = buildContentSegments(bodyData[0][0], { dataID })
+    const contentSegments = buildContentSegments(bodyData[0][0], { dataID })
+    // Late keep-together grouping pass (kfl7 Phase 2): mutate each content
+    // segment's el BEFORE serialisation; data-foliate-id stays on the titles, so
+    // the foliateId->section map (built below from el) and the serialised blob
+    // both see the grouped DOM. Skip the Pass-A frontmatter wrapper (render-section
+    // index 0 when present): it is preamble (author/title/epigraph), dropped from
+    // the TOC and not navigable, so grouping its opening is pointless.
+    for (const seg of contentSegments) {
+        if (!seg.el.classList?.contains('frontmatter')) {
+            applyGrouping(seg.el)
+            classifyImages(seg.el)
+        }
+    }
+    const renderSections = contentSegments
         .concat(bodyData.slice(1).map(([sections, body]) => {
             const ids = sections.map(s => s.ids).flat()
             body.classList.add('notesBodyType')
@@ -374,11 +533,8 @@ export const makeFB2 = async blob => {
             const blob = new Blob([str], { type: MIME.XHTML })
             const url = URL.createObjectURL(blob)
             urls.push(url)
-            const title = normalizeWhitespace(
-                el.querySelector('.title, .subtitle, p')?.textContent
-                ?? (el.classList.contains('title') ? el.textContent : ''))
             return {
-                ids, el, title, load: () => url,
+                ids, el, load: () => url,
                 createDocument: () => new DOMParser().parseFromString(str, MIME.XHTML),
                 size: blob.size - getEmbeddedSrcLength(el),
                 charCount: charCount ?? el.textContent?.length ?? 0,
