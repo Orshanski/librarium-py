@@ -7,6 +7,8 @@
 // undisturbed) and never carries decorative styling. data-foliate-id stays on
 // the title elements inside the wrapper; resolution is descendant-based.
 
+import { isBlockImageParagraph } from './fb2-image-classify.js'
+
 const FRONT_MATTER_CLASSES = new Set(['epigraph', 'annotation'])
 
 const isTitle = el => el?.nodeType === 1 && el.classList.contains('title')
@@ -16,6 +18,13 @@ const isFrontMatter = el => {
     for (const cls of el.classList) if (FRONT_MATTER_CLASSES.has(cls)) return true
     return false
 }
+
+const isEmptyLine = el =>
+    el?.nodeType === 1 && el.tagName.toLowerCase() === 'br' && el.classList.contains('empty-line')
+
+// «Вступительный блок» для look-ahead = существующий front-matter ИЛИ абзац-с-картинкой.
+// Шире, чем isFrontMatter (который абзац-с-картинкой не ловит — это <p>, не <img>).
+const isIntroBlock = el => isFrontMatter(el) || isBlockImageParagraph(el)
 
 const wrap = (ownerDoc, nodes) => {
     if (nodes.length === 0) return
@@ -54,6 +63,26 @@ const groupSectionOpening = (sectionEl) => {
         if (next && next.tagName.toLowerCase() === 'section' && isTitle(next.firstElementChild)) {
             cursor = next
             continue
+        }
+        // look-ahead: перешагнуть отбивку(и) к вступительному блоку, чтобы заголовок не
+        // оторвался от идущей за пустой строкой иллюстрации/эпиграфа/аннотации. Втягиваем
+        // отбивки и сам блок в связку (один блок — множественные подряд идущие картинки
+        // вне scope, 0q54.4).
+        if (next && isEmptyLine(next)) {
+            let j = i
+            while (j < children.length && isEmptyLine(children[j])) j++
+            // isIntroBlock может вернуть true для <section class="epigraph"> (isFrontMatter
+            // матчит epigraph/annotation ПО КЛАССУ, на любом теге), поэтому section-guard —
+            // единственное, что не даёт обернуть вложенную <section> (инвариант: keep-together
+            // никогда не охватывает <section>, см. шапку файла). Сейчас такой section не приходит
+            // сюда как ребёнок обрабатываемой секции (body-level epigraph не вложен; внутри секции
+            // epigraph→blockquote; frontmatter пропускается applyGrouping) — но гард держим явно,
+            // это защита инварианта, а не мёртвый код.
+            if (j < children.length && isIntroBlock(children[j])
+                && children[j].tagName.toLowerCase() !== 'section') {
+                for (let k = i; k <= j; k++) opening.push(children[k])
+                break
+            }
         }
         // leaf: attach the first content block, unless it is a nested section or a
         // poem (poems keep their own tail grouping and the .poem + br + .poem run)
