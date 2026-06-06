@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { makeFB2 } from "./fb2.js";
 // @ts-expect-error vendored Foliate JS has no TypeScript declarations.
 import * as CFI from "./epubcfi.js";
+// @ts-expect-error vendored Foliate JS has no TypeScript declarations.
+import { isBlockImageParagraph } from "./fb2-image-classify.js";
 
 const flattenToc = (items: Array<{ href: string; subitems?: unknown[] | null }> | null | undefined): Array<{ href: string }> =>
   items?.flatMap(item => [
@@ -1080,6 +1082,104 @@ describe("foliate FB2 multi-level divider assembly (kfl7 Phase 2)", () => {
     expect(glava).toBeTruthy();
     expect(book.resolveHref(glava.href).index).toBeGreaterThan(0);
   });
+
+  it("keeps a section title with a following illustration across an empty-line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><image l:href="#i1.png"/><empty-line/><p>Тело главы.</p></section></body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const doc = book.sections[1].createDocument();
+    const keep = doc.querySelector(".keep-together")!;
+    expect(keep).toBeTruthy();
+    expect(keep.querySelector(".title")).toBeTruthy();
+    expect(keep.querySelector("img")).toBeTruthy();
+    expect(keep.querySelector("br.empty-line")).toBeTruthy();
+    expect(keep.textContent).not.toContain("Тело главы");
+  });
+
+  it("keeps title with an image-in-paragraph across an empty-line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><p><image l:href="#i1.png"/></p><p>Тело.</p></section></body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.querySelector("img")).toBeTruthy();
+    expect(keep.textContent).not.toContain("Тело");
+  });
+
+  it("keeps title with an epigraph across an empty-line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><epigraph><p>Эпиграф главы.</p></epigraph><p>Тело.</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.textContent).toContain("Эпиграф главы");
+    expect(keep.textContent).not.toContain("Тело");
+  });
+
+  it("keeps title with an annotation across an empty-line", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><annotation><p>Аннотация главы.</p></annotation><p>Тело.</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.textContent).toContain("Аннотация главы");
+    expect(keep.textContent).not.toContain("Тело");
+  });
+
+  it("steps over MULTIPLE empty-lines to the illustration", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><empty-line/><image l:href="#i1.png"/><p>Тело.</p></section></body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.querySelector("img")).toBeTruthy();
+    expect(keep.querySelectorAll("br.empty-line").length).toBe(2);
+  });
+
+  it("does NOT pull plain text after an empty-line (current behavior preserved)", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><p>Просто текст после отбивки.</p><p>Ещё.</p></section></body>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.querySelector("img")).toBeNull();
+    expect(keep.textContent).not.toContain("Просто текст после отбивки");
+  });
+
+  it("does NOT pull a float image-with-text paragraph", async () => {
+    const book = await makeFB2(new Blob([
+      `<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info><book-title>S</book-title></title-info></description>
+  <body><section><title><p>Глава</p></title><empty-line/><p><image l:href="#i1.png"/>текст рядом с картинкой.</p></section></body>
+  <binary id="i1.png" content-type="image/png">AAAA</binary>
+</FictionBook>`,
+    ], { type: "application/x-fictionbook+xml" }));
+    const keep = book.sections[1].createDocument().querySelector(".keep-together")!;
+    expect(keep.querySelector("img")).toBeNull();
+  });
 });
 
 describe("foliate FB2 pxb2 image classification", () => {
@@ -1207,6 +1307,35 @@ describe("foliate FB2 pxb2 image classification", () => {
     const coverImg = book.sections[0].createDocument().querySelector("img");
     expect(coverImg).toBeTruthy();
     expect(coverImg?.className ?? "").toBe("");
+  });
+});
+
+describe("isBlockImageParagraph predicate", () => {
+  const p = (html: string) => {
+    const doc = new DOMParser().parseFromString(`<body><p>${html}</p></body>`, "text/html");
+    return doc.querySelector("p")!;
+  };
+  it("true: абзац только с картинкой", () => {
+    expect(isBlockImageParagraph(p(`<img src="x"/>`))).toBe(true);
+  });
+  it("true: пробелы вокруг картинки игнорируются", () => {
+    expect(isBlockImageParagraph(p(`\n  <img src="x"/>\n `))).toBe(true);
+  });
+  it("false: картинка + текст (float)", () => {
+    expect(isBlockImageParagraph(p(`<img src="x"/>хвост`))).toBe(false);
+  });
+  it("false: текст до картинки", () => {
+    expect(isBlockImageParagraph(p(`до <img src="x"/>`))).toBe(false);
+  });
+  it("false: две картинки", () => {
+    expect(isBlockImageParagraph(p(`<img src="x"/><img src="y"/>`))).toBe(false);
+  });
+  it("false: не <p>", () => {
+    const doc = new DOMParser().parseFromString(`<body><div><img src="x"/></div></body>`, "text/html");
+    expect(isBlockImageParagraph(doc.querySelector("div")!)).toBe(false);
+  });
+  it("false: пустой/не-элемент", () => {
+    expect(isBlockImageParagraph(null)).toBe(false);
   });
 });
 

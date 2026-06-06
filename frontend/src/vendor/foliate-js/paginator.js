@@ -1,4 +1,5 @@
 import { applyCoverFit, removeCoverSpacerForSingleColumn } from './cover-fit.js'
+import { isImageInTitleKeepTogether } from './title-image-fit.js'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -359,13 +360,16 @@ class View {
         const vertical = this.#vertical
         const doc = this.document
         if (!doc?.body) return
+        const pageContentHeight = height - margin * 2
         for (const el of doc.body.querySelectorAll('img, svg, video')) {
             // preserve max size if they are already set
             const { maxHeight, maxWidth } = doc.defaultView.getComputedStyle(el)
+            const keptImage = !vertical && el.tagName.toLowerCase() === 'img'
+                && isImageInTitleKeepTogether(el)
             setStylesImportant(el, {
                 'max-height': vertical
                     ? (maxHeight !== 'none' && maxHeight !== '0px' ? maxHeight : '100%')
-                    : `${height - margin * 2}px`,
+                    : `${pageContentHeight}px`,
                 'max-width': vertical
                     ? `${width - margin * 2}px`
                     : (maxWidth !== 'none' && maxWidth !== '0px' ? maxWidth : '100%'),
@@ -373,7 +377,34 @@ class View {
                 'page-break-inside': 'avoid',
                 'break-inside': 'avoid',
                 'box-sizing': 'border-box',
+                // 0q54.4 часть 2: картинку в связке с заголовком делаем flex-сжимаемой, чтобы
+                // браузер ужал её под заголовок, если [заголовок+картинка] не влезают в колонку.
+                ...(keptImage ? { 'min-height': '0' } : {}),
             })
+            // 0q54.4 часть 2 (CSS-flex удержание): связку [заголовок + картинка] ограничиваем
+            // ПОЛНОЙ высотой колонки и делаем flex-колонкой. Браузер сам считает высоту заголовка
+            // (надёжно во всех движках) и ужимает картинку только на необходимый минимум; при
+            // коротком заголовке картинка остаётся в свой обычный потолок. JS высоту заголовка НЕ
+            // измеряет. Величина height — из #layout, одинакова в Blink/WebKit. В границе эпика
+            // (размер картинки/связки — презентация, не подобранная геометрия страницы).
+            if (keptImage) {
+                const kt = el.closest('.keep-together')
+                setStylesImportant(kt, {
+                    'display': 'flex',
+                    'flex-direction': 'column',
+                    'max-height': `${height}px`,
+                })
+                // host — прямой ребёнок связки, содержащий картинку (при <p><img> это <p>):
+                // ему тоже нужен min-height:0 + flex-column, чтобы сжатие дошло до картинки.
+                const host = Array.from(kt.children).find(c => c.contains(el))
+                if (host && host !== el) {
+                    setStylesImportant(host, {
+                        'min-height': '0',
+                        'display': 'flex',
+                        'flex-direction': 'column',
+                    })
+                }
+            }
         }
     }
     fitCover() {

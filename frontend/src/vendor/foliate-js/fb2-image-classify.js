@@ -9,6 +9,17 @@
 // <blockquote class="epigraph"> вложенный) — класс ловит оба, тег — нет.
 const QUOTE_CONTAINER = '.cite, .epigraph, .poem, .annotation'
 
+// Структурный предикат «абзац, единственное значимое содержимое которого — картинка»
+// (block-image случай). Один источник истины: используется и классификатором (ниже),
+// и поздней группировкой (fb2-grouping.js look-ahead). Не зависит от класса block-image
+// (он проставляется ПОСЛЕ группировки), только от структуры DOM.
+export const isBlockImageParagraph = (el) => {
+    if (el?.nodeType !== 1 || el.tagName.toLowerCase() !== 'p') return false
+    if (el.children.length !== 1) return false               // ровно один элемент-ребёнок
+    if (el.firstElementChild.tagName.toLowerCase() !== 'img') return false  // и это <img>
+    return (el.textContent ?? '').trim() === ''              // и нет непустого текста (исключает float/inline)
+}
+
 // Классифицирует <img> внутри боди-<p> одного render-section root'а (мутирует на месте).
 export const classifyImages = (rootEl) => {
     if (!rootEl || rootEl.nodeType !== 1) return
@@ -31,7 +42,7 @@ export const classifyImages = (rootEl) => {
             }
         }
         const isFirst = !hasContentBefore
-        if (isFirst && text === '' && p.children.length === 1) {
+        if (isBlockImageParagraph(p)) {
             img.classList.add('block-image')   // единственное содержимое абзаца → центр-блок
         } else if (isFirst && text !== '') {
             img.classList.add('float-image')    // первая + текст → обтекание
