@@ -17,7 +17,7 @@ class CreateUserBody(BaseModel):
 class UpdateUserBody(BaseModel):
     displayName: str | None = None
     email: str | None = None
-    password: str | None = None
+    password: str | None = Field(default=None, min_length=4)
     role: Literal["admin", "reader"] | None = None
 
 

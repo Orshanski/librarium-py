@@ -87,6 +87,23 @@ def test_update_self_with_role_null_is_accepted(admin_client):
     assert settings_resp["displayName"] == "Renamed Admin"
 
 
+def test_update_user_rejects_empty_password(admin_client):
+    """Empty password on update must be rejected (symmetry with create min_length=4)."""
+    assert_error(admin_client.put("/api/admin/users/2", json={"password": ""}), 422)
+
+
+def test_update_user_rejects_short_password(admin_client):
+    """Password shorter than 4 chars must be rejected, like on create."""
+    assert_error(admin_client.put("/api/admin/users/2", json={"password": "ab"}), 422)
+
+
+def test_update_user_accepts_valid_password(admin_client):
+    """Valid-length password update actually changes the password (round-trip via login)."""
+    assert_ok(admin_client.put("/api/admin/users/2", json={"password": "newpass123"}))
+    c = login_client(username="reader", password="newpass123")
+    assert_ok(c.get("/api/auth/me"))
+
+
 # ── Admin settings ──
 
 def test_get_settings(admin_client):
