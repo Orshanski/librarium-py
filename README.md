@@ -113,27 +113,30 @@ The entire UI adapts to phones and tablets. Bottom tab bar for navigation, swipe
 
 ### Security
 
-- JWT authentication with HTTP-only cookies (168h rolling refresh)
+- JWT authentication with HTTP-only cookies (168h rolling refresh); `Secure` flag enabled in production via `SECURE_COOKIE=1` env (systemd drop-in `librarium.service.d/secure-cookie.conf`)
 - CSRF protection — every non-GET `/api/*` request must carry `X-Requested-With: XMLHttpRequest` (browser fetch wrapper sends it automatically; cross-origin form posts cannot)
-- CSP, HSTS, TLS 1.2+
+- CSP (no `unsafe-inline` for scripts), HSTS, TLS 1.2+
 - All auth events and data mutations are logged
 - SPA route whitelist — unknown paths return 404
 
-#### Nginx CSP for the reader
+#### Nginx security headers
 
-The built-in reader uses iframes with `blob:` URLs. The following CSP directives are required:
+Security headers are served by nginx (`/etc/nginx/sites-enabled/librarium` on the server). HSTS and `X-Content-Type-Options` are added by Cloudflare in front. The reader uses `blob:` iframes and workers — hence `blob:` in `script-src`/`frame-src`/`img-src`; `'unsafe-inline'` is required for styles only (React inline CSS + foliate blob styles), scripts run without it. Current config block:
 
 ```
 add_header Content-Security-Policy "
   default-src 'self';
   style-src 'self' 'unsafe-inline' blob: https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
-  img-src 'self' data:;
+  img-src 'self' data: blob:;
   connect-src 'self';
   frame-src 'self' blob:;
-  script-src 'self' 'unsafe-inline' blob: https://static.cloudflareinsights.com;
+  script-src 'self' blob: https://static.cloudflareinsights.com;
   frame-ancestors 'self'
 " always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
 ```
 
 ## Stack
