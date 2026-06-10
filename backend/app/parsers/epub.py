@@ -3,6 +3,7 @@ import zipfile
 import logging
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from .. import xml_safe
+from ..zip_utils import safe_zip_read
 from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
@@ -19,9 +20,9 @@ COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 def _load_opf(zf: zipfile.ZipFile) -> tuple[etree._Element, str]:
     """Возвращает (opf_tree, cover_dir). Читает META-INF/container.xml → opf_path → opf_tree.
     Исключения: KeyError / IndexError / etree.XMLSyntaxError — любая malformed EPUB уйдёт в caller."""
-    container = xml_safe.fromstring(zf.read("META-INF/container.xml"))
+    container = xml_safe.fromstring(safe_zip_read(zf, "META-INF/container.xml"))
     opf_path = container.xpath("n:rootfiles/n:rootfile/@full-path", namespaces=NS)[0]
-    opf = xml_safe.fromstring(zf.read(opf_path))
+    opf = xml_safe.fromstring(safe_zip_read(zf, opf_path))
     cover_dir = os.path.dirname(opf_path)
     return opf, cover_dir
 
@@ -141,12 +142,12 @@ def _read_cover(zf: zipfile.ZipFile, cover_dir: str, href: str) -> tuple[bytes |
         return None, None
     path = os.path.join(cover_dir, href).replace("\\", "/")
     try:
-        data = zf.read(path)
+        data = safe_zip_read(zf, path)
         ext_clean = ext.lstrip(".").replace("jpeg", "jpg")
         return data, ext_clean
     except KeyError:
         try:
-            data = zf.read(href)
+            data = safe_zip_read(zf, href)
             ext_clean = ext.lstrip(".").replace("jpeg", "jpg")
             return data, ext_clean
         except KeyError:
