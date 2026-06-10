@@ -8,11 +8,12 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import cast
 
-from ..config import UPLOADS_DIR, MAX_BOOK_SIZE, db_path_for
+from ..config import UPLOADS_DIR, db_path_for
 from ..dtos.books import BookCreateData, DuplicateHit, DuplicateHitItem
 from ..dtos.upload import CreateBookMetadataIn, CreateBookMetadataOut, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
+from ..zip_utils import safe_zip_read
 from ..parsers import parse_book, ParsedMetadata
 from ..enrichers import enrich_metadata, resolve_genres
 from ..dal.books import (
@@ -64,12 +65,9 @@ def _extract_from_zip(content: bytes, temp_id: str) -> tuple[bytes, str, str]:
             if len(book_files) > 1:
                 raise BadInputError(f"ZIP содержит несколько книг: {', '.join(book_files)}")
             book_name = book_files[0]
-            info = zf.getinfo(book_name)
-            if info.file_size > MAX_BOOK_SIZE:
-                raise BadInputError("Файл внутри ZIP слишком большой")
             ext = book_name.rsplit(".", 1)[-1].lower()
             filename_hint = os.path.basename(book_name)
-            extracted = zf.read(book_name)
+            extracted = safe_zip_read(zf, book_name)
     except zipfile.BadZipFile:
         raise BadInputError("Повреждённый ZIP")
     finally:

@@ -86,11 +86,10 @@ def test_upload_zip_corrupted_is_400(admin_client):
 def test_upload_zip_oversized_inner_is_400(admin_client, monkeypatch):
     """ZIP с книгой больше MAX_BOOK_SIZE внутри должен быть отклонён с 400."""
     from app import config
-    from app.services import upload_service
 
+    # safe_zip_read reads config.MAX_BOOK_SIZE at call time, so this patch lowers
+    # the effective ceiling for the inner-book size check.
     monkeypatch.setattr(config, "MAX_BOOK_SIZE", 100)
-    if hasattr(upload_service, "MAX_BOOK_SIZE"):
-        monkeypatch.setattr(upload_service, "MAX_BOOK_SIZE", 100)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:

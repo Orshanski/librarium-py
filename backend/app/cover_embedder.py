@@ -14,6 +14,7 @@ from PIL import Image
 from . import xml_safe
 from .exceptions import BadInputError
 from .logging_utils import safe as safe_log
+from .zip_utils import safe_zip_read
 
 log = logging.getLogger("librarium.cover_embedder")
 
@@ -98,11 +99,11 @@ def embed_cover_epub(file_path: Path, cover_bytes: bytes) -> None:
     and metadata.
     """
     with zipfile.ZipFile(str(file_path), "r") as zf:
-        container = xml_safe.fromstring(zf.read("META-INF/container.xml"))
+        container = xml_safe.fromstring(safe_zip_read(zf, "META-INF/container.xml"))
         opf_path = container.xpath(
             "n:rootfiles/n:rootfile/@full-path", namespaces=EPUB_NS
         )[0]
-        opf = xml_safe.fromstring(zf.read(opf_path))
+        opf = xml_safe.fromstring(safe_zip_read(zf, opf_path))
         cover_dir = os.path.dirname(opf_path)
 
         # Search for existing cover using 3 methods
@@ -132,7 +133,7 @@ def embed_cover_epub(file_path: Path, cover_bytes: bytes) -> None:
                         new_opf_bytes = _add_cover_to_opf(opf)
                         zf_out.writestr(item, new_opf_bytes)
                     else:
-                        zf_out.writestr(item, zf.read(item.filename))
+                        zf_out.writestr(item, safe_zip_read(zf, item.filename))
 
                 if cover_href is None:
                     # Add the cover image file
