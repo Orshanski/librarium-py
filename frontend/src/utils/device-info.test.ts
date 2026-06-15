@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { getDeviceName, getDeviceType } from "./device-info";
+import { describe, it, expect, vi } from "vitest";
+import { getDeviceName, getDeviceType, isIOS, isStandalone } from "./device-info";
 
 describe("getDeviceName", () => {
   it.each([
@@ -34,5 +34,41 @@ describe("getDeviceType", () => {
     } finally {
       Object.defineProperty(globalThis, "innerWidth", { value: original, configurable: true });
     }
+  });
+});
+
+// Глобали восстанавливает глобальный afterEach(vi.unstubAllGlobals())
+// из setup-common.ts:36-38 — свой afterEach не нужен.
+describe("isIOS", () => {
+  it.each([
+    ["iPhone UA", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "iPhone", 5, true],
+    ["iPad UA", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", "iPad", 5, true],
+    ["iPadOS под Mac (MacIntel + touch)", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "MacIntel", 5, true],
+    ["реальный Mac (MacIntel, без touch)", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "MacIntel", 0, false],
+    ["Android", "Mozilla/5.0 (Linux; Android 14; Pixel 8)", "Linux armv8l", 5, false],
+    ["Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Win32", 0, false],
+  ])("%s -> %s", (_label, userAgent, platform, maxTouchPoints, expected) => {
+    vi.stubGlobal("navigator", { userAgent, platform, maxTouchPoints });
+    expect(isIOS()).toBe(expected);
+  });
+});
+
+describe("isStandalone", () => {
+  it("true when matchMedia reports display-mode standalone", () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    vi.stubGlobal("navigator", {});
+    expect(isStandalone()).toBe(true);
+  });
+
+  it("true when navigator.standalone is true (matchMedia not matching)", () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
+    vi.stubGlobal("navigator", { standalone: true });
+    expect(isStandalone()).toBe(true);
+  });
+
+  it("false when neither signal is set", () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
+    vi.stubGlobal("navigator", { standalone: false });
+    expect(isStandalone()).toBe(false);
   });
 });
