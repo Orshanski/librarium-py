@@ -3,6 +3,7 @@ import { colors, fonts } from "../../theme";
 import type { ReaderToolbarProps } from "../../types/reader-toolbar";
 import { flattenToc } from "../../utils/reader-toc";
 import ReaderSettingsPanel from "../reader-settings-panel";
+import { isStandalone } from "../../utils/device-info";
 
 const btnStyle: React.CSSProperties = {
   background: "none",
@@ -18,8 +19,7 @@ const btnStyle: React.CSSProperties = {
   lineHeight: 1,
 };
 
-const isPWA = globalThis.matchMedia("(display-mode: standalone)").matches
-  || (navigator as { standalone?: boolean }).standalone === true;
+const isPWA = isStandalone();
 
 export default function DesktopReaderToolbar({
   bookTitle,

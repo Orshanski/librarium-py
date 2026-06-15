@@ -1,4 +1,5 @@
 import { downloadBook } from "@/api/endpoints/books";
+import { isIOS, isStandalone } from "../utils/device-info";
 import { setReadingFlag } from "../utils/readerFlag";
 import BookActionButton from "./book-action-button";
 
@@ -71,7 +72,12 @@ export default function BookReadDownloadButtons({
     const blob = await downloadBook(bookId, format);
     const filename = buildDownloadFilename(bookTitle, format);
     const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-    if (await shareFileIfSupported(file)) return;
+    // Share нужен только в iOS-standalone PWA, где WebView игнорирует
+    // <a download> и навигирует на бинарь, заперая пользователя (баг an73).
+    // Везде ещё — обычная blob-загрузка через anchor.
+    if (isIOS() && isStandalone()) {
+      if (await shareFileIfSupported(file)) return;
+    }
     saveBlobWithAnchor(file, filename);
   }
 

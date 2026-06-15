@@ -1,3 +1,10 @@
+declare global {
+  interface Navigator {
+    /** Нестандартный флаг iOS Safari: true в home-screen (standalone) PWA. */
+    readonly standalone?: boolean;
+  }
+}
+
 const OS_MATCHERS: [RegExp, string][] = [
   [/Mac/, "macOS"],
   [/Windows/, "Windows"],
@@ -44,4 +51,21 @@ export function getDeviceType(screenWidth?: number): "desktop" | "tablet" | "mob
   if (w < 820) return "mobile";
   if (w < 1200) return "tablet";
   return "desktop";
+}
+
+/** True на iPhone/iPad/iPod, включая iPadOS, маскирующийся под десктоп-Mac. */
+export function isIOS(): boolean {
+  const nav = globalThis.navigator;
+  if (!nav) return false;
+  if (/iPhone|iPad|iPod/.test(nav.userAgent)) return true;
+  // iPadOS 13+ отдаёт Mac-userAgent; десктоп-Mac имеет maxTouchPoints 0,
+  // iPad — >1. navigator.platform deprecated и на Mac тоже "MacIntel",
+  // поэтому дискриминатор именно touch-points, не platform.
+  return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
+}
+
+/** True когда приложение запущено как установленная (standalone) PWA. */
+export function isStandalone(): boolean {
+  const byMedia = globalThis.matchMedia?.("(display-mode: standalone)").matches === true;
+  return byMedia || globalThis.navigator?.standalone === true;
 }

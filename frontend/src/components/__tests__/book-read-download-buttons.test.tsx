@@ -14,6 +14,35 @@ function withRouter(ui: React.ReactNode) {
   return <MemoryRouter>{ui}</MemoryRouter>;
 }
 
+function stubPlatform(opts: {
+  userAgent?: string;
+  platform?: string;
+  maxTouchPoints?: number;
+  standalone?: boolean;
+  displayModeStandalone?: boolean;
+  canShare?: boolean;
+}) {
+  const share = vi.fn().mockResolvedValue(undefined);
+  const canShare = vi.fn().mockReturnValue(opts.canShare ?? false);
+  // Spread реального navigator (как в share-тесте ниже) — чтобы не обнулить
+  // поля, которые React 19 / react-router читают при render. Переопределяем
+  // только platform-сигналы. Глобали снимает afterEach из setup-common.ts.
+  vi.stubGlobal("navigator", {
+    ...navigator,
+    userAgent: opts.userAgent ?? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    platform: opts.platform ?? "MacIntel",
+    maxTouchPoints: opts.maxTouchPoints ?? 0,
+    standalone: opts.standalone ?? false,
+    canShare,
+    share,
+  });
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({ matches: opts.displayModeStandalone ?? false }),
+  );
+  return { share, canShare };
+}
+
 describe("BookReadDownloadButtons", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -182,13 +211,18 @@ describe("BookReadDownloadButtons", () => {
     await waitFor(() => expect(clickedDownload).toBe("Bad name.fb2"));
   });
 
-  it("shares FB2 files when the browser supports file sharing", async () => {
+  it("shares FB2 on iOS standalone PWA instead of navigating", async () => {
     const downloadSpy = vi
       .spyOn(booksApi, "downloadBook")
       .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
-    const canShare = vi.fn().mockReturnValue(true);
-    const share = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { ...navigator, canShare, share });
+    const { share } = stubPlatform({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+      platform: "iPhone",
+      maxTouchPoints: 5,
+      standalone: true,
+      displayModeStandalone: true,
+      canShare: true,
+    });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
     render(
@@ -207,7 +241,145 @@ describe("BookReadDownloadButtons", () => {
     await waitFor(() => expect(downloadSpy).toHaveBeenCalledWith(7, "FB2"));
     await waitFor(() => expect(share).toHaveBeenCalled());
     expect(share.mock.calls[0][0].files[0].name).toBe("Карп, дракон и жук. Луна в тумане.fb2");
-    expect(canShare).toHaveBeenCalled();
     expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT share on macOS PWA — downloads via anchor", async () => {
+    const downloadSpy = vi
+      .spyOn(booksApi, "downloadBook")
+      .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
+    const { share } = stubPlatform({
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+      standalone: false,
+      displayModeStandalone: true, // PWA: display-mode standalone, но НЕ iOS
+      canShare: true,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:book-fb2");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    render(
+      withRouter(
+        <BookReadDownloadButtons
+          bookId={7}
+          bookTitle="Книга"
+          formats={[{ format: "FB2", size: "850 KB" }]}
+          readableFormats={[]}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Скачать FB2/ }));
+
+    await waitFor(() => expect(downloadSpy).toHaveBeenCalledWith(7, "FB2"));
+    expect(share).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("does NOT share in a desktop browser — downloads via anchor", async () => {
+    const downloadSpy = vi
+      .spyOn(booksApi, "downloadBook")
+      .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
+    const { share } = stubPlatform({
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+      standalone: false,
+      displayModeStandalone: false,
+      canShare: true,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:book-fb2");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    render(
+      withRouter(
+        <BookReadDownloadButtons
+          bookId={7}
+          bookTitle="Книга"
+          formats={[{ format: "FB2", size: "850 KB" }]}
+          readableFormats={[]}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Скачать FB2/ }));
+
+    await waitFor(() => expect(downloadSpy).toHaveBeenCalledWith(7, "FB2"));
+    expect(share).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("does NOT share in mobile Safari with address bar (iOS, not standalone)", async () => {
+    const downloadSpy = vi
+      .spyOn(booksApi, "downloadBook")
+      .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
+    const { share } = stubPlatform({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+      platform: "iPhone",
+      maxTouchPoints: 5,
+      standalone: false,
+      displayModeStandalone: false,
+      canShare: true,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:book-fb2");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    render(
+      withRouter(
+        <BookReadDownloadButtons
+          bookId={7}
+          bookTitle="Книга"
+          formats={[{ format: "FB2", size: "850 KB" }]}
+          readableFormats={[]}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Скачать FB2/ }));
+
+    await waitFor(() => expect(downloadSpy).toHaveBeenCalledWith(7, "FB2"));
+    expect(share).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  // Документирует принятый edge-case спеки: на iOS-standalone, если share не
+  // поддержан, код падает в anchor (исходный an73-fallback). Проходит и до
+  // фикса — это behavior-lock, не red-тест.
+  it("falls back to anchor on iOS standalone when share is unsupported", async () => {
+    const downloadSpy = vi
+      .spyOn(booksApi, "downloadBook")
+      .mockResolvedValue(new Blob(["fb2"], { type: "application/octet-stream" }));
+    const { share } = stubPlatform({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+      platform: "iPhone",
+      maxTouchPoints: 5,
+      standalone: true,
+      displayModeStandalone: true,
+      canShare: false, // share не поддержан -> shareFileIfSupported() === false
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:book-fb2");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    render(
+      withRouter(
+        <BookReadDownloadButtons
+          bookId={7}
+          bookTitle="Книга"
+          formats={[{ format: "FB2", size: "850 KB" }]}
+          readableFormats={[]}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Скачать FB2/ }));
+
+    await waitFor(() => expect(downloadSpy).toHaveBeenCalledWith(7, "FB2"));
+    expect(share).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
   });
 });
