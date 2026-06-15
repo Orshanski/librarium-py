@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
@@ -177,5 +178,66 @@ describe("BookPage", () => {
 
     expect(screen.getAllByText("Мастер и Маргарита").length).toBeGreaterThan(0);
     expect(requestCount).toBe(1);
+  });
+
+  // Регресс: навигация книга→книга внутри одного маршрута /book/:id (клик по
+  // карточке рейла серии) НЕ ремаунтит BookPage. Производный стейт isRead в
+  // BookDetail (useState(book.isRead)) застревает на значении предыдущей книги,
+  // когда у целевой книги нет загрузочного экрана — т.е. её деталь уже в кэше
+  // (книгу уже открывали в этой сессии). Тогда BookDetail не размонтируется и
+  // кнопка показывает статус прошлой книги.
+  it("series nav back to a cached book: read toggle reflects that book, not the previous one", async () => {
+    const user = userEvent.setup();
+    const series = { id: 5, name: "Серия" };
+    const bookOne = { ...mockBookDetail, id: 42, title: "Книга Один", isRead: true, rating: 4, series, seriesNumber: 1 };
+    const bookTwo = { ...mockBookDetail, id: 43, title: "Книга Два", isRead: false, rating: 1, series, seriesNumber: 2 };
+
+    server.use(
+      http.get("/api/books/:id", ({ params }) => {
+        const { id } = params as { id: string };
+        if (id === "42") return HttpResponse.json({ book: bookOne, files: [], identifiers: [] });
+        if (id === "43") return HttpResponse.json({ book: bookTwo, files: [], identifiers: [] });
+        return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+      }),
+      http.get("/api/books", ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get("seriesIds") === "5") {
+          return HttpResponse.json({ books: [bookOne, bookTwo], hasMore: false });
+        }
+        return HttpResponse.json({ books: [], hasMore: false });
+      })
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id" element={<BookPage />} />
+      </Routes>,
+      { initialEntries: ["/book/42"] }
+    );
+
+    // Книга 42 прочитана → кнопка «✓ Прочитано».
+    await waitFor(() => expect(screen.getByText(/✓ Прочитано/i)).toBeInTheDocument());
+
+    // Переход 42 → 43: книга 43 ещё не в кэше → «Загрузка...» → BookDetail
+    // ремаунтится, поэтому этот переход корректен даже без фикса. После него
+    // деталь обеих книг закэширована.
+    const toTwo = screen.getByText("Книга Два").closest("a");
+    if (!toTwo) throw new Error("series rail link «Книга Два» not found");
+    await user.click(toTwo);
+    expect(await screen.findByRole("heading", { name: /Книга Два/, level: 1 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Не прочитано/i)).toBeInTheDocument());
+    expect(screen.getByTestId("book-rating").dataset.rating).toBe("1");
+
+    // Переход 43 → 42: деталь книги 42 уже в кэше → нет «Загрузки» → BookDetail
+    // не ремаунтится. Кнопка и рейтинг обязаны отразить книгу 42 (прочитана,
+    // рейтинг 4), а не застрявший стейт книги 43.
+    const toOne = screen.getByText("Книга Один").closest("a");
+    if (!toOne) throw new Error("series rail link «Книга Один» not found");
+    await user.click(toOne);
+    expect(await screen.findByRole("heading", { name: /Книга Один/, level: 1 })).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText(/✓ Прочитано/i)).toBeInTheDocument());
+    expect(screen.queryByText(/Не прочитано/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("book-rating").dataset.rating).toBe("4");
   });
 });

@@ -108,6 +108,7 @@ export default function BookPage() {
     <>
       <PageHeader title={book.title} breadcrumb={crumb} />
       <BookDetail
+        key={book.id}
         book={detailBook}
         seriesBooks={seriesBooks}
         formats={formats}
