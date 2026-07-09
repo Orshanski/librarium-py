@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import threading
 from dataclasses import dataclass
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Never, TypedDict, cast
 
 from .database import add_after_commit_hook, open_event_db
 
@@ -131,7 +131,9 @@ def append_publication(*, scope: EventScope, event_type: str, payload: dict[str,
             """,
             (scope.kind, scope.user_id, event_type, payload_json, "{}", published_at),
         )
-        event_id = int(cursor.lastrowid)
+        event_id = cursor.lastrowid
+        if event_id is None:
+            raise RuntimeError("SQLite INSERT did not produce a rowid")
         envelope: ServerEvent = {
             "eventId": event_id,
             "publishedAt": published_at,
@@ -155,7 +157,7 @@ class MalformedPublicationError(ValueError):
     pass
 
 
-def _raise_malformed_envelope() -> None:
+def _raise_malformed_envelope() -> Never:
     raise MalformedPublicationError("malformed SSE publication envelope")
 
 
@@ -195,7 +197,7 @@ def _load_envelope(row: sqlite3.Row) -> ServerEvent:
     if not isinstance(event.get("payload"), dict):
         _raise_malformed_envelope()
 
-    return envelope
+    return cast(ServerEvent, envelope)
 
 
 def next_publication_after(*, user_id: int, cursor: int) -> ServerEvent | None:
