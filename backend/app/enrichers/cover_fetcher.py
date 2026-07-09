@@ -3,6 +3,7 @@ import logging
 import httpx
 
 from ..ssrf import is_safe_url
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def _follow_redirect(response: httpx.Response, current_url: str) -> str | None:
     """
     location = response.headers.get("location", "")
     if not location:
-        log.warning("Redirect without Location header: %s", current_url)
+        log.warning("Redirect without Location header: %s", safe_log(str(current_url)))
         return None
     return str(httpx.URL(current_url).join(location))
 
@@ -42,7 +43,10 @@ def _check_size_header(response: httpx.Response, url: str) -> bool:
         return True
     try:
         if int(size_hdr) > MAX_COVER_DOWNLOAD_BYTES:
-            log.warning("Cover too large (Content-Length=%s) for %s", size_hdr, url)
+            log.warning(
+                "Cover too large (Content-Length=%s) for %s",
+                safe_log(str(size_hdr)), safe_log(str(url)),
+            )
             return False
     except ValueError:
         pass  # ignore malformed Content-Length
@@ -56,11 +60,14 @@ def _resolve_ext(response: httpx.Response, url: str) -> str | None:
     """
     content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
     if not content_type:
-        log.warning("Missing content-type header for %s", url)
+        log.warning("Missing content-type header for %s", safe_log(str(url)))
         return None
     ext = CONTENT_TYPE_TO_EXT.get(content_type)
     if not ext:
-        log.warning("Unsupported content-type for %s: %s", url, content_type)
+        log.warning(
+            "Unsupported content-type for %s: %s",
+            safe_log(str(url)), safe_log(str(content_type)),
+        )
     return ext
 
 
@@ -74,7 +81,10 @@ def _stream_with_cap(response: httpx.Response, url: str) -> bytes | None:
     for chunk in response.iter_bytes():
         total += len(chunk)
         if total > MAX_COVER_DOWNLOAD_BYTES:
-            log.warning("Cover too large (streamed %d bytes) for %s", total, url)
+            log.warning(
+                "Cover too large (streamed %d bytes) for %s",
+                int(total), safe_log(str(url)),
+            )
             return None
         chunks.append(chunk)
     return b"".join(chunks)
@@ -111,7 +121,10 @@ def _attempt(current_url: str) -> tuple[str | None, tuple[bytes, str] | None]:
 
             return (None, (body, ext))
     except Exception as e:
-        log.warning("Cover fetch failed for %s: %s", current_url, e)
+        log.warning(
+            "Cover fetch failed for %s: %s",
+            safe_log(str(current_url)), safe_log(e),
+        )
         return (None, None)
 
 
@@ -137,5 +150,5 @@ def fetch_cover(url: str) -> tuple[bytes | None, str | None]:
             return None, None
         current_url = next_url
 
-    log.warning("Too many redirects starting from %s", url)
+    log.warning("Too many redirects starting from %s", safe_log(str(url)))
     return None, None

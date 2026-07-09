@@ -1,6 +1,8 @@
 import logging
 from typing import Any, cast
 
+from ..logging_utils import safe as safe_log
+
 log = logging.getLogger(__name__)
 
 # Render parameters (empirical)
@@ -20,13 +22,13 @@ def render_cover(pdf_path: str, zoom: float = COVER_ZOOM) -> tuple[bytes | None,
     try:
         import fitz  # PyMuPDF (lazy import)
     except ImportError as e:
-        log.warning("PyMuPDF not installed, cannot render cover: %s", e)
+        log.warning("PyMuPDF not installed, cannot render cover: %s", safe_log(e))
         return None, None
 
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
-        log.warning("Cannot open PDF for cover render: %s", e)
+        log.warning("Cannot open PDF for cover render: %s", safe_log(e))
         return None, None
 
     try:
@@ -44,7 +46,10 @@ def render_cover(pdf_path: str, zoom: float = COVER_ZOOM) -> tuple[bytes | None,
                 jpeg_bytes = pix.tobytes("jpeg", jpg_quality=85)
                 return jpeg_bytes, "jpg"
             except Exception as e:
-                log.warning("Render failed at page %d of %s: %s", pno, pdf_path, e)
+                log.warning(
+                    "Render failed at page %d of %s: %s",
+                    int(pno), safe_log(str(pdf_path)), safe_log(e),
+                )
                 continue
         return None, None
     finally:

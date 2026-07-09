@@ -9,6 +9,7 @@ from ..auth import CurrentUser, get_current_user, get_client_ip, decode_token, C
 from ..config import JWT_EXPIRE_HOURS
 from ..database import db_session
 from ..dtos.auth import AuthUserResponse, AuthLoginResponse, AuthLogoutResponse, LoginRequest
+from ..logging_utils import safe as safe_log
 from ..services import auth_service
 
 log = logging.getLogger("librarium.auth")
@@ -49,7 +50,7 @@ def logout(request: Request, response: Response) -> AuthLogoutResponse:
         try:
             payload = decode_token(token)
             user_id = payload.get("userId")
-            log.info("Logout user_id=%s", user_id)
+            log.info("Logout user_id=%s", safe_log(str(user_id)))
         except Exception:
             pass
     response.delete_cookie(COOKIE_NAME, path="/")

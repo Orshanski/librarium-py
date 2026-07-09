@@ -55,7 +55,7 @@ def update_book(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
 ):
     result = book_service.update_book(db, book_id, body, user.user_id)
-    log.info("Updated book=%d by user_id=%s", book_id, user.user_id)
+    log.info("Updated book=%d by user_id=%s", int(book_id), str(user.user_id))
     return result
 
 
@@ -68,5 +68,5 @@ def delete_book(book_id: int, user: Annotated[CurrentUser, Depends(require_admin
         event_type="bookDeleted",
         payload={"bookId": book_id},
     )
-    log.info("Deleted book=%d by user_id=%s", book_id, user.user_id)
+    log.info("Deleted book=%d by user_id=%s", int(book_id), str(user.user_id))
     return OkResponse()

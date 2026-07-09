@@ -186,7 +186,7 @@ def delete_book(db: sqlite3.Connection, book_id: int) -> None:
     try:
         thumb.invalidate(book_id)
     except OSError:
-        log.warning("Failed to remove thumb for book %d", book_id)
+        log.warning("Failed to remove thumb for book %d", int(book_id))
 
 
 def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailResponse:
@@ -260,7 +260,7 @@ def _resolve_delete_formats(
         if row is None:
             log.info(
                 "idempotent delete skipped: book=%d format=%s not present",
-                book_id, safe_log(fmt_code),
+                int(book_id), safe_log(str(fmt_code)),
             )
             continue
         resolved.append((fmt_code, row))
@@ -408,7 +408,7 @@ def update_book(
         # grace 3600 s, практически невозможно).
         log.warning(
             "commitCover: pending cover vanished between check and commit, book=%d",
-            book_id,
+            int(book_id),
         )
 
     # Шаг 5: metadata — всегда (updated_at bump при file-only тоже).

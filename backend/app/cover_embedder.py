@@ -221,7 +221,7 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
 
     book_dir = LIBRARY_DIR / str(book_id)
     if not book_dir.is_dir():
-        log.warning("Book directory not found: %s", safe_log(book_dir))
+        log.warning("Book directory not found: %s", safe_log(str(book_dir)))
         return
 
     # Find cover file
@@ -232,8 +232,8 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
             break
 
     if cover_file is None:
-        log.warning("No cover file found for book %d", book_id)
-        return  # book_id is int — safe to log directly
+        log.warning("No cover file found for book %d", int(book_id))
+        return
 
     cover_bytes = (book_dir / cover_file).read_bytes()
     jpeg_bytes = to_jpeg(cover_bytes)
@@ -249,17 +249,20 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
         try:
             ext_safe = _safe_ext(fmt.lower())
         except BadInputError:
-            log.warning("Skipping book %d with invalid format %s", book_id, safe_log(fmt))
+            log.warning(
+                "Skipping book %d with invalid format %s",
+                int(book_id), safe_log(str(fmt)),
+            )
             continue
         file_path = LIBRARY_DIR / str(book_id) / f"book.{ext_safe}"
         if not file_path.exists():
-            log.warning("File not found: %s", safe_log(file_path))
+            log.warning("File not found: %s", safe_log(str(file_path)))
             continue
         if fmt == "FB2":
-            log.info("Embedding cover into FB2: %s", safe_log(file_path))
+            log.info("Embedding cover into FB2: %s", safe_log(str(file_path)))
             embed_cover_fb2(file_path, jpeg_bytes)
         elif fmt == "EPUB":
-            log.info("Embedding cover into EPUB: %s", safe_log(file_path))
+            log.info("Embedding cover into EPUB: %s", safe_log(str(file_path)))
             embed_cover_epub(file_path, jpeg_bytes)
         else:
-            log.debug("Skipping format %s for book %d", safe_log(fmt), book_id)
+            log.debug("Skipping format %s for book %d", safe_log(str(fmt)), int(book_id))

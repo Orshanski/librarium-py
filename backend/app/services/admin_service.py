@@ -31,7 +31,10 @@ def list_users(db: sqlite3.Connection) -> AdminUsersListResponse:
 def create_user(db: sqlite3.Connection, username: str, password: str, role: str,
                 display_name: str | None, email: str | None, actor_id: int) -> int:
     uid = users_dal.create_user(db, username, password, role, display_name, email)
-    log.info("Created user=%s role=%s by user_id=%s", safe_log(username), safe_log(role), actor_id)
+    log.info(
+        "Created user=%s role=%s by user_id=%s",
+        safe_log(str(username)), safe_log(str(role)), str(actor_id),
+    )
     return uid
 
 
@@ -54,7 +57,7 @@ def update_user(db: sqlite3.Connection, user_id: int, body: UpdateUserBody, acto
     if role_actually_changed:
         from ..auth import bump_token_epoch  # deferred to break auth↔dal.users circular import
         bump_token_epoch(db, user_id)
-    log.info("Updated user_id=%d by user_id=%s", user_id, actor.user_id)
+    log.info("Updated user_id=%d by user_id=%s", int(user_id), str(actor.user_id))
 
 
 def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:
@@ -63,7 +66,7 @@ def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:
     if users_dal.is_last_admin(db, user_id):
         raise BadInputError("Нельзя удалить последнего админа")
     users_dal.delete_user(db, user_id)
-    log.info("Deleted user_id=%d by user_id=%s", user_id, actor_id)
+    log.info("Deleted user_id=%d by user_id=%s", int(user_id), str(actor_id))
 
 
 # --- Settings ---
@@ -86,4 +89,4 @@ def update_settings(db: sqlite3.Connection, body: UpdateSettingsBody, actor_id: 
             settings_dal.set_setting(db, key, value)
             changed.append(key)
     if changed:
-        log.info("Updated settings=%s by user_id=%s", ",".join(changed), actor_id)
+        log.info("Updated settings=%s by user_id=%s", str(",".join(changed)), str(actor_id))

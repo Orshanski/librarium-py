@@ -62,15 +62,15 @@ async def stream_events(request: Request, user: Annotated[CurrentUser, Depends(g
             except MalformedPublicationError:
                 log.exception(
                     "Malformed SSE publication at cursor=%s user_id=%s",
-                    cursor,
-                    user.user_id,
+                    int(cursor),
+                    str(user.user_id),
                 )
                 break
             except Exception:
                 log.exception(
                     "Failed to read SSE publication at cursor=%s user_id=%s",
-                    cursor,
-                    user.user_id,
+                    int(cursor),
+                    str(user.user_id),
                 )
                 break
             if event is not None:

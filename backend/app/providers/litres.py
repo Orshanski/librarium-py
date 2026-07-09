@@ -3,6 +3,7 @@ import logging
 import requests
 from . import MetadataResult
 from ..dtos.similar import SimilarCandidate
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def search_litres(query: str) -> list[MetadataResult]:
                 results.append(r)
         return results
     except Exception as e:
-        log.warning("Litres search error: %s", e)
+        log.warning("Litres search error: %s", safe_log(e))
         return []
 
 

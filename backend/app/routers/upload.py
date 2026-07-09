@@ -45,7 +45,10 @@ async def upload_file(
     content = await file.read()
     result = await upload_and_parse(db, content, filename)
 
-    log.info("Uploaded temp_id=%s file=%s by user_id=%s", result.temp_id, safe_log(filename), user.user_id)
+    log.info(
+        "Uploaded temp_id=%s file=%s by user_id=%s",
+        str(result.temp_id), safe_log(str(filename)), str(user.user_id),
+    )
     return result
 
 
@@ -71,7 +74,7 @@ def create_book_from_upload(
         event_type="bookCreated",
         payload={"bookId": book_id},
     )
-    log.info("Created book=%d by user_id=%s", book_id, user.user_id)
+    log.info("Created book=%d by user_id=%s", int(book_id), str(user.user_id))
     return CreateBookResponse(book_id=book_id)
 
 
@@ -89,5 +92,8 @@ def add_format_endpoint(
         event_type="bookUpdated",
         payload={"book": {"id": book_id}, "changedFields": ["files"]},
     )
-    log.info("Added format=%s book=%d by user_id=%s", fmt, book_id, user.user_id)
+    log.info(
+        "Added format=%s book=%d by user_id=%s",
+        safe_log(str(fmt)), int(book_id), str(user.user_id),
+    )
     return AddFormatResponse(format=fmt)

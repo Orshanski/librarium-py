@@ -42,5 +42,5 @@ def get_similar(db: sqlite3.Connection, book_id: int) -> SimilarResponse:
         raise
     except Exception as e:
         # Third-party/network errors — graceful degrade (UX decision, legacy).
-        log.warning("Similar books error for book_id=%d: %s", book_id, safe_log(e))
+        log.warning("Similar books error for book_id=%d: %s", int(book_id), safe_log(e))
         return SimilarResponse(books=[], source=_SOURCE, error="service_unavailable")

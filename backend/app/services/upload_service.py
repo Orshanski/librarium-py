@@ -13,6 +13,7 @@ from ..dtos.books import BookCreateData, DuplicateHit, DuplicateHitItem
 from ..dtos.upload import CreateBookMetadataIn, CreateBookMetadataOut, UploadParseResponse
 from ..exceptions import BadInputError
 from ..fs_utils import move_with_rollback
+from ..logging_utils import safe as safe_log
 from ..zip_utils import safe_zip_read
 from ..parsers import parse_book, ParsedMetadata
 from ..enrichers import enrich_metadata, resolve_genres
@@ -103,7 +104,10 @@ def _cleanup_temp_artifacts(temp_artifacts: list[str]) -> None:
             if os.path.exists(path):
                 os.remove(path)
         except OSError as e:
-            log.warning("Failed to remove temp artifact %s: %s", path, e)
+            log.warning(
+                "Failed to remove temp artifact %s: %s",
+                safe_log(str(path)), safe_log(e),
+            )
 
 
 def _build_upload_response(
