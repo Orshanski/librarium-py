@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 import anthropic
 from ..config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_TIMEOUT_SEC
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def _call_llm(filename: str) -> str:
             messages=[{"role": "user", "content": f"Имя файла: {filename}"}],
         )
     except Exception as e:
-        log.warning("LLM metadata extraction failed: %s", e)
+        log.warning("LLM metadata extraction failed: %s", safe_log(e))
         return ""
     texts = [b.text for b in response.content if b.type == "text"]
     return "\n".join(texts).strip()
@@ -124,6 +125,6 @@ def extract_metadata_from_filename(filename: str) -> LlmMetadata:
         return LlmMetadata()
     data = _extract_json_object(text)
     if data is None:
-        log.warning("LLM returned no parseable JSON: %s", text[:200])
+        log.warning("LLM returned no parseable JSON: %s", safe_log(str(text)))
         return LlmMetadata()
     return _build_metadata(data)

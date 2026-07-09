@@ -135,7 +135,7 @@ def _try_embed(db: sqlite3.Connection, book_id: int) -> None:
     try:
         embed_cover(db, book_id)
     except _EMBED_BEST_EFFORT_EXCEPTIONS as e:
-        log.warning("Failed to embed cover into book files: %s", e)
+        log.warning("Failed to embed cover into book files: %s", safe_log(e))
 
 
 def _commit(db: sqlite3.Connection, book_id: int) -> bool:
@@ -224,7 +224,10 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
             converted.close()
         return thumb_path
     except Exception as e:
-        log.warning("Failed to generate thumbnail for book=%d: %s", book_id, safe_log(e))
+        log.warning(
+            "Failed to generate thumbnail for book=%d: %s",
+            int(book_id), safe_log(e),
+        )
         return None
 
 

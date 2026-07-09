@@ -16,6 +16,7 @@ from pathlib import Path
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..exceptions import BadInputError, UpstreamError
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.services.mail")
 
@@ -75,11 +76,11 @@ def send_test_email(db: sqlite3.Connection, user_id: int) -> None:
         server.login(smtp_user, smtp_pass)
         server.send_message(msg)
     except Exception as e:
-        log.warning("SMTP test failed: %s", e)
+        log.warning("SMTP test failed: %s", safe_log(e))
         raise UpstreamError("Не удалось отправить тестовое письмо") from e
     finally:
         if server:
             try:
                 server.quit()
             except Exception as e:
-                log.debug("SMTP quit failed: %s", e)
+                log.debug("SMTP quit failed: %s", safe_log(e))

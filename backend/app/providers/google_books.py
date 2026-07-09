@@ -3,6 +3,7 @@ import logging
 import requests
 
 from . import MetadataResult
+from ..logging_utils import safe as safe_log
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def search_google(query: str) -> list[MetadataResult]:
                 results.append(r)
         return results
     except Exception as e:
-        log.warning("Google Books search error: %s", e)
+        log.warning("Google Books search error: %s", safe_log(e))
         return []
 
 

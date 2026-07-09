@@ -63,17 +63,23 @@ def login(db: sqlite3.Connection, username: str, password: str, ip: str) -> tupl
       AuthError: on invalid credentials
     """
     if not _check_rate_limit(ip):
-        log.warning("Login RATE LIMITED ip=%s", safe_log(ip))
+        log.warning("Login RATE LIMITED ip=%s", safe_log(str(ip)))
         raise RateLimitError("Too many login attempts, try again later")
 
     user = dal.get_user_by_username(db, username)
     if not user or not verify_password(password, user["password_hash"]):
         _record_attempt(ip)
-        log.warning("Login FAILED user=%s ip=%s", safe_log(username), safe_log(ip))
+        log.warning(
+            "Login FAILED user=%s ip=%s",
+            safe_log(str(username)), safe_log(str(ip)),
+        )
         raise AuthError("Invalid credentials")
 
     _clear_attempts(ip)
-    log.info("Login OK user=%s ip=%s", safe_log(user["username"]), safe_log(ip))
+    log.info(
+        "Login OK user=%s ip=%s",
+        safe_log(str(user["username"])), safe_log(str(ip)),
+    )
     # user.get to stay backward-compatible if users.token_epoch column is absent
     # (pre-migration DB). create_token tolerates 0; revocation check stays inert
     # via _TOKEN_EPOCH_LEGACY_MODE on the request side.

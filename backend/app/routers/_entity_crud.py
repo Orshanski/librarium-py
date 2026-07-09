@@ -34,6 +34,7 @@ from ..database import db_session
 from ..dtos import OkResponse
 from ..dtos.entities import RenameBody, MergeBody
 from ..events import EventScope, publish_domain_event_after_commit
+from ..logging_utils import safe as safe_log
 
 
 def _entity_id_payload_key(entity_label: str) -> str:
@@ -132,7 +133,7 @@ def register_entity_crud(
             )
         logger.info(
             "Renamed %s=%d to=%s by user_id=%s",
-            entity_label, entity_id, name, user.user_id,
+            str(entity_label), int(entity_id), safe_log(str(name)), str(user.user_id),
         )
         return OkResponse()
 
@@ -153,7 +154,7 @@ def register_entity_crud(
             )
         logger.info(
             "Merged %s source=%d into target=%d by user_id=%s",
-            entity_label, body.source_id, entity_id, user.user_id,
+            str(entity_label), int(body.source_id), int(entity_id), str(user.user_id),
         )
         return OkResponse()
 
@@ -170,5 +171,8 @@ def register_entity_crud(
             event_type=f"{entity_label}Deleted",
             payload={_entity_id_payload_key(entity_label): entity_id},
         )
-        logger.info("Deleted %s=%d by user_id=%s", entity_label, entity_id, user.user_id)
+        logger.info(
+            "Deleted %s=%d by user_id=%s",
+            str(entity_label), int(entity_id), str(user.user_id),
+        )
         return OkResponse()

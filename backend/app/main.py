@@ -11,6 +11,7 @@ from pathlib import Path
 from .auth import create_token
 from .config import COOKIE_NAME, JWT_EXPIRE_HOURS
 from .error_handlers import register_error_handlers
+from .logging_utils import safe as safe_log
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,7 +64,13 @@ _CSRF_HEADER_VALUE = "XMLHttpRequest"
 async def unhandled_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
         raise exc
-    _log.error("Unhandled exception on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
+    _log.error(
+        "Unhandled exception on %s %s: %s traceback=%s",
+        safe_log(str(request.method)),
+        safe_log(str(request.url.path)),
+        safe_log(exc),
+        safe_log(traceback.format_exc(), maxlen=8000),
+    )
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 

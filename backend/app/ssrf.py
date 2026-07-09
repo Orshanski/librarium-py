@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 def is_safe_url(url: str) -> bool:
     """Reject URLs resolving to private/loopback/link-local IPs."""
     if not url.startswith(("http://", "https://")):
-        log.warning("Rejected non-http(s) URL: %s", safe_log(url))
+        log.warning("Rejected non-http(s) URL: %s", safe_log(str(url)))
         return False
     try:
         host = urlparse(url).hostname
@@ -24,7 +24,7 @@ def is_safe_url(url: str) -> bool:
             return False
         addr_info = socket.getaddrinfo(host, None)
     except Exception as e:
-        log.warning("URL host resolution failed for %s: %s", safe_log(url), safe_log(e))
+        log.warning("URL host resolution failed for %s: %s", safe_log(str(url)), safe_log(e))
         return False
 
     for family, _, _, _, sockaddr in addr_info:
@@ -33,6 +33,6 @@ def is_safe_url(url: str) -> bool:
         except (ValueError, IndexError):
             continue
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            log.warning("Rejected URL with unsafe IP %s: %s", ip, safe_log(url))
+            log.warning("Rejected URL with unsafe IP %s: %s", str(ip), safe_log(str(url)))
             return False
     return True

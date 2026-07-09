@@ -2,6 +2,7 @@ import base64
 import logging
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from .. import xml_safe
+from ..logging_utils import safe as safe_log
 from . import ParsedMetadata, normalize_language
 
 log = logging.getLogger(__name__)
@@ -132,7 +133,7 @@ def _extract_cover(tree: etree._Element) -> tuple[bytes | None, str | None]:
         ext_map = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif"}
         return data, ext_map.get(content_type, "jpg")
     except Exception as e:
-        log.warning("Cannot extract FB2 cover: %s", e)
+        log.warning("Cannot extract FB2 cover: %s", safe_log(e))
         return None, None
 
 

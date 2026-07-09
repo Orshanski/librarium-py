@@ -11,6 +11,7 @@ from fastapi import Depends, Request
 
 from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_REFRESH_AFTER_HOURS, COOKIE_NAME
 from .exceptions import AuthError, ForbiddenError
+from .logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.auth")
 
@@ -279,7 +280,7 @@ def _reject_dirty_epoch_mismatch(user_id: int, jwt_epoch: Any) -> None:
     fresh_epoch = _fetch_token_epoch(user_id)
     if fresh_epoch is not None and jwt_epoch != fresh_epoch:
         log.info("Auth: token revoked (dirty epoch mismatch) user_id=%s jwt=%s db=%s",
-                 user_id, jwt_epoch, fresh_epoch)
+                 int(user_id), safe_log(str(jwt_epoch)), int(fresh_epoch))
         raise AuthError(_INVALID_TOKEN)
 
 
@@ -303,11 +304,11 @@ def _repair_or_reject_epoch_mismatch(user_id: int, jwt_epoch: Any, cached_epoch:
         if fresh_epoch == jwt_epoch:
             return  # accept; cache repaired
         log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s db=%s",
-                 user_id, jwt_epoch, fresh_epoch)
+                 int(user_id), safe_log(str(jwt_epoch)), int(fresh_epoch))
         raise AuthError(_INVALID_TOKEN)
 
     log.info("Auth: token revoked (epoch mismatch) user_id=%s jwt=%s cache=%s",
-             user_id, jwt_epoch, cached_epoch)
+             int(user_id), safe_log(str(jwt_epoch)), int(cached_epoch))
     raise AuthError(_INVALID_TOKEN)
 
 

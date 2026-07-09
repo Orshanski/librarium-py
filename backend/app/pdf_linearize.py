@@ -45,5 +45,5 @@ def linearize_pdf_in_place(path: str) -> bool:
                 os.remove(tmp_path)
             raise
     except Exception as e:
-        log.warning("Failed to linearize %s: %s", safe_log(path), safe_log(e))
+        log.warning("Failed to linearize %s: %s", safe_log(str(path)), safe_log(e))
         return False

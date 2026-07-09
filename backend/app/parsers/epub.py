@@ -3,6 +3,7 @@ import zipfile
 import logging
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml stubs miss etree
 from .. import xml_safe
+from ..logging_utils import safe as safe_log
 from ..zip_utils import safe_zip_read
 from . import ParsedMetadata, normalize_language
 
@@ -172,5 +173,5 @@ def parse_epub(file_path: str) -> ParsedMetadata:
             meta.isbn = _extract_isbn(p)
             meta.cover_data, meta.cover_ext = _extract_cover(opf, zf, cover_dir)
     except Exception as e:
-        log.warning("Cannot parse EPUB: %s", e)
+        log.warning("Cannot parse EPUB: %s", safe_log(e))
     return meta
