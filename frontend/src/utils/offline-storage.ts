@@ -333,8 +333,9 @@ export async function saveProgress(
     bookId,
     ...data,
     // Preserve existing serverVersion across local-only writes
-    // (handleRelocate doesn't know/care). Overwrite only when the caller
-    // explicitly passes a new serverVersion (on push success or adopt).
+    // (handleRelocate doesn't know/care). Explicit versions are used for
+    // server-sourced writes such as adopt; accepted push acknowledgements use
+    // reconcileAcceptedProgress so newer local state is not overwritten.
     serverVersion: data.serverVersion ?? existing?.serverVersion ?? 0,
     synced: false,
   });
@@ -344,6 +345,35 @@ export async function saveProgress(
 export async function getProgress(bookId: number): Promise<LocalProgress | null> {
   const db = await initDB();
   return (await db.get("reading_progress", bookId)) ?? null;
+}
+
+function isSameProgressSnapshot(current: LocalProgress, sent: LocalProgress): boolean {
+  return current.bookId === sent.bookId
+    && current.position === sent.position
+    && current.fraction === sent.fraction
+    && current.lastFormat === sent.lastFormat
+    && current.lastReadAt === sent.lastReadAt
+    && current.serverVersion === sent.serverVersion;
+}
+
+export async function reconcileAcceptedProgress(
+  sent: LocalProgress,
+  serverVersion: number,
+): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const current = await store.get(sent.bookId);
+  if (!current || current.serverVersion > serverVersion) {
+    await tx.done;
+    return;
+  }
+
+  const matchesSent = isSameProgressSnapshot(current, sent);
+  current.serverVersion = serverVersion;
+  current.synced = matchesSent;
+  await store.put(current);
+  await tx.done;
 }
 
 export async function removeProgress(bookId: number): Promise<void> {

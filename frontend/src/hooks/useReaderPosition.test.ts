@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
 import { useReaderPosition } from "./useReaderPosition";
 import type { LocalProgress } from "../utils/offline-storage";
+import type { PushResult } from "../utils/reader-sync";
 
 // Mock offline-storage to avoid real IDB
 vi.mock("../utils/offline-storage", () => ({
@@ -21,11 +22,19 @@ vi.mock("../utils/reader-sync", () => ({
 }));
 
 import { pushProgressToServerCAS as mockPushCAS } from "../utils/reader-sync";
-import { adoptServerProgressLocal as mockAdoptLocal, removeProgress as mockRemoveProgress } from "../utils/offline-storage";
+import {
+  adoptServerProgressLocal as mockAdoptLocal,
+  getProgress as mockGetProgress,
+  removeProgress as mockRemoveProgress,
+  saveProgress as mockSaveProgress,
+} from "../utils/offline-storage";
 
 afterEach(() => {
   server.resetHandlers();
   vi.clearAllMocks();
+  vi.mocked(mockGetProgress).mockReset().mockResolvedValue(null);
+  vi.mocked(mockSaveProgress).mockReset().mockResolvedValue(undefined);
+  vi.mocked(mockPushCAS).mockReset().mockResolvedValue({ status: "accepted", serverVersion: 2 });
 });
 
 const hookOptions = {
@@ -34,6 +43,71 @@ const hookOptions = {
   positionKind: "cfi" as const,
   deviceName: "desktop",
 };
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function installProgressStore(): {
+  current: () => LocalProgress | null;
+  reconcile: (sent: LocalProgress, serverVersion: number) => void;
+  remove: () => void;
+} {
+  let stored: LocalProgress | null = {
+    bookId: 42,
+    position: JSON.stringify({ kind: "cfi", value: "start" }),
+    fraction: 0.8,
+    lastFormat: "epub",
+    lastReadAt: 0,
+    serverVersion: 4,
+    synced: true,
+  };
+
+  vi.mocked(mockGetProgress).mockImplementation(async () => stored ? { ...stored } : null);
+  vi.mocked(mockSaveProgress).mockImplementation(async (bookId, data) => {
+    stored = {
+      bookId,
+      ...data,
+      serverVersion: data.serverVersion ?? stored?.serverVersion ?? 0,
+      synced: false,
+    };
+  });
+
+  return {
+    current: () => stored ? { ...stored } : null,
+    reconcile: (sent, serverVersion) => {
+      if (!stored) return;
+      const matches = stored.position === sent.position
+        && stored.fraction === sent.fraction
+        && stored.lastFormat === sent.lastFormat
+        && stored.lastReadAt === sent.lastReadAt
+        && stored.serverVersion === sent.serverVersion;
+      stored = { ...stored, serverVersion, synced: matches };
+    },
+    remove: () => {
+      stored = null;
+    },
+  };
+}
+
+function installDeferredPush(
+  pending: ReturnType<typeof deferred<PushResult>>,
+  store: ReturnType<typeof installProgressStore>,
+): (progress: LocalProgress) => Promise<PushResult> {
+  return async (progress) => {
+    const result = await pending.promise;
+    if ((result.status === "accepted" || result.status === "rebased") && result.serverVersion != null) {
+      store.reconcile(progress, result.serverVersion);
+    } else if (result.status === "dropped") {
+      store.remove();
+    }
+    return result;
+  };
+}
 
 describe("useReaderPosition — syncProgressWithServer", () => {
   it("calls pushProgressToServer when local is unsynced and server has same version", async () => {
@@ -58,6 +132,7 @@ describe("useReaderPosition — syncProgressWithServer", () => {
       serverVersion: 1,
       synced: false,
     };
+    vi.mocked(mockGetProgress).mockResolvedValue(localProgress);
 
     const { result } = renderHook(() => useReaderPosition(hookOptions));
 
@@ -172,5 +247,169 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     expect(mockPushCAS).not.toHaveBeenCalled();
     expect(mockRemoveProgress).toHaveBeenCalledWith(42);
     expect(result.current.initialPosition).toBeNull();
+  });
+});
+
+describe("useReaderPosition — rapid progress pushes", () => {
+  it("coalesces positions saved during P1 into one fresh P6 push", async () => {
+    const store = installProgressStore();
+    const firstPush = deferred<PushResult>();
+    const secondPush = deferred<PushResult>();
+    vi.mocked(mockPushCAS)
+      .mockImplementationOnce(installDeferredPush(firstPush, store))
+      .mockImplementationOnce(installDeferredPush(secondPush, store))
+      .mockImplementation(async (progress) => {
+        store.reconcile(progress, 99);
+        return { status: "accepted", serverVersion: 99 };
+      });
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => result.current.handleSavePosition("p1", 0.6));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      result.current.handleSavePosition("p2", 0.5);
+      result.current.handleSavePosition("p3", 0.4);
+      result.current.handleSavePosition("p4", 0.3);
+      result.current.handleSavePosition("p5", 0.25);
+      result.current.handleSavePosition("p6", 0.2);
+    });
+    await waitFor(() => expect(mockSaveProgress).toHaveBeenCalledTimes(6));
+    expect(mockPushCAS).toHaveBeenCalledTimes(1);
+    expect(mockPushCAS).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        position: JSON.stringify({ kind: "cfi", value: "p1" }),
+        serverVersion: 4,
+      }),
+      expect.objectContaining({ deviceName: "desktop", keepalive: true }),
+    );
+
+    act(() => firstPush.resolve({ status: "accepted", serverVersion: 5 }));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(2));
+    expect(mockPushCAS).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        position: JSON.stringify({ kind: "cfi", value: "p6" }),
+        serverVersion: 5,
+      }),
+      expect.objectContaining({ deviceName: "desktop", keepalive: true }),
+    );
+
+    await act(async () => {
+      secondPush.resolve({ status: "accepted", serverVersion: 6 });
+      await secondPush.promise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mockPushCAS).toHaveBeenCalledTimes(2);
+    expect(store.current()).toMatchObject({
+      position: JSON.stringify({ kind: "cfi", value: "p6" }),
+      serverVersion: 6,
+      synced: true,
+    });
+  });
+
+  it("does not immediately retry positions queued before a failed push", async () => {
+    const store = installProgressStore();
+    const firstPush = deferred<PushResult>();
+    vi.mocked(mockPushCAS)
+      .mockImplementationOnce(installDeferredPush(firstPush, store))
+      .mockImplementation(async (progress) => {
+        store.reconcile(progress, 5);
+        return { status: "accepted", serverVersion: 5 };
+      });
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => result.current.handleSavePosition("p1", 0.6));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(1));
+    act(() => {
+      result.current.handleSavePosition("p2", 0.5);
+      result.current.handleSavePosition("p3", 0.4);
+      result.current.handleSavePosition("p4", 0.3);
+      result.current.handleSavePosition("p5", 0.25);
+      result.current.handleSavePosition("p6", 0.2);
+    });
+    await waitFor(() => expect(mockSaveProgress).toHaveBeenCalledTimes(6));
+
+    await act(async () => {
+      firstPush.resolve({ status: "failed" });
+      await firstPush.promise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mockPushCAS).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.handleSavePosition("p7", 0.1));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(2));
+    expect(mockPushCAS).toHaveBeenLastCalledWith(
+      expect.objectContaining({ position: JSON.stringify({ kind: "cfi", value: "p7" }) }),
+      expect.objectContaining({ deviceName: "desktop", keepalive: true }),
+    );
+  });
+
+  it("processes a relocation queued while the previous push is settling", async () => {
+    const store = installProgressStore();
+    const firstPush = deferred<PushResult>();
+    const secondPush = deferred<PushResult>();
+    vi.mocked(mockPushCAS)
+      .mockImplementationOnce(installDeferredPush(firstPush, store))
+      .mockImplementationOnce(installDeferredPush(secondPush, store));
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => result.current.handleSavePosition("p1", 0.6));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(1));
+
+    const queueDuringSettlement = firstPush.promise.then(() => {
+      result.current.handleSavePosition("p2", 0.5);
+    });
+    await act(async () => {
+      firstPush.resolve({ status: "accepted", serverVersion: 5 });
+      await queueDuringSettlement;
+    });
+
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(2));
+    expect(mockPushCAS).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        position: JSON.stringify({ kind: "cfi", value: "p2" }),
+        serverVersion: 5,
+      }),
+      expect.objectContaining({ deviceName: "desktop", keepalive: true }),
+    );
+
+    await act(async () => {
+      secondPush.resolve({ status: "accepted", serverVersion: 6 });
+      await secondPush.promise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mockPushCAS).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not push queued positions after the first push is dropped", async () => {
+    const store = installProgressStore();
+    const firstPush = deferred<PushResult>();
+    vi.mocked(mockPushCAS)
+      .mockImplementationOnce(installDeferredPush(firstPush, store))
+      .mockResolvedValue({ status: "accepted", serverVersion: 5 });
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => result.current.handleSavePosition("p1", 0.6));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(1));
+    act(() => {
+      result.current.handleSavePosition("p2", 0.5);
+      result.current.handleSavePosition("p3", 0.4);
+      result.current.handleSavePosition("p4", 0.3);
+      result.current.handleSavePosition("p5", 0.25);
+      result.current.handleSavePosition("p6", 0.2);
+    });
+    await waitFor(() => expect(mockSaveProgress).toHaveBeenCalledTimes(6));
+
+    await act(async () => {
+      firstPush.resolve({ status: "dropped" });
+      await firstPush.promise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mockPushCAS).toHaveBeenCalledTimes(1);
+    expect(store.current()).toBeNull();
   });
 });

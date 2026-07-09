@@ -1,5 +1,5 @@
 import type { LocalProgress } from "./offline-storage";
-import { saveProgress, markProgressSynced, adoptServerProgressLocal, removeProgress } from "./offline-storage";
+import { reconcileAcceptedProgress, adoptServerProgressLocal, removeProgress } from "./offline-storage";
 import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
 import { NotFoundError } from "@/api/errors";
 import { domainEvents } from "@/domain/events";
@@ -30,10 +30,11 @@ interface PushOptions {
 /**
  * Push a local reading_progress row to the server using version-based CAS.
  *
- * On success (`accepted` or `rebased`) the local row is updated with the new
- * `serverVersion` and marked synced. On reject-adopt (`adopted`) the local row
- * is replaced with the server's current state and marked synced; the returned
- * `adoptedPosition` lets the caller jump the reader UI.
+ * On success (`accepted` or `rebased`) the returned `serverVersion` is
+ * reconciled atomically with the current local row. The sent snapshot is marked
+ * synced only if no newer relocation replaced it. On reject-adopt (`adopted`)
+ * the local row is replaced with the server's current state and marked synced;
+ * the returned `adoptedPosition` lets the caller jump the reader UI.
  *
  * Both useReaderPosition (reader mounted) and main.tsx (background catalog sync)
  * call this helper so every PUT goes through the same CAS flow.
@@ -56,14 +57,7 @@ export async function pushProgressToServerCAS(
     );
 
     if (data.accepted === true) {
-      await saveProgress(progress.bookId, {
-        position: progress.position,
-        fraction: progress.fraction,
-        lastFormat: progress.lastFormat,
-        lastReadAt: progress.lastReadAt,
-        serverVersion: data.version,
-      });
-      await markProgressSynced(progress.bookId);
+      await reconcileAcceptedProgress(progress, data.version);
       domainEvents.publish("readingProgressChanged", {
         bookId: progress.bookId,
         hadPosition: true,
