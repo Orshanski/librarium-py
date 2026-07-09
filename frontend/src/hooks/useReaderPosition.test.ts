@@ -347,6 +347,43 @@ describe("useReaderPosition — rapid progress pushes", () => {
     );
   });
 
+  it("processes a relocation queued while the previous push is settling", async () => {
+    const store = installProgressStore();
+    const firstPush = deferred<PushResult>();
+    const secondPush = deferred<PushResult>();
+    vi.mocked(mockPushCAS)
+      .mockImplementationOnce(installDeferredPush(firstPush, store))
+      .mockImplementationOnce(installDeferredPush(secondPush, store));
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => result.current.handleSavePosition("p1", 0.6));
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(1));
+
+    const queueDuringSettlement = firstPush.promise.then(() => {
+      result.current.handleSavePosition("p2", 0.5);
+    });
+    await act(async () => {
+      firstPush.resolve({ status: "accepted", serverVersion: 5 });
+      await queueDuringSettlement;
+    });
+
+    await waitFor(() => expect(mockPushCAS).toHaveBeenCalledTimes(2));
+    expect(mockPushCAS).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        position: JSON.stringify({ kind: "cfi", value: "p2" }),
+        serverVersion: 5,
+      }),
+      expect.objectContaining({ deviceName: "desktop", keepalive: true }),
+    );
+
+    await act(async () => {
+      secondPush.resolve({ status: "accepted", serverVersion: 6 });
+      await secondPush.promise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mockPushCAS).toHaveBeenCalledTimes(2);
+  });
+
   it("does not push queued positions after the first push is dropped", async () => {
     const store = installProgressStore();
     const firstPush = deferred<PushResult>();

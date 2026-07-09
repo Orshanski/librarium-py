@@ -333,8 +333,9 @@ export async function saveProgress(
     bookId,
     ...data,
     // Preserve existing serverVersion across local-only writes
-    // (handleRelocate doesn't know/care). Overwrite only when the caller
-    // explicitly passes a new serverVersion (on push success or adopt).
+    // (handleRelocate doesn't know/care). Explicit versions are used for
+    // server-sourced writes such as adopt; accepted push acknowledgements use
+    // reconcileAcceptedProgress so newer local state is not overwritten.
     serverVersion: data.serverVersion ?? existing?.serverVersion ?? 0,
     synced: false,
   });
