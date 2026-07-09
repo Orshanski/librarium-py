@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from collections.abc import Sequence
 from typing import Any, cast
 
 from ..config import LIBRARY_DIR, UPLOADS_DIR
@@ -120,7 +121,7 @@ def _changed_book_fields(
     return fields
 
 
-def _unique_ints(values: list[int | None]) -> list[int]:
+def _unique_ints(values: Sequence[int | None]) -> list[int]:
     result: list[int] = []
     for value in values:
         if value is not None and value not in result:
