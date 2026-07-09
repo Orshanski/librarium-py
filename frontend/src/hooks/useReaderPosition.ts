@@ -38,7 +38,8 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
   }, [id]);
 
   const inFlightPutRef = useRef<Promise<void>>(Promise.resolve());
-  const pushProgressToServerRef = useRef<(progress: LocalProgress) => Promise<boolean>>(async () => false);
+  const pendingPutBookIdsRef = useRef(new Set<number>());
+  const pushProgressToServerRef = useRef<(bookId: number) => Promise<void>>(async () => {});
   const adoptServerProgressRef = useRef<(
     bookId: number,
     server: { position: string; fraction?: number | null; lastFormat?: string | null; lastReadAt?: string | null; version?: number },
@@ -72,26 +73,32 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
     }
   }, [parsePositionValue]);
 
-  const pushProgressToServer = useCallback(async (progress: LocalProgress): Promise<boolean> => {
-    let handled = false;
+  const pushProgressToServer = useCallback(async (bookId: number): Promise<void> => {
+    pendingPutBookIdsRef.current.add(bookId);
     const next = inFlightPutRef.current.then(async () => {
-      const result = await pushProgressToServerCAS(progress, {
-        deviceName,
-        keepalive: true,
-      });
-      if (result.status === "adopted" && result.adoptedPosition) {
-        const parsed = parsePositionValue(result.adoptedPosition);
-        if (parsed != null) {
-          setResumePosition(parsed);
+      const pendingBookIds = [...pendingPutBookIdsRef.current];
+      pendingPutBookIdsRef.current.clear();
+
+      for (const pendingBookId of pendingBookIds) {
+        const progress = await getProgress(pendingBookId).catch(() => null);
+        if (!progress || progress.synced) continue;
+
+        const result = await pushProgressToServerCAS(progress, {
+          deviceName,
+          keepalive: true,
+        });
+        if (result.status === "adopted" && result.adoptedPosition) {
+          const parsed = parsePositionValue(result.adoptedPosition);
+          if (parsed != null) {
+            setResumePosition(parsed);
+          }
+        } else if (result.status === "failed" || result.status === "dropped") {
+          pendingPutBookIdsRef.current.delete(pendingBookId);
         }
-        handled = true;
-      } else if (result.status === "accepted" || result.status === "rebased") {
-        handled = true;
       }
     });
     inFlightPutRef.current = next.catch(() => {});
     await next;
-    return handled;
   }, [deviceName, parsePositionValue]);
 
   const adoptServerProgress = useCallback(async (
@@ -125,7 +132,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
       setInitialPosition(null);
       setResumePosition(null);
     } else if (hasUnsyncedLocal && localProgress) {
-      await pushProgressToServerRef.current(localProgress);
+      await pushProgressToServerRef.current(bookId);
     } else if (serverPosition && serverVersion > localServerVersion) {
       if (typeof serverProgress?.position !== "string") return;
       const narrowed = { ...serverProgress, position: serverProgress.position };
@@ -143,7 +150,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
       try {
         const localProgress = await getProgress(bookId).catch(() => null);
         if (localProgress && !localProgress.synced) {
-          await pushProgressToServer(localProgress);
+          await pushProgressToServer(bookId);
           return;
         }
 
@@ -186,9 +193,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
         return;
       }
       if (!navigator.onLine) return;
-      const fresh = await getProgress(bookId).catch(() => null);
-      if (!fresh) return;
-      void pushProgressToServerRef.current(fresh);
+      void pushProgressToServerRef.current(bookId);
     })();
   }, [format, id, positionKind]);
 

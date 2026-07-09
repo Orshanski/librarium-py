@@ -14,6 +14,8 @@ import {
   touchOfflineBook,
   saveProgress,
   getProgress,
+  removeProgress,
+  reconcileAcceptedProgress,
   getUnsyncedProgress,
   markProgressSynced,
   getLastReadBook,
@@ -170,6 +172,94 @@ describe("reading progress", () => {
     });
     const p = await getProgress(1);
     expect(p!.serverVersion).toBe(6);
+  });
+
+  it("marks the accepted snapshot synced at the returned server version", async () => {
+    await saveProgress(1, {
+      position: "p1",
+      fraction: 0.6,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 4,
+    });
+    const sent = (await getProgress(1))!;
+
+    await reconcileAcceptedProgress(sent, 5);
+
+    expect(await getProgress(1)).toMatchObject({
+      position: "p1",
+      serverVersion: 5,
+      synced: true,
+    });
+  });
+
+  it("preserves a newer local snapshot and leaves it pending", async () => {
+    await saveProgress(1, {
+      position: "p1",
+      fraction: 0.6,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 4,
+    });
+    const sent = (await getProgress(1))!;
+    await saveProgress(1, {
+      position: "p6",
+      fraction: 0.2,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+    });
+
+    await reconcileAcceptedProgress(sent, 5);
+
+    expect(await getProgress(1)).toMatchObject({
+      position: "p6",
+      fraction: 0.2,
+      lastReadAt: 1000,
+      serverVersion: 5,
+      synced: false,
+    });
+  });
+
+  it("does not recreate progress removed during an accepted request", async () => {
+    await saveProgress(1, {
+      position: "p1",
+      fraction: 0.6,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 4,
+    });
+    const sent = (await getProgress(1))!;
+    await removeProgress(1);
+
+    await reconcileAcceptedProgress(sent, 5);
+
+    expect(await getProgress(1)).toBeNull();
+  });
+
+  it("does not roll a newer local server version backward", async () => {
+    await saveProgress(1, {
+      position: "p1",
+      fraction: 0.6,
+      lastFormat: "epub",
+      lastReadAt: 1000,
+      serverVersion: 4,
+    });
+    const sent = (await getProgress(1))!;
+    await saveProgress(1, {
+      position: "p6",
+      fraction: 0.2,
+      lastFormat: "epub",
+      lastReadAt: 1001,
+      serverVersion: 7,
+    });
+
+    await reconcileAcceptedProgress(sent, 5);
+
+    expect(await getProgress(1)).toMatchObject({
+      position: "p6",
+      serverVersion: 7,
+      synced: false,
+    });
   });
 
   it("markProgressSynced does NOT touch lastReadAt (regression guard)", async () => {

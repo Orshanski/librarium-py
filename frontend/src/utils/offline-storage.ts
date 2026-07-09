@@ -346,6 +346,35 @@ export async function getProgress(bookId: number): Promise<LocalProgress | null>
   return (await db.get("reading_progress", bookId)) ?? null;
 }
 
+function isSameProgressSnapshot(current: LocalProgress, sent: LocalProgress): boolean {
+  return current.bookId === sent.bookId
+    && current.position === sent.position
+    && current.fraction === sent.fraction
+    && current.lastFormat === sent.lastFormat
+    && current.lastReadAt === sent.lastReadAt
+    && current.serverVersion === sent.serverVersion;
+}
+
+export async function reconcileAcceptedProgress(
+  sent: LocalProgress,
+  serverVersion: number,
+): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction("reading_progress", "readwrite");
+  const store = tx.objectStore("reading_progress");
+  const current = await store.get(sent.bookId);
+  if (!current || current.serverVersion > serverVersion) {
+    await tx.done;
+    return;
+  }
+
+  const matchesSent = isSameProgressSnapshot(current, sent);
+  current.serverVersion = serverVersion;
+  current.synced = matchesSent;
+  await store.put(current);
+  await tx.done;
+}
+
 export async function removeProgress(bookId: number): Promise<void> {
   const db = await initDB();
   await db.delete("reading_progress", bookId);

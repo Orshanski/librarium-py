@@ -1,5 +1,5 @@
 import type { LocalProgress } from "./offline-storage";
-import { saveProgress, markProgressSynced, adoptServerProgressLocal, removeProgress } from "./offline-storage";
+import { reconcileAcceptedProgress, adoptServerProgressLocal, removeProgress } from "./offline-storage";
 import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
 import { NotFoundError } from "@/api/errors";
 import { domainEvents } from "@/domain/events";
@@ -56,14 +56,7 @@ export async function pushProgressToServerCAS(
     );
 
     if (data.accepted === true) {
-      await saveProgress(progress.bookId, {
-        position: progress.position,
-        fraction: progress.fraction,
-        lastFormat: progress.lastFormat,
-        lastReadAt: progress.lastReadAt,
-        serverVersion: data.version,
-      });
-      await markProgressSynced(progress.bookId);
+      await reconcileAcceptedProgress(progress, data.version);
       domainEvents.publish("readingProgressChanged", {
         bookId: progress.bookId,
         hadPosition: true,

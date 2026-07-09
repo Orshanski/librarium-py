@@ -8,15 +8,13 @@ import { domainEvents } from "@/domain/events";
 
 // Mock offline-storage so CAS side-effects (IDB writes) don't hit real IndexedDB
 vi.mock("./offline-storage", () => ({
-  saveProgress: vi.fn().mockResolvedValue(undefined),
-  markProgressSynced: vi.fn().mockResolvedValue(undefined),
+  reconcileAcceptedProgress: vi.fn().mockResolvedValue(undefined),
   adoptServerProgressLocal: vi.fn().mockResolvedValue(undefined),
   removeProgress: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
-  saveProgress as mockSaveProgress,
-  markProgressSynced as mockMarkProgressSynced,
+  reconcileAcceptedProgress as mockReconcileAcceptedProgress,
   adoptServerProgressLocal as mockAdoptServerProgressLocal,
   removeProgress as mockRemoveProgress,
 } from "./offline-storage";
@@ -60,8 +58,8 @@ describe("pushProgressToServerCAS — accept path", () => {
 
     expect(result.status).toBe("accepted");
     expect(result.serverVersion).toBe(4);
-    expect(mockSaveProgress).toHaveBeenCalledOnce();
-    expect(mockMarkProgressSynced).toHaveBeenCalledOnce();
+    expect(mockReconcileAcceptedProgress).toHaveBeenCalledOnce();
+    expect(mockReconcileAcceptedProgress).toHaveBeenCalledWith(baseProgress, 4);
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
     expect(events).toEqual([
       {
@@ -122,8 +120,8 @@ describe("pushProgressToServerCAS — rebase path", () => {
 
     expect(result.status).toBe("rebased");
     expect(result.serverVersion).toBe(5);
-    expect(mockSaveProgress).toHaveBeenCalledOnce();
-    expect(mockMarkProgressSynced).toHaveBeenCalledOnce();
+    expect(mockReconcileAcceptedProgress).toHaveBeenCalledOnce();
+    expect(mockReconcileAcceptedProgress).toHaveBeenCalledWith(baseProgress, 5);
   });
 });
 
@@ -150,7 +148,7 @@ describe("pushProgressToServerCAS — adopt (conflict) path", () => {
     expect(result.adoptedPosition).toBe(serverState.position);
     expect(result.serverVersion).toBe(serverState.version);
     expect(mockAdoptServerProgressLocal).toHaveBeenCalledOnce();
-    expect(mockSaveProgress).not.toHaveBeenCalled();
+    expect(mockReconcileAcceptedProgress).not.toHaveBeenCalled();
   });
 });
 
@@ -165,7 +163,7 @@ describe("pushProgressToServerCAS — failed path (accepted:false, current:null)
     const result = await pushProgressToServerCAS(baseProgress, { deviceName: "test" });
 
     expect(result.status).toBe("failed");
-    expect(mockSaveProgress).not.toHaveBeenCalled();
+    expect(mockReconcileAcceptedProgress).not.toHaveBeenCalled();
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
   });
 });
@@ -181,7 +179,7 @@ describe("pushProgressToServerCAS — failed path", () => {
     const result = await pushProgressToServerCAS(baseProgress, { deviceName: "desktop" });
 
     expect(result.status).toBe("failed");
-    expect(mockSaveProgress).not.toHaveBeenCalled();
+    expect(mockReconcileAcceptedProgress).not.toHaveBeenCalled();
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
   });
 
@@ -209,9 +207,8 @@ describe("pushProgressToServerCAS — dropped path (book deleted on server)", ()
     expect(result.status).toBe("dropped");
     expect(mockRemoveProgress).toHaveBeenCalledOnce();
     expect(mockRemoveProgress).toHaveBeenCalledWith(42);
+    expect(mockReconcileAcceptedProgress).not.toHaveBeenCalled();
     // Не трогает остальное: книги нет — нечего marked synced или adopted.
-    expect(mockSaveProgress).not.toHaveBeenCalled();
-    expect(mockMarkProgressSynced).not.toHaveBeenCalled();
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
   });
 });
