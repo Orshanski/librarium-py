@@ -1,7 +1,7 @@
 import type { ReaderSettings } from "../types/reader-settings";
 import { resolveDesktopZone, addCustomEventListener } from "./reader-input";
 import type { NormalizedReaderInput, ReaderAction } from "./reader-input";
-import type { ReaderTapDetail } from "../types/reader-events";
+import type { ReaderLoadDetail, ReaderTapDetail } from "../types/reader-events";
 import type { NavigationController } from "./reader-navigation";
 import type { ReaderViewElement } from "../types/reader-foliate";
 
@@ -119,8 +119,17 @@ export function attachReaderInteraction(
   };
   document.addEventListener("keydown", handleKeyDown);
 
+  // keydown does not bubble out of the foliate-view's iframe once focus moves into the
+  // book content (Chrome + Safari), so the host-document listener above goes silent after
+  // the first click. Subscribe inside the iframe doc too, same as the PDF reader does.
+  // Per-doc listener is never removed — the iframe doc dies with the view.
+  const removeLoadKeyboardListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
+    e.detail?.doc?.addEventListener("keydown", handleKeyDown);
+  });
+
   return () => {
     removeTapListener();
+    removeLoadKeyboardListener();
     document.removeEventListener("keydown", handleKeyDown);
   };
 }
