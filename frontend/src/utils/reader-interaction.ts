@@ -122,6 +122,7 @@ export function attachReaderInteraction(
   // keydown does not bubble out of the foliate-view's iframe once focus moves into the
   // book content (Chrome + Safari), so the host-document listener above goes silent after
   // the first click. Subscribe inside the iframe doc too, same as the PDF reader does.
+  // Per-doc listener is never removed — the iframe doc dies with the view.
   const removeLoadKeyboardListener = addCustomEventListener<ReaderLoadDetail>(view, "load", (e) => {
     e.detail?.doc?.addEventListener("keydown", handleKeyDown);
   });
