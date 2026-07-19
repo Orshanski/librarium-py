@@ -93,6 +93,37 @@ describe("attachReaderInteraction — keyboard", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
     expect(nav.enqueueNavigation).not.toHaveBeenCalled();
   });
+
+  it("ArrowLeft from the foliate iframe doc (after view 'load') → nav.enqueueNavigation", () => {
+    const iframeDoc = document.implementation.createHTMLDocument("book");
+    view.dispatchEvent(new CustomEvent("load", { detail: { doc: iframeDoc } }));
+    iframeDoc.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(nav.enqueueNavigation).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("'load' event with no doc in detail does not throw", () => {
+    expect(() => view.dispatchEvent(new CustomEvent("load", { detail: {} }))).not.toThrow();
+    cleanup();
+  });
+
+  it("key press inside INPUT within the iframe doc is ignored", () => {
+    const iframeDoc = document.implementation.createHTMLDocument("book");
+    view.dispatchEvent(new CustomEvent("load", { detail: { doc: iframeDoc } }));
+    const input = iframeDoc.createElement("input");
+    iframeDoc.body.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(nav.enqueueNavigation).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("cleanup removes the view 'load' listener — a doc loaded after cleanup is never wired for keyboard", () => {
+    cleanup();
+    const iframeDoc = document.implementation.createHTMLDocument("book");
+    view.dispatchEvent(new CustomEvent("load", { detail: { doc: iframeDoc } }));
+    iframeDoc.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(nav.enqueueNavigation).not.toHaveBeenCalled();
+  });
 });
 
 describe("resolveKeyboardAction (pure)", () => {
