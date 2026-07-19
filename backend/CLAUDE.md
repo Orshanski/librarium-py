@@ -12,6 +12,20 @@ python run.py --dev        # Dev server with reload
 pytest                     # Тесты — ВСЕГДА последовательно, не параллельно
 ```
 
+Тестирование на реальных устройствах (планшет/телефон) через tailscale — HTTPS
+на том же порту 8000, сертификат `~/dev-ca/tailscale.{key,crt}`:
+
+```bash
+cd backend && ./venv/bin/python run.py --dev --ssl
+```
+
+`./venv/bin/python` напрямую, без `source venv/bin/activate`. Порт не
+параметризуется, всегда 8000.
+
+Сертификат `tailscale.crt` протухает раз в три месяца — если HTTPS вдруг
+перестал приниматься устройством, сначала проверить срок действия сертификата,
+не искать баг в коде.
+
 ## Key Directories
 
 - `app/routers/` — API route modules

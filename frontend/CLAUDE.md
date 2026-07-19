@@ -82,6 +82,18 @@ language server поверх `tsserver` (через инструмент `LSP`).
 шаблона (`grep -n 'metadataCache.set(' file.tsx`), дифф-сверка между
 ветками (`git diff main`), инспекция полного тела функции (Read).
 
+## Тестирование через backend (:8000)
+
+`backend/app/main.py` отдаёт **собранный** `frontend/dist`, не live `src`
+(см. `FRONTEND_DIST` в `main.py:126`). Правки в `src/` не видны на `:8000`,
+пока не выполнен `npm run build` — это касается и HTTPS-доступа через
+tailscale (`backend/CLAUDE.md`, `run.py --ssl`) для тестирования на реальных
+устройствах.
+
+Дополнительно: Service Worker (`librarium-*`) кэширует бандл в браузере —
+после пересборки может понадобиться сбросить кэш/данные сайта на
+тестируемом устройстве, иначе отдаётся старый бандл несмотря на свежий build.
+
 ## Vendored Code
 
 - **`src/vendor/foliate-js/` — полный форк, не upstream vendor copy.** Upstream
