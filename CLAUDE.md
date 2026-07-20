@@ -53,6 +53,7 @@ Browser → React SPA (:5173 dev) → fetch /api/* → FastAPI (:8000) → DAL �
 - **НЕ СПОРИТЬ с Alexey.** Если Alexey говорит что что-то не работает/сломано — СНАЧАЛА проверить, потом отвечать. Не доверять своим предположениям, доверять фактам. Не говорить "нет, это работает" без проверки.
 - **Показывать ВСЕ findings из код-ревью.** Не фильтровать, не предлагать "отложить". Решение о приоритете — только за Alexey.
 - **НИКОГДА не мержить/пушить без явного разрешения.** При любой двусмысленности — переспросить.
+- **План на одобрение — без открытых вопросов.** Перед `ExitPlanMode` план не должен содержать нерешённых «открытых вопросов». Технические развилки с одним разумным исходом решаются самим до одобрения; на Alexey выносятся только продуктовые/поведенческие развилки — и до выхода из plan mode, не текстом внутри плана. Иначе harness штампует «approved» на сыром плане.
 - **Never work in main.** Always create a feature branch.
 - **TDD:** tests first, then implementation.
 - CI/CD triggers only on push to `main` on GitHub. Local branch work does not deploy.
@@ -97,6 +98,7 @@ bd close <id>         # Complete work
 - Do NOT use `bd remember` as general/project memory; beads are only for task tracking
 - Store assistant preferences, workflow rules, and reusable knowledge via Hermes memory/skills instead
 - Run `bd prime` for detailed command reference
+- **`bd dolt push` создаёт служебную ветку `__dolt_remote_info__` в основном GitHub-origin.** GitHub вешает над ней баннер «Compare & pull request» — это НЕ pull request и в `main` само не мержится (нужны три ручных клика). Убрать баннер: `git push origin --delete __dolt_remote_info__`.
 
 ## Session Completion
 
