@@ -39,7 +39,8 @@ describe("useAdminSmtp", () => {
     const { result } = renderHook(() => useAdminSmtp());
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => { await result.current.save(); });
-    expect(mockedSaveAdminSettings).toHaveBeenCalled();
+    // тело сохранения — camelCase, без трансформации в хуке
+    expect(mockedSaveAdminSettings).toHaveBeenCalledWith({ smtpHost: "h" });
     expect(result.current.savedToast).toBe(true);
   });
 
