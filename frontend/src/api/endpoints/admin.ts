@@ -4,9 +4,10 @@ import type { OkResponse } from "../types";
 export interface AdminUser {
   id: number;
   username: string;
-  display_name: string;
+  displayName: string | null;
   email: string | null;
   role: "admin" | "reader";
+  createdAt?: string;
 }
 
 export interface UsersResponse {
@@ -33,11 +34,10 @@ export interface CreateUserResponse {
 }
 
 export interface AdminSettings {
-  app_name?: string;
-  smtp_host?: string;
-  smtp_port?: string;
-  smtp_user?: string;
-  smtp_pass?: string;
+  smtpHost?: string;
+  smtpPort?: string;
+  smtpUser?: string;
+  smtpPass?: string;
 }
 
 export function listUsers(signal?: AbortSignal): Promise<UsersResponse> {
