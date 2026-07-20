@@ -200,6 +200,30 @@ def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
     return new_epoch
 
 
+def revoke_deleted_user_epoch(db: sqlite3.Connection, user_id: int) -> None:
+    """Отозвать сессию удаляемого пользователя. Помечает user_id dirty до commit,
+    инвалидирует кэш после commit, снимает dirty при rollback — симметрично
+    bump_token_epoch. Вызывать в той же транзакции, что и удаление строки users.
+    """
+    with _token_epoch_cache_lock:
+        _token_epoch_dirty_users.add(user_id)
+
+    def invalidate_cache() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_cache.pop(user_id, None)
+            _token_epoch_dirty_users.discard(user_id)
+
+    def clear_dirty_marker() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_dirty_users.discard(user_id)
+
+    from .database import add_after_commit_hook, add_after_rollback_hook
+    if add_after_commit_hook(db, invalidate_cache):
+        add_after_rollback_hook(db, clear_dirty_marker)
+    else:
+        invalidate_cache()
+
+
 def reset_token_epoch_cache_for_tests() -> None:
     """Test-only: clear cache and force re-init on next access."""
     global _token_epoch_cache_initialized
@@ -264,6 +288,11 @@ def _validate_token_epoch(user_id: int, jwt_epoch: Any) -> None:
         # Cache miss: either user created post-init or entry was invalidated by
         # a recent bump. Read once from authoritative DB and repopulate cache.
         cached_epoch = _load_and_cache_token_epoch(user_id)
+        if cached_epoch is None:
+            # Пользователя нет в БД (мы уже вне legacy-режима — проверка эпохи
+            # для legacy не вызывается). Удалённый пользователь → отзыв.
+            log.info("Auth: token revoked (user absent) user_id=%s", int(user_id))
+            raise AuthError(_INVALID_TOKEN)
 
     if cached_epoch is not None and jwt_epoch != cached_epoch:
         _repair_or_reject_epoch_mismatch(user_id, jwt_epoch, cached_epoch)
@@ -278,7 +307,11 @@ def _read_token_epoch_cache_state(user_id: int) -> tuple[bool, int | None]:
 
 def _reject_dirty_epoch_mismatch(user_id: int, jwt_epoch: Any) -> None:
     fresh_epoch = _fetch_token_epoch(user_id)
-    if fresh_epoch is not None and jwt_epoch != fresh_epoch:
+    if fresh_epoch is None:
+        # dirty + пользователя уже нет в БД → идёт удаление, отзыв.
+        log.info("Auth: token revoked (dirty, user absent) user_id=%s", int(user_id))
+        raise AuthError(_INVALID_TOKEN)
+    if jwt_epoch != fresh_epoch:
         log.info("Auth: token revoked (dirty epoch mismatch) user_id=%s jwt=%s db=%s",
                  int(user_id), safe_log(str(jwt_epoch)), int(fresh_epoch))
         raise AuthError(_INVALID_TOKEN)

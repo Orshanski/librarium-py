@@ -65,6 +65,8 @@ def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:
         raise BadInputError("Нельзя удалить самого себя")
     if users_dal.is_last_admin(db, user_id):
         raise BadInputError("Нельзя удалить последнего админа")
+    from ..auth import revoke_deleted_user_epoch  # deferred: избегаем циклического импорта
+    revoke_deleted_user_epoch(db, user_id)
     users_dal.delete_user(db, user_id)
     log.info("Deleted user_id=%d by user_id=%s", int(user_id), str(actor_id))
 
