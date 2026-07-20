@@ -12,6 +12,7 @@ from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]  # lxml st
 from PIL import Image
 
 from . import xml_safe
+from .config import LIBRARY_DIR
 from .exceptions import BadInputError
 from .logging_utils import safe as safe_log
 from .zip_utils import safe_zip_read
@@ -27,6 +28,10 @@ XLINK_NS = "http://www.w3.org/1999/xlink"
 
 _IMAGE_JPEG = "image/jpeg"
 _COVER_JPG = "cover.jpg"
+
+# CodeQL py/path-injection barrier: canonical LIBRARY_DIR root (см. backend/CLAUDE.md).
+_LIBRARY_ROOT = os.path.realpath(str(LIBRARY_DIR))
+_LIBRARY_ROOT_PREFIX = _LIBRARY_ROOT + os.sep
 
 
 def embed_cover_fb2(file_path: Path, cover_bytes: bytes) -> None:
@@ -216,10 +221,13 @@ def to_jpeg(image_bytes: bytes) -> bytes:
 
 def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
     """Orchestrator: find cover on disk, convert to JPEG, embed into all book files."""
-    from .config import LIBRARY_DIR
     from .dal.books import get_book_files
 
-    book_dir = LIBRARY_DIR / str(book_id)
+    # CodeQL py/path-injection barrier (см. backend/CLAUDE.md).
+    book_dir_str = os.path.normpath(os.path.join(_LIBRARY_ROOT, str(int(book_id))))
+    if not book_dir_str.startswith(_LIBRARY_ROOT_PREFIX):
+        raise BadInputError(f"Path escapes allowed root: {book_dir_str}")
+    book_dir = Path(book_dir_str)
     if not book_dir.is_dir():
         log.warning("Book directory not found: %s", safe_log(str(book_dir)))
         return
@@ -254,7 +262,12 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
                 int(book_id), safe_log(str(fmt)),
             )
             continue
-        file_path = LIBRARY_DIR / str(book_id) / f"book.{ext_safe}"
+        file_path_str = os.path.normpath(
+            os.path.join(_LIBRARY_ROOT, str(int(book_id)), f"book.{ext_safe}")
+        )
+        if not file_path_str.startswith(_LIBRARY_ROOT_PREFIX):
+            raise BadInputError(f"Path escapes allowed root: {file_path_str}")
+        file_path = Path(file_path_str)
         if not file_path.exists():
             log.warning("File not found: %s", safe_log(str(file_path)))
             continue
