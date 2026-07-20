@@ -1,9 +1,9 @@
 """Admin request DTOs, write-input TypedDicts, and Response DTOs."""
 from typing import Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from ._aliases import BODY_CONFIG
+from ._aliases import BODY_CONFIG, to_camel
 from .auth import UserRow
 
 
@@ -52,17 +52,13 @@ class AdminUsersListResponse(BaseModel):
 
 
 class AdminSettingsResponse(BaseModel):
-    """Response for GET /api/admin/settings.
+    """Response for GET /api/admin/settings — camelCase wire, strict.
 
-    The five whitelisted setting keys (from admin_service._ALLOWED_SETTINGS)
-    are declared as optional nullable string fields matching the DAL type
-    dict[str, str | None]. `extra="allow"` is kept for forward-compat — if
-    the admin UI adds new settings keys in the future, they'll still pass
-    through without a DTO change.
+    forward-compat extra="allow" снят осознанно: новая настройка добавляется
+    и в _ALLOWED_SETTINGS, и в поля этой модели.
     """
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel, extra="forbid")
 
-    app_name: str | None = None
     smtp_host: str | None = None
     smtp_port: str | None = None
     smtp_user: str | None = None

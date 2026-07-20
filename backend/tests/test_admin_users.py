@@ -112,11 +112,9 @@ def test_get_settings(admin_client):
 
 
 def test_update_settings(admin_client):
-    # Task 1 меняет только контракт тела запроса; ответ до Task 3 остаётся snake
-    # (extra=allow). camel round-trip ответа проверяется в Task 3.
     assert_ok(admin_client.put("/api/admin/settings", json={"smtpHost": "smtp.test"}))
     settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert settings["smtp_host"] == "smtp.test"
+    assert settings["smtpHost"] == "smtp.test"
 
 
 def test_unknown_setting_rejected(admin_client):
@@ -142,3 +140,11 @@ def test_create_user_rejects_unknown_field(admin_client):
 
 def test_reader_cannot_access_settings(reader_client):
     assert_error(reader_client.get("/api/admin/settings"), 403)
+
+
+def test_get_settings_camel_no_app_name(admin_client):
+    assert_ok(admin_client.put("/api/admin/settings", json={"smtpHost": "smtp.test"}))
+    settings = assert_ok(admin_client.get("/api/admin/settings"))
+    assert settings["smtpHost"] == "smtp.test"
+    assert "app_name" not in settings
+    assert "smtp_host" not in settings  # snake на проводе больше нет
