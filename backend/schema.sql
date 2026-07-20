@@ -155,9 +155,6 @@ CREATE TABLE IF NOT EXISTS sse_publications (
     CHECK ((scope_kind = 'library' AND user_id IS NULL) OR (scope_kind = 'user' AND user_id IS NOT NULL))
 );
 
--- Default settings
-INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Librarium');
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_books_series ON books(series_id);
 CREATE INDEX IF NOT EXISTS idx_books_added ON books(added_at DESC);
