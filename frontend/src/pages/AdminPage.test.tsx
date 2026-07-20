@@ -11,7 +11,7 @@ import type { UpdateUserBody } from "../api/endpoints/admin";
 const ADMIN_USER = {
   id: 1,
   username: "admin",
-  display_name: "Test Admin",
+  displayName: "Test Admin",
   email: "admin@test.local",
   role: "admin" as const,
 };
@@ -19,17 +19,16 @@ const ADMIN_USER = {
 const READER_USER = {
   id: 2,
   username: "reader",
-  display_name: "Test Reader",
+  displayName: "Test Reader",
   email: "reader@test.local",
   role: "reader" as const,
 };
 
 const DEFAULT_SETTINGS = {
-  app_name: "Librarium",
-  smtp_host: "",
-  smtp_port: "587",
-  smtp_user: "",
-  smtp_pass: "",
+  smtpHost: "",
+  smtpPort: "587",
+  smtpUser: "",
+  smtpPass: "",
 };
 
 function setupDefaultHandlers() {
@@ -135,7 +134,7 @@ describe("AdminPage", () => {
       // Сценарий, валидирующий именно смену условия с `role !== "admin"` на `id !== currentUserId`:
       // self (id=1) имеет роль reader. Под старым условием — кнопка БЫЛА бы видна (это
       // и был тот самый рассинхрон фронта и бэка). Под новым — должна быть скрыта.
-      const SELF_READER = { id: 1, username: "admin", display_name: "Test Admin", email: "admin@test.local", role: "reader" as const };
+      const SELF_READER = { id: 1, username: "admin", displayName: "Test Admin", email: "admin@test.local", role: "reader" as const };
       server.use(
         http.get("/api/admin/users", () =>
           HttpResponse.json({ users: [SELF_READER, READER_USER] })
@@ -330,37 +329,15 @@ describe("AdminPage", () => {
   });
 
   describe("Settings save", () => {
-    it("calls PUT /api/admin/settings with updated app_name", async () => {
-      setupDefaultHandlers();
-      const user = userEvent.setup();
-      let capturedBody: unknown = null;
-
+    it("keeps settings section populated when users load fails (independent error-path)", async () => {
       server.use(
-        http.put("/api/admin/settings", async ({ request }) => {
-          capturedBody = await request.json();
-          return HttpResponse.json({ ok: true });
-        })
+        http.get("/api/admin/users", () => HttpResponse.json({ detail: "boom" }, { status: 500 })),
+        http.get("/api/admin/settings", () => HttpResponse.json({ smtpHost: "smtp.example" })),
       );
-
       renderWithProviders(<AdminPage />);
-      await waitFor(() => screen.getByText("Настройки"));
-
-      // Wait for settings to load (app_name field to have value)
-      await waitFor(() => {
-        const input = screen.getByDisplayValue("Librarium");
-        expect(input).toBeInTheDocument();
-      });
-
-      // Clear and type new app name
-      const appNameInput = screen.getByDisplayValue("Librarium");
-      await user.clear(appNameInput);
-      await user.type(appNameInput, "My Library");
-
-      await user.click(screen.getByRole("button", { name: /Сохранить настройки/ }));
-
-      await waitFor(() => {
-        expect(capturedBody).toMatchObject({ app_name: "My Library" });
-      });
+      // Различающая проверка: старый Promise.all при падении users оставил бы настройки
+      // пустыми (setSettings не вызывался). Независимые хуки — настройки заполнены.
+      await waitFor(() => expect(screen.getByDisplayValue("smtp.example")).toBeInTheDocument());
     });
   });
 
