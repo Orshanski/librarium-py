@@ -56,7 +56,7 @@ export default function AdminPage() {
         <div style={{ marginBottom: 48 }}>
           <h2 style={sectionTitleStyle}>Бэкап</h2>
           <p style={{ fontSize: 13, color: colors.textDim }}>
-            Автоматический бэкап в OneDrive ежедневно в 4:00. Настраивается на сервере через rclone + cron.
+            Автоматический бэкап в Hetzner S3 ежедневно в 3:00. Настраивается на сервере через Kopia + cron.
           </p>
         </div>
 
