@@ -18,9 +18,12 @@ def main(db_path: str) -> int:
         return 1
     db = sqlite3.connect(str(path))
     try:
-        db.execute("DELETE FROM settings WHERE key = 'app_name'")
+        cur = db.execute("DELETE FROM settings WHERE key = 'app_name'")
         db.commit()
-        print(f"OK: removed app_name from settings in {path}.")
+        if cur.rowcount > 0:
+            print(f"OK: removed app_name from settings in {path}.")
+        else:
+            print(f"OK: app_name absent in {path} — nothing to do.")
         return 0
     finally:
         db.close()
