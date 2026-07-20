@@ -18,7 +18,7 @@ def test_create_user_creates_system_shelves(admin_client):
         "password": "pass1234",
         "role": "reader",
     }))
-    user_id = data["id"]
+    assert data["id"] > 0
 
     # Login as new user and check shelves
     c = login_client(username="shelfuser", password="pass1234")
