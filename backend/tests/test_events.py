@@ -5,6 +5,13 @@ import threading
 
 import pytest
 
+# Happy-path ожидания реального пробуждения waiter'а: щедрый верхний предел, чтобы на
+# нагруженном CI-раннере таймер wait_for не истёк раньше, чем publish/close дойдёт через
+# event loop. wait() возвращается сразу по факту события — крупное значение не замедляет
+# тест, а лишь исключает timing-flake (см. деплой на CodeQL-мерже: 0.1с не хватало на
+# shared-раннере → TimeoutError). Таймауты 0.05 ниже намеренно малы — там ждут ИСТЕЧЕНИЯ.
+_WAKE_TIMEOUT = 5.0
+
 
 def test_broker_wakes_library_publications_for_all_connections():
     from app.events import EventBroker, EventScope
@@ -13,8 +20,8 @@ def test_broker_wakes_library_publications_for_all_connections():
         broker = EventBroker(queue_size=2)
         left = broker.subscribe(user_id=1)
         right = broker.subscribe(user_id=2)
-        left_wait = asyncio.create_task(left.wait(timeout=0.1))
-        right_wait = asyncio.create_task(right.wait(timeout=0.1))
+        left_wait = asyncio.create_task(left.wait(timeout=_WAKE_TIMEOUT))
+        right_wait = asyncio.create_task(right.wait(timeout=_WAKE_TIMEOUT))
         await asyncio.sleep(0)
 
         broker.publish_nowait(
@@ -36,7 +43,7 @@ def test_broker_wakes_user_publications_only_for_matching_user():
         broker = EventBroker(queue_size=2)
         reader = broker.subscribe(user_id=2)
         other = broker.subscribe(user_id=3)
-        reader_wait = asyncio.create_task(reader.wait(timeout=0.1))
+        reader_wait = asyncio.create_task(reader.wait(timeout=_WAKE_TIMEOUT))
         other_wait = asyncio.create_task(other.wait(timeout=0.05))
         await asyncio.sleep(0)
 
@@ -59,7 +66,7 @@ def test_broker_wake_notification_is_safe_from_worker_thread():
     async def scenario():
         broker = EventBroker(queue_size=2)
         sub = broker.subscribe(user_id=1)
-        pending_wait = asyncio.create_task(sub.wait(timeout=0.1))
+        pending_wait = asyncio.create_task(sub.wait(timeout=_WAKE_TIMEOUT))
         await asyncio.sleep(0)
 
         thread = threading.Thread(
@@ -140,7 +147,7 @@ def test_publish_nowait_wakes_only_subscribers_snapshotted_before_append(monkeyp
     async def scenario():
         broker = EventBroker(queue_size=2)
         initial = broker.subscribe(user_id=2)
-        initial_wait = asyncio.create_task(initial.wait(timeout=0.1))
+        initial_wait = asyncio.create_task(initial.wait(timeout=_WAKE_TIMEOUT))
         late = None
         envelope = {
             "eventId": 1,
@@ -205,7 +212,7 @@ def test_broker_matching_publication_wakes_waiting_stream_subscription():
     async def scenario():
         broker = EventBroker(queue_size=2)
         pending_wait = asyncio.create_task(
-            broker.wait_for_publication(user_id=1, timeout=0.1)
+            broker.wait_for_publication(user_id=1, timeout=_WAKE_TIMEOUT)
         )
         await asyncio.sleep(0)
 
@@ -248,19 +255,19 @@ def test_broker_close_all_wakes_and_cancels_pending_waiters():
     async def scenario():
         broker = EventBroker(queue_size=2)
         pending_left = asyncio.create_task(
-            broker.wait_for_publication(user_id=1, timeout=1.0)
+            broker.wait_for_publication(user_id=1, timeout=_WAKE_TIMEOUT)
         )
         pending_right = asyncio.create_task(
-            broker.wait_for_publication(user_id=2, timeout=1.0)
+            broker.wait_for_publication(user_id=2, timeout=_WAKE_TIMEOUT)
         )
         await asyncio.sleep(0)
 
         broker.close_all()
 
         with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(pending_left, timeout=0.1)
+            await asyncio.wait_for(pending_left, timeout=_WAKE_TIMEOUT)
         with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(pending_right, timeout=0.1)
+            await asyncio.wait_for(pending_right, timeout=_WAKE_TIMEOUT)
 
     asyncio.run(scenario())
 
