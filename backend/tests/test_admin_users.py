@@ -18,7 +18,7 @@ def test_create_user_creates_system_shelves(admin_client):
         "password": "pass1234",
         "role": "reader",
     }))
-    user_id = data["id"]
+    assert data["id"] > 0
 
     # Login as new user and check shelves
     c = login_client(username="shelfuser", password="pass1234")
@@ -111,17 +111,44 @@ def test_get_settings(admin_client):
     assert isinstance(data, dict)
 
 
-def test_update_settings(admin_client):
-    assert_ok(admin_client.put("/api/admin/settings", json={"app_name": "Test Library"}))
-    settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert settings["app_name"] == "Test Library"
+def test_unknown_setting_rejected(admin_client):
+    # extra=forbid: неизвестный ключ в body отклоняется, а не игнорируется
+    assert_error(admin_client.put("/api/admin/settings", json={"evilKey": "hacked"}), 422)
 
 
-def test_unknown_setting_ignored(admin_client):
-    assert_ok(admin_client.put("/api/admin/settings", json={"evil_key": "hacked"}))
-    settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert "evil_key" not in settings
+def test_settings_body_rejects_snake_case(admin_client):
+    # snake-ключи больше не принимаются на проводе (populate_by_name=False)
+    assert_error(admin_client.put("/api/admin/settings", json={"smtp_host": "x"}), 422)
+
+
+def test_app_name_no_longer_accepted(admin_client):
+    # app_name удалён из модели + extra=forbid → отклоняется
+    assert_error(admin_client.put("/api/admin/settings", json={"appName": "X"}), 422)
+
+
+def test_create_user_rejects_unknown_field(admin_client):
+    assert_error(admin_client.post("/api/admin/users", json={
+        "username": "u1", "password": "pass1234", "role": "reader", "bogus": 1,
+    }), 422)
 
 
 def test_reader_cannot_access_settings(reader_client):
     assert_error(reader_client.get("/api/admin/settings"), 403)
+
+
+def test_get_settings_camel_no_app_name(admin_client):
+    assert_ok(admin_client.put("/api/admin/settings", json={"smtpHost": "smtp.test"}))
+    settings = assert_ok(admin_client.get("/api/admin/settings"))
+    assert settings["smtpHost"] == "smtp.test"
+    assert "app_name" not in settings
+    assert "smtp_host" not in settings  # snake на проводе больше нет
+
+
+def test_list_users_camel_case(admin_client):
+    data = assert_ok(admin_client.get("/api/admin/users"))
+    assert len(data["users"]) > 0
+    u = data["users"][0]
+    assert "displayName" in u
+    assert "createdAt" in u
+    assert "display_name" not in u
+    assert "created_at" not in u

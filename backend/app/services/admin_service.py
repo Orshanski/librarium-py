@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..dtos.admin import (
-    AdminSettingsResponse, AdminUsersListResponse,
+    AdminSettingsResponse, AdminUserResponse, AdminUsersListResponse,
     UpdateUserBody, UpdateSettingsBody, UserUpdateData,
 )
 from ..exceptions import BadInputError
@@ -17,7 +17,7 @@ from ..logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.services.admin")
 
-_ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
+_ALLOWED_SETTINGS = {"smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
 _SMTP_PASS_MASK = "••••••"
 
 
@@ -25,7 +25,7 @@ _SMTP_PASS_MASK = "••••••"
 
 def list_users(db: sqlite3.Connection) -> AdminUsersListResponse:
     rows = users_dal.get_all_users(db)
-    return AdminUsersListResponse(users=rows)
+    return AdminUsersListResponse(users=[AdminUserResponse(**row) for row in rows])
 
 
 def create_user(db: sqlite3.Connection, username: str, password: str, role: str,
@@ -65,6 +65,8 @@ def delete_user(db: sqlite3.Connection, user_id: int, actor_id: int) -> None:
         raise BadInputError("Нельзя удалить самого себя")
     if users_dal.is_last_admin(db, user_id):
         raise BadInputError("Нельзя удалить последнего админа")
+    from ..auth import revoke_deleted_user_epoch  # deferred: избегаем циклического импорта
+    revoke_deleted_user_epoch(db, user_id)
     users_dal.delete_user(db, user_id)
     log.info("Deleted user_id=%d by user_id=%s", int(user_id), str(actor_id))
 
