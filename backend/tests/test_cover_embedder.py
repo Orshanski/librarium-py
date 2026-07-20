@@ -6,6 +6,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
+import pytest
 from lxml import etree
 from PIL import Image
 
@@ -294,6 +295,19 @@ class TestEmbedCover:
         fb2_path = book_dir / "book.fb2"
         extracted = _extract_cover_from_fb2(fb2_path)
         assert extracted == cover_bytes
+
+    def test_rejects_path_escaping_library(self, db, monkeypatch):
+        """CodeQL py/path-injection barrier: путь вне LIBRARY_DIR → BadInputError до FS-доступа."""
+        from app import cover_embedder as ce
+        from app.exceptions import BadInputError
+
+        # Barrier сравнивает построенный путь с _LIBRARY_ROOT_PREFIX. Подменяем
+        # префикс на несуществующий — реальный путь книги его не начинает, значит
+        # barrier обязан сработать до is_dir()/exists().
+        monkeypatch.setattr(ce, "_LIBRARY_ROOT_PREFIX", "/nonexistent/library/root/")
+
+        with pytest.raises(BadInputError, match="Path escapes allowed root"):
+            ce.embed_cover(db, 1)
 
 
 # --- Integration tests ---
