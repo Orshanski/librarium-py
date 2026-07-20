@@ -142,3 +142,13 @@ def test_get_settings_camel_no_app_name(admin_client):
     assert settings["smtpHost"] == "smtp.test"
     assert "app_name" not in settings
     assert "smtp_host" not in settings  # snake на проводе больше нет
+
+
+def test_list_users_camel_case(admin_client):
+    data = assert_ok(admin_client.get("/api/admin/users"))
+    assert len(data["users"]) > 0
+    u = data["users"][0]
+    assert "displayName" in u
+    assert "createdAt" in u
+    assert "display_name" not in u
+    assert "created_at" not in u

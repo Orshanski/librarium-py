@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 from ..dal import settings as settings_dal
 from ..dal import users as users_dal
 from ..dtos.admin import (
-    AdminSettingsResponse, AdminUsersListResponse,
+    AdminSettingsResponse, AdminUserResponse, AdminUsersListResponse,
     UpdateUserBody, UpdateSettingsBody, UserUpdateData,
 )
 from ..exceptions import BadInputError
@@ -25,7 +25,7 @@ _SMTP_PASS_MASK = "••••••"
 
 def list_users(db: sqlite3.Connection) -> AdminUsersListResponse:
     rows = users_dal.get_all_users(db)
-    return AdminUsersListResponse(users=rows)
+    return AdminUsersListResponse(users=[AdminUserResponse(**row) for row in rows])
 
 
 def create_user(db: sqlite3.Connection, username: str, password: str, role: str,

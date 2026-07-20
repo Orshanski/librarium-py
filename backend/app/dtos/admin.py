@@ -3,8 +3,7 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._aliases import BODY_CONFIG, to_camel
-from .auth import UserRow
+from ._aliases import BODY_CONFIG, RESPONSE_CONFIG, to_camel
 
 
 class CreateUserBody(BaseModel):
@@ -46,9 +45,22 @@ class UserUpdateData(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 
+class AdminUserResponse(BaseModel):
+    """Один пользователь в ответе GET /api/admin/users — camelCase wire
+    поверх snake-колонок DAL (populate_by_name из RESPONSE_CONFIG)."""
+    model_config = RESPONSE_CONFIG
+
+    id: int
+    username: str
+    display_name: str | None = None
+    email: str | None = None
+    role: Literal["admin", "reader"]
+    created_at: str
+
+
 class AdminUsersListResponse(BaseModel):
     """Response for GET /api/admin/users."""
-    users: list[UserRow]
+    users: list[AdminUserResponse]
 
 
 class AdminSettingsResponse(BaseModel):
