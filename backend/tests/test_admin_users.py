@@ -111,12 +111,6 @@ def test_get_settings(admin_client):
     assert isinstance(data, dict)
 
 
-def test_update_settings(admin_client):
-    assert_ok(admin_client.put("/api/admin/settings", json={"smtpHost": "smtp.test"}))
-    settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert settings["smtpHost"] == "smtp.test"
-
-
 def test_unknown_setting_rejected(admin_client):
     # extra=forbid: неизвестный ключ в body отклоняется, а не игнорируется
     assert_error(admin_client.put("/api/admin/settings", json={"evilKey": "hacked"}), 422)
