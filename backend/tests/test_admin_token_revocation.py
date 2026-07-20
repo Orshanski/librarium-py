@@ -1,5 +1,7 @@
 """nyq9: удаление пользователя немедленно отзывает его сессию."""
-from tests._helpers import assert_ok, assert_error, login_client
+import pytest
+
+from tests._helpers import assert_ok, assert_error, login_client, connect_test_db
 
 
 def test_deleted_user_token_rejected(admin_client):
@@ -48,3 +50,31 @@ def test_deleted_user_rejected_on_endpoint_without_own_existence_check(admin_cli
     assert_ok(admin_client.delete("/api/admin/users/2"))
 
     assert_error(c.get("/api/shelves"), 401)
+
+
+def test_dirty_marker_with_absent_user_rejects():
+    """White-box: Constraint 3 — окно commit→hook.
+
+    Пользователь помечен «идёт отзыв» (dirty) и его строки в БД уже нет.
+    Через HTTP это окно не воспроизвести: синхронный delete-запрос успевает
+    выполнить after-commit-хук (снимает dirty + чистит кэш) до следующего
+    запроса, поэтому integration-тесты бьют только cache-miss путь (Constraint 1).
+    Здесь ветку `dirty + строки нет → reject` в `_reject_dirty_epoch_mismatch`
+    проверяем напрямую, по образцу white-box-хелпера reset_token_epoch_cache_for_tests.
+    """
+    from app.auth import _validate_token_epoch, _token_epoch_dirty_users, _token_epoch_cache_lock
+    from app.exceptions import AuthError
+
+    db = connect_test_db()
+    db.execute("DELETE FROM users WHERE id = 2")
+    db.commit()
+    db.close()
+
+    with _token_epoch_cache_lock:
+        _token_epoch_dirty_users.add(2)
+    try:
+        with pytest.raises(AuthError):
+            _validate_token_epoch(2, 0)
+    finally:
+        with _token_epoch_cache_lock:
+            _token_epoch_dirty_users.discard(2)
