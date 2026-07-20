@@ -158,6 +158,41 @@ def _fetch_token_epoch(user_id: int) -> int | None:
         raise
 
 
+def _register_epoch_invalidation(db: sqlite3.Connection, user_id: int) -> None:
+    """Shared tail of bump_token_epoch / revoke_deleted_user_epoch.
+
+    Marks user_id dirty under _token_epoch_cache_lock before commit — dirty
+    users bypass the cache, so a concurrent pre-commit reader cannot
+    repopulate the old epoch and make it authoritative after this commits.
+
+    Registers invalidate_cache as an after-commit hook (pops the cache entry
+    and clears the dirty marker once the transaction actually lands) and
+    clear_dirty_marker as an after-rollback hook (clears only the dirty
+    marker; the cache entry is left untouched since nothing changed).
+
+    If db is not inside a managed session (add_after_commit_hook returns
+    False — no hook will ever fire), falls back to invoking
+    invalidate_cache() immediately.
+    """
+    with _token_epoch_cache_lock:
+        _token_epoch_dirty_users.add(user_id)
+
+    def invalidate_cache() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_cache.pop(user_id, None)
+            _token_epoch_dirty_users.discard(user_id)
+
+    def clear_dirty_marker() -> None:
+        with _token_epoch_cache_lock:
+            _token_epoch_dirty_users.discard(user_id)
+
+    from .database import add_after_commit_hook, add_after_rollback_hook
+    if add_after_commit_hook(db, invalidate_cache):
+        add_after_rollback_hook(db, clear_dirty_marker)
+    else:
+        invalidate_cache()
+
+
 def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
     """Increment users.token_epoch and invalidate the cache entry. Returns new epoch.
 
@@ -180,23 +215,7 @@ def bump_token_epoch(db: sqlite3.Connection, user_id: int) -> int | None:
         return None
     new_epoch = row[0]
 
-    with _token_epoch_cache_lock:
-        _token_epoch_dirty_users.add(user_id)
-
-    def invalidate_cache() -> None:
-        with _token_epoch_cache_lock:
-            _token_epoch_cache.pop(user_id, None)
-            _token_epoch_dirty_users.discard(user_id)
-
-    def clear_dirty_marker() -> None:
-        with _token_epoch_cache_lock:
-            _token_epoch_dirty_users.discard(user_id)
-
-    from .database import add_after_commit_hook, add_after_rollback_hook
-    if add_after_commit_hook(db, invalidate_cache):
-        add_after_rollback_hook(db, clear_dirty_marker)
-    else:
-        invalidate_cache()
+    _register_epoch_invalidation(db, user_id)
     return new_epoch
 
 
@@ -205,23 +224,7 @@ def revoke_deleted_user_epoch(db: sqlite3.Connection, user_id: int) -> None:
     инвалидирует кэш после commit, снимает dirty при rollback — симметрично
     bump_token_epoch. Вызывать в той же транзакции, что и удаление строки users.
     """
-    with _token_epoch_cache_lock:
-        _token_epoch_dirty_users.add(user_id)
-
-    def invalidate_cache() -> None:
-        with _token_epoch_cache_lock:
-            _token_epoch_cache.pop(user_id, None)
-            _token_epoch_dirty_users.discard(user_id)
-
-    def clear_dirty_marker() -> None:
-        with _token_epoch_cache_lock:
-            _token_epoch_dirty_users.discard(user_id)
-
-    from .database import add_after_commit_hook, add_after_rollback_hook
-    if add_after_commit_hook(db, invalidate_cache):
-        add_after_rollback_hook(db, clear_dirty_marker)
-    else:
-        invalidate_cache()
+    _register_epoch_invalidation(db, user_id)
 
 
 def reset_token_epoch_cache_for_tests() -> None:
