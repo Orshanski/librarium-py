@@ -3,10 +3,12 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
+from ._aliases import BODY_CONFIG
 from .auth import UserRow
 
 
 class CreateUserBody(BaseModel):
+    model_config = BODY_CONFIG
     username: str = Field(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9_]+$')
     password: str = Field(min_length=4)
     role: Literal["admin", "reader"] = "reader"
@@ -15,6 +17,7 @@ class CreateUserBody(BaseModel):
 
 
 class UpdateUserBody(BaseModel):
+    model_config = BODY_CONFIG
     displayName: str | None = None
     email: str | None = None
     password: str | None = Field(default=None, min_length=4)
@@ -22,7 +25,7 @@ class UpdateUserBody(BaseModel):
 
 
 class UpdateSettingsBody(BaseModel):
-    app_name: str | None = None
+    model_config = BODY_CONFIG
     smtp_host: str | None = None
     smtp_port: str | None = None
     smtp_user: str | None = None

@@ -17,7 +17,7 @@ from ..logging_utils import safe as safe_log
 
 log = logging.getLogger("librarium.services.admin")
 
-_ALLOWED_SETTINGS = {"app_name", "smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
+_ALLOWED_SETTINGS = {"smtp_host", "smtp_port", "smtp_user", "smtp_pass"}
 _SMTP_PASS_MASK = "••••••"
 
 

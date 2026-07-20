@@ -112,15 +112,32 @@ def test_get_settings(admin_client):
 
 
 def test_update_settings(admin_client):
-    assert_ok(admin_client.put("/api/admin/settings", json={"app_name": "Test Library"}))
+    # Task 1 меняет только контракт тела запроса; ответ до Task 3 остаётся snake
+    # (extra=allow). camel round-trip ответа проверяется в Task 3.
+    assert_ok(admin_client.put("/api/admin/settings", json={"smtpHost": "smtp.test"}))
     settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert settings["app_name"] == "Test Library"
+    assert settings["smtp_host"] == "smtp.test"
 
 
-def test_unknown_setting_ignored(admin_client):
-    assert_ok(admin_client.put("/api/admin/settings", json={"evil_key": "hacked"}))
-    settings = assert_ok(admin_client.get("/api/admin/settings"))
-    assert "evil_key" not in settings
+def test_unknown_setting_rejected(admin_client):
+    # extra=forbid: неизвестный ключ в body отклоняется, а не игнорируется
+    assert_error(admin_client.put("/api/admin/settings", json={"evilKey": "hacked"}), 422)
+
+
+def test_settings_body_rejects_snake_case(admin_client):
+    # snake-ключи больше не принимаются на проводе (populate_by_name=False)
+    assert_error(admin_client.put("/api/admin/settings", json={"smtp_host": "x"}), 422)
+
+
+def test_app_name_no_longer_accepted(admin_client):
+    # app_name удалён из модели + extra=forbid → отклоняется
+    assert_error(admin_client.put("/api/admin/settings", json={"appName": "X"}), 422)
+
+
+def test_create_user_rejects_unknown_field(admin_client):
+    assert_error(admin_client.post("/api/admin/users", json={
+        "username": "u1", "password": "pass1234", "role": "reader", "bogus": 1,
+    }), 422)
 
 
 def test_reader_cannot_access_settings(reader_client):
