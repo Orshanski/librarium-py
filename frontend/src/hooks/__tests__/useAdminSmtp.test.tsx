@@ -63,4 +63,27 @@ describe("useAdminSmtp", () => {
     expect(result.current.smtpStatus).toBe("none");
     expect(result.current.smtpError).toBe("SMTP auth failed");
   });
+
+  it("dirty is false right after load (unchanged settings)", async () => {
+    const { result } = renderHook(() => useAdminSmtp());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it("dirty becomes true after a field change", async () => {
+    const { result } = renderHook(() => useAdminSmtp());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.setField("smtpHost", "changed"));
+    expect(result.current.dirty).toBe(true);
+  });
+
+  it("dirty resets to false after save", async () => {
+    mockedSaveAdminSettings.mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useAdminSmtp());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.setField("smtpHost", "changed"));
+    expect(result.current.dirty).toBe(true);
+    await act(async () => { await result.current.save(); });
+    expect(result.current.dirty).toBe(false);
+  });
 });

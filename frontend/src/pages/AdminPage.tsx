@@ -63,8 +63,8 @@ export default function AdminPage() {
         {/* ═══ SAVE ═══ */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 8 }}>
           <button
-            style={{ ...btnAccentStyle, opacity: smtp.saving ? 0.5 : 1 }}
-            disabled={smtp.saving}
+            style={{ ...btnAccentStyle, opacity: (smtp.saving || !smtp.dirty) ? 0.5 : 1 }}
+            disabled={smtp.saving || !smtp.dirty}
             onClick={smtp.save}
           >
             {smtp.saving ? "Сохранение..." : "Сохранить настройки"}

@@ -1,8 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAdminSettings, saveAdminSettings, smtpTest as apiSmtpTest,
   type AdminSettings,
 } from "@/api/endpoints/admin";
+
+const SMTP_KEYS: (keyof AdminSettings)[] = ["smtpHost", "smtpPort", "smtpUser", "smtpPass"];
+
+function settingsEqual(a: AdminSettings, b: AdminSettings): boolean {
+  return SMTP_KEYS.every((k) => (a[k] ?? "") === (b[k] ?? ""));
+}
 
 export interface UseAdminSmtpResult {
   settings: AdminSettings;
@@ -10,6 +16,8 @@ export interface UseAdminSmtpResult {
   setField: (key: keyof AdminSettings, value: string) => void;
   saving: boolean;
   savedToast: boolean;
+  /** Настройки отличаются от последних загруженных/сохранённых. */
+  dirty: boolean;
   save: () => Promise<void>;
   smtpStatus: "none" | "checking" | "ok";
   smtpError: string;
@@ -18,6 +26,8 @@ export interface UseAdminSmtpResult {
 
 export function useAdminSmtp(): UseAdminSmtpResult {
   const [settings, setSettings] = useState<AdminSettings>({});
+  // Baseline: последнее загруженное/сохранённое состояние — против него меряем dirty.
+  const savedRef = useRef<AdminSettings>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -28,8 +38,10 @@ export function useAdminSmtp(): UseAdminSmtpResult {
     const controller = new AbortController();
     getAdminSettings(controller.signal)
       .then((data) => {
-        setSettings(data || {});
-        setSmtpStatus(data?.smtpHost ? "ok" : "none");
+        const loaded = data || {};
+        setSettings(loaded);
+        savedRef.current = loaded;
+        setSmtpStatus(loaded.smtpHost ? "ok" : "none");
         setLoading(false);
       })
       .catch((e: unknown) => {
@@ -49,6 +61,7 @@ export function useAdminSmtp(): UseAdminSmtpResult {
     setSavedToast(false);
     try {
       await saveAdminSettings(settings);
+      savedRef.current = settings;  // сохранённое становится новым baseline → dirty сбрасывается
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 3000);
     } catch (e: unknown) {
@@ -71,6 +84,8 @@ export function useAdminSmtp(): UseAdminSmtpResult {
     }
   }, [settings]);
 
-  return { settings, loading, setField, saving, savedToast, save,
+  const dirty = !settingsEqual(settings, savedRef.current);
+
+  return { settings, loading, setField, saving, savedToast, dirty, save,
            smtpStatus, smtpError, testConnection };
 }

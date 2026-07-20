@@ -387,4 +387,20 @@ describe("AdminPage", () => {
       });
     });
   });
+
+  describe("Settings save button", () => {
+    it("is disabled until a setting changes, enabled after", async () => {
+      setupDefaultHandlers();
+      const user = userEvent.setup();
+      renderWithProviders(<AdminPage />);
+      await waitFor(() => screen.getByText("Проверить подключение"));
+
+      const saveBtn = screen.getByRole("button", { name: /Сохранить настройки/ });
+      expect(saveBtn).toBeDisabled();
+
+      // изменение поля почты делает форму «грязной» → кнопка активируется
+      await user.type(screen.getByPlaceholderText("smtp.gmail.com"), "smtp.test");
+      expect(saveBtn).toBeEnabled();
+    });
+  });
 });
