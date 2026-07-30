@@ -2,6 +2,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Routes, Route } from "react-router-dom";
+import { LocationProbe } from "@/test/location-probe";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
@@ -107,4 +110,38 @@ describe("TagsPage", () => {
     expect(cloudRequestCount).toBe(1);
     expect(optionsRequestCount).toBe(1);
   });
+
+  it("переход к жанру из поля поиска идёт роутером, без перезагрузки приложения", async () => {
+    // Раньше здесь присваивался location.href: приложение поднималось заново — единственное
+    // такое место в проекте, везде переходы мгновенные.
+    server.use(
+      http.get("/api/tags/cloud", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Фантастика", bookCount: 8 }] })
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Фантастика" }] })
+      )
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <LocationProbe />
+        <Routes>
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/tags/:id" element={<div>страница жанра</div>} />
+        </Routes>
+      </>,
+      { initialEntries: ["/tags"] },
+    );
+
+    await screen.findByRole("link", { name: /Фантастика/ });
+    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Фантастика");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loc").textContent).toBe("/tags/2");
+    });
+    expect(screen.getByText("страница жанра")).toBeInTheDocument();
+  });
+
 });

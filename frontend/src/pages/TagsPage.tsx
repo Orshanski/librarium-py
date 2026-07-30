@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import Combobox from "../components/combobox";
@@ -23,6 +23,7 @@ function shuffled<T extends { name: string }>(arr: T[]): T[] {
 }
 
 export default function TagsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const cloudResource = useCachedResource(
     metadataCache,
@@ -72,7 +73,9 @@ export default function TagsPage() {
             setSearch(val);
             const tag = allTags.find((t) => t.name === val);
             if (tag) {
-              globalThis.location.href = `/tags/${tag.id}`;
+              // Роутером, а не присваиванием location.href: то перезагружало приложение
+              // целиком — единственное такое место в проекте.
+              navigate(`/tags/${tag.id}`);
             }
           }}
           options={allTags.map((t) => ({ value: t.name }))}
