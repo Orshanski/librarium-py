@@ -1,9 +1,8 @@
 import { useMemo } from "react";
-import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey } from "../components/smart-filter-bar";
-import { clearedFilters, readSelectedFromSearchParams } from "../api/filter-types";
+import { useFilterParams } from "../hooks/useFilterParams";
 import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
@@ -13,9 +12,8 @@ import { entityListScrollContext } from "@/scroll/contexts";
 import { metadataCache, useCachedResource } from "@/cache";
 
 export default function SeriesListPage() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const { selected, onSelectionChange, clearAllFilters } = useFilterParams("/series");
 
   const scrollContext = useMemo(
     () => entityListScrollContext(location.pathname + location.search, "series"),
@@ -33,8 +31,6 @@ export default function SeriesListPage() {
     [location.pathname, location.search],
   );
 
-  const selected = readSelectedFromSearchParams(searchParams);
-
   const seriesResource = useCachedResource(
     metadataCache,
     "series",
@@ -44,28 +40,6 @@ export default function SeriesListPage() {
   const allSeries = seriesResource.data?.series ?? [];
   const loading = seriesResource.loading;
   useScrollRestore(!loading, scrollContext);
-
-  function updateParams(updates: Record<string, string[] | undefined>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) {
-        for (const v of values) params.append(key, v);
-      }
-    }
-    const qs = params.toString();
-    navigate(qs ? `/series?${qs}` : "/series");
-  }
-
-  function onSelectionChange(key: FilterKey, values: string[]) {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }
-
-  // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
-  // и переходы затирали друг друга (снимок searchParams внутри нажатия не обновляется).
-  function clearAllFilters() {
-    updateParams(clearedFilters());
-  }
 
   const sorted = useMemo(() => {
     return [...allSeries].sort((a, b) => a.name.localeCompare(b.name, "ru"));

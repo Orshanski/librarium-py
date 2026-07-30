@@ -1,9 +1,8 @@
 import { useMemo } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey } from "../components/smart-filter-bar";
-import { clearedFilters, readSelectedFromSearchParams } from "../api/filter-types";
+import { useFilterParams } from "../hooks/useFilterParams";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -18,9 +17,9 @@ import { useCatalogList } from "@/cache/useCatalogList";
 import { catalogScrollContext } from "@/scroll/contexts";
 
 export default function CatalogPage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { selected, updateParams, onSelectionChange, clearAllFilters } = useFilterParams("/");
 
   const sort = searchParams.get("sort") || SORT_CONFIG.catalog.default;
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
@@ -52,30 +51,6 @@ export default function CatalogPage() {
   });
 
   useScrollRestore(!loading, scrollContext);
-
-  function updateParams(updates: Record<string, string[] | undefined>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) {
-        for (const v of values) params.append(key, v);
-      }
-    }
-    const qs = params.toString();
-    navigate(qs ? `/?${qs}` : "/");
-  }
-
-  const selected = readSelectedFromSearchParams(searchParams);
-
-  function onSelectionChange(key: FilterKey, values: string[]) {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }
-
-  function clearAllFilters() {
-    // Сброс снимает только фильтры: sort остаётся, потому что updateParams строит
-    // новый адрес от текущего searchParams. navigate("/") терял выбранную сортировку.
-    updateParams(clearedFilters());
-  }
 
   const bookIds = useMemo(() => books.map((b: Book) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds(bookIds);

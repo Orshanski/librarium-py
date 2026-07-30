@@ -10,8 +10,8 @@ import { getTag } from "@/api/endpoints/tags";
 import type { TagSummary } from "@/api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG } from "@/config/sort";
-import { clearedFilters, readSelectedFromSearchParams } from "@/api/filter-types";
-import type { FilterKey, SelectedFilters } from "@/components/smart-filter-bar";
+import { useFilterParams } from "./useFilterParams";
+import type { FilterKey, SelectedFilters } from "@/api/filter-types";
 import { selectedToApiParams } from "@/api/filter-params";
 import type { Book } from "@/types";
 
@@ -47,7 +47,9 @@ export function useTagPage(): UseTagPageResult {
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
+  // Жанр живёт в пути, а не в фильтрах, поэтому базовый путь включает его id:
+  // сброс фильтров оставляет страницу на своём жанре.
+  const { selected, onSelectionChange, clearAllFilters, updateParams } = useFilterParams(`/tags/${tagId}`);
 
   const scrollContext = useMemo(
     () => tagScrollContext({
@@ -107,27 +109,6 @@ export function useTagPage(): UseTagPageResult {
   const navigateAfterDelete = useCallback(() => {
     navigate("/tags");
   }, [navigate]);
-
-  const updateParams = useCallback((updates: Record<string, string[] | undefined>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) for (const v of values) params.append(key, v);
-    }
-    const qs = params.toString();
-    navigate(qs ? `/tags/${tagId}?${qs}` : `/tags/${tagId}`);
-  }, [searchParams, navigate, tagId]);
-
-  const onSelectionChange = useCallback((key: FilterKey, values: string[]) => {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }, [updateParams]);
-
-  // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
-  // и переходы затирали друг друга. sort сохраняется — updateParams строит адрес от
-  // searchParams; сам жанр живёт в пути /tags/{tagId}, сбросом не затрагивается.
-  const clearAllFilters = useCallback(() => {
-    updateParams(clearedFilters());
-  }, [updateParams]);
 
   const handleSortChange = useCallback((newSort: string) => {
     updateParams({ sort: [newSort] });
