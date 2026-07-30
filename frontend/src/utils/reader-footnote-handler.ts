@@ -5,6 +5,9 @@ import { addCustomEventListener } from "./reader-input";
 import type { ReaderLinkDetail } from "../types/reader-events";
 import type { ReaderViewElement } from "../types/reader-foliate";
 
+/** Что видит читатель, если сноску показать не удалось. */
+export const FOOTNOTE_NOT_FOUND_HTML = "<p>Ссылка не найдена</p>";
+
 export interface FootnoteHandlerCallbacks {
   setFootnoteHtml: (html: string | null) => void;
   setFootnoteSide: (side: "left" | "right") => void;
@@ -28,32 +31,46 @@ export function attachFootnoteHandler(
     if (!isFootnoteRef(a)) return;
     e.preventDefault();
     void (async () => {
-      try {
-        const book = view.book;
-        if (!book) return;
-        const containerWidth = container.getBoundingClientRect().width;
-        const side = callbacks.lastClickXRef.current < containerWidth / 2 ? "left" : "right";
-        callbacks.setFootnoteSide(side);
+      const containerWidth = container.getBoundingClientRect().width;
+      const side = callbacks.lastClickXRef.current < containerWidth / 2 ? "left" : "right";
+      callbacks.setFootnoteSide(side);
 
-        const resolved = await Promise.resolve(book.resolveHref(href));
-        if (!resolved) return;
-        const { index, anchor } = resolved;
-        const doc = await book.sections[index].createDocument?.();
-        if (!doc) {
-          console.warn("Failed to open footnote: section createDocument() is unavailable.");
-          return;
-        }
-        const el = anchor(doc);
-        if (!el) return;
-        callbacks.setFootnoteOpen(true);
-        callbacks.setFootnoteHtml(sanitizeHtml(el.innerHTML || el.textContent || ""));
-      } catch (err) {
-        console.error("Failed to load footnote:", err);
-      }
+      // Правило, а не перечень случаев: любой исход, кроме показанного читателю непустого
+      // текста сноски, — неуспех и открывает ту же всплывашку с сообщением. Раньше все
+      // такие пути были тихими выходами: тапнул по сноске и не увидел никакой реакции.
+      //
+      // Признак «открыта» поднимается только вместе с содержимым: при пустой строке
+      // всплывашка не рисуется, а поднятый признак съедал следующий тап (тот уходил на
+      // закрытие вместо листания) — страница переставала листаться.
+      const html = await resolveFootnoteHtml(view, href);
+      callbacks.setFootnoteHtml(html || FOOTNOTE_NOT_FOUND_HTML);
+      callbacks.setFootnoteOpen(true);
     })();
   });
 
   return removeLinkListener;
+}
+
+/** Пустая строка означает «показать нечего» — вызывающий покажет сообщение. */
+async function resolveFootnoteHtml(view: ReaderViewElement, href: string): Promise<string> {
+  try {
+    const book = view.book;
+    if (!book) return "";
+    const resolved = await Promise.resolve(book.resolveHref(href));
+    if (!resolved) return "";
+    const { index, anchor } = resolved;
+    const doc = await book.sections[index].createDocument?.();
+    if (!doc) {
+      console.warn("Failed to open footnote: section createDocument() is unavailable.");
+      return "";
+    }
+    const el = anchor(doc);
+    if (!el) return "";
+    return sanitizeHtml(el.innerHTML || el.textContent || "");
+  } catch (err) {
+    console.error("Failed to load footnote:", err);
+    return "";
+  }
 }
 
 /**
