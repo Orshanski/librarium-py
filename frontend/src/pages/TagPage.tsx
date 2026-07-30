@@ -114,20 +114,20 @@ export default function TagPage() {
       )}
 
       {tag && (
-      <BookGrid>
-        {books.map((book) => (
-          <BookCard
-            key={book.id}
-            {...bookToBookCardCommonProps(book)}
-            width={cardWidth}
-            hasOffline={offlineBookIds.has(book.id)}
-            linkState={bookLinkState}
-          />
-        ))}
-        {books.length === 0 && (
-          <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
-            Книги не найдены
-          </div>
+        <BookGrid>
+          {books.map((book) => (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={bookLinkState}
+            />
+          ))}
+          {books.length === 0 && (
+            <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
+              Книги не найдены
+            </div>
         )}
       </BookGrid>
       )}

@@ -89,30 +89,30 @@ export default function ShelfPage() {
       )}
 
       {shelf && (
-      <BookGrid>
-        {books.map((b) => {
-          const progress = progressByBookId[b.id];
-          const readerHref = isReadingNow && progress?.lastFormat
-            ? `/book/${b.id}/read/${progress.lastFormat.toLowerCase()}`
-            : undefined;
-          // linkState пробрасывается только для книг, ведущих на /book/:id.
-          // Для reader-override (readerHref задан) state для BookPage не нужен.
-          const linkState = readerHref || !shelfOrigin ? undefined : { origin: shelfOrigin };
-          return (
-            <BookCard
-              key={b.id}
-              {...bookToBookCardCommonProps(b)}
-              width={cardWidth}
-              href={readerHref || `/book/${b.id}`}
-              onClick={readerHref ? setReadingFlag : undefined}
-              progressPercent={isReadingNow && progress?.fraction ? Math.round(progress.fraction * 100) : undefined}
-              hasOffline={offlineBookIds.has(b.id)}
-              linkState={linkState}
-              onRemove={shelf && !shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
-            />
-          );
-        })}
-      </BookGrid>
+        <BookGrid>
+          {books.map((b) => {
+            const progress = progressByBookId[b.id];
+            const readerHref = isReadingNow && progress?.lastFormat
+              ? `/book/${b.id}/read/${progress.lastFormat.toLowerCase()}`
+              : undefined;
+            // linkState пробрасывается только для книг, ведущих на /book/:id.
+            // Для reader-override (readerHref задан) state для BookPage не нужен.
+            const linkState = readerHref || !shelfOrigin ? undefined : { origin: shelfOrigin };
+            return (
+              <BookCard
+                key={b.id}
+                {...bookToBookCardCommonProps(b)}
+                width={cardWidth}
+                href={readerHref || `/book/${b.id}`}
+                onClick={readerHref ? setReadingFlag : undefined}
+                progressPercent={isReadingNow && progress?.fraction ? Math.round(progress.fraction * 100) : undefined}
+                hasOffline={offlineBookIds.has(b.id)}
+                linkState={linkState}
+                onRemove={shelf && !shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
+              />
+            );
+          })}
+        </BookGrid>
       )}
 
       {!loading && books.length === 0 && (

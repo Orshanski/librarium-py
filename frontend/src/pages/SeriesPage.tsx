@@ -100,24 +100,24 @@ export default function SeriesPage() {
       )}
 
       {series && (
-      <BookGrid>
-        {books.map((book: Book) => (
-          <BookCard
-            key={book.id}
-            {...bookToBookCardCommonProps(book)}
-            width={cardWidth}
-            hasOffline={offlineBookIds.has(book.id)}
-            linkState={{
-              origin: {
-                type: "series",
-                url: pathnameWithSearch,
-                label: series.name,
-                ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
-              },
-            }}
-          />
-        ))}
-      </BookGrid>
+        <BookGrid>
+          {books.map((book: Book) => (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={{
+                origin: {
+                  type: "series",
+                  url: pathnameWithSearch,
+                  label: series.name,
+                  ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
+                },
+              }}
+            />
+          ))}
+        </BookGrid>
       )}
     </>
   );

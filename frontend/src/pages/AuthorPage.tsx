@@ -90,18 +90,18 @@ export default function AuthorPage() {
       )}
 
       {author && (
-      <AuthorDetail
-        author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
-        books={books}
-        bookLinkState={{
-          origin: {
-            type: "author",
-            url: pathnameWithSearch,
-            label: author.name,
-            ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
-          },
-        }}
-      />
+        <AuthorDetail
+          author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
+          books={books}
+          bookLinkState={{
+            origin: {
+              type: "author",
+              url: pathnameWithSearch,
+              label: author.name,
+              ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
+            },
+          }}
+        />
       )}
     </>
   );
