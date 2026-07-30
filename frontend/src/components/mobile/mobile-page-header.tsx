@@ -171,7 +171,9 @@ export default function MobilePageHeader({
               paddingBottom: 2,
             }}
           >
-            {filterKeys && selected && onSelectionChange && (
+            {/* filterKeys — дискриминант союза PageHeaderFilterProps: при нём остальные
+                фильтровые пропы обязательны по типу и сужаются вместе с ним. */}
+            {filterKeys && (
               <div style={{ flexShrink: 0 }}>
                 <SmartFilterBar
                   filterKeys={filterKeys}

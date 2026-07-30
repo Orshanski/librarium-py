@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 import { server } from "@/test/msw/server";
@@ -57,6 +57,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds"]}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -85,6 +86,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds"]}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -98,6 +100,94 @@ describe("SmartFilterBar", () => {
     await waitFor(() => expect(screen.queryByText("Old Author")).not.toBeInTheDocument());
     await screen.findByText("New Author");
     expect(call).toBe(1);
+  });
+
+  it("держит прежние варианты, пока грузятся суженные", async () => {
+    // Выбор в соседнем фильтре меняет ключ кэша вариантов: до прихода ответа
+    // options[key] === undefined, и чип, который рисуется только по загруженным
+    // вариантам, размонтировался бы — панель моргает (o0ky).
+    //
+    // Чип берётся с выбранным значением: его подпись разрешается из списка вариантов
+    // (filter-bar.chipLabel), поэтому «удержали прежний список» отличимо от «отрисовали
+    // пустой чип» — при пустом списке на кнопке оказался бы сырой идентификатор «1».
+    let calls = 0;
+    server.use(
+      http.get("/api/filter-options/tags", () => {
+        calls += 1;
+        return HttpResponse.json({ tags: mockTags });
+      }),
+    );
+
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ tagIds: ["1"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+    expect(await screen.findByRole("button", { name: /Fiction/ })).toBeInTheDocument();
+    expect(calls).toBe(1);
+
+    // Ответ по новому ключу не приходит вовсе — окно перезагрузки держится.
+    server.use(
+      http.get("/api/filter-options/tags", () => {
+        calls += 1;
+        return new Promise(() => {});
+      }),
+    );
+    rerender(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ tagIds: ["1"], authorIds: ["7"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+    );
+
+    // Чип на месте и подписан прежним вариантом, а не идентификатором.
+    expect(screen.getByRole("button", { name: /Fiction/ })).toBeInTheDocument();
+
+    // И сам список вариантов прежний, а не пустой.
+    await user.click(screen.getByRole("button", { name: /Fiction/ }));
+    expect(screen.getByText("Science")).toBeInTheDocument();
+
+    // Запросов ровно столько же, сколько было бы без запаса: по одному на ключ кэша.
+    expect(calls).toBe(2);
+  });
+
+  it("не показывает прежние варианты после сброса кэша: они уже устарели", async () => {
+    // filter-options/* сбрасывается как раз тогда, когда варианты перестали быть
+    // верными (книга удалена, автор слит, жанр удалён). Показать после этого прежний
+    // список значило бы оставить удалённый вариант кликабельным.
+    server.use(
+      http.get("/api/filter-options/tags", () => HttpResponse.json({ tags: mockTags })),
+    );
+
+    render(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ tagIds: ["1"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+    expect(await screen.findByRole("button", { name: /Fiction/ })).toBeInTheDocument();
+
+    // Дальше ответы не приходят: если бы запас переживал сброс, чип остался бы.
+    server.use(
+      http.get("/api/filter-options/tags", () => new Promise(() => {})),
+    );
+    await act(async () => {
+      domainEvents.publish("tagDeleted", { tagId: 1 });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Fiction/ })).toBeNull();
+    });
   });
 
   it("renders filter options from API", async () => {
@@ -122,6 +212,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds", "tagIds", "language"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -155,6 +246,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -172,6 +264,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{ seriesIds: ["2"] }}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
     );
 
@@ -210,6 +303,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );

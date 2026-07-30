@@ -83,6 +83,7 @@ const DESKTOP_ADMIN_DELETE_STYLE = {
 export default function DesktopBookDetail({
   book,
   seriesBooks,
+  offlineSeriesBookIds,
   formats,
   isbn,
   bookOrigin,
@@ -205,6 +206,7 @@ export default function DesktopBookDetail({
       {book.series && (
         <BookSeriesRail
           books={seriesBooks}
+          offlineBookIds={offlineSeriesBookIds}
           currentBookId={book.id}
           bookOrigin={bookOrigin}
           seriesName={book.series.name}

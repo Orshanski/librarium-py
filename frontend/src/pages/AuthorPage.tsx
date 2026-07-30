@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import AuthorDetail from "../components/author-detail";
 import EntityAdminPanel from "../components/entity-admin-panel";
 import { pluralizeBooks } from "../utils/pluralize";
@@ -18,24 +19,18 @@ export default function AuthorPage() {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,
     navigateAfterDelete,
+    offlineBookIds,
   } = useAuthorPage();
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (notFound || !author) {
+  // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
+  if (notFound || (!loading && !loadFailed && !author)) {
     return (
       <>
         <PageHeader title="Автор не найден" breadcrumb={crumb} />
@@ -44,14 +39,14 @@ export default function AuthorPage() {
     );
   }
 
-  const infoSlot = (
+  const infoSlot = author ? (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
       <span>{pluralizeBooks(author.bookCount)}</span>
       <span>{author.tags.slice(0, 5).join(", ")}</span>
     </div>
-  );
+  ) : undefined;
 
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && author ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -72,12 +67,12 @@ export default function AuthorPage() {
   return (
     <>
       <PageHeader
-        title={author.name}
+        title={author?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         titleSlot={adminButton}
         infoSlot={infoSlot}
         breadcrumb={crumb}
       />
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && author && (
         <EntityAdminPanel
           entityType="author"
           entityId={author.id}
@@ -93,18 +88,29 @@ export default function AuthorPage() {
           }}
         />
       )}
-      <AuthorDetail
-        author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
-        books={books}
-        bookLinkState={{
-          origin: {
-            type: "author",
-            url: pathnameWithSearch,
-            label: author.name,
-            ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
-          },
-        }}
-      />
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {/* Сообщение в теле, а не вместо страницы: шапка остаётся, чтобы уйти было куда (крошка) и
+          страница не подменялась целиком. */}
+      {loadFailed && <LoadFailureNotice />}
+
+      {author && (
+        <AuthorDetail
+          author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
+          books={books}
+          offlineBookIds={offlineBookIds}
+          bookLinkState={{
+            origin: {
+              type: "author",
+              url: pathnameWithSearch,
+              label: author.name,
+              ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
+            },
+          }}
+        />
+      )}
     </>
   );
 }

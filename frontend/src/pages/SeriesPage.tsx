@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -23,6 +24,7 @@ export default function SeriesPage() {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,
@@ -31,11 +33,11 @@ export default function SeriesPage() {
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 
-  if (notFound) {
+  // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
+  if (notFound || (!loading && !loadFailed && !series)) {
     return (
       <>
         <PageHeader title="Серия не найдена" breadcrumb={crumb} />
@@ -44,20 +46,7 @@ export default function SeriesPage() {
     );
   }
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (!series) return null;
-
-  const bookCount = series.bookCount;
-
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && series ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -74,23 +63,23 @@ export default function SeriesPage() {
     >⚙</button>
   ) : undefined;
 
-  const infoSlot = (
+  const infoSlot = series ? (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
-      <span>{pluralizeBooks(bookCount)}</span>
+      <span>{pluralizeBooks(series.bookCount)}</span>
       {series.authors && series.authors.length > 0 && <span>{series.authors.map((a) => a.name).join(", ")}</span>}
     </div>
-  );
+  ) : undefined;
 
   return (
     <>
       <PageHeader
-        title={series.name}
+        title={series?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         titleSlot={adminButton}
         breadcrumb={crumb}
         infoSlot={infoSlot}
       />
 
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && series && (
         <EntityAdminPanel
           entityType="series"
           entityId={series.id}
@@ -107,24 +96,34 @@ export default function SeriesPage() {
         />
       )}
 
-      <BookGrid>
-        {books.map((book: Book) => (
-          <BookCard
-            key={book.id}
-            {...bookToBookCardCommonProps(book)}
-            width={cardWidth}
-            hasOffline={offlineBookIds.has(book.id)}
-            linkState={{
-              origin: {
-                type: "series",
-                url: pathnameWithSearch,
-                label: series.name,
-                ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
-              },
-            }}
-          />
-        ))}
-      </BookGrid>
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {/* Сообщение в теле, а не вместо страницы: шапка остаётся, чтобы уйти было куда (крошка) и
+          страница не подменялась целиком. */}
+      {loadFailed && <LoadFailureNotice />}
+
+      {series && (
+        <BookGrid>
+          {books.map((book: Book) => (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={{
+                origin: {
+                  type: "series",
+                  url: pathnameWithSearch,
+                  label: series.name,
+                  ...(parentOriginForBookLink ? { parentOrigin: parentOriginForBookLink } : {}),
+                },
+              }}
+            />
+          ))}
+        </BookGrid>
+      )}
     </>
   );
 }

@@ -55,6 +55,10 @@ export type DomainEventMap = {
   shelfRenamed: { shelfId: number; name: string };
   shelfDeleted: { shelfId: number };
   shelfMembershipChanged: { shelfId: number; bookId: number; hasBook: boolean; book?: Book };
+  // Офлайн-копия книги сохранена или удалена. Нужен, чтобы бейджи «скачано» в списках
+  // не расходились с состоянием на странице книги: раньше набор читался один раз при
+  // отрисовке и после сохранения книги оставался прежним.
+  offlineBookChanged: { bookId: number; hasOffline: boolean };
   readingProgressChanged: {
     bookId: number;
     hadPosition: boolean;

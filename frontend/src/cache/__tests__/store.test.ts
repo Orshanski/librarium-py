@@ -170,11 +170,9 @@ describe("MetadataCacheStore", () => {
       hasMore: false,
     }, { context: { kind: "book-list", key: "author/2", source: "author-detail", authorId: 2, sort: "addedDesc" } });
     store.subscribe("author/2", subscriber);
-    const before = store.version("author/2");
 
     store.applyAuthorRename({ authorId: 99, name: "Missing" });
 
-    expect(store.version("author/2")).toBe(before);
     expect(subscriber).not.toHaveBeenCalled();
   });
 
@@ -365,13 +363,11 @@ describe("MetadataCacheStore", () => {
     });
     const subscriber = vi.fn();
     store.subscribe("book/10", subscriber);
-    const before = store.version("book/10");
 
     expect(() => {
       store.applyAuthorRename({ authorId: 7, name: "New", sortName: "New" });
     }).not.toThrow();
 
-    expect(store.version("book/10")).toBe(before);
     expect(subscriber).not.toHaveBeenCalled();
     expect(store.get<{ book: { authors: unknown[] } }>("book/10", "detail")?.book.authors).toEqual([
       null,
@@ -414,11 +410,9 @@ describe("MetadataCacheStore", () => {
     });
     const subscriber = vi.fn();
     store.subscribe("book/10", subscriber);
-    const before = store.version("book/10");
 
     store.applySeriesRename({ seriesId: 9, name: "Old Series", sortName: "Series Sort" });
 
-    expect(store.version("book/10")).toBe(before);
     expect(subscriber).not.toHaveBeenCalled();
     expect(store.get<{ book: { series: { name: string; sortName: string } } }>("book/10", "detail")?.book.series)
       .toEqual({ id: 9, name: "Old Series", sortName: "Series Sort" });
@@ -455,13 +449,11 @@ describe("MetadataCacheStore", () => {
     });
     const subscriber = vi.fn();
     store.subscribe("book/10", subscriber);
-    const before = store.version("book/10");
 
     expect(() => {
       store.applyTagRename({ tagId: 3, name: "New" });
     }).not.toThrow();
 
-    expect(store.version("book/10")).toBe(before);
     expect(subscriber).not.toHaveBeenCalled();
     expect(store.get<{ book: { tags: unknown[] } }>("book/10", "detail")?.book.tags).toEqual([
       undefined,

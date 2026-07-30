@@ -36,7 +36,7 @@ const catalogOrigin = { type: "catalog" as const, url: "/", label: "Катало
 
 function renderBookDetail(book: BookDetailType = mockBook) {
   return renderWithProviders(
-    <BookDetail book={book} seriesBooks={[]} formats={[]} isbn={null} bookOrigin={catalogOrigin} />
+    <BookDetail book={book} seriesBooks={[]} offlineSeriesBookIds={new Set()} formats={[]} isbn={null} bookOrigin={catalogOrigin} />
   );
 }
 

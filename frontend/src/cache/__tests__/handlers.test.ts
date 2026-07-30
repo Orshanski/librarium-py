@@ -622,6 +622,35 @@ describe("metadata cache handlers", () => {
     expect(invalidateSpy).toHaveBeenCalledWith("filter-options/tags");
     expect(invalidateSpy).toHaveBeenCalledWith("filter-options/languages");
   });
+
+  it("tagDeleted сбрасывает карточку автора — в ней есть жанры (пин)", () => {
+    // Не новая работа, а защита: сброс книжных списков идёт по всем пространствам и
+    // сносит любую запись со списком книг, а карточка автора — как раз такая.
+    // Если кто-то позже сузит этот сброс, в карточке останется жанр-призрак.
+    store.set("author/5", "detail", {
+      author: { id: 5, name: "Акунин", bookCount: 1, tags: [{ id: 3, name: "X" }] },
+      books: [makeBook(11, "Книга")],
+    }, {
+      context: { kind: "book-list", key: "author/5", source: "author-detail", authorId: 5, sort: "addedDesc" },
+    });
+
+    domainEvents.publish("tagDeleted", { tagId: 3 });
+
+    expect(store.get("author/5", "detail")).toBeUndefined();
+  });
+
+  it("authorDeleted сбрасывает карточку серии — в ней есть авторы (пин)", () => {
+    store.set("series/9", "detail", {
+      series: { id: 9, name: "Фандорин", bookCount: 1, authors: [{ id: 7, name: "A" }] },
+      books: [makeBook(12, "Книга")],
+    }, {
+      context: { kind: "book-list", key: "series/9", source: "series-detail", seriesId: 9, sort: "seriesNumber" },
+    });
+
+    domainEvents.publish("authorDeleted", { authorId: 7 });
+
+    expect(store.get("series/9", "detail")).toBeUndefined();
+  });
 });
 
 describe("tagMerged handler", () => {
@@ -674,4 +703,6 @@ describe("tagDeleted handler", () => {
     expect(store.get("filter-options/authors", "all")).toBeUndefined();
     unregister();
   });
+
+
 });

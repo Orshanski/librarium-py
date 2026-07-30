@@ -40,6 +40,8 @@ def rename_author(db: sqlite3.Connection, author_id: int, name: str) -> bool:
     для агрегата book_count, но это та же стоимость что у author detail endpoint."""
     if not dal.queries.author_exists(db, id=author_id):
         raise NotFoundError("Автор не найден")
+    # Сырой запрос, а не dal.get_author_by_id: нужно только имя. Агрегат tags в строке
+    # придёт неразобранной JSON-строкой — через parse_book_row_aggregates этот путь не идёт.
     row = dal.queries.get_author_by_id(db, id=author_id)
     if row["name"] == name:
         return False
@@ -67,6 +69,8 @@ def get_author_name(db: sqlite3.Connection, author_id: int) -> str:
     Используется register_entity_crud для re-read имени после успешного
     rename (payload события *Renamed). Симметрично get_tag_name/get_series_name.
     Вызываем get_author_by_id ради row["name"]; book_count игнорируется."""
+    # Сырой запрос, а не dal.get_author_by_id: нужно только имя. Агрегат tags в строке
+    # придёт неразобранной JSON-строкой — через parse_book_row_aggregates этот путь не идёт.
     row = dal.queries.get_author_by_id(db, id=author_id)
     if row is None:
         raise NotFoundError("Автор не найден")

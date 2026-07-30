@@ -286,6 +286,30 @@ describe("SeriesPage", () => {
       expect(screen.getByText("Список серий")).toBeInTheDocument();
     });
   });
+
+
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/series/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/series/:id" element={<SeriesPage />} />
+      </Routes>,
+      { initialEntries: ["/series/1"] },
+    );
+
+    // Сообщение и в заголовке, и в теле: заголовок «...» означал бы «ещё грузится».
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
+    expect(screen.queryByText("Серия не найдена")).toBeNull();
+  });
+
 });
 
 const seriesCase = {

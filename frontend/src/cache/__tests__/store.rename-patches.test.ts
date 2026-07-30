@@ -69,11 +69,8 @@ describe("MetadataCacheStore rename patches", () => {
     const subscriber = vi.fn();
     store.set("authors", "all", { authors: [{ id: 7, name: "Old", bookCount: 1 }] });
     store.subscribe("authors", subscriber);
-    const beforeVersion = store.version("authors");
 
     store.applyAuthorRename({ authorId: 7, name: "New" });
-    const afterFirst = store.version("authors");
-    expect(afterFirst).toBe(beforeVersion + 1);
     expect(subscriber).toHaveBeenCalledTimes(1);
     expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
       { id: 7, name: "New", sortName: "New", bookCount: 1 },
@@ -82,8 +79,11 @@ describe("MetadataCacheStore rename patches", () => {
     subscriber.mockClear();
     store.applyAuthorRename({ authorId: 7, name: "New" });
 
-    expect(store.version("authors")).toBe(afterFirst);
+    // Повторное применение того же переименования не меняет ни записи, ни оповещений.
     expect(subscriber).not.toHaveBeenCalled();
+    expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
+      { id: 7, name: "New", sortName: "New", bookCount: 1 },
+    ]);
   });
 
   it("applySeriesRename patches series aggregate and preserves nested authors", () => {
@@ -166,11 +166,9 @@ describe("MetadataCacheStore rename patches", () => {
 
   it("does not throw when tags aggregate has malformed value", () => {
     store.set("tags", "all", null as unknown);
-    const before = store.version("tags");
 
     expect(() => store.applyTagRename({ tagId: 3, name: "New" })).not.toThrow();
 
-    expect(store.version("tags")).toBe(before);
     expect(store.get("tags", "all")).toBeNull();
   });
 
@@ -207,11 +205,9 @@ describe("MetadataCacheStore rename patches", () => {
         { id: 6, name: "Alpha" },
       ],
     });
-    const beforeVersion = store.version("filter-options/tags");
 
     expect(() => store.applyTagRename({ tagId: 6, name: "Omega" })).not.toThrow();
 
-    expect(store.version("filter-options/tags")).toBe(beforeVersion + 1);
     expect(store.get("filter-options/tags", "all")).toEqual({
       tags: [
         { id: 3, name: "Beta" },
@@ -231,11 +227,9 @@ describe("MetadataCacheStore rename patches", () => {
         { id: 4, name: "Alpha", sortName: "Alpha" },
       ],
     });
-    const beforeVersion = store.version("authors");
 
     expect(() => store.applyAuthorRename({ authorId: 4, name: "A", sortName: "A" })).not.toThrow();
 
-    expect(store.version("authors")).toBe(beforeVersion + 1);
     expect(store.get("authors", "all")).toEqual({
       authors: [
         { id: 1, name: "Beta", sortName: "Beta" },
@@ -371,4 +365,42 @@ describe("MetadataCacheStore rename patches", () => {
       { id: 3, name: "New" },
     ]);
   });
+
+  it("applyTagRename патчит жанры внутри карточки автора", () => {
+    // Детальный ответ автора теперь отдаёт его жанры (23od) — тот же агрегат, что в
+    // списке авторов, который патчится рядом. Без этого закэшированная страница автора
+    // показывала бы старое имя жанра.
+    store.set(
+      "author/5",
+      "detail",
+      {
+        author: { id: 5, name: "Акунин", bookCount: 1, tags: [{ id: 3, name: "Старое" }] },
+        books: [{ id: 11, title: "Книга" }],
+      },
+      { context: { kind: "book-list", key: "author/5", source: "author-detail", authorId: 5, sort: "addedDesc" } },
+    );
+
+    store.applyTagRename({ tagId: 3, name: "Новое" });
+
+    const value = store.get<{ author: { tags: Array<{ id: number; name: string }> } }>("author/5", "detail");
+    expect(value?.author.tags).toEqual([{ id: 3, name: "Новое" }]);
+  });
+
+  it("applyAuthorRename патчит авторов внутри карточки серии", () => {
+    store.set(
+      "series/9",
+      "detail",
+      {
+        series: { id: 9, name: "Фандорин", bookCount: 1, authors: [{ id: 7, name: "Старое" }] },
+        books: [{ id: 12, title: "Книга" }],
+      },
+      { context: { kind: "book-list", key: "series/9", source: "series-detail", seriesId: 9, sort: "seriesNumber" } },
+    );
+
+    store.applyAuthorRename({ authorId: 7, name: "Новое" });
+
+    const value = store.get<{ series: { authors: Array<{ name: string }> } }>("series/9", "detail");
+    expect(value?.series.authors[0].name).toBe("Новое");
+  });
+
 });

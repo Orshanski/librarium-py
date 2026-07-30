@@ -40,6 +40,8 @@ def rename_series(db: sqlite3.Connection, series_id: int, name: str) -> bool:
     запроса get_series_by_id из DAL, который тянет user_books JOIN."""
     if not dal.queries.series_exists(db, id=series_id):
         raise NotFoundError("Серия не найдена")
+    # Сырой запрос, а не dal.get_series_by_id: нужно только имя. Агрегат authors в строке
+    # придёт неразобранной JSON-строкой — через parse_book_row_aggregates этот путь не идёт.
     row = dal.queries.get_series_by_id(db, id=series_id)
     if row["name"] == name:
         return False
@@ -66,6 +68,8 @@ def get_series_name(db: sqlite3.Connection, series_id: int) -> str:
 
     Используется register_entity_crud для re-read имени после успешного
     rename (payload события *Renamed). Симметрично get_tag_name/get_author_name."""
+    # Сырой запрос, а не dal.get_series_by_id: нужно только имя. Агрегат authors в строке
+    # придёт неразобранной JSON-строкой — через parse_book_row_aggregates этот путь не идёт.
     row = dal.queries.get_series_by_id(db, id=series_id)
     if row is None:
         raise NotFoundError("Серия не найдена")

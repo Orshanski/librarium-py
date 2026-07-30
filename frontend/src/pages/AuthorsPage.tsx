@@ -1,21 +1,19 @@
 import { useMemo } from "react";
-import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { useFilterParams } from "../hooks/useFilterParams";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listAuthors } from "../api/endpoints/authors";
-import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
 import { metadataCache, useCachedResource } from "@/cache";
 
 export default function AuthorsPage() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const { selected, onSelectionChange, clearAllFilters } = useFilterParams("/authors");
 
   const scrollContext = useMemo(
     () => entityListScrollContext(location.pathname + location.search, "authors"),
@@ -33,11 +31,6 @@ export default function AuthorsPage() {
     [location.pathname, location.search],
   );
 
-  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
-  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-
-  const selected = readSelectedFromSearchParams(searchParams);
-
   const authorsResource = useCachedResource(
     metadataCache,
     "authors",
@@ -48,21 +41,6 @@ export default function AuthorsPage() {
   const loading = authorsResource.loading;
   useScrollRestore(!loading, scrollContext);
 
-  function updateParams(updates: Record<string, string[] | undefined>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) {
-        for (const v of values) params.append(key, v);
-      }
-    }
-    navigate(`/authors?${params.toString()}`);
-  }
-
-  function onSelectionChange(key: FilterKey, values: string[]) {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }
-
   return (
     <>
       <PageHeader
@@ -70,6 +48,7 @@ export default function AuthorsPage() {
         filterKeys={["tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         showUpload
       />
 

@@ -20,6 +20,7 @@ export interface BookSeriesRailTokens {
 
 interface BookSeriesRailProps {
   books: ReadonlyArray<Book>;
+  offlineBookIds: ReadonlySet<number>;
   currentBookId: number;
   bookOrigin: ListOrigin;
   seriesName: string;
@@ -35,6 +36,7 @@ const RAIL_STYLE: CSSProperties = {
 
 export default function BookSeriesRail({
   books,
+  offlineBookIds,
   currentBookId,
   bookOrigin,
   seriesName,
@@ -60,6 +62,7 @@ export default function BookSeriesRail({
             <BookCard
               {...bookToBookCardCommonProps(book)}
               width={SERIES_RAIL_COVER_WIDTH}
+              hasOffline={offlineBookIds.has(book.id)}
               opacity={pickOpacity(book.id === currentBookId)}
               border={pickBorder(book.id === currentBookId)}
               linkState={{ origin: bookOrigin }}

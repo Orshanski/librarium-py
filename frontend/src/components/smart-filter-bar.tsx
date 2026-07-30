@@ -1,36 +1,25 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useIsMobile } from "../responsive";
 import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
 import type { FilterKey, SelectedFilters } from "../api/filter-types";
+import { FILTER_QUERY_KEYS } from "../api/filter-types";
 import { metadataCache, useCachedResource } from "../cache";
 
 export type { FilterKey, SelectedFilters };
 export type { ApiFilterParams };
 
-// Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)
-// из query-params и собирает SelectedFilters. Используется страницами-списками
-// (CatalogPage, AuthorsPage, SeriesListPage, TagPage) чтобы избежать дубля одного паттерна.
-export function readSelectedFromSearchParams(searchParams: URLSearchParams): SelectedFilters {
-  const selected: SelectedFilters = {};
-  const authorIds = searchParams.getAll("authorIds");
-  const seriesIds = searchParams.getAll("seriesIds");
-  const tagIds = searchParams.getAll("tagIds");
-  const language = searchParams.getAll("language");
-  if (authorIds.length) selected.authorIds = authorIds;
-  if (seriesIds.length) selected.seriesIds = seriesIds;
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
-  return selected;
-}
-
 interface SmartFilterBarProps {
   filterKeys: FilterKey[];
   selected: SelectedFilters;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
-  onClearAll?: () => void;
+  // Обязателен намеренно: снимать фильтры по одному нельзя — страницы строят адрес от
+  // снимка searchParams текущего рендера, и последовательные переходы затирают друг
+  // друга (sza4). Раньше проп был необязательным, а панель в его отсутствие шла именно
+  // таким запасным путём; теперь пропуск обработчика — ошибка типизации.
+  onClearAll: () => void;
   baseFilters?: ApiFilterParams;
 }
 
@@ -41,11 +30,20 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
-const KEY_ORDER: FilterKey[] = ["authorIds", "seriesIds", "tagIds", "language"];
+/**
+ * Запас вариантов на время перезагрузки вместе с условиями, при которых он получен.
+ * Сравнение options по ссылке опирается на то, что кэш отдаёт хранимую ссылку
+ * (MetadataCacheStore.get), а не пересобирает массив на каждый вызов.
+ */
+interface KeptOptions {
+  options: FilterOption[];
+  baseKey: string;
+  invalidationVersion: number;
+}
 
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
-  return KEY_ORDER.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
+  return FILTER_QUERY_KEYS.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
 }
 
 export function buildQueryParams(
@@ -54,7 +52,7 @@ export function buildQueryParams(
   baseFilters?: ApiFilterParams,
 ): ApiFilterParams {
   const out: ApiFilterParams = { ...baseFilters };
-  for (const key of KEY_ORDER) {
+  for (const key of FILTER_QUERY_KEYS) {
     if (key === ownKey) continue;
     const values = selected[key];
     if (!values?.length) continue;
@@ -101,7 +99,36 @@ function useFilterOptions(
     },
     [key, meta.apiKey, meta.responseKey, cacheKey, active],
   );
-  return useCachedResource(metadataCache, `filter-options/${meta.apiKey}`, cacheKey, fetcher).data;
+  const namespace = `filter-options/${meta.apiKey}`;
+  const data = useCachedResource(metadataCache, namespace, cacheKey, fetcher).data;
+  const baseKey = serializeBase(baseFilters);
+  const invalidationVersion = metadataCache.invalidationVersion(namespace);
+
+  // Пока грузятся суженные варианты, отдаём прежний список: иначе data === undefined,
+  // чип (он рисуется только по загруженным вариантам) размонтируется и панель моргает
+  // при каждом первом сужении за сессию (o0ky).
+  //
+  // Запас годится не всегда, поэтому хранится вместе с условиями, при которых он был
+  // получен:
+  //  - invalidationVersion: сброс пространства filter-options/* происходит как раз тогда,
+  //    когда варианты устарели (книга удалена, автор слит, жанр удалён — handlers.ts).
+  //    Отдавать после этого прежний список значило бы показывать удалённый вариант
+  //    кликабельным — ровно то, ради чего сброс и делается;
+  //  - baseKey: базовый фильтр страницы. Переход между жанрами не перемонтирует панель,
+  //    если данные целевой страницы уже в кэше, и без этой проверки в чипах на миг
+  //    оказались бы авторы и языки прежнего жанра.
+  // Сужение выбора меняет cacheKey, но не эти два условия — то есть именно тот случай,
+  // ради которого запас и нужен.
+  //
+  // Правка состояния прямо в рендере — штатный приём React для производного состояния
+  // («запомнить предыдущее значение»), присвоение условное и идемпотентное.
+  const [kept, setKept] = useState<KeptOptions | undefined>(undefined);
+  if (data !== undefined && data !== kept?.options) {
+    setKept({ options: data, baseKey, invalidationVersion });
+  }
+  if (data !== undefined) return data;
+  const keptFits = kept?.baseKey === baseKey && kept?.invalidationVersion === invalidationVersion;
+  return keptFits ? kept?.options : undefined;
 }
 
 export default function SmartFilterBar({

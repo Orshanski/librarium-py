@@ -18,7 +18,6 @@ type CacheEntry = PersistedCacheEntry;
 type Namespace = {
   entries: Map<string, CacheEntry>;
   subscribers: Set<() => void>;
-  version: number;
   invalidationVersion: number;
 };
 
@@ -51,7 +50,6 @@ export class MetadataCacheStore {
   ): void {
     const ns = this.getNamespace(namespace);
     ns.entries.set(key, { value, context: options.context });
-    ns.version += 1;
     this.persist(namespace);
     this.notify(namespace);
   }
@@ -61,7 +59,6 @@ export class MetadataCacheStore {
     const entry = ns.entries.get(key);
     if (!entry || sameContext(entry.context, context)) return;
     ns.entries.set(key, { ...entry, context });
-    ns.version += 1;
     this.persist(namespace);
     this.notify(namespace);
   }
@@ -81,7 +78,6 @@ export class MetadataCacheStore {
       return;
     }
     ns.entries.clear();
-    ns.version += 1;
     ns.invalidationVersion += 1;
     sessionStorage.removeItem(STORAGE_PREFIX + namespace);
     this.notify(namespace);
@@ -137,7 +133,6 @@ export class MetadataCacheStore {
     }
     const changed = result.entries.length > 0 || result.invalidatedKeys.length > 0;
     if (changed) {
-      ns.version += 1;
       if (result.invalidatedKeys.length > 0) ns.invalidationVersion += 1;
       this.persist(namespace);
       this.notify(namespace);
@@ -211,15 +206,11 @@ export class MetadataCacheStore {
     for (const namespace of affectedNamespaces) {
       const ns = this.getNamespace(namespace);
       ns.entries.clear();
-      ns.version += 1;
       ns.invalidationVersion += 1;
       this.notify(namespace);
     }
   }
 
-  version(namespace: string): number {
-    return this.getNamespace(namespace).version;
-  }
 
   invalidationVersion(namespace: string): number {
     return this.getNamespace(namespace).invalidationVersion;
@@ -231,8 +222,7 @@ export class MetadataCacheStore {
     const created: Namespace = {
       entries: readPersistedNamespace(namespace),
       subscribers: new Set<() => void>(),
-      version: 0,
-      invalidationVersion: 0,
+            invalidationVersion: 0,
     };
     this.namespaces.set(namespace, created);
     return created;
@@ -261,7 +251,6 @@ export class MetadataCacheStore {
       changed = this.setEntryIfChanged(ns, key, next) || changed;
     }
     if (!changed) return;
-    ns.version += 1;
     this.persist(namespace);
     this.notify(namespace);
   }
@@ -280,7 +269,6 @@ export class MetadataCacheStore {
         changed = this.setEntryIfChanged(ns, key, next) || changed;
       }
       if (!changed) continue;
-      ns.version += 1;
       this.persist(namespace);
       this.notify(namespace);
     }
@@ -357,7 +345,6 @@ export class MetadataCacheStore {
         }
       }
       if (changed) {
-        ns.version += 1;
         if (invalidated) {
           ns.invalidationVersion += 1;
         }

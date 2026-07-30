@@ -1,21 +1,19 @@
 import { useMemo } from "react";
-import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { useFilterParams } from "../hooks/useFilterParams";
 import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
-import type { Series } from "../api/endpoints/series";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
 import { metadataCache, useCachedResource } from "@/cache";
 
 export default function SeriesListPage() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const { selected, onSelectionChange, clearAllFilters } = useFilterParams("/series");
 
   const scrollContext = useMemo(
     () => entityListScrollContext(location.pathname + location.search, "series"),
@@ -33,12 +31,6 @@ export default function SeriesListPage() {
     [location.pathname, location.search],
   );
 
-  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
-  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
-  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-
-  const selected = readSelectedFromSearchParams(searchParams);
-
   const seriesResource = useCachedResource(
     metadataCache,
     "series",
@@ -48,21 +40,6 @@ export default function SeriesListPage() {
   const allSeries = seriesResource.data?.series ?? [];
   const loading = seriesResource.loading;
   useScrollRestore(!loading, scrollContext);
-
-  function updateParams(updates: Record<string, string[] | undefined>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) {
-        for (const v of values) params.append(key, v);
-      }
-    }
-    navigate(`/series?${params.toString()}`);
-  }
-
-  function onSelectionChange(key: FilterKey, values: string[]) {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }
 
   const sorted = useMemo(() => {
     return [...allSeries].sort((a, b) => a.name.localeCompare(b.name, "ru"));
@@ -75,6 +52,7 @@ export default function SeriesListPage() {
         filterKeys={["authorIds", "tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         showUpload
       />
 

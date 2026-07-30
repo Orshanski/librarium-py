@@ -4,6 +4,7 @@ import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { authorScrollContext } from "@/scroll/contexts";
 import { useScrollRestore } from "./useScrollRestore";
+import { useOfflineBookIds } from "./useOfflineBookIds";
 import { usePathnameWithSearch } from "./usePathnameWithSearch";
 import { useEntityScrollContext } from "./useEntityScrollContext";
 import { readOriginFromState } from "@/components/breadcrumb-origin";
@@ -34,10 +35,12 @@ export interface UseAuthorPageResult {
   books: Book[];
   loading: boolean;
   notFound: boolean;
+  loadFailed: boolean;
   crumb: AuthorCrumb;
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
   navigateAfterDelete: () => void;
+  offlineBookIds: ReadonlySet<number>;
 }
 
 export function useAuthorPage(): UseAuthorPageResult {
@@ -91,6 +94,9 @@ export function useAuthorPage(): UseAuthorPageResult {
 
   const loading = authorResource.loading;
   const notFound = authorResource.error instanceof NotFoundError || isInvalidId;
+  // Сбой запроса — это НЕ «нет такого»: сервер моргнул или пропала сеть.
+  // Сообщать «не найдено» в этом случае значит вводить читателя в заблуждение.
+  const loadFailed = authorResource.error !== undefined && !notFound;
 
   useScrollRestore(!loading, scrollContext);
 
@@ -117,6 +123,8 @@ export function useAuthorPage(): UseAuthorPageResult {
     };
   }, [authorId, navigate]);
 
+  const offlineBookIds = useOfflineBookIds();
+
   const navigateAfterDelete = useCallback(() => {
     navigate("/authors");
   }, [navigate]);
@@ -127,9 +135,11 @@ export function useAuthorPage(): UseAuthorPageResult {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,
     navigateAfterDelete,
+    offlineBookIds,
   };
 }

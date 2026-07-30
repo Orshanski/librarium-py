@@ -2,8 +2,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { LocationProbe } from "@/test/location-probe";
 import { metadataCache } from "@/cache";
 import SeriesListPage from "./SeriesListPage";
 
@@ -91,5 +93,30 @@ describe("SeriesListPage", () => {
 
     expect(screen.getByText("Dune")).toBeInTheDocument();
     expect(requestCount).toBe(1);
+  });
+
+  it("«Сбросить все» снимает все фильтры за одно нажатие и перезапрашивает без них", async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    server.use(
+      http.get("/api/series", ({ request }) => {
+        urls.push(new URL(request.url).search);
+        return HttpResponse.json({ series: [], authors: [], tags: [], languages: [] });
+      }),
+    );
+
+    renderWithProviders(
+      <>
+        <LocationProbe />
+        <SeriesListPage />
+      </>,
+      { initialEntries: ["/series?tagIds=26&language=ru"] },
+    );
+    await waitFor(() => expect(urls).toHaveLength(1));
+
+    await user.click(await screen.findByText("Сбросить все"));
+
+    expect(screen.getByTestId("loc").textContent).toBe("/series");
+    await waitFor(() => expect(urls[urls.length - 1]).toBe(""));
   });
 });

@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
@@ -363,6 +364,90 @@ describe("TagPage", () => {
       expect(screen.getByText("Список жанров")).toBeInTheDocument();
     });
   });
+
+  it("во время загрузки шапка остаётся на месте: фильтры, сортировка, крошка", async () => {
+    // Списки (каталог, авторы, серии) держат шапку и показывают индикатор под ней.
+    // Страницы сущностей раньше подменяли собой всю страницу и отнимали у читателя
+    // фильтры и сортировку на время загрузки — поведение приводится к одному.
+    server.use(
+      http.get("/api/tags/:id", () => new Promise(() => {})),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] },
+    );
+
+    expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Автор/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByText("Жанры")).toBeInTheDocument();
+  });
+
+  it("«Сбросить все» снимает фильтры, сохраняет сортировку и остаётся на своём жанре", async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    server.use(
+      http.get("/api/tags/:id", ({ request }) => {
+        urls.push(new URL(request.url).search);
+        return HttpResponse.json({
+          tag: { id: 1, name: "Science Fiction", code: null, bookCount: 0 },
+          books: [],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1?authorIds=5&language=ru&sort=titleAsc"] },
+    );
+    await waitFor(() => expect(urls).toHaveLength(1));
+
+    await user.click(await screen.findByText("Сбросить все"));
+
+    // Жанр живёт в пути, а не в фильтрах: страница остаётся своей, сортировка цела,
+    // фильтров в запросе нет.
+    await waitFor(() => expect(urls.length).toBeGreaterThan(1));
+    const last = urls[urls.length - 1];
+    expect(last).toContain("sort=titleAsc");
+    expect(last).not.toContain("authorIds");
+    expect(last).not.toContain("language");
+    expect(screen.getAllByText("Science Fiction").length).toBeGreaterThan(0);
+  });
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/tags/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] },
+    );
+
+    // Шапка остаётся: фильтр можно снять прямо здесь, не трогая адрес —
+    // в PWA другого способа выйти из неудачной комбинации нет.
+    expect(await screen.findByRole("button", { name: /Автор/ })).toBeInTheDocument();
+    // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
+    // Проверка стоит ПОСЛЕ ожидания: до него на экране кадр загрузки, где нужного
+    // текста не может быть ни при какой реализации.
+    expect(screen.queryByText("Жанр не найден")).toBeNull();
+    expect(screen.getByText("Жанры")).toBeInTheDocument();
+    // Сообщение и в заголовке, и в теле: заголовок «...» означал бы «ещё грузится».
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    // И никакой неправды рядом: запрос упал, а не «книг нет».
+    expect(screen.queryByText("Книги не найдены")).toBeNull();
+  });
+
 });
 
 const tagCase = {

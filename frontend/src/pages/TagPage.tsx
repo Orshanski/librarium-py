@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -23,12 +24,14 @@ export default function TagPage() {
     books,
     loading,
     notFound,
+    loadFailed,
     pathnameWithSearch,
     sort,
     selected,
     offlineBookIds,
     navigateAfterDelete,
     onSelectionChange,
+    clearAllFilters,
     handleSortChange,
   } = useTagPage();
 
@@ -48,16 +51,10 @@ export default function TagPage() {
     [tag, pathnameWithSearch],
   );
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: "/tags" }} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (notFound || !tag) {
+  // Загрузка кончилась, а жанра нет — это либо 404, либо сбой запроса (500, обрыв
+  // сети): useCachedResource в обоих случаях даёт loading === false и пустые данные.
+  // Без этой ветки страница застревала бы с заголовком «...» и пустым телом.
+  if (notFound || (!loading && !loadFailed && !tag)) {
     return (
       <>
         <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
@@ -66,7 +63,7 @@ export default function TagPage() {
     );
   }
 
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && tag ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -86,19 +83,20 @@ export default function TagPage() {
   return (
     <>
       <PageHeader
-        title={tag.name}
+        title={tag?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         titleSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         sortOptions={sortOptionsFor("tag")}
         sortValue={sort}
         onSortChange={handleSortChange}
       />
 
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && tag && (
         <EntityAdminPanel
           entityType="tag"
           entityId={tag.id}
@@ -113,22 +111,32 @@ export default function TagPage() {
         />
       )}
 
-      <BookGrid>
-        {books.map((book) => (
-          <BookCard
-            key={book.id}
-            {...bookToBookCardCommonProps(book)}
-            width={cardWidth}
-            hasOffline={offlineBookIds.has(book.id)}
-            linkState={bookLinkState}
-          />
-        ))}
-        {books.length === 0 && (
-          <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
-            Книги не найдены
-          </div>
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся: снять неудачную комбинацию фильтров
+          можно прямо здесь, не трогая адрес — в PWA его правка недоступна. */}
+      {loadFailed && <LoadFailureNotice />}
+
+      {tag && (
+        <BookGrid>
+          {books.map((book) => (
+            <BookCard
+              key={book.id}
+              {...bookToBookCardCommonProps(book)}
+              width={cardWidth}
+              hasOffline={offlineBookIds.has(book.id)}
+              linkState={bookLinkState}
+            />
+          ))}
+          {books.length === 0 && (
+            <div style={{ gridColumn: "1 / -1", fontSize: 14, color: colors.textDim, padding: 24 }}>
+              Книги не найдены
+            </div>
         )}
       </BookGrid>
+      )}
     </>
   );
 }

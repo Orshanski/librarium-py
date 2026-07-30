@@ -139,7 +139,9 @@ export default function DesktopPageHeader({
       {hasSecondRow && (
         <div style={{ padding: `0 ${layout.desktopContentPaddingX}px 18px`, display: "flex", alignItems: "center", gap: 8, minHeight: 30 }}>
           {infoSlot && !filterKeys && <div style={{ flex: 1 }}>{infoSlot}</div>}
-          {filterKeys && selected && onSelectionChange && (
+          {/* filterKeys — дискриминант союза PageHeaderFilterProps: при нём остальные
+              фильтровые пропы обязательны по типу и сужаются вместе с ним. */}
+          {filterKeys && (
             <div style={{ flex: 1 }}>
               <SmartFilterBar
                 filterKeys={filterKeys}

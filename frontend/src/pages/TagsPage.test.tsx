@@ -2,6 +2,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Routes, Route } from "react-router-dom";
+import { LocationProbe } from "@/test/location-probe";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
@@ -106,5 +109,69 @@ describe("TagsPage", () => {
     expect(screen.getByRole("link", { name: /^Fiction \(10\)$/ })).toBeInTheDocument();
     expect(cloudRequestCount).toBe(1);
     expect(optionsRequestCount).toBe(1);
+  });
+
+  it("переход к жанру идёт по выбору варианта — роутером, без перезагрузки", async () => {
+    // Раньше здесь присваивался location.href: приложение поднималось заново.
+    server.use(
+      http.get("/api/tags/cloud", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман", bookCount: 8 }] })
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман" }, { id: 3, name: "Романтика" }] })
+      )
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <LocationProbe />
+        <Routes>
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/tags/:id" element={<div>страница жанра</div>} />
+        </Routes>
+      </>,
+      { initialEntries: ["/tags"] },
+    );
+
+    await screen.findByRole("link", { name: /Роман/ });
+    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Романт");
+    await user.click(await screen.findByText("Романтика"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loc").textContent).toBe("/tags/3");
+    });
+    expect(screen.getByText("страница жанра")).toBeInTheDocument();
+  });
+
+  it("набор названия целиком никуда не уводит, пока вариант не выбран", async () => {
+    // «Роман» — начало «Романтики». Переход по совпадению во время набора уносил бы
+    // на первый жанр, не дав дописать второй.
+    server.use(
+      http.get("/api/tags/cloud", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман", bookCount: 8 }] })
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман" }, { id: 3, name: "Романтика" }] })
+      )
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <LocationProbe />
+        <Routes>
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/tags/:id" element={<div>страница жанра</div>} />
+        </Routes>
+      </>,
+      { initialEntries: ["/tags"] },
+    );
+
+    await screen.findByRole("link", { name: /Роман/ });
+    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Романтика");
+
+    expect(screen.getByTestId("loc").textContent).toBe("/tags");
+    expect(screen.queryByText("страница жанра")).toBeNull();
   });
 });

@@ -72,7 +72,9 @@ describe("ShelfPage", () => {
     expect(screen.getByText("Foundation")).toBeInTheDocument();
   });
 
-  it("renders nothing crashy on 404", async () => {
+  it("404 говорит «не найдена», а не «не удалось загрузить»", async () => {
+    // Полку могли удалить на другом устройстве. Сообщение о временном сбое заставило бы
+    // читателя ждать восстановления, которого не будет.
     server.use(
       http.get("/api/shelves/:id", () =>
         HttpResponse.json({ detail: "Not found" }, { status: 404 })
@@ -86,13 +88,8 @@ describe("ShelfPage", () => {
       { initialEntries: ["/shelves/999"] }
     );
 
-    // Loading indicator disappears, no crash, no book grid
-    await waitFor(() => {
-      expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
-    });
-
-    // No book grid rendered (shelf is null → returns null)
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(await screen.findAllByText("Полка не найдена")).toHaveLength(2);
+    expect(screen.queryByText("Не удалось загрузить")).toBeNull();
   });
 
   it("publishes events after successful shelf book removal and shelf delete", async () => {
@@ -291,5 +288,49 @@ describe("ShelfPage", () => {
 
     await waitFor(() => expect(screen.getByText("Shelf 43")).toBeInTheDocument());
     expect(screen.getByText("Dune")).toBeInTheDocument();
+  });
+
+  it("во время загрузки не показывает переключатель сортировки", async () => {
+    // Набор сортировок зависит от вида полки (systemCode) и известен только из ответа:
+    // у «Читаю сейчас» вариантов нет вовсе. Показать до ответа значило бы нарисовать
+    // чужие восемь вариантов, которые потом исчезнут, а клик увёл бы на сортировку,
+    // которой у полки нет.
+    server.use(
+      http.get("/api/shelves/:id", () => new Promise(() => {})),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/shelves/:id" element={<ShelfPage />} />
+      </Routes>,
+      { initialEntries: ["/shelves/42"] },
+    );
+
+    expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/shelves/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/shelves/:id" element={<ShelfPage />} />
+      </Routes>,
+      { initialEntries: ["/shelves/42"] },
+    );
+
+    // Сообщение и в заголовке, и в теле: заголовок «...» означал бы «ещё грузится».
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
+    expect(screen.queryByText("Полка не найдена")).toBeNull();
+    // И никакой неправды рядом: запрос упал, а не «книг нет».
+    expect(screen.queryByText("На полке нет книг")).toBeNull();
   });
 });

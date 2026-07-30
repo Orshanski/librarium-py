@@ -5,6 +5,7 @@ import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor, type SortOption } from
 import { shelfScrollContext } from "@/scroll/contexts";
 import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
+import { NotFoundError } from "@/api/errors";
 import { useScrollRestore } from "./useScrollRestore";
 import { usePathnameWithSearch } from "./usePathnameWithSearch";
 import { useRefreshOnReadingNowOnline } from "./useRefreshOnReadingNowOnline";
@@ -14,6 +15,8 @@ export interface UseShelfPageResult {
   shelf: ShelfSummary | null;
   books: Book[];
   loading: boolean;
+  notFound: boolean;
+  loadFailed: boolean;
   isReadingNow: boolean;
   progressByBookId: Record<number, ShelfProgressEntry>;
   sort: string;
@@ -28,7 +31,9 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Fallback default until first fetch — real default-per-page determined after load
+  // ВНИМАНИЕ: запасной дефолт всегда от обычной полки. Свой дефолт «Лучшего»
+  // (ratingDesc) и «Читаю сейчас» (lastReadDesc) сюда не подставляется — вид полки
+  // известен только из ответа. Дефект librarium-py-zkxr.
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
 
   const locationKey = usePathnameWithSearch();
@@ -44,6 +49,12 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const books = shelfResource.data?.books ?? [];
   const progressByBookId = shelfResource.data?.progressByBookId ?? {};
   const loading = shelfResource.loading;
+  // «Полки нет» и «запрос упал» — разные вещи, и путать их нельзя: удалённая на другом
+  // устройстве полка должна сказать «не найдена», а не «не удалось загрузить», иначе
+  // читатель будет ждать восстановления, которого не будет. Битый идентификатор в
+  // адресе (/shelves/abc) — тоже «нет такой», а не сбой.
+  const notFound = shelfResource.error instanceof NotFoundError || Number.isNaN(shelfId);
+  const loadFailed = shelfResource.error !== undefined && !notFound;
 
   // scrollContext мемоизирован — зависимость в useEffect ниже опирается на стабильность ссылки.
   const scrollContext = useMemo(
@@ -104,6 +115,8 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
     shelf,
     books,
     loading,
+    notFound,
+    loadFailed,
     isReadingNow,
     progressByBookId,
     sort,

@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase, type IDBPTransaction, type DBSchema } from "idb";
+import { domainEvents } from "@/domain/events";
 import type { AuthorRef, Book, SeriesRef } from "../types";
 
 const DB_NAME = "librarium-offline";
@@ -179,6 +180,19 @@ function normalizeAuthors(input: AuthorRef[] | string[] | undefined): AuthorRef[
   });
 }
 
+/**
+ * Оповестить приложение, что офлайн-копия появилась или исчезла.
+ *
+ * Публикуем здесь, у владельца хранилища, а не у вызывающих: хранилище меняют шесть
+ * разных путей — кнопка на странице книги, снятие при отметке «прочитано»,
+ * автосохранение читалки, чистка после удаления книги на сервере, сверка метаданных и
+ * вытеснение по сроку и по месту. Публикация у каждого из них рано или поздно
+ * разъедется, и бейдж «скачано» в списках начнёт врать.
+ */
+function announceOfflineChange(bookId: number, hasOffline: boolean): void {
+  domainEvents.publish("offlineBookChanged", { bookId, hasOffline });
+}
+
 export async function saveOfflineBook(
   book: Book,
   files: { format: string; fileBlob: Blob; fileSize: number }[],
@@ -212,6 +226,7 @@ export async function saveOfflineBook(
     lastAccessedAt: now,
     manuallyAdded,
   });
+  announceOfflineChange(book.id, true);
 }
 
 function storedToOfflineBook(stored: StoredBook): OfflineBook {
@@ -248,6 +263,17 @@ export async function getOfflineBooks(): Promise<OfflineBook[]> {
   return all.map(storedToOfflineBook);
 }
 
+/**
+ * Идентификаторы сохранённых книг — только ключи.
+ * Отдельно от getOfflineBooks намеренно: тот прогоняет каждую запись через
+ * storedToOfflineBook и создаёт Blob обложки и КАЖДОГО файла книги, то есть ради
+ * списка чисел поднимает всю офлайн-библиотеку в память (на планшете это сотни мегабайт).
+ */
+export async function getOfflineBookIds(): Promise<number[]> {
+  const db = await initDB();
+  return db.getAllKeys("offline_books") as Promise<number[]>;
+}
+
 export async function hasOfflineBook(bookId: number): Promise<boolean> {
   const db = await initDB();
   const key = await db.getKey("offline_books", bookId);
@@ -257,6 +283,7 @@ export async function hasOfflineBook(bookId: number): Promise<boolean> {
 export async function removeOfflineBook(bookId: number): Promise<void> {
   const db = await initDB();
   await db.delete("offline_books", bookId);
+  announceOfflineChange(bookId, false);
 }
 
 /**
@@ -272,6 +299,7 @@ export async function removeBookFromLocalStorage(bookId: number): Promise<void> 
     tx.objectStore("reading_progress").delete(bookId),
     tx.done,
   ]);
+  announceOfflineChange(bookId, false);
 }
 
 /**
@@ -486,6 +514,7 @@ export async function evictExpired(ttlMs: number = TTL_MS): Promise<number> {
   for (const book of all) {
     if (book.lastAccessedAt < cutoff) {
       await db.delete("offline_books", book.bookId);
+      announceOfflineChange(book.bookId, false);
       count++;
     }
   }
@@ -505,6 +534,7 @@ export async function evictLRU(targetBytes: number = 0): Promise<number[]> {
     if (targetBytes > 0 && freed >= targetBytes) break;
     const bookSize = book.formats.reduce((sum: number, f: StoredBookFormat) => sum + f.fileSize, 0) + book.coverBuffer.byteLength;
     await db.delete("offline_books", book.bookId);
+    announceOfflineChange(book.bookId, false);
     freed += bookSize;
     evicted.push(book.bookId);
     if (targetBytes === 0) break; // evict at least one if no target

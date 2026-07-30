@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, screen, waitFor, act } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { createElement, useEffect } from "react";
 import { domainEvents } from "@/domain/events";
+import { LocationProbe } from "@/test/location-probe";
 
 vi.mock("@/api/endpoints/tags", () => ({
   getTag: vi.fn(),
@@ -168,15 +169,6 @@ describe("useTagPage", () => {
     expect(result.current.books).toHaveLength(0);
   });
 
-  it("returns bookIds derived from books", async () => {
-    mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
-
-    const { result } = renderHook(() => useTagPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.tag).not.toBeNull());
-
-    expect(result.current.bookIds).toEqual([10]);
-  });
 
   it("navigateAfterDelete is a callable function", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [] });
@@ -186,5 +178,32 @@ describe("useTagPage", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(typeof result.current.navigateAfterDelete).toBe("function");
+  });
+
+  it("clearAllFilters снимает все фильтры и сохраняет сортировку", async () => {
+    mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
+
+    function wrapperWithFilters({ children }: { children: React.ReactNode }) {
+      return createElement(
+        MemoryRouter,
+        { initialEntries: ["/tags/7?authorIds=1&language=ru&sort=titleAsc"] },
+        createElement(LocationProbe),
+        createElement(Routes, null,
+          createElement(Route, { path: "/tags/:id", element: children }),
+        ),
+      );
+    }
+
+    const { result } = renderHook(() => useTagPage(), { wrapper: wrapperWithFilters });
+
+    await waitFor(() => expect(result.current.tag).not.toBeNull());
+
+    act(() => {
+      result.current.clearAllFilters();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loc").textContent).toBe("/tags/7?sort=titleAsc");
+    });
   });
 });

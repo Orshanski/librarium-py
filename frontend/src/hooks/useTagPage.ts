@@ -10,8 +10,8 @@ import { getTag } from "@/api/endpoints/tags";
 import type { TagSummary } from "@/api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG } from "@/config/sort";
-import { readSelectedFromSearchParams } from "@/components/smart-filter-bar";
-import type { FilterKey, SelectedFilters } from "@/components/smart-filter-bar";
+import { useFilterParams } from "./useFilterParams";
+import type { FilterKey, SelectedFilters } from "@/api/filter-types";
 import { selectedToApiParams } from "@/api/filter-params";
 import type { Book } from "@/types";
 
@@ -23,13 +23,14 @@ export interface UseTagPageResult {
   books: Book[];
   loading: boolean;
   notFound: boolean;
+  loadFailed: boolean;
   pathnameWithSearch: string;
   sort: string;
   selected: SelectedFilters;
-  bookIds: number[];
-  offlineBookIds: Set<number>;
+  offlineBookIds: ReadonlySet<number>;
   navigateAfterDelete: () => void;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
+  clearAllFilters: () => void;
   handleSortChange: (newSort: string) => void;
 }
 
@@ -46,7 +47,9 @@ export function useTagPage(): UseTagPageResult {
   const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
   const seriesIds = useMemo(() => searchParams.getAll("seriesIds"), [searchParams]);
   const languages = useMemo(() => searchParams.getAll("language"), [searchParams]);
-  const selected: SelectedFilters = readSelectedFromSearchParams(searchParams);
+  // Жанр живёт в пути, а не в фильтрах, поэтому базовый путь включает его id:
+  // сброс фильтров оставляет страницу на своём жанре.
+  const { selected, onSelectionChange, clearAllFilters, updateParams } = useFilterParams(`/tags/${tagId}`);
 
   const scrollContext = useMemo(
     () => tagScrollContext({
@@ -77,6 +80,9 @@ export function useTagPage(): UseTagPageResult {
   const books: Book[] = tagResource.data?.books ?? EMPTY_BOOKS;
   const loading = tagResource.loading;
   const notFound = tagResource.error instanceof NotFoundError || isInvalidId;
+  // Сбой запроса — это НЕ «нет такого»: сервер моргнул или пропала сеть.
+  // Сообщать «не найдено» в этом случае значит вводить читателя в заблуждение.
+  const loadFailed = tagResource.error !== undefined && !notFound;
 
   useScrollRestore(!loading, scrollContext);
 
@@ -107,26 +113,11 @@ export function useTagPage(): UseTagPageResult {
     navigate("/tags");
   }, [navigate]);
 
-  const updateParams = useCallback((updates: Record<string, string[] | undefined>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, values] of Object.entries(updates)) {
-      params.delete(key);
-      if (values) for (const v of values) params.append(key, v);
-    }
-    const qs = params.toString();
-    navigate(qs ? `/tags/${tagId}?${qs}` : `/tags/${tagId}`);
-  }, [searchParams, navigate, tagId]);
-
-  const onSelectionChange = useCallback((key: FilterKey, values: string[]) => {
-    updateParams({ [key]: values.length > 0 ? values : undefined });
-  }, [updateParams]);
-
   const handleSortChange = useCallback((newSort: string) => {
     updateParams({ sort: [newSort] });
   }, [updateParams]);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
 
   return {
     tagId,
@@ -134,13 +125,14 @@ export function useTagPage(): UseTagPageResult {
     books,
     loading,
     notFound,
+    loadFailed,
     pathnameWithSearch,
     sort,
     selected,
-    bookIds,
     offlineBookIds,
     navigateAfterDelete,
     onSelectionChange,
+    clearAllFilters,
     handleSortChange,
   };
 }

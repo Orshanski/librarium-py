@@ -26,6 +26,7 @@ export interface UseSeriesPageResult {
   books: Book[];
   loading: boolean;
   notFound: boolean;
+  loadFailed: boolean;
   crumb: SeriesCrumb;
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
@@ -72,6 +73,9 @@ export function useSeriesPage(): UseSeriesPageResult {
 
   const loading = seriesResource.loading;
   const notFound = seriesResource.error instanceof NotFoundError || isInvalidId;
+  // Сбой запроса — это НЕ «нет такого»: сервер моргнул или пропала сеть.
+  // Сообщать «не найдено» в этом случае значит вводить читателя в заблуждение.
+  const loadFailed = seriesResource.error !== undefined && !notFound;
 
   useScrollRestore(!loading, scrollContext);
 
@@ -108,6 +112,7 @@ export function useSeriesPage(): UseSeriesPageResult {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,

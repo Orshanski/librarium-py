@@ -246,3 +246,65 @@ class TestGetSeriesBooksObjects:
         books = result["books"]
         # Books 1 (series_number=1) and 3 (series_number=2) in series 1
         assert [b["id"] for b in books] == [1, 3]
+
+
+class TestEntityDetailAggregates:
+    """Жанры автора и авторы серии в детальных ответах (23od).
+
+    В списках эти сведения есть (get_authors отдаёт tags, get_series — authors),
+    в детальных запросах их не собирали, и вторая половина строки под заголовком
+    на странице автора и серии оставалась пустой.
+    """
+
+    def test_author_detail_has_tags(self, db):
+        """Автор 1: книги 1 и 3, у обеих тег «Фэнтези»."""
+        result = dal_authors.get_author_by_id(db, 1, 2)
+        assert result is not None
+        assert [(t.id, t.name) for t in result["author"]["tags"]] == [(1, "Фэнтези")]
+
+    def test_author_detail_tags_are_deduplicated(self, db):
+        """Один тег у двух книг автора — в агрегате он один раз."""
+        result = dal_authors.get_author_by_id(db, 1, 2)
+        tag_ids = [t.id for t in result["author"]["tags"]]
+        assert len(tag_ids) == len(set(tag_ids))
+
+    def test_author_detail_tags_sorted_by_name(self, db):
+        """Автор 2: книга 2 (тег 2) и книга 5 (теги 1 и 2) — порядок по имени."""
+        result = dal_authors.get_author_by_id(db, 2, 2)
+        names = [t.name for t in result["author"]["tags"]]
+        assert len(names) == 2
+        assert names == sorted(names)
+
+    def test_author_detail_tags_match_list_endpoint(self, db):
+        """Деталь и список говорят об авторе одно и то же."""
+        detail = dal_authors.get_author_by_id(db, 1, 2)
+        listed = dal_authors.get_authors(db, user_id=2)
+        listed_author = next(a for a in listed["authors"] if a["id"] == 1)
+        assert detail["author"]["tags"] == listed_author["tags"]
+
+    def test_author_without_books_has_empty_tags(self, db):
+        """json_group_array на пустом наборе даёт '[]' — не None и не падение."""
+        _insert_author(db, 900, "Одинокий Автор")
+        db.commit()
+
+        result = dal_authors.get_author_by_id(db, 900, 2)
+        assert result is not None
+        assert result["author"]["tags"] == []
+
+    def test_series_detail_has_authors(self, db):
+        """Серия 1: книги 1 и 3, обе автора 1."""
+        result = dal_series.get_series_by_id(db, 1, 2)
+        assert result is not None
+        assert [(a.id, a.name) for a in result["series"]["authors"]] == [(1, "Test Author")]
+
+    def test_series_detail_authors_are_deduplicated(self, db):
+        """Один автор у двух книг серии — в агрегате он один раз."""
+        result = dal_series.get_series_by_id(db, 1, 2)
+        author_ids = [a.id for a in result["series"]["authors"]]
+        assert len(author_ids) == len(set(author_ids))
+
+    def test_series_detail_authors_match_list_endpoint(self, db):
+        detail = dal_series.get_series_by_id(db, 1, 2)
+        listed = dal_series.get_series(db, user_id=2)
+        listed_series = next(s for s in listed["series"] if s["id"] == 1)
+        assert detail["series"]["authors"] == listed_series["authors"]

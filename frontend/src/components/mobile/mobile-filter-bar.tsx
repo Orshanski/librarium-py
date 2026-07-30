@@ -12,7 +12,8 @@ export default function MobileFilterBar({
   filters: FilterConfig[];
   selected: Record<string, string[]>;
   onSelectionChange: (key: string, values: string[]) => void;
-  onClearAll?: () => void;
+  // Обязателен: снимать фильтры по одному нельзя, см. комментарий в smart-filter-bar.
+  onClearAll: () => void;
 }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -99,10 +100,10 @@ export default function MobileFilterBar({
   }
 
   function clearAll() {
-    if (onClearAll) onClearAll();
-    else filters.forEach((filter) => onSelectionChange(filter.key, []));
+    onClearAll();
     setOpenKey(null);
   }
+
 
   function getLabel(filter: FilterConfig, value: string) {
     const option = filter.options.find((item) => optVal(item) === value);

@@ -21,12 +21,14 @@ import { domainEvents } from "@/domain/events";
 export default function BookDetail({
   book,
   seriesBooks,
+  offlineSeriesBookIds,
   formats,
   isbn,
   bookOrigin,
 }: Readonly<{
   book: BookDetail;
   seriesBooks: Book[];
+  offlineSeriesBookIds: ReadonlySet<number>;
   formats: BookFormat[];
   isbn: string | null;
   bookOrigin: ListOrigin;
@@ -87,6 +89,7 @@ export default function BookDetail({
   const detailProps = {
     book,
     seriesBooks,
+    offlineSeriesBookIds,
     formats,
     isbn,
     bookOrigin,

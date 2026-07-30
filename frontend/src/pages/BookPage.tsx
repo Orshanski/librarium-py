@@ -9,6 +9,7 @@ import { colors } from "../theme";
 import type { Book, BookFormat } from "../types";
 import { getBook, listBooks, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { NotFoundError } from "@/api/errors";
+import { useOfflineBookIds } from "../hooks/useOfflineBookIds";
 import { metadataCache, useCachedResource } from "@/cache";
 
 const FALLBACK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
@@ -78,6 +79,7 @@ export default function BookPage() {
     async (signal) => ({ books: seriesId ? await fetchSeriesBooks(seriesId, signal) : [] }),
   );
   const seriesBooks = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
+  const offlineSeriesBookIds = useOfflineBookIds();
   const loading = bookResource.loading;
   const notFound = bookResource.error instanceof NotFoundError || !id || Number.isNaN(bookId);
 
@@ -111,6 +113,7 @@ export default function BookPage() {
         key={book.id}
         book={detailBook}
         seriesBooks={seriesBooks}
+        offlineSeriesBookIds={offlineSeriesBookIds}
         formats={formats}
         isbn={isbn}
         bookOrigin={origin}
