@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { renderHook, screen, waitFor, act } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { createElement, useEffect } from "react";
 import { domainEvents } from "@/domain/events";
+import { LocationProbe } from "@/test/location-probe";
 
 vi.mock("@/api/endpoints/tags", () => ({
   getTag: vi.fn(),
@@ -191,14 +192,6 @@ describe("useTagPage", () => {
   it("clearAllFilters снимает все фильтры и сохраняет сортировку", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
 
-    let lastLocation = "";
-
-    function LocationProbe() {
-      const location = useLocation();
-      lastLocation = location.pathname + location.search;
-      return null;
-    }
-
     function wrapperWithFilters({ children }: { children: React.ReactNode }) {
       return createElement(
         MemoryRouter,
@@ -218,6 +211,8 @@ describe("useTagPage", () => {
       result.current.clearAllFilters();
     });
 
-    await waitFor(() => expect(lastLocation).toBe("/tags/7?sort=titleAsc"));
+    await waitFor(() => {
+      expect(screen.getByTestId("loc").textContent).toBe("/tags/7?sort=titleAsc");
+    });
   });
 });

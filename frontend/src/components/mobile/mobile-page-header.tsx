@@ -8,20 +8,19 @@ import { PageHeaderProps } from "../page-header.types";
 // Mobile intentionally does not render the global upload CTA in the header.
 // The screen is already crowded, and `showUpload` is desktop-only by product
 // choice — prop is accepted but not destructured here.
-export default function MobilePageHeader({
-  title,
-  filterKeys,
-  selected,
-  onSelectionChange,
-  onClearAll,
-  baseFilters,
-  sortOptions,
-  sortValue,
-  onSortChange,
-  infoSlot,
-  breadcrumb,
-  actionSlot,
-}: PageHeaderProps) {
+// Фильтровая группа пропов НЕ деструктурируется: PageHeaderFilterProps — союз с
+// дискриминантом filterKeys, и сужение работает только через обращения props.*.
+export default function MobilePageHeader(props: PageHeaderProps) {
+  const {
+    title,
+    filterKeys,
+    sortOptions,
+    sortValue,
+    onSortChange,
+    infoSlot,
+    breadcrumb,
+    actionSlot,
+  } = props;
   const { toggleDrawer } = useMobileLayout();
   const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -171,14 +170,16 @@ export default function MobilePageHeader({
               paddingBottom: 2,
             }}
           >
-            {filterKeys && selected && onSelectionChange && onClearAll && (
+            {/* Дискриминант союза PageHeaderFilterProps: при заданном filterKeys остальные
+                фильтровые пропы обязательны по типу, поэтому проверяется только он. */}
+            {props.filterKeys && (
               <div style={{ flexShrink: 0 }}>
                 <SmartFilterBar
-                  filterKeys={filterKeys}
-                  selected={selected}
-                  onSelectionChange={onSelectionChange}
-                  onClearAll={onClearAll}
-                  baseFilters={baseFilters}
+                  filterKeys={props.filterKeys}
+                  selected={props.selected}
+                  onSelectionChange={props.onSelectionChange}
+                  onClearAll={props.onClearAll}
+                  baseFilters={props.baseFilters}
                 />
               </div>
             )}

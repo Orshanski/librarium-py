@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
-import { clearedFilters } from "../api/filter-types";
+import { FilterKey } from "../components/smart-filter-bar";
+import { clearedFilters, readSelectedFromSearchParams } from "../api/filter-types";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";

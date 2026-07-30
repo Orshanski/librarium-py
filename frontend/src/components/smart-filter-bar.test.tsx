@@ -102,6 +102,47 @@ describe("SmartFilterBar", () => {
     expect(call).toBe(1);
   });
 
+  it("показывает «Сбросить все» для фильтра из адреса, у которого нет чипа на странице", async () => {
+    // На /authors чипы только tagIds и language, но authorIds из адреса уходит в запрос.
+    // Панель видит в selected лишь свои чипы, поэтому признак считается по полному набору.
+    server.use(
+      http.get("/api/filter-options/tags", () => HttpResponse.json({ tags: mockTags })),
+    );
+
+    render(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ authorIds: ["7"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+
+    expect(await screen.findByText("Сбросить все")).toBeInTheDocument();
+  });
+
+  it("не показывает «Сбросить все», пока не отрисован ни один чип", async () => {
+    // Окно загрузки вариантов: чипов ещё нет, и одинокая кнопка сброса в пустой панели
+    // не нужна. Ответ не приходит вовсе — окно держится всё время теста.
+    server.use(
+      http.get("/api/filter-options/tags", () => new Promise(() => {})),
+    );
+
+    render(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ tagIds: ["1"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+    expect(screen.queryByText("Сбросить все")).toBeNull();
+  });
+
   it("renders filter options from API", async () => {
     server.use(
       http.get("/api/filter-options/authors", () =>

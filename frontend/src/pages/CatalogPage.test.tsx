@@ -387,11 +387,14 @@ describe("CatalogPage", () => {
       expect(last).not.toContain("tagIds");
     });
 
-    it("без сортировки в адресе даёт чистый «/», а не «/?»", async () => {
-      // urlKey каталога = pathname + search и служит ключом кэша списка книг и
-      // контекста восстановления прокрутки: "/?" и "/" были бы разными ключами.
+    it("без сортировки в адресе оставляет чистый «/» и перезапрашивает без фильтров", async () => {
+      // Проверяется наблюдаемое: адрес после сброса чистый и запрос ушёл без фильтров.
+      // Одиночный «?» react-router нормализует сам — проверено откатом `qs ?`-ветки в
+      // updateParams, тест остаётся зелёным. Поэтому эта ветка — единообразие четырёх
+      // одинаковых функций, а не защита от дефекта; на ключ кэша (urlKey = pathname +
+      // search) она не влияет.
       const user = userEvent.setup();
-      trackBookRequests();
+      const urls = trackBookRequests();
 
       renderWithProviders(
         <>
@@ -400,10 +403,14 @@ describe("CatalogPage", () => {
         </>,
         { initialEntries: ["/?tagIds=26"] },
       );
+      await waitFor(() => expect(urls).toHaveLength(1));
+      expect(urls[0]).toContain("tagIds=26");
 
       await user.click(await screen.findByText("Сбросить все"));
 
       expect(screen.getByTestId("loc").textContent).toBe("/");
+      await waitFor(() => expect(urls.length).toBeGreaterThan(1));
+      expect(urls[urls.length - 1]).not.toContain("tagIds");
     });
   });
 });

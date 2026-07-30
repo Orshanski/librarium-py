@@ -5,23 +5,11 @@ import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
 import type { FilterKey, SelectedFilters } from "../api/filter-types";
-import { FILTER_QUERY_KEYS, hasAnyFilterSelected } from "../api/filter-types";
+import { FILTER_QUERY_KEYS } from "../api/filter-types";
 import { metadataCache, useCachedResource } from "../cache";
 
 export type { FilterKey, SelectedFilters };
 export type { ApiFilterParams };
-
-// Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)
-// из query-params и собирает SelectedFilters. Используется страницами-списками
-// (CatalogPage, AuthorsPage, SeriesListPage, TagPage) чтобы избежать дубля одного паттерна.
-export function readSelectedFromSearchParams(searchParams: URLSearchParams): SelectedFilters {
-  const selected: SelectedFilters = {};
-  for (const key of FILTER_QUERY_KEYS) {
-    const values = searchParams.getAll(key);
-    if (values.length) selected[key] = values;
-  }
-  return selected;
-}
 
 interface SmartFilterBarProps {
   filterKeys: FilterKey[];
@@ -42,14 +30,9 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
-// Перечень ключей един с адресной строкой: сериализация базовых фильтров и сборка
-// запроса обходят те же четыре ключа, что читаются из адреса. Порядок обхода важен
-// только для стабильности строки кэша в serializeBase.
-const KEY_ORDER = FILTER_QUERY_KEYS;
-
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
-  return KEY_ORDER.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
+  return FILTER_QUERY_KEYS.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
 }
 
 export function buildQueryParams(
@@ -58,7 +41,7 @@ export function buildQueryParams(
   baseFilters?: ApiFilterParams,
 ): ApiFilterParams {
   const out: ApiFilterParams = { ...baseFilters };
-  for (const key of KEY_ORDER) {
+  for (const key of FILTER_QUERY_KEYS) {
     if (key === ownKey) continue;
     const values = selected[key];
     if (!values?.length) continue;
@@ -165,9 +148,9 @@ export default function SmartFilterBar({
       selected={selectedRecord}
       onSelectionChange={(key, values) => onSelectionChange(key as FilterKey, values)}
       onClearAll={onClearAll}
-      // Полный selected известен здесь, а не в панели: она видит только свои чипы и не
-      // показала бы кнопку сброса для фильтра, пришедшего из адреса без чипа.
-      hasAnySelection={hasAnyFilterSelected(selected)}
+      // Полный выбор из адреса: панель видит в `selected` только свои чипы и не показала
+      // бы кнопку сброса для фильтра, пришедшего из адреса без чипа.
+      allSelected={selected}
     />
   );
 }

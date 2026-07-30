@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
-import { clearedFilters } from "../api/filter-types";
+import { FilterKey } from "../components/smart-filter-bar";
+import { clearedFilters, readSelectedFromSearchParams } from "../api/filter-types";
 import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";

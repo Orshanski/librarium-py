@@ -2,21 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { colors } from "../../theme";
 import { FilterConfig, FilterOption, optVal } from "../filter-bar";
+import { hasAnyFilterSelected, type SelectedFilters } from "../../api/filter-types";
 
 export default function MobileFilterBar({
   filters,
   selected,
+  allSelected,
   onSelectionChange,
   onClearAll,
-  hasAnySelection,
 }: Readonly<{
   filters: FilterConfig[];
   selected: Record<string, string[]>;
+  // Выбор по всем ключам фильтров — как в настольной панели, признак считается здесь же.
+  allSelected: SelectedFilters;
   onSelectionChange: (key: string, values: string[]) => void;
   // Обязателен: снимать фильтры по одному нельзя, см. комментарий в smart-filter-bar.
   onClearAll: () => void;
-  // Считается по всем ключам фильтров, а не по видимым чипам — как в настольной панели.
-  hasAnySelection: boolean;
 }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -106,6 +107,10 @@ export default function MobileFilterBar({
     onClearAll();
     setOpenKey(null);
   }
+
+  // filters.length > 0 — чтобы в окне загрузки вариантов не оставалась одинокая
+  // кнопка сброса без чипов рядом (как в настольной панели).
+  const hasAnySelection = filters.length > 0 && hasAnyFilterSelected(allSelected);
 
   function getLabel(filter: FilterConfig, value: string) {
     const option = filter.options.find((item) => optVal(item) === value);

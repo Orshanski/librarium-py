@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { hasAnyFilterSelected, type SelectedFilters } from "../api/filter-types";
 import { colors } from "../theme";
 
 export interface FilterOption {
@@ -19,18 +20,19 @@ export interface FilterConfig {
 export default function FilterBar({
   filters,
   selected,
+  allSelected,
   onSelectionChange,
   onClearAll,
-  hasAnySelection,
 }: Readonly<{
   filters: FilterConfig[];
   selected: Record<string, string[]>;
+  // Выбор по всем ключам фильтров, включая те, для которых на этой странице нет чипа:
+  // фильтр может прийти из адреса, и снять его всё равно должно быть чем. Панель считает
+  // признак сама, чтобы он не мог разойтись с данными.
+  allSelected: SelectedFilters;
   onSelectionChange: (key: string, values: string[]) => void;
   // Обязателен: снимать фильтры по одному нельзя, см. комментарий в smart-filter-bar.
   onClearAll: () => void;
-  // Считается по всем ключам фильтров, а не по видимым чипам: фильтр может прийти из
-  // адреса, когда чипа для него на этой странице нет, — снять его всё равно должно быть чем.
-  hasAnySelection: boolean;
 }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -75,6 +77,10 @@ export default function FilterBar({
     onClearAll();
     setOpenKey(null);
   }
+
+  // filters.length > 0 — чтобы в окне загрузки вариантов (чипы ещё не отрисованы)
+  // в панели не оставалась одинокая кнопка сброса без чипов рядом.
+  const hasAnySelection = filters.length > 0 && hasAnyFilterSelected(allSelected);
 
   function getLabel(f: FilterConfig, val: string): string {
     const opt = f.options.find((o) => optVal(o) === val);
