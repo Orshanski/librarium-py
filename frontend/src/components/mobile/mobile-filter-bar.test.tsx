@@ -27,6 +27,8 @@ describe("MobileFilterBar", () => {
         filters={filters}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
+        hasAnySelection={false}
       />,
     );
     expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
@@ -39,6 +41,8 @@ describe("MobileFilterBar", () => {
         filters={filters}
         selected={{ authorIds: ["1"] }}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
+        hasAnySelection={true}
       />,
     );
     expect(screen.getByRole("button", { name: /Асимов/ })).toBeInTheDocument();
@@ -59,6 +63,8 @@ describe("MobileFilterBar", () => {
         filters={filtersWithMany}
         selected={{ authorIds: ["1", "2", "3"] }}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
+        hasAnySelection={true}
       />,
     );
     expect(screen.getByRole("button", { name: /3 выбрано/ })).toBeInTheDocument();
@@ -70,6 +76,8 @@ describe("MobileFilterBar", () => {
         filters={filters}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
+        hasAnySelection={false}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Автор/ }));
@@ -84,6 +92,8 @@ describe("MobileFilterBar", () => {
         filters={filters}
         selected={{}}
         onSelectionChange={onChange}
+        onClearAll={vi.fn()}
+        hasAnySelection={false}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Автор/ }));
@@ -100,6 +110,7 @@ describe("MobileFilterBar", () => {
         selected={{}}
         onSelectionChange={vi.fn()}
         onClearAll={onClearAll}
+        hasAnySelection={false}
       />,
     );
     expect(screen.queryByRole("button", { name: /Сбросить все/ })).toBeNull();
@@ -110,6 +121,7 @@ describe("MobileFilterBar", () => {
         selected={{ authorIds: ["1"] }}
         onSelectionChange={vi.fn()}
         onClearAll={onClearAll}
+        hasAnySelection={true}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Сбросить все/ }));

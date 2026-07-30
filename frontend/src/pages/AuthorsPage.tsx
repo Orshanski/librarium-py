@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { clearedFilters } from "../api/filter-types";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listAuthors } from "../api/endpoints/authors";
@@ -63,7 +64,7 @@ export default function AuthorsPage() {
   // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
   // и переходы затирали друг друга (снимок searchParams внутри нажатия не обновляется).
   function clearAllFilters() {
-    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
+    updateParams(clearedFilters());
   }
 
   return (

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { clearedFilters } from "../api/filter-types";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -60,7 +61,8 @@ export default function CatalogPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    navigate(`/?${params.toString()}`);
+    const qs = params.toString();
+    navigate(qs ? `/?${qs}` : "/");
   }
 
   const selected = readSelectedFromSearchParams(searchParams);
@@ -72,7 +74,7 @@ export default function CatalogPage() {
   function clearAllFilters() {
     // Сброс снимает только фильтры: sort остаётся, потому что updateParams строит
     // новый адрес от текущего searchParams. navigate("/") терял выбранную сортировку.
-    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
+    updateParams(clearedFilters());
   }
 
   const bookIds = useMemo(() => books.map((b: Book) => b.id), [books]);

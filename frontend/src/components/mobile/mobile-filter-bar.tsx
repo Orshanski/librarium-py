@@ -8,11 +8,15 @@ export default function MobileFilterBar({
   selected,
   onSelectionChange,
   onClearAll,
+  hasAnySelection,
 }: Readonly<{
   filters: FilterConfig[];
   selected: Record<string, string[]>;
   onSelectionChange: (key: string, values: string[]) => void;
-  onClearAll?: () => void;
+  // Обязателен: снимать фильтры по одному нельзя, см. комментарий в smart-filter-bar.
+  onClearAll: () => void;
+  // Считается по всем ключам фильтров, а не по видимым чипам — как в настольной панели.
+  hasAnySelection: boolean;
 }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -99,8 +103,7 @@ export default function MobileFilterBar({
   }
 
   function clearAll() {
-    if (onClearAll) onClearAll();
-    else filters.forEach((filter) => onSelectionChange(filter.key, []));
+    onClearAll();
     setOpenKey(null);
   }
 
@@ -116,8 +119,6 @@ export default function MobileFilterBar({
     if (values.length === 2) return values.map((value) => getLabel(filter, value)).join(", ");
     return `${values.length} выбрано`;
   }
-
-  const hasAnySelection = filters.some((filter) => (selected[filter.key] || []).length > 0);
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>

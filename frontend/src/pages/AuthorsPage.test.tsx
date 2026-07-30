@@ -2,8 +2,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { LocationProbe } from "@/test/location-probe";
+import { setupMobileViewport, teardownViewport } from "@/test/mobile-viewport";
 import { metadataCache } from "@/cache";
 import AuthorsPage from "./AuthorsPage";
 
@@ -86,5 +89,107 @@ describe("AuthorsPage", () => {
 
     expect(screen.getByText("Frank Herbert")).toBeInTheDocument();
     expect(requestCount).toBe(1);
+  });
+
+  describe("«Сбросить все»", () => {
+    /** Адреса запросов к /api/authors по порядку — чтобы видеть, с какими фильтрами уходил запрос. */
+    function trackAuthorRequests(): string[] {
+      const urls: string[] = [];
+      server.use(
+        http.get("/api/authors", ({ request }) => {
+          urls.push(new URL(request.url).search);
+          return HttpResponse.json({ authors: [], tags: [], languages: [] });
+        }),
+      );
+      return urls;
+    }
+
+    it("снимает единственный выбранный фильтр и перезапрашивает без него", async () => {
+      const user = userEvent.setup();
+      const urls = trackAuthorRequests();
+
+      renderWithProviders(
+        <>
+          <LocationProbe />
+          <AuthorsPage />
+        </>,
+        { initialEntries: ["/authors?tagIds=26"] },
+      );
+      await waitFor(() => expect(urls).toEqual(["?tagIds=26"]));
+
+      await user.click(await screen.findByText("Сбросить все"));
+
+      expect(screen.getByTestId("loc").textContent).toBe("/authors");
+      await waitFor(() => expect(urls).toEqual(["?tagIds=26", ""]));
+    });
+
+    it("снимает оба фильтра за одно нажатие", async () => {
+      const user = userEvent.setup();
+      const urls = trackAuthorRequests();
+
+      renderWithProviders(
+        <>
+          <LocationProbe />
+          <AuthorsPage />
+        </>,
+        { initialEntries: ["/authors?tagIds=26&language=ru"] },
+      );
+      await waitFor(() => expect(urls).toHaveLength(1));
+
+      await user.click(await screen.findByText("Сбросить все"));
+
+      expect(screen.getByTestId("loc").textContent).toBe("/authors");
+      await waitFor(() => expect(urls[urls.length - 1]).toBe(""));
+    });
+
+    it("в мобильной панели работает так же", async () => {
+      // У мобильной панели своя копия кнопки и своего обработчика сброса —
+      // спека требует одинакового поведения в обоих исполнениях.
+      setupMobileViewport();
+      try {
+        const user = userEvent.setup();
+        const urls = trackAuthorRequests();
+
+        renderWithProviders(
+          <>
+            <LocationProbe />
+            <AuthorsPage />
+          </>,
+          { initialEntries: ["/authors?tagIds=26&language=ru"] },
+        );
+        await waitFor(() => expect(urls).toHaveLength(1));
+        // Убеждаемся, что рендерится именно мобильный заголовок (у него своя панель):
+        // кнопка бургер-меню есть только в нём.
+        expect(screen.getByRole("button", { name: "Открыть меню" })).toBeInTheDocument();
+
+        await user.click(await screen.findByRole("button", { name: /Сбросить все/ }));
+
+        expect(screen.getByTestId("loc").textContent).toBe("/authors");
+        await waitFor(() => expect(urls[urls.length - 1]).toBe(""));
+      } finally {
+        teardownViewport();
+      }
+    });
+
+    it("снимает и ключ, для которого на странице нет чипа", async () => {
+      // authorIds на /authors чипом не показывается (filterKeys = tagIds, language),
+      // но из адреса читается и в запрос уходит — снять его тоже должно быть чем.
+      const user = userEvent.setup();
+      const urls = trackAuthorRequests();
+
+      renderWithProviders(
+        <>
+          <LocationProbe />
+          <AuthorsPage />
+        </>,
+        { initialEntries: ["/authors?authorIds=1"] },
+      );
+      await waitFor(() => expect(urls).toEqual(["?authorIds=1"]));
+
+      await user.click(await screen.findByText("Сбросить все"));
+
+      expect(screen.getByTestId("loc").textContent).toBe("/authors");
+      await waitFor(() => expect(urls).toEqual(["?authorIds=1", ""]));
+    });
   });
 });

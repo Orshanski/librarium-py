@@ -2,8 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { LocationProbe } from "@/test/location-probe";
 import { metadataCache } from "@/cache";
 import { registerMetadataCacheHandlers } from "@/cache/handlers";
 import { domainEvents } from "@/domain/events";
@@ -346,6 +348,62 @@ describe("CatalogPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Ничего не найдено")).toBeInTheDocument();
+    });
+  });
+
+  describe("«Сбросить все»", () => {
+    /** Строки запроса к /api/books по порядку — видно, с какими фильтрами и сортировкой уходил запрос. */
+    function trackBookRequests(): string[] {
+      const urls: string[] = [];
+      server.use(
+        http.get("/api/books", ({ request }) => {
+          urls.push(new URL(request.url).search);
+          return HttpResponse.json({ books: [], hasMore: false, total: 0 });
+        }),
+      );
+      return urls;
+    }
+
+    it("снимает фильтры, но сохраняет выбранную сортировку", async () => {
+      const user = userEvent.setup();
+      const urls = trackBookRequests();
+
+      renderWithProviders(
+        <>
+          <LocationProbe />
+          <CatalogPage />
+        </>,
+        { initialEntries: ["/?sort=titleAsc&tagIds=26"] },
+      );
+      await waitFor(() => expect(urls).toHaveLength(1));
+      expect(urls[0]).toContain("tagIds=26");
+
+      await user.click(await screen.findByText("Сбросить все"));
+
+      expect(screen.getByTestId("loc").textContent).toBe("/?sort=titleAsc");
+      await waitFor(() => expect(urls.length).toBeGreaterThan(1));
+      const last = urls[urls.length - 1];
+      expect(last).toContain("sort=titleAsc");
+      expect(last).not.toContain("tagIds");
+    });
+
+    it("без сортировки в адресе даёт чистый «/», а не «/?»", async () => {
+      // urlKey каталога = pathname + search и служит ключом кэша списка книг и
+      // контекста восстановления прокрутки: "/?" и "/" были бы разными ключами.
+      const user = userEvent.setup();
+      trackBookRequests();
+
+      renderWithProviders(
+        <>
+          <LocationProbe />
+          <CatalogPage />
+        </>,
+        { initialEntries: ["/?tagIds=26"] },
+      );
+
+      await user.click(await screen.findByText("Сбросить все"));
+
+      expect(screen.getByTestId("loc").textContent).toBe("/");
     });
   });
 });

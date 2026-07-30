@@ -21,11 +21,16 @@ export default function FilterBar({
   selected,
   onSelectionChange,
   onClearAll,
+  hasAnySelection,
 }: Readonly<{
   filters: FilterConfig[];
   selected: Record<string, string[]>;
   onSelectionChange: (key: string, values: string[]) => void;
-  onClearAll?: () => void;
+  // Обязателен: снимать фильтры по одному нельзя, см. комментарий в smart-filter-bar.
+  onClearAll: () => void;
+  // Считается по всем ключам фильтров, а не по видимым чипам: фильтр может прийти из
+  // адреса, когда чипа для него на этой странице нет, — снять его всё равно должно быть чем.
+  hasAnySelection: boolean;
 }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -67,15 +72,9 @@ export default function FilterBar({
   }
 
   function clearAll() {
-    if (onClearAll) {
-      onClearAll();
-    } else {
-      filters.forEach((f) => onSelectionChange(f.key, []));
-    }
+    onClearAll();
     setOpenKey(null);
   }
-
-  const hasAnySelection = filters.some((f) => (selected[f.key] || []).length > 0);
 
   function getLabel(f: FilterConfig, val: string): string {
     const opt = f.options.find((o) => optVal(o) === val);

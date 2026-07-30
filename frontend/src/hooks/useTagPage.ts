@@ -10,7 +10,8 @@ import { getTag } from "@/api/endpoints/tags";
 import type { TagSummary } from "@/api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG } from "@/config/sort";
-import { FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "@/components/smart-filter-bar";
+import { readSelectedFromSearchParams } from "@/components/smart-filter-bar";
+import { clearedFilters } from "@/api/filter-types";
 import type { FilterKey, SelectedFilters } from "@/components/smart-filter-bar";
 import { selectedToApiParams } from "@/api/filter-params";
 import type { Book } from "@/types";
@@ -126,7 +127,7 @@ export function useTagPage(): UseTagPageResult {
   // и переходы затирали друг друга. sort сохраняется — updateParams строит адрес от
   // searchParams; сам жанр живёт в пути /tags/{tagId}, сбросом не затрагивается.
   const clearAllFilters = useCallback(() => {
-    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
+    updateParams(clearedFilters());
   }, [updateParams]);
 
   const handleSortChange = useCallback((newSort: string) => {

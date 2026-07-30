@@ -5,12 +5,11 @@ import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
 import type { FilterKey, SelectedFilters } from "../api/filter-types";
-import { FILTER_QUERY_KEYS } from "../api/filter-types";
+import { FILTER_QUERY_KEYS, hasAnyFilterSelected } from "../api/filter-types";
 import { metadataCache, useCachedResource } from "../cache";
 
 export type { FilterKey, SelectedFilters };
 export type { ApiFilterParams };
-export { FILTER_QUERY_KEYS };
 
 // Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)
 // из query-params и собирает SelectedFilters. Используется страницами-списками
@@ -28,7 +27,11 @@ interface SmartFilterBarProps {
   filterKeys: FilterKey[];
   selected: SelectedFilters;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
-  onClearAll?: () => void;
+  // Обязателен намеренно: снимать фильтры по одному нельзя — страницы строят адрес от
+  // снимка searchParams текущего рендера, и последовательные переходы затирают друг
+  // друга (sza4). Раньше проп был необязательным, а панель в его отсутствие шла именно
+  // таким запасным путём; теперь пропуск обработчика — ошибка типизации.
+  onClearAll: () => void;
   baseFilters?: ApiFilterParams;
 }
 
@@ -39,7 +42,10 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
-const KEY_ORDER: FilterKey[] = ["authorIds", "seriesIds", "tagIds", "language"];
+// Перечень ключей един с адресной строкой: сериализация базовых фильтров и сборка
+// запроса обходят те же четыре ключа, что читаются из адреса. Порядок обхода важен
+// только для стабильности строки кэша в serializeBase.
+const KEY_ORDER = FILTER_QUERY_KEYS;
 
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
@@ -159,6 +165,9 @@ export default function SmartFilterBar({
       selected={selectedRecord}
       onSelectionChange={(key, values) => onSelectionChange(key as FilterKey, values)}
       onClearAll={onClearAll}
+      // Полный selected известен здесь, а не в панели: она видит только свои чипы и не
+      // показала бы кнопку сброса для фильтра, пришедшего из адреса без чипа.
+      hasAnySelection={hasAnyFilterSelected(selected)}
     />
   );
 }

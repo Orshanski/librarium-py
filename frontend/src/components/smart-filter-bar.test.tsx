@@ -57,6 +57,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds"]}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -85,6 +86,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds"]}
         selected={{}}
         onSelectionChange={vi.fn()}
+        onClearAll={vi.fn()}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -122,6 +124,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds", "tagIds", "language"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -155,6 +158,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );
@@ -172,6 +176,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{ seriesIds: ["2"] }}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
     );
 
@@ -210,6 +215,7 @@ describe("SmartFilterBar", () => {
         filterKeys={["authorIds", "seriesIds"]}
         selected={{}}
         onSelectionChange={() => {}}
+        onClearAll={() => {}}
       />,
       { wrapper: ResponsiveProvider },
     );
