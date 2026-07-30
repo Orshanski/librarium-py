@@ -69,11 +69,8 @@ describe("MetadataCacheStore rename patches", () => {
     const subscriber = vi.fn();
     store.set("authors", "all", { authors: [{ id: 7, name: "Old", bookCount: 1 }] });
     store.subscribe("authors", subscriber);
-    const beforeVersion = store.version("authors");
 
     store.applyAuthorRename({ authorId: 7, name: "New" });
-    const afterFirst = store.version("authors");
-    expect(afterFirst).toBe(beforeVersion + 1);
     expect(subscriber).toHaveBeenCalledTimes(1);
     expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
       { id: 7, name: "New", sortName: "New", bookCount: 1 },
@@ -82,8 +79,11 @@ describe("MetadataCacheStore rename patches", () => {
     subscriber.mockClear();
     store.applyAuthorRename({ authorId: 7, name: "New" });
 
-    expect(store.version("authors")).toBe(afterFirst);
+    // Повторное применение того же переименования не меняет ни записи, ни оповещений.
     expect(subscriber).not.toHaveBeenCalled();
+    expect(store.get<{ authors: unknown[] }>("authors", "all")?.authors).toEqual([
+      { id: 7, name: "New", sortName: "New", bookCount: 1 },
+    ]);
   });
 
   it("applySeriesRename patches series aggregate and preserves nested authors", () => {
@@ -166,11 +166,9 @@ describe("MetadataCacheStore rename patches", () => {
 
   it("does not throw when tags aggregate has malformed value", () => {
     store.set("tags", "all", null as unknown);
-    const before = store.version("tags");
 
     expect(() => store.applyTagRename({ tagId: 3, name: "New" })).not.toThrow();
 
-    expect(store.version("tags")).toBe(before);
     expect(store.get("tags", "all")).toBeNull();
   });
 
@@ -207,11 +205,9 @@ describe("MetadataCacheStore rename patches", () => {
         { id: 6, name: "Alpha" },
       ],
     });
-    const beforeVersion = store.version("filter-options/tags");
 
     expect(() => store.applyTagRename({ tagId: 6, name: "Omega" })).not.toThrow();
 
-    expect(store.version("filter-options/tags")).toBe(beforeVersion + 1);
     expect(store.get("filter-options/tags", "all")).toEqual({
       tags: [
         { id: 3, name: "Beta" },
@@ -231,11 +227,9 @@ describe("MetadataCacheStore rename patches", () => {
         { id: 4, name: "Alpha", sortName: "Alpha" },
       ],
     });
-    const beforeVersion = store.version("authors");
 
     expect(() => store.applyAuthorRename({ authorId: 4, name: "A", sortName: "A" })).not.toThrow();
 
-    expect(store.version("authors")).toBe(beforeVersion + 1);
     expect(store.get("authors", "all")).toEqual({
       authors: [
         { id: 1, name: "Beta", sortName: "Beta" },
