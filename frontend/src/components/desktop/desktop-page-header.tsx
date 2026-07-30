@@ -6,21 +6,22 @@ import SmartFilterBar from "../smart-filter-bar";
 import SortSelect from "../sort-select";
 import { PageHeaderProps } from "../page-header.types";
 
-// Фильтровая группа пропов НЕ деструктурируется: PageHeaderFilterProps — союз с
-// дискриминантом filterKeys, и сужение работает только через обращения props.*.
-export default function DesktopPageHeader(props: PageHeaderProps) {
-  const {
-    title,
-    titleSlot,
-    filterKeys,
-    sortOptions,
-    sortValue,
-    onSortChange,
-    showUpload,
-    infoSlot,
-    breadcrumb,
-    actionSlot,
-  } = props;
+export default function DesktopPageHeader({
+  title,
+  titleSlot,
+  filterKeys,
+  selected,
+  onSelectionChange,
+  onClearAll,
+  baseFilters,
+  sortOptions,
+  sortValue,
+  onSortChange,
+  showUpload,
+  infoSlot,
+  breadcrumb,
+  actionSlot,
+}: PageHeaderProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -138,16 +139,16 @@ export default function DesktopPageHeader(props: PageHeaderProps) {
       {hasSecondRow && (
         <div style={{ padding: `0 ${layout.desktopContentPaddingX}px 18px`, display: "flex", alignItems: "center", gap: 8, minHeight: 30 }}>
           {infoSlot && !filterKeys && <div style={{ flex: 1 }}>{infoSlot}</div>}
-          {/* Дискриминант союза PageHeaderFilterProps: при заданном filterKeys остальные
-              фильтровые пропы обязательны по типу, поэтому проверяется только он. */}
-          {props.filterKeys && (
+          {/* filterKeys — дискриминант союза PageHeaderFilterProps: при нём остальные
+              фильтровые пропы обязательны по типу и сужаются вместе с ним. */}
+          {filterKeys && (
             <div style={{ flex: 1 }}>
               <SmartFilterBar
-                filterKeys={props.filterKeys}
-                selected={props.selected}
-                onSelectionChange={props.onSelectionChange}
-                onClearAll={props.onClearAll}
-                baseFilters={props.baseFilters}
+                filterKeys={filterKeys}
+                selected={selected}
+                onSelectionChange={onSelectionChange}
+                onClearAll={onClearAll}
+                baseFilters={baseFilters}
               />
             </div>
           )}

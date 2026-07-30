@@ -104,7 +104,6 @@ export default function MobileFilterBar({
     setOpenKey(null);
   }
 
-  const hasAnySelection = filters.some((filter) => (selected[filter.key] || []).length > 0);
 
   function getLabel(filter: FilterConfig, value: string) {
     const option = filter.options.find((item) => optVal(item) === value);
@@ -118,6 +117,8 @@ export default function MobileFilterBar({
     if (values.length === 2) return values.map((value) => getLabel(filter, value)).join(", ");
     return `${values.length} выбрано`;
   }
+
+  const hasAnySelection = filters.some((filter) => (selected[filter.key] || []).length > 0);
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>

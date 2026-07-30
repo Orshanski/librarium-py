@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
@@ -362,6 +363,39 @@ describe("TagPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Список жанров")).toBeInTheDocument();
     });
+  });
+
+  it("«Сбросить все» снимает фильтры, сохраняет сортировку и остаётся на своём жанре", async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    server.use(
+      http.get("/api/tags/:id", ({ request }) => {
+        urls.push(new URL(request.url).search);
+        return HttpResponse.json({
+          tag: { id: 1, name: "Science Fiction", code: null, bookCount: 0 },
+          books: [],
+        });
+      }),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1?authorIds=5&language=ru&sort=titleAsc"] },
+    );
+    await waitFor(() => expect(urls).toHaveLength(1));
+
+    await user.click(await screen.findByText("Сбросить все"));
+
+    // Жанр живёт в пути, а не в фильтрах: страница остаётся своей, сортировка цела,
+    // фильтров в запросе нет.
+    await waitFor(() => expect(urls.length).toBeGreaterThan(1));
+    const last = urls[urls.length - 1];
+    expect(last).toContain("sort=titleAsc");
+    expect(last).not.toContain("authorIds");
+    expect(last).not.toContain("language");
+    expect(screen.getAllByText("Science Fiction").length).toBeGreaterThan(0);
   });
 });
 

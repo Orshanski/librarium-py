@@ -141,7 +141,6 @@ describe("AuthorsPage", () => {
       expect(screen.getByTestId("loc").textContent).toBe("/authors");
       await waitFor(() => expect(urls[urls.length - 1]).toBe(""));
     });
-
   });
 
   describe("«Сбросить все» — мобильная раскладка", () => {
