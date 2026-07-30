@@ -76,11 +76,22 @@ export function useCatalogList(
   const [loading, setLoading] = useState<boolean>(entry === undefined);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
-  // Atomic guard for the loadMore re-entry check. Refs update synchronously, so two scroll
-  // events firing back-to-back before React commits setLoadingMore(true) cannot both pass —
-  // the second observes loadingMoreRef.current === true and bails. The React state
-  // (loadingMore) remains as the source of truth for spinner rendering.
-  const loadingMoreRef = useRef(false);
+  // Ключи наборов фильтров, для которых подгрузка сейчас в полёте. Раньше здесь был
+  // один булев замок, и он не знал, чьим запросом занят: смена фильтров кэш не
+  // инвалидирует, поэтому замок оставался занятым запросом ПРЕЖНЕГО набора и глушил
+  // подгрузку нового вместе с разовой проверкой переполнения — короткий список нового
+  // набора оставался недогруженным, а прокручивать его нечем (o6t1).
+  //
+  // Множество, а не один ключ: сценарий A → B → A при живом запросе A обязан
+  // по-прежнему давать один запрос. Ref, а не state: обновляется синхронно, поэтому две
+  // прокрутки подряд внутри одного набора не проходят обе.
+  const loadingMoreKeysRef = useRef<Set<string>>(new Set());
+
+  // Ключ набора, который сейчас на экране. Промис-цепочки loadMore читают его отсюда:
+  // params в их замыкании заморожен на момент создания коллбэка и о смене фильтров
+  // не знает, поэтому сравнение с params.urlKey внутри .then было бы сравнением
+  // значения с самим собой.
+  const currentKeyRef = useRef(params.urlKey);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -125,16 +136,20 @@ export function useCatalogList(
     return () => controller.abort();
   }, [store, params.urlKey, params.context, invalidationVersion]);
 
-  // Reset loadingMore whenever the books bucket is invalidated. This effect OWNS both
-  // setLoadingMore(false) AND loadingMoreRef.current = false on invalidation. The
-  // loadMore .then()/.catch() early-return branches (version mismatch / missing baseline)
-  // do NOT touch either — otherwise a stale resolution after a successor loadMore has
-  // started would stomp the successor's guard and allow a parallel duplicate fetch.
-  // Only the natural-completion success branch in .then resets both.
+  // Сброс кэша книг снимает все замки разом: записей, в которые можно дописать
+  // страницу, больше нет, а пришедшие ответы отсекаются проверкой версии.
   useEffect(() => {
-    loadingMoreRef.current = false;
+    loadingMoreKeysRef.current.clear();
     setLoadingMore(false);
   }, [invalidationVersion]);
+
+  // Смена набора фильтров: запоминаем, что сейчас на экране, и показываем индикатор
+  // только если у ЭТОГО набора есть свой запрос в полёте. Раньше индикатор доставался
+  // новому набору по наследству — горел без запроса и гас по чужому ответу.
+  useEffect(() => {
+    currentKeyRef.current = params.urlKey;
+    setLoadingMore(loadingMoreKeysRef.current.has(params.urlKey));
+  }, [params.urlKey]);
 
   // loadMore intentionally re-reads `baseline` from the store inside `.then(...)` rather than
   // closing over the snapshot captured at click time. This preserves domain patches
@@ -147,10 +162,11 @@ export function useCatalogList(
   // check against the freshly populated entry. Without this, a slow initial fetch + tall
   // viewport leaves the user stuck (one-shot 300ms timer fired against an undefined entry).
   const loadMore = useCallback(() => {
-    const current = store.get<CatalogEntry>("books", params.urlKey);
-    if (!current || !current.hasMore || loadingMoreRef.current) return;
+    const requestKey = params.urlKey;
+    const current = store.get<CatalogEntry>("books", requestKey);
+    if (!current || !current.hasMore || loadingMoreKeysRef.current.has(requestKey)) return;
     const startedAtInvalidationVersion = store.invalidationVersion("books");
-    loadingMoreRef.current = true;
+    loadingMoreKeysRef.current.add(requestKey);
     setLoadingMore(true);
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
@@ -159,19 +175,21 @@ export function useCatalogList(
         // invalidationVersion, so this branch is unreachable. Keep it: if someone later adds
         // a non-invalidating entry-removal (e.g. targeted store.delete), this guard prevents
         // a NaN cursor. If you add such a path, also add a test driving this branch.
-        const baseline = store.get<CatalogEntry>("books", params.urlKey);
+        const baseline = store.get<CatalogEntry>("books", requestKey);
         if (!baseline) return;
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
-        store.set("books", params.urlKey, next, { context: params.context });
-        loadingMoreRef.current = false;
-        if (mountedRef.current) setLoadingMore(false);
+        store.set("books", requestKey, next, { context: params.context });
+        loadingMoreKeysRef.current.delete(requestKey);
+        // Индикатор гасим, только если на экране всё ещё наш набор.
+        if (mountedRef.current && currentKeyRef.current === requestKey) setLoadingMore(false);
       })
       .catch((err: unknown) => {
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
-        if (!mountedRef.current) return;
         console.warn("Failed to load more books:", err);
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
+        // Замок снимаем до проверки монтирования: ранний выход по размонтированию
+        // оставлял бы его занятым навсегда.
+        loadingMoreKeysRef.current.delete(requestKey);
+        if (mountedRef.current && currentKeyRef.current === requestKey) setLoadingMore(false);
       });
   }, [store, params.urlKey, params.context, loading]);
 

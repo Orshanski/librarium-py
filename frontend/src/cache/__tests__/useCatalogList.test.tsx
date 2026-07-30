@@ -506,4 +506,85 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loadingMore").textContent).toBe("false");
     expect(warn).toHaveBeenCalled();
   });
+
+  describe("смена фильтров во время подгрузки (o6t1)", () => {
+    const paramsA: CatalogListParams = { ...baseParams, urlKey: "/?tagIds=1", tagIds: ["1"] };
+    const paramsB: CatalogListParams = { ...baseParams, urlKey: "/?tagIds=2", tagIds: ["2"] };
+
+    function seedBothSets() {
+      store.set("books", paramsA.urlKey, { books: [{ id: 1, title: "A1" } as Book], hasMore: true, cursor: 1 }, { context: CTX });
+      store.set("books", paramsB.urlKey, { books: [{ id: 2, title: "B1" } as Book], hasMore: true, cursor: 1 }, { context: CTX });
+    }
+
+    it("подгрузка нового набора не ждёт ответа подгрузки прежнего", async () => {
+      seedBothSets();
+      const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
+      const pendingB = deferred<{ books: Book[]; hasMore: boolean }>();
+      const spy = vi.spyOn(booksApi, "listBooks")
+        .mockReturnValueOnce(pendingA.promise)
+        .mockReturnValueOnce(pendingB.promise);
+
+      const { rerender } = render(<Harness store={store} params={paramsA} />);
+      fireEvent.click(screen.getByText("more"));
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      // Смена фильтров: запрос прежнего набора всё ещё в полёте.
+      rerender(<Harness store={store} params={paramsB} />);
+
+      // Индикатор не наследуется: у нового набора своего запроса ещё нет.
+      expect(screen.getByTestId("loadingMore").textContent).toBe("false");
+
+      fireEvent.click(screen.getByText("more"));
+
+      // Запрос за второй страницей нового набора обязан уйти, не дожидаясь прежнего.
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[1][0]).toMatchObject({ tagIds: ["2"], cursor: 1 });
+
+      // Ответ прежнего набора не гасит индикатор нового — у того свой запрос в полёте.
+      await act(async () => { pendingA.resolve({ books: [], hasMore: false }); });
+      expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+      // Свой ответ гасит.
+      await act(async () => { pendingB.resolve({ books: [], hasMore: false }); });
+      expect(screen.getByTestId("loadingMore").textContent).toBe("false");
+    });
+
+    it("отказ подгрузки прежнего набора не снимает замок у нового", async () => {
+      seedBothSets();
+      const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
+      const pendingB = deferred<{ books: Book[]; hasMore: boolean }>();
+      vi.spyOn(booksApi, "listBooks")
+        .mockReturnValueOnce(pendingA.promise)
+        .mockReturnValueOnce(pendingB.promise);
+
+      const { rerender } = render(<Harness store={store} params={paramsA} />);
+      fireEvent.click(screen.getByText("more"));
+      rerender(<Harness store={store} params={paramsB} />);
+      fireEvent.click(screen.getByText("more"));
+
+      // Прежний запрос падает — его ветка отказа не трогает чужой замок и индикатор.
+      await act(async () => { pendingA.reject(new Error("network")); });
+
+      expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+      await act(async () => { pendingB.resolve({ books: [], hasMore: false }); });
+    });
+
+    it("возврат к прежнему набору не даёт второго запроса за той же страницей", async () => {
+      seedBothSets();
+      const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
+      const spy = vi.spyOn(booksApi, "listBooks").mockReturnValueOnce(pendingA.promise);
+
+      const { rerender } = render(<Harness store={store} params={paramsA} />);
+      fireEvent.click(screen.getByText("more"));
+      rerender(<Harness store={store} params={paramsB} />);
+      rerender(<Harness store={store} params={paramsA} />);
+
+      // Запрос набора A всё ещё в полёте — второй такой же уходить не должен.
+      fireEvent.click(screen.getByText("more"));
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      await act(async () => { pendingA.resolve({ books: [], hasMore: false }); });
+    });
+  });
+
 });
