@@ -111,15 +111,14 @@ describe("TagsPage", () => {
     expect(optionsRequestCount).toBe(1);
   });
 
-  it("переход к жанру из поля поиска идёт роутером, без перезагрузки приложения", async () => {
-    // Раньше здесь присваивался location.href: приложение поднималось заново — единственное
-    // такое место в проекте, везде переходы мгновенные.
+  it("переход к жанру идёт по выбору варианта — роутером, без перезагрузки", async () => {
+    // Раньше здесь присваивался location.href: приложение поднималось заново.
     server.use(
       http.get("/api/tags/cloud", () =>
-        HttpResponse.json({ tags: [{ id: 2, name: "Фантастика", bookCount: 8 }] })
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман", bookCount: 8 }] })
       ),
       http.get("/api/filter-options/tags", () =>
-        HttpResponse.json({ tags: [{ id: 2, name: "Фантастика" }] })
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман" }, { id: 3, name: "Романтика" }] })
       )
     );
 
@@ -135,13 +134,44 @@ describe("TagsPage", () => {
       { initialEntries: ["/tags"] },
     );
 
-    await screen.findByRole("link", { name: /Фантастика/ });
-    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Фантастика");
+    await screen.findByRole("link", { name: /Роман/ });
+    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Романт");
+    await user.click(await screen.findByText("Романтика"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("loc").textContent).toBe("/tags/2");
+      expect(screen.getByTestId("loc").textContent).toBe("/tags/3");
     });
     expect(screen.getByText("страница жанра")).toBeInTheDocument();
   });
 
+  it("набор названия целиком никуда не уводит, пока вариант не выбран", async () => {
+    // «Роман» — начало «Романтики». Переход по совпадению во время набора уносил бы
+    // на первый жанр, не дав дописать второй.
+    server.use(
+      http.get("/api/tags/cloud", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман", bookCount: 8 }] })
+      ),
+      http.get("/api/filter-options/tags", () =>
+        HttpResponse.json({ tags: [{ id: 2, name: "Роман" }, { id: 3, name: "Романтика" }] })
+      )
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <LocationProbe />
+        <Routes>
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/tags/:id" element={<div>страница жанра</div>} />
+        </Routes>
+      </>,
+      { initialEntries: ["/tags"] },
+    );
+
+    await screen.findByRole("link", { name: /Роман/ });
+    await user.type(screen.getByPlaceholderText("Найти жанр..."), "Романтика");
+
+    expect(screen.getByTestId("loc").textContent).toBe("/tags");
+    expect(screen.queryByText("страница жанра")).toBeNull();
+  });
 });

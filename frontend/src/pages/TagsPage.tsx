@@ -69,14 +69,14 @@ export default function TagsPage() {
       <div style={{ marginBottom: 32, maxWidth: 400, margin: "0 auto 32px" }}>
         <Combobox
           value={search}
-          onChange={(val) => {
+          onChange={setSearch}
+          // Переход только по выбору варианта — тап по подсказке или Enter. Раньше
+          // обработчик выбора не передавался, поэтому выбор падал в onChange вместе с
+          // вводом, и набранное название уводило досрочно: «Роман» — начало «Романтики».
+          onSelect={(val) => {
             setSearch(val);
             const tag = allTags.find((t) => t.name === val);
-            if (tag) {
-              // Роутером, а не присваиванием location.href: то перезагружало приложение
-              // целиком — единственное такое место в проекте.
-              navigate(`/tags/${tag.id}`);
-            }
+            if (tag) navigate(`/tags/${tag.id}`);
           }}
           options={allTags.map((t) => ({ value: t.name }))}
           placeholder="Найти жанр..."
