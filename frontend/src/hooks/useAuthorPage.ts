@@ -4,6 +4,7 @@ import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { authorScrollContext } from "@/scroll/contexts";
 import { useScrollRestore } from "./useScrollRestore";
+import { useOfflineBookIds } from "./useOfflineBookIds";
 import { usePathnameWithSearch } from "./usePathnameWithSearch";
 import { useEntityScrollContext } from "./useEntityScrollContext";
 import { readOriginFromState } from "@/components/breadcrumb-origin";
@@ -39,6 +40,7 @@ export interface UseAuthorPageResult {
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
   navigateAfterDelete: () => void;
+  offlineBookIds: Set<number>;
 }
 
 export function useAuthorPage(): UseAuthorPageResult {
@@ -121,6 +123,9 @@ export function useAuthorPage(): UseAuthorPageResult {
     };
   }, [authorId, navigate]);
 
+  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
+  const offlineBookIds = useOfflineBookIds(bookIds);
+
   const navigateAfterDelete = useCallback(() => {
     navigate("/authors");
   }, [navigate]);
@@ -136,5 +141,6 @@ export function useAuthorPage(): UseAuthorPageResult {
     pathnameWithSearch,
     parentOriginForBookLink,
     navigateAfterDelete,
+    offlineBookIds,
   };
 }

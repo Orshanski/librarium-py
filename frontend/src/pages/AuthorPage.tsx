@@ -23,6 +23,7 @@ export default function AuthorPage() {
     pathnameWithSearch,
     parentOriginForBookLink,
     navigateAfterDelete,
+    offlineBookIds,
   } = useAuthorPage();
 
   const [showAdmin, setShowAdmin] = useState(false);
@@ -103,6 +104,7 @@ export default function AuthorPage() {
         <AuthorDetail
           author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
           books={books}
+          offlineBookIds={offlineBookIds}
           bookLinkState={{
             origin: {
               type: "author",

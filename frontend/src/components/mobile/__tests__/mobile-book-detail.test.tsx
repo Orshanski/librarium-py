@@ -41,6 +41,7 @@ function makeProps(
   return {
     book,
     seriesBooks: [],
+    offlineSeriesBookIds: new Set<number>(),
     formats,
     isbn,
     bookOrigin: { type: "catalog", url: "/", label: "Каталог" },

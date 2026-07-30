@@ -33,6 +33,7 @@ describe("BookSeriesRail", () => {
       withRouter(
         <BookSeriesRail
           books={[baseBook]}
+          offlineBookIds={new Set()}
           currentBookId={7}
           bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }}
           seriesName="Series"
@@ -44,11 +45,30 @@ describe("BookSeriesRail", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("помечает книгу серии, сохранённую офлайн", () => {
+    render(
+      withRouter(
+        <BookSeriesRail
+          books={[baseBook, { ...baseBook, id: 8, title: "Book 2", coverPath: "/cover/8" }]}
+          offlineBookIds={new Set([8])}
+          currentBookId={7}
+          bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }}
+          seriesName="Series"
+          tokens={tokens}
+        />,
+      ),
+    );
+
+    // Бейдж ровно один — у книги 8, она сохранена офлайн.
+    expect(screen.getAllByTestId("cover-offline-badge")).toHaveLength(1);
+  });
+
   it("renders a heading and book cards for multi-book series", () => {
     render(
       withRouter(
         <BookSeriesRail
           books={[baseBook, { ...baseBook, id: 8, title: "Book 2", coverPath: "/cover/8" }]}
+          offlineBookIds={new Set()}
           currentBookId={7}
           bookOrigin={{ type: "catalog", url: "/", label: "Каталог" }}
           seriesName="Series"

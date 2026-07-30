@@ -9,10 +9,12 @@ import type { ListOrigin } from "./breadcrumb-origin";
 export default function AuthorDetail({
   author,
   books,
+  offlineBookIds,
   bookLinkState,
 }: Readonly<{
   author: { id: number; name: string; bookCount: number; tags: string[] };
   books: Book[];
+  offlineBookIds: Set<number>;
   bookLinkState: { origin: ListOrigin };
 }>) {
   const cardWidth = useBookCardWidth();
@@ -58,6 +60,7 @@ export default function AuthorDetail({
                 key={book.id}
                 {...bookToBookCardCommonProps(book)}
                 width={cardWidth}
+                hasOffline={offlineBookIds.has(book.id)}
                 linkState={bookLinkState}
               />
             ))}
@@ -85,6 +88,7 @@ export default function AuthorDetail({
                 key={book.id}
                 {...bookToBookCardCommonProps(book)}
                 width={cardWidth}
+                hasOffline={offlineBookIds.has(book.id)}
                 linkState={bookLinkState}
               />
             ))}

@@ -67,6 +67,7 @@ const SERIES_RAIL_TOKENS = {
 export default function MobileBookDetail({
   book,
   seriesBooks,
+  offlineSeriesBookIds,
   formats,
   isbn,
   bookOrigin,
@@ -181,6 +182,7 @@ export default function MobileBookDetail({
       {book.series && (
         <BookSeriesRail
           books={seriesBooks}
+          offlineBookIds={offlineSeriesBookIds}
           currentBookId={book.id}
           bookOrigin={bookOrigin}
           seriesName={book.series.name}
