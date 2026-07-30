@@ -23,6 +23,7 @@ export default function TagPage() {
     books,
     loading,
     notFound,
+    loadFailed,
     pathnameWithSearch,
     sort,
     selected,
@@ -52,6 +53,19 @@ export default function TagPage() {
   // Загрузка кончилась, а жанра нет — это либо 404, либо сбой запроса (500, обрыв
   // сети): useCachedResource в обоих случаях даёт loading === false и пустые данные.
   // Без этой ветки страница застревала бы с заголовком «...» и пустым телом.
+  // Сбой запроса (сервер моргнул, пропала сеть) — не то же самое, что «нет такого»:
+  // сообщать «не найден» значит вводить читателя в заблуждение.
+  if (loadFailed) {
+    return (
+      <>
+        <PageHeader title="Не удалось загрузить" breadcrumb={{ label: "Жанры", href: "/tags" }} />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
+      </>
+    );
+  }
+
   if (notFound || (!loading && !tag)) {
     return (
       <>

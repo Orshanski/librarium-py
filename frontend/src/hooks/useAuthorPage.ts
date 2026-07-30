@@ -34,6 +34,7 @@ export interface UseAuthorPageResult {
   books: Book[];
   loading: boolean;
   notFound: boolean;
+  loadFailed: boolean;
   crumb: AuthorCrumb;
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
@@ -91,6 +92,9 @@ export function useAuthorPage(): UseAuthorPageResult {
 
   const loading = authorResource.loading;
   const notFound = authorResource.error instanceof NotFoundError || isInvalidId;
+  // Сбой запроса — это НЕ «нет такого»: сервер моргнул или пропала сеть.
+  // Сообщать «не найдено» в этом случае значит вводить читателя в заблуждение.
+  const loadFailed = authorResource.error !== undefined && !notFound;
 
   useScrollRestore(!loading, scrollContext);
 
@@ -127,6 +131,7 @@ export function useAuthorPage(): UseAuthorPageResult {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,

@@ -23,6 +23,7 @@ export interface UseTagPageResult {
   books: Book[];
   loading: boolean;
   notFound: boolean;
+  loadFailed: boolean;
   pathnameWithSearch: string;
   sort: string;
   selected: SelectedFilters;
@@ -80,6 +81,9 @@ export function useTagPage(): UseTagPageResult {
   const books: Book[] = tagResource.data?.books ?? EMPTY_BOOKS;
   const loading = tagResource.loading;
   const notFound = tagResource.error instanceof NotFoundError || isInvalidId;
+  // Сбой запроса — это НЕ «нет такого»: сервер моргнул или пропала сеть.
+  // Сообщать «не найдено» в этом случае значит вводить читателя в заблуждение.
+  const loadFailed = tagResource.error !== undefined && !notFound;
 
   useScrollRestore(!loading, scrollContext);
 
@@ -123,6 +127,7 @@ export function useTagPage(): UseTagPageResult {
     books,
     loading,
     notFound,
+    loadFailed,
     pathnameWithSearch,
     sort,
     selected,

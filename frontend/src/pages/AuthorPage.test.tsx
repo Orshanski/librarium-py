@@ -298,8 +298,9 @@ describe("AuthorPage", () => {
       { initialEntries: ["/authors/1"] },
     );
 
-    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
-    expect(await screen.findAllByText("Автор не найден")).toHaveLength(2);
+    // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
+    expect(screen.queryByText("Автор не найден")).toBeNull();
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
   });
 
 });

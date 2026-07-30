@@ -18,6 +18,7 @@ export default function AuthorPage() {
     books,
     loading,
     notFound,
+    loadFailed,
     crumb,
     pathnameWithSearch,
     parentOriginForBookLink,
@@ -27,6 +28,19 @@ export default function AuthorPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
+  // Сбой запроса (сервер моргнул, пропала сеть) — не то же самое, что «нет такого»:
+  // сообщать «не найден» значит вводить читателя в заблуждение.
+  if (loadFailed) {
+    return (
+      <>
+        <PageHeader title="Не удалось загрузить" breadcrumb={crumb} />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
+      </>
+    );
+  }
+
   if (notFound || (!loading && !author)) {
     return (
       <>

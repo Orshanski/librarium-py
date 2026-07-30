@@ -14,6 +14,7 @@ export interface UseShelfPageResult {
   shelf: ShelfSummary | null;
   books: Book[];
   loading: boolean;
+  loadFailed: boolean;
   isReadingNow: boolean;
   progressByBookId: Record<number, ShelfProgressEntry>;
   sort: string;
@@ -46,6 +47,8 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const books = shelfResource.data?.books ?? [];
   const progressByBookId = shelfResource.data?.progressByBookId ?? {};
   const loading = shelfResource.loading;
+  // Сбой запроса отличается от «полки нет»: см. useTagPage.
+  const loadFailed = shelfResource.error !== undefined;
 
   // scrollContext мемоизирован — зависимость в useEffect ниже опирается на стабильность ссылки.
   const scrollContext = useMemo(
@@ -106,6 +109,7 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
     shelf,
     books,
     loading,
+    loadFailed,
     isReadingNow,
     progressByBookId,
     sort,

@@ -20,6 +20,7 @@ export default function ShelfPage() {
     shelf,
     books,
     loading,
+    loadFailed,
     isReadingNow,
     progressByBookId,
     sort,
@@ -38,6 +39,18 @@ export default function ShelfPage() {
 
   // Загрузка кончилась, а полки нет — 404 или сбой запроса. Раньше здесь возвращался
   // null, то есть пустой экран без объяснения; теперь читатель видит, что случилось.
+  // Сбой запроса — не «полки нет»: см. TagPage.
+  if (loadFailed) {
+    return (
+      <>
+        <PageHeader title="Не удалось загрузить" />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
+      </>
+    );
+  }
+
   if (!loading && !shelf) {
     return (
       <>

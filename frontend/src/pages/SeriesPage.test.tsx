@@ -304,8 +304,9 @@ describe("SeriesPage", () => {
       { initialEntries: ["/series/1"] },
     );
 
-    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
-    expect(await screen.findAllByText("Серия не найдена")).toHaveLength(2);
+    // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
+    expect(screen.queryByText("Серия не найдена")).toBeNull();
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
   });
 
 });
