@@ -365,6 +365,27 @@ describe("TagPage", () => {
     });
   });
 
+  it("во время загрузки шапка остаётся на месте: фильтры, сортировка, крошка", async () => {
+    // Списки (каталог, авторы, серии) держат шапку и показывают индикатор под ней.
+    // Страницы сущностей раньше подменяли собой всю страницу и отнимали у читателя
+    // фильтры и сортировку на время загрузки — поведение приводится к одному.
+    server.use(
+      http.get("/api/tags/:id", () => new Promise(() => {})),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] },
+    );
+
+    expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByText("Жанры")).toBeInTheDocument();
+  });
+
   it("«Сбросить все» снимает фильтры, сохраняет сортировку и остаётся на своём жанре", async () => {
     const user = userEvent.setup();
     const urls: string[] = [];

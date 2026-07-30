@@ -49,16 +49,7 @@ export default function TagPage() {
     [tag, pathnameWithSearch],
   );
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={{ label: "Жанры", href: "/tags" }} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (notFound || !tag) {
+  if (notFound) {
     return (
       <>
         <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
@@ -87,8 +78,8 @@ export default function TagPage() {
   return (
     <>
       <PageHeader
-        title={tag.name}
-        titleSlot={adminButton}
+        title={tag?.name ?? "..."}
+        titleSlot={tag ? adminButton : undefined}
         breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
@@ -100,7 +91,7 @@ export default function TagPage() {
         onSortChange={handleSortChange}
       />
 
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && tag && (
         <EntityAdminPanel
           entityType="tag"
           entityId={tag.id}
@@ -115,6 +106,11 @@ export default function TagPage() {
         />
       )}
 
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {!loading && (
       <BookGrid>
         {books.map((book) => (
           <BookCard
@@ -131,6 +127,7 @@ export default function TagPage() {
           </div>
         )}
       </BookGrid>
+      )}
     </>
   );
 }

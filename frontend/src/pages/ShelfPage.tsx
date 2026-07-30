@@ -36,32 +36,21 @@ export default function ShelfPage() {
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (!shelf) return null;
-
   const shelfOrigin = {
     type: "shelf" as const,
     url: pathnameWithSearch,
-    label: shelf.name,
+    label: shelf?.name ?? "",
   };
 
   return (
     <>
       <PageHeader
-        title={shelf.name}
+        title={shelf?.name ?? "..."}
         sortOptions={options}
         sortValue={options ? sort : undefined}
         onSortChange={options ? onSortChange : undefined}
         actionSlot={
-          !shelf.isSystem ? (
+          shelf && !shelf.isSystem ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               style={{
@@ -82,6 +71,10 @@ export default function ShelfPage() {
         }
       />
 
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
       <BookGrid>
         {books.map((b) => {
           const progress = progressByBookId[b.id];
@@ -101,7 +94,7 @@ export default function ShelfPage() {
               progressPercent={isReadingNow && progress?.fraction ? Math.round(progress.fraction * 100) : undefined}
               hasOffline={offlineBookIds.has(b.id)}
               linkState={linkState}
-              onRemove={!shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
+              onRemove={shelf && !shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
             />
           );
         })}
@@ -111,7 +104,7 @@ export default function ShelfPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>На полке нет книг</div>
       )}
 
-      {showDeleteConfirm && (
+      {showDeleteConfirm && shelf && (
         <ConfirmDialog
           message={`Удалить полку «${shelf.name}»? Все связи с книгами будут удалены. Книги останутся в библиотеке.`}
           confirmLabel="Удалить"

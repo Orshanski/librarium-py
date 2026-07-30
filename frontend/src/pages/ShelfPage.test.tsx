@@ -292,4 +292,24 @@ describe("ShelfPage", () => {
     await waitFor(() => expect(screen.getByText("Shelf 43")).toBeInTheDocument());
     expect(screen.getByText("Dune")).toBeInTheDocument();
   });
+
+  it("во время загрузки шапка сохраняет сортировку, а не подменяется заглушкой", async () => {
+    // Списки (каталог, авторы, серии) держат шапку и показывают индикатор под ней;
+    // страницы сущностей раньше подменяли собой всю страницу и отнимали управление.
+    // Набор сортировок известен до ответа сервера, поэтому переключатель обязан быть.
+    server.use(
+      http.get("/api/shelves/:id", () => new Promise(() => {})),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/shelves/:id" element={<ShelfPage />} />
+      </Routes>,
+      { initialEntries: ["/shelves/42"] },
+    );
+
+    expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
 });

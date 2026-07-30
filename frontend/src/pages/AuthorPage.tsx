@@ -26,16 +26,7 @@ export default function AuthorPage() {
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (notFound || !author) {
+  if (notFound) {
     return (
       <>
         <PageHeader title="Автор не найден" breadcrumb={crumb} />
@@ -44,14 +35,14 @@ export default function AuthorPage() {
     );
   }
 
-  const infoSlot = (
+  const infoSlot = author ? (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
       <span>{pluralizeBooks(author.bookCount)}</span>
       <span>{author.tags.slice(0, 5).join(", ")}</span>
     </div>
-  );
+  ) : undefined;
 
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && author ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -72,12 +63,12 @@ export default function AuthorPage() {
   return (
     <>
       <PageHeader
-        title={author.name}
+        title={author?.name ?? "..."}
         titleSlot={adminButton}
         infoSlot={infoSlot}
         breadcrumb={crumb}
       />
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && author && (
         <EntityAdminPanel
           entityType="author"
           entityId={author.id}
@@ -93,6 +84,11 @@ export default function AuthorPage() {
           }}
         />
       )}
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {author && (
       <AuthorDetail
         author={{ id: author.id, name: author.name, bookCount: author.bookCount, tags: author.tags }}
         books={books}
@@ -105,6 +101,7 @@ export default function AuthorPage() {
           },
         }}
       />
+      )}
     </>
   );
 }

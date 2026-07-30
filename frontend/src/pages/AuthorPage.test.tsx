@@ -280,6 +280,8 @@ describe("AuthorPage", () => {
       expect(screen.getByText("Список авторов")).toBeInTheDocument();
     });
   });
+
+
 });
 
 const authorCase = {

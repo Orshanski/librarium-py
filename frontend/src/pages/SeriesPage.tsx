@@ -44,20 +44,7 @@ export default function SeriesPage() {
     );
   }
 
-  if (loading) {
-    return (
-      <>
-        <PageHeader title="..." breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
-      </>
-    );
-  }
-
-  if (!series) return null;
-
-  const bookCount = series.bookCount;
-
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && series ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -74,23 +61,23 @@ export default function SeriesPage() {
     >⚙</button>
   ) : undefined;
 
-  const infoSlot = (
+  const infoSlot = series ? (
     <div style={{ display: "flex", gap: 16, fontSize: 13, color: colors.textDim }}>
-      <span>{pluralizeBooks(bookCount)}</span>
+      <span>{pluralizeBooks(series.bookCount)}</span>
       {series.authors && series.authors.length > 0 && <span>{series.authors.map((a) => a.name).join(", ")}</span>}
     </div>
-  );
+  ) : undefined;
 
   return (
     <>
       <PageHeader
-        title={series.name}
+        title={series?.name ?? "..."}
         titleSlot={adminButton}
         breadcrumb={crumb}
         infoSlot={infoSlot}
       />
 
-      {!isMobile && showAdmin && (
+      {!isMobile && showAdmin && series && (
         <EntityAdminPanel
           entityType="series"
           entityId={series.id}
@@ -107,6 +94,11 @@ export default function SeriesPage() {
         />
       )}
 
+      {loading && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {series && (
       <BookGrid>
         {books.map((book: Book) => (
           <BookCard
@@ -125,6 +117,7 @@ export default function SeriesPage() {
           />
         ))}
       </BookGrid>
+      )}
     </>
   );
 }

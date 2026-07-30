@@ -286,6 +286,8 @@ describe("SeriesPage", () => {
       expect(screen.getByText("Список серий")).toBeInTheDocument();
     });
   });
+
+
 });
 
 const seriesCase = {
