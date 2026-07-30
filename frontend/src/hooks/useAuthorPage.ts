@@ -40,7 +40,7 @@ export interface UseAuthorPageResult {
   pathnameWithSearch: string;
   parentOriginForBookLink: ListOrigin | undefined;
   navigateAfterDelete: () => void;
-  offlineBookIds: Set<number>;
+  offlineBookIds: ReadonlySet<number>;
 }
 
 export function useAuthorPage(): UseAuthorPageResult {
@@ -124,7 +124,7 @@ export function useAuthorPage(): UseAuthorPageResult {
   }, [authorId, navigate]);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
 
   const navigateAfterDelete = useCallback(() => {
     navigate("/authors");

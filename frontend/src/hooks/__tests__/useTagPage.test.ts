@@ -169,15 +169,6 @@ describe("useTagPage", () => {
     expect(result.current.books).toHaveLength(0);
   });
 
-  it("returns bookIds derived from books", async () => {
-    mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
-
-    const { result } = renderHook(() => useTagPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.tag).not.toBeNull());
-
-    expect(result.current.bookIds).toEqual([10]);
-  });
 
   it("navigateAfterDelete is a callable function", async () => {
     mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [] });

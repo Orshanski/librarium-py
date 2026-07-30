@@ -43,6 +43,7 @@ def get_author_by_id(db: sqlite3.Connection, author_id: int, user_id: int) -> Au
     author = dict_from_row(queries.get_author_by_id(db, id=author_id))
     if not author:
         return None
+    parse_book_row_aggregates(author)
 
     rows = dicts_from_rows(queries.get_author_books(db, id=author_id, user_id=user_id))
     for r in rows:

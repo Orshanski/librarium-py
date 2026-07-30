@@ -69,6 +69,22 @@ export function applyTagRename(writer: ProjectionWriter, payload: DomainEventMap
     { name: payload.name },
   );
 
+  // Детальный ответ автора отдаёт жанры автора (23od) — тот же агрегат, что в списке
+  // авторов, который патчится выше. Держим их согласованными: иначе закэшированная
+  // страница автора покажет старое имя жанра.
+  writer.updateNamespacePrefixEntries("author/", (_namespace, entry) => {
+    if (!isRecord(entry.value)) return entry;
+    const author = entry.value.author;
+    if (!isRecord(author) || !Array.isArray(author.tags)) return entry;
+    const result = patchNamedRefs(
+      author.tags as Array<{ id: number; name: string }>,
+      payload.tagId,
+      { name: payload.name },
+    );
+    if (!result.changed) return entry;
+    return { ...entry, value: { ...entry.value, author: { ...author, tags: result.refs } } };
+  });
+
   writer.patchDetailNamespace(`tag/${payload.tagId}`, (value) => {
     const tag = value.tag;
     return isRecord(tag) ? { ...value, tag: { ...tag, name: payload.name } } : undefined;

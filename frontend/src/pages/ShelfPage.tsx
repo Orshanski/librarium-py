@@ -36,7 +36,7 @@ export default function ShelfPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 
   // Загрузка кончилась, а полки нет — 404 или сбой запроса. Раньше здесь возвращался

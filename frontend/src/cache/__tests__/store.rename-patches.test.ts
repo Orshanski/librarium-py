@@ -371,4 +371,42 @@ describe("MetadataCacheStore rename patches", () => {
       { id: 3, name: "New" },
     ]);
   });
+
+  it("applyTagRename патчит жанры внутри карточки автора", () => {
+    // Детальный ответ автора теперь отдаёт его жанры (23od) — тот же агрегат, что в
+    // списке авторов, который патчится рядом. Без этого закэшированная страница автора
+    // показывала бы старое имя жанра.
+    store.set(
+      "author/5",
+      "detail",
+      {
+        author: { id: 5, name: "Акунин", bookCount: 1, tags: [{ id: 3, name: "Старое" }] },
+        books: [{ id: 11, title: "Книга" }],
+      },
+      { context: { kind: "book-list", key: "author/5", source: "author-detail", authorId: 5, sort: "addedDesc" } },
+    );
+
+    store.applyTagRename({ tagId: 3, name: "Новое" });
+
+    const value = store.get<{ author: { tags: Array<{ id: number; name: string }> } }>("author/5", "detail");
+    expect(value?.author.tags).toEqual([{ id: 3, name: "Новое" }]);
+  });
+
+  it("applyAuthorRename патчит авторов внутри карточки серии", () => {
+    store.set(
+      "series/9",
+      "detail",
+      {
+        series: { id: 9, name: "Фандорин", bookCount: 1, authors: [{ id: 7, name: "Старое" }] },
+        books: [{ id: 12, title: "Книга" }],
+      },
+      { context: { kind: "book-list", key: "series/9", source: "series-detail", seriesId: 9, sort: "seriesNumber" } },
+    );
+
+    store.applyAuthorRename({ authorId: 7, name: "Новое" });
+
+    const value = store.get<{ series: { authors: Array<{ name: string }> } }>("series/9", "detail");
+    expect(value?.series.authors[0].name).toBe("Новое");
+  });
+
 });

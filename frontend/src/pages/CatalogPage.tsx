@@ -53,7 +53,7 @@ export default function CatalogPage() {
   useScrollRestore(!loading, scrollContext);
 
   const bookIds = useMemo(() => books.map((b: Book) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 
   return (

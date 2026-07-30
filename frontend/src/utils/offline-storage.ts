@@ -248,6 +248,17 @@ export async function getOfflineBooks(): Promise<OfflineBook[]> {
   return all.map(storedToOfflineBook);
 }
 
+/**
+ * Идентификаторы сохранённых книг — только ключи.
+ * Отдельно от getOfflineBooks намеренно: тот прогоняет каждую запись через
+ * storedToOfflineBook и создаёт Blob обложки и КАЖДОГО файла книги, то есть ради
+ * списка чисел поднимает всю офлайн-библиотеку в память (на планшете это сотни мегабайт).
+ */
+export async function getOfflineBookIds(): Promise<number[]> {
+  const db = await initDB();
+  return db.getAllKeys("offline_books") as Promise<number[]>;
+}
+
 export async function hasOfflineBook(bookId: number): Promise<boolean> {
   const db = await initDB();
   const key = await db.getKey("offline_books", bookId);

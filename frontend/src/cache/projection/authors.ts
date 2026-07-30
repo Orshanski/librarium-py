@@ -72,6 +72,20 @@ export function applyAuthorRename(writer: ProjectionWriter, payload: DomainEvent
     { name: payload.name, ...sortNamePatchValue },
   );
 
+  // Симметрично жанрам внутри карточки автора: детальный ответ серии отдаёт её авторов.
+  writer.updateNamespacePrefixEntries("series/", (_namespace, entry) => {
+    if (!isRecord(entry.value)) return entry;
+    const series = entry.value.series;
+    if (!isRecord(series) || !Array.isArray(series.authors)) return entry;
+    const result = patchNamedRefs(
+      series.authors as Array<{ id: number; name: string; sortName?: string }>,
+      payload.authorId,
+      { name: payload.name, ...sortNamePatchValue },
+    );
+    if (!result.changed) return entry;
+    return { ...entry, value: { ...entry.value, series: { ...series, authors: result.refs } } };
+  });
+
   writer.patchDetailNamespace(`author/${payload.authorId}`, (value) => {
     const author = value.author;
     return isRecord(author)

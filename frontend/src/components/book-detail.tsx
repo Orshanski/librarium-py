@@ -28,7 +28,7 @@ export default function BookDetail({
 }: Readonly<{
   book: BookDetail;
   seriesBooks: Book[];
-  offlineSeriesBookIds: Set<number>;
+  offlineSeriesBookIds: ReadonlySet<number>;
   formats: BookFormat[];
   isbn: string | null;
   bookOrigin: ListOrigin;

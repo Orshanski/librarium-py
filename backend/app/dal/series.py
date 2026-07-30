@@ -45,6 +45,7 @@ def get_series_by_id(db: sqlite3.Connection, series_id: int, user_id: int) -> Se
     s = dict_from_row(queries.get_series_by_id(db, id=series_id))
     if not s:
         return None
+    parse_book_row_aggregates(s)
 
     rows = dicts_from_rows(queries.get_series_books(db, id=series_id, user_id=user_id))
     for r in rows:

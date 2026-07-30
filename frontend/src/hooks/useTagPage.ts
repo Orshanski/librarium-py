@@ -27,8 +27,7 @@ export interface UseTagPageResult {
   pathnameWithSearch: string;
   sort: string;
   selected: SelectedFilters;
-  bookIds: number[];
-  offlineBookIds: Set<number>;
+  offlineBookIds: ReadonlySet<number>;
   navigateAfterDelete: () => void;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
   clearAllFilters: () => void;
@@ -118,8 +117,7 @@ export function useTagPage(): UseTagPageResult {
     updateParams({ sort: [newSort] });
   }, [updateParams]);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
 
   return {
     tagId,
@@ -131,7 +129,6 @@ export function useTagPage(): UseTagPageResult {
     pathnameWithSearch,
     sort,
     selected,
-    bookIds,
     offlineBookIds,
     navigateAfterDelete,
     onSelectionChange,

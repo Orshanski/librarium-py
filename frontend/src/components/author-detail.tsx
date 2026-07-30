@@ -14,7 +14,7 @@ export default function AuthorDetail({
 }: Readonly<{
   author: { id: number; name: string; bookCount: number; tags: string[] };
   books: Book[];
-  offlineBookIds: Set<number>;
+  offlineBookIds: ReadonlySet<number>;
   bookLinkState: { origin: ListOrigin };
 }>) {
   const cardWidth = useBookCardWidth();

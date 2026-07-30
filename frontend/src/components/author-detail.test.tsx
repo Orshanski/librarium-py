@@ -17,20 +17,29 @@ const BOOK: Book = {
   isRead: false,
 };
 
-const OTHER_BOOK: Book = { ...BOOK, id: 43, title: "Турецкий гамбит" };
+const SERIES_BOOK: Book = {
+  ...BOOK,
+  id: 43,
+  title: "Турецкий гамбит",
+  series: { id: 9, name: "Фандорин" },
+  seriesNumber: 2,
+};
 
 describe("AuthorDetail", () => {
   it("помечает книги, сохранённые офлайн", () => {
     renderWithProviders(
       <AuthorDetail
         author={{ id: 1, name: "Акунин", bookCount: 2, tags: [] }}
-        books={[BOOK, OTHER_BOOK]}
-        offlineBookIds={new Set([42])}
+        books={[BOOK, SERIES_BOOK]}
+        offlineBookIds={new Set([42, 43])}
         bookLinkState={{ origin: { type: "author", url: "/authors/1", label: "Акунин" } }}
       />,
     );
 
-    // Бейдж ровно один — у книги 42, она сохранена офлайн.
-    expect(screen.getAllByTestId("cover-offline-badge")).toHaveLength(1);
+    // Две ветки отрисовки: книга вне серий и книга внутри секции серии.
+    // Прошлая версия теста давала обеим книгам series: null и вторую ветку не проходила.
+    expect(screen.getByText("Фандорин")).toBeInTheDocument();
+    expect(screen.getByText("Вне серий")).toBeInTheDocument();
+    expect(screen.getAllByTestId("cover-offline-badge")).toHaveLength(2);
   });
 });

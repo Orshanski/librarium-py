@@ -71,7 +71,7 @@ function SearchResults() {
 
   const { books = [], authors = [], series = [] } = results || {};
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 
   if (!q.trim()) {

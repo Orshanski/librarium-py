@@ -34,7 +34,7 @@ export default function SeriesPage() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   const bookIds = useMemo(() => books.map((b) => b.id), [books]);
-  const offlineBookIds = useOfflineBookIds(bookIds);
+  const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 
   // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.

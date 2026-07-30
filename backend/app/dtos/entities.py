@@ -61,11 +61,13 @@ class AuthorsList(TypedDict):
 
 class AuthorSummary(TypedDict):
     """Raw authors table row returned inside get_author_by_id with COUNT JOIN.
-    Distinct from AuthorRow: has book_count from COUNT(DISTINCT b.id) JOIN, no tags aggregate."""
+    От AuthorRow отличается источником book_count (COUNT(DISTINCT b.id) JOIN);
+    агрегат tags собирается тем же подзапросом, что в get_authors."""
     id: int
     name: str
     sort_name: str | None
     book_count: int
+    tags: list[TagRef]
 
 
 class AuthorDetailRow(TypedDict):
@@ -91,12 +93,13 @@ class SeriesList(TypedDict):
 
 
 class SeriesDetailSummary(TypedDict):
-    """Series row inside get_series_by_id — SELECT s.*, COUNT(b.id) as book_count.
-    Distinct from SeriesRow: has book_count but no authors aggregate column."""
+    """Series row inside get_series_by_id — SELECT s.*, COUNT(b.id) as book_count
+    плюс агрегат authors тем же подзапросом, что в get_series."""
     id: int
     name: str
     sort_name: str | None
     book_count: int
+    authors: list[AuthorRef]
 
 
 class SeriesDetailRow(TypedDict):

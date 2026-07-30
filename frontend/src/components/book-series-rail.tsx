@@ -20,7 +20,7 @@ export interface BookSeriesRailTokens {
 
 interface BookSeriesRailProps {
   books: ReadonlyArray<Book>;
-  offlineBookIds: Set<number>;
+  offlineBookIds: ReadonlySet<number>;
   currentBookId: number;
   bookOrigin: ListOrigin;
   seriesName: string;
