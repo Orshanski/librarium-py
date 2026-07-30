@@ -440,7 +440,8 @@ describe("TagPage", () => {
     // в PWA другого способа выйти из неудачной комбинации нет.
     expect(await screen.findByRole("button", { name: /Автор/ })).toBeInTheDocument();
     expect(screen.getByText("Жанры")).toBeInTheDocument();
-    expect(await screen.findByText("Не удалось загрузить")).toBeInTheDocument();
+    // Сообщение и в заголовке, и в теле: заголовок «...» означал бы «ещё грузится».
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
     // И никакой неправды рядом: запрос упал, а не «книг нет».
     expect(screen.queryByText("Книги не найдены")).toBeNull();
   });

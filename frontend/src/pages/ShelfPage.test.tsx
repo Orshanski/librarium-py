@@ -72,7 +72,9 @@ describe("ShelfPage", () => {
     expect(screen.getByText("Foundation")).toBeInTheDocument();
   });
 
-  it("renders nothing crashy on 404", async () => {
+  it("404 говорит «не найдена», а не «не удалось загрузить»", async () => {
+    // Полку могли удалить на другом устройстве. Сообщение о временном сбое заставило бы
+    // читателя ждать восстановления, которого не будет.
     server.use(
       http.get("/api/shelves/:id", () =>
         HttpResponse.json({ detail: "Not found" }, { status: 404 })
@@ -86,13 +88,8 @@ describe("ShelfPage", () => {
       { initialEntries: ["/shelves/999"] }
     );
 
-    // Loading indicator disappears, no crash, no book grid
-    await waitFor(() => {
-      expect(screen.queryByText("Загрузка...")).not.toBeInTheDocument();
-    });
-
-    // No book grid rendered (shelf is null → returns null)
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(await screen.findAllByText("Полка не найдена")).toHaveLength(2);
+    expect(screen.queryByText("Не удалось загрузить")).toBeNull();
   });
 
   it("publishes events after successful shelf book removal and shelf delete", async () => {
@@ -329,11 +326,11 @@ describe("ShelfPage", () => {
       { initialEntries: ["/shelves/42"] },
     );
 
+    // Сообщение и в заголовке, и в теле: заголовок «...» означал бы «ещё грузится».
+    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
     // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
     expect(screen.queryByText("Полка не найдена")).toBeNull();
-    expect(await screen.findByText("Не удалось загрузить")).toBeInTheDocument();
     // И никакой неправды рядом: запрос упал, а не «книг нет».
     expect(screen.queryByText("На полке нет книг")).toBeNull();
   });
-
 });

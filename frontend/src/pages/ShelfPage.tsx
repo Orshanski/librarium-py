@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -20,6 +21,7 @@ export default function ShelfPage() {
     shelf,
     books,
     loading,
+    notFound,
     loadFailed,
     isReadingNow,
     progressByBookId,
@@ -39,7 +41,7 @@ export default function ShelfPage() {
 
   // Загрузка кончилась, а полки нет — 404 или сбой запроса. Раньше здесь возвращался
   // null, то есть пустой экран без объяснения; теперь читатель видит, что случилось.
-  if (!loading && !loadFailed && !shelf) {
+  if (notFound || (!loading && !loadFailed && !shelf)) {
     return (
       <>
         <PageHeader title="Полка не найдена" />
@@ -55,7 +57,7 @@ export default function ShelfPage() {
           ответа нельзя — показали бы чужие восемь вариантов, которые потом исчезнут,
           а клик увёл бы на несуществующую сортировку. */}
       <PageHeader
-        title={shelf?.name ?? "..."}
+        title={shelf?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         sortOptions={shelf ? options : undefined}
         sortValue={shelf && options ? sort : undefined}
         onSortChange={shelf && options ? onSortChange : undefined}
@@ -85,14 +87,9 @@ export default function ShelfPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
-      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
-          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
-          ни адресной строки, ни кнопки перезагрузки. */}
-      {loadFailed && (
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      )}
+      {/* Сообщение в теле, а не вместо страницы: шапка остаётся, чтобы уйти было куда (крошка) и
+          страница не подменялась целиком. */}
+      {loadFailed && <LoadFailureNotice />}
 
       {shelf && (
         <BookGrid>

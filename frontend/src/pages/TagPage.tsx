@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -82,7 +83,7 @@ export default function TagPage() {
   return (
     <>
       <PageHeader
-        title={tag?.name ?? "..."}
+        title={tag?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         titleSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
@@ -114,14 +115,9 @@ export default function TagPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
-      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
-          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
-          ни адресной строки, ни кнопки перезагрузки. */}
-      {loadFailed && (
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      )}
+      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся: снять неудачную комбинацию фильтров
+          можно прямо здесь, не трогая адрес — в PWA его правка недоступна. */}
+      {loadFailed && <LoadFailureNotice />}
 
       {tag && (
         <BookGrid>

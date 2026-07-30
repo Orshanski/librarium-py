@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 
 import PageHeader from "../components/page-header";
+import LoadFailureNotice from "../components/load-failure-notice";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -73,7 +74,7 @@ export default function SeriesPage() {
   return (
     <>
       <PageHeader
-        title={series?.name ?? "..."}
+        title={series?.name ?? (loadFailed ? "Не удалось загрузить" : "...")}
         titleSlot={adminButton}
         breadcrumb={crumb}
         infoSlot={infoSlot}
@@ -100,14 +101,9 @@ export default function SeriesPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
-      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
-          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
-          ни адресной строки, ни кнопки перезагрузки. */}
-      {loadFailed && (
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      )}
+      {/* Сообщение в теле, а не вместо страницы: шапка остаётся, чтобы уйти было куда (крошка) и
+          страница не подменялась целиком. */}
+      {loadFailed && <LoadFailureNotice />}
 
       {series && (
         <BookGrid>
