@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useIsMobile } from "../responsive";
 import FilterBar, { FilterConfig, FilterOption } from "./filter-bar";
 import MobileFilterBar from "./mobile/mobile-filter-bar";
@@ -88,7 +88,18 @@ function useFilterOptions(
     },
     [key, meta.apiKey, meta.responseKey, cacheKey, active],
   );
-  return useCachedResource(metadataCache, `filter-options/${meta.apiKey}`, cacheKey, fetcher).data;
+  const data = useCachedResource(metadataCache, `filter-options/${meta.apiKey}`, cacheKey, fetcher).data;
+
+  // Пока грузятся суженные варианты, отдаём прежний список. Иначе data === undefined,
+  // чип (он рисуется только по загруженным вариантам) размонтируется и панель моргает
+  // при каждом первом сужении за сессию (o0ky). Правка состояния прямо в рендере —
+  // штатный приём React для «запомнить предыдущее значение»; ref здесь не годится:
+  // react-compiler (см. vite.config.ts) запрещает читать и писать ref в фазе рендера.
+  const [lastLoaded, setLastLoaded] = useState<FilterOption[] | undefined>(undefined);
+  if (data !== undefined && data !== lastLoaded) {
+    setLastLoaded(data);
+  }
+  return data ?? lastLoaded;
 }
 
 export default function SmartFilterBar({

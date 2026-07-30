@@ -102,6 +102,41 @@ describe("SmartFilterBar", () => {
     expect(call).toBe(1);
   });
 
+  it("держит чип на месте, пока грузятся суженные варианты", async () => {
+    // Выбор в соседнем фильтре меняет ключ кэша вариантов: до прихода ответа
+    // options[key] === undefined, и чип, который рисуется только по загруженным
+    // вариантам, размонтировался бы — панель моргает (o0ky).
+    server.use(
+      http.get("/api/filter-options/tags", () => HttpResponse.json({ tags: mockTags })),
+    );
+
+    const { rerender } = render(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{}}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+      { wrapper: ResponsiveProvider },
+    );
+    expect(await screen.findByRole("button", { name: /Жанр/ })).toBeInTheDocument();
+
+    // Ответ по новому ключу не приходит вовсе — окно перезагрузки держится.
+    server.use(
+      http.get("/api/filter-options/tags", () => new Promise(() => {})),
+    );
+    rerender(
+      <SmartFilterBar
+        filterKeys={["tagIds"]}
+        selected={{ authorIds: ["7"] }}
+        onSelectionChange={() => {}}
+        onClearAll={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Жанр/ })).toBeInTheDocument();
+  });
+
   it("renders filter options from API", async () => {
     server.use(
       http.get("/api/filter-options/authors", () =>
