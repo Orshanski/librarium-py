@@ -37,20 +37,7 @@ export default function SeriesPage() {
   const cardWidth = useBookCardWidth();
 
   // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
-  // Сбой запроса (сервер моргнул, пропала сеть) — не то же самое, что «нет такого»:
-  // сообщать «не найден» значит вводить читателя в заблуждение.
-  if (loadFailed) {
-    return (
-      <>
-        <PageHeader title="Не удалось загрузить" breadcrumb={crumb} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      </>
-    );
-  }
-
-  if (notFound || (!loading && !series)) {
+  if (notFound || (!loading && !loadFailed && !series)) {
     return (
       <>
         <PageHeader title="Серия не найдена" breadcrumb={crumb} />
@@ -111,6 +98,15 @@ export default function SeriesPage() {
 
       {loading && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
+          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
+          ни адресной строки, ни кнопки перезагрузки. */}
+      {loadFailed && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
       )}
 
       {series && (

@@ -53,20 +53,7 @@ export default function TagPage() {
   // Загрузка кончилась, а жанра нет — это либо 404, либо сбой запроса (500, обрыв
   // сети): useCachedResource в обоих случаях даёт loading === false и пустые данные.
   // Без этой ветки страница застревала бы с заголовком «...» и пустым телом.
-  // Сбой запроса (сервер моргнул, пропала сеть) — не то же самое, что «нет такого»:
-  // сообщать «не найден» значит вводить читателя в заблуждение.
-  if (loadFailed) {
-    return (
-      <>
-        <PageHeader title="Не удалось загрузить" breadcrumb={{ label: "Жанры", href: "/tags" }} />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      </>
-    );
-  }
-
-  if (notFound || (!loading && !tag)) {
+  if (notFound || (!loading && !loadFailed && !tag)) {
     return (
       <>
         <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
@@ -125,6 +112,15 @@ export default function TagPage() {
 
       {loading && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
+      )}
+
+      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
+          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
+          ни адресной строки, ни кнопки перезагрузки. */}
+      {loadFailed && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
       )}
 
       {tag && (

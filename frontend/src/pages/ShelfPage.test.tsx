@@ -331,7 +331,7 @@ describe("ShelfPage", () => {
 
     // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
     expect(screen.queryByText("Полка не найдена")).toBeNull();
-    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    expect(await screen.findByText("Не удалось загрузить")).toBeInTheDocument();
     // И никакой неправды рядом: запрос упал, а не «книг нет».
     expect(screen.queryByText("На полке нет книг")).toBeNull();
   });

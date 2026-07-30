@@ -39,19 +39,7 @@ export default function ShelfPage() {
 
   // Загрузка кончилась, а полки нет — 404 или сбой запроса. Раньше здесь возвращался
   // null, то есть пустой экран без объяснения; теперь читатель видит, что случилось.
-  // Сбой запроса — не «полки нет»: см. TagPage.
-  if (loadFailed) {
-    return (
-      <>
-        <PageHeader title="Не удалось загрузить" />
-        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
-          Не удалось загрузить
-        </div>
-      </>
-    );
-  }
-
-  if (!loading && !shelf) {
+  if (!loading && !loadFailed && !shelf) {
     return (
       <>
         <PageHeader title="Полка не найдена" />
@@ -97,6 +85,15 @@ export default function ShelfPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
+      {/* Сообщение в теле, а не вместо страницы: шапка с фильтрами и крошкой остаётся,
+          иначе снять неудачную комбинацию фильтров изнутри страницы нечем — в PWA нет
+          ни адресной строки, ни кнопки перезагрузки. */}
+      {loadFailed && (
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>
+          Не удалось загрузить
+        </div>
+      )}
+
       {shelf && (
         <BookGrid>
           {books.map((b) => {
@@ -126,7 +123,7 @@ export default function ShelfPage() {
         </BookGrid>
       )}
 
-      {!loading && books.length === 0 && (
+      {!loading && !loadFailed && books.length === 0 && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>На полке нет книг</div>
       )}
 

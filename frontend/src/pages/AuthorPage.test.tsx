@@ -300,7 +300,7 @@ describe("AuthorPage", () => {
 
     // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
     expect(screen.queryByText("Автор не найден")).toBeNull();
-    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    expect(await screen.findByText("Не удалось загрузить")).toBeInTheDocument();
   });
 
 });

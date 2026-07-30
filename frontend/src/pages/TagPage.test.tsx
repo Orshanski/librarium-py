@@ -381,7 +381,7 @@ describe("TagPage", () => {
     );
 
     expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Автор/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByText("Жанры")).toBeInTheDocument();
   });
@@ -436,7 +436,11 @@ describe("TagPage", () => {
 
     // «Не удалось загрузить», а не «не найдено»: сервер упал, а не сущности нет.
     expect(screen.queryByText("Жанр не найден")).toBeNull();
-    expect(await screen.findAllByText("Не удалось загрузить")).toHaveLength(2);
+    // Шапка остаётся: фильтр можно снять прямо здесь, не трогая адрес —
+    // в PWA другого способа выйти из неудачной комбинации нет.
+    expect(await screen.findByRole("button", { name: /Автор/ })).toBeInTheDocument();
+    expect(screen.getByText("Жанры")).toBeInTheDocument();
+    expect(await screen.findByText("Не удалось загрузить")).toBeInTheDocument();
     // И никакой неправды рядом: запрос упал, а не «книг нет».
     expect(screen.queryByText("Книги не найдены")).toBeNull();
   });
