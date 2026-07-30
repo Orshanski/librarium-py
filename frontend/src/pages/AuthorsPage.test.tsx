@@ -142,26 +142,6 @@ describe("AuthorsPage", () => {
       await waitFor(() => expect(urls[urls.length - 1]).toBe(""));
     });
 
-    it("снимает и ключ, для которого на странице нет чипа", async () => {
-      // authorIds на /authors чипом не показывается (filterKeys = tagIds, language),
-      // но из адреса читается и в запрос уходит — снять его тоже должно быть чем.
-      const user = userEvent.setup();
-      const urls = trackAuthorRequests();
-
-      renderWithProviders(
-        <>
-          <LocationProbe />
-          <AuthorsPage />
-        </>,
-        { initialEntries: ["/authors?authorIds=1"] },
-      );
-      await waitFor(() => expect(urls).toEqual(["?authorIds=1"]));
-
-      await user.click(await screen.findByText("Сбросить все"));
-
-      expect(screen.getByTestId("loc").textContent).toBe("/authors");
-      await waitFor(() => expect(urls).toEqual(["?authorIds=1", ""]));
-    });
   });
 
   describe("«Сбросить все» — мобильная раскладка", () => {

@@ -148,9 +148,6 @@ export default function SmartFilterBar({
       selected={selectedRecord}
       onSelectionChange={(key, values) => onSelectionChange(key as FilterKey, values)}
       onClearAll={onClearAll}
-      // Полный выбор из адреса: панель видит в `selected` только свои чипы и не показала
-      // бы кнопку сброса для фильтра, пришедшего из адреса без чипа.
-      allSelected={selected}
     />
   );
 }

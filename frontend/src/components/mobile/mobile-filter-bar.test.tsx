@@ -28,7 +28,6 @@ describe("MobileFilterBar", () => {
         selected={{}}
         onSelectionChange={vi.fn()}
         onClearAll={vi.fn()}
-        allSelected={{}}
       />,
     );
     expect(screen.getByRole("button", { name: /Автор/ })).toBeInTheDocument();
@@ -42,7 +41,6 @@ describe("MobileFilterBar", () => {
         selected={{ authorIds: ["1"] }}
         onSelectionChange={vi.fn()}
         onClearAll={vi.fn()}
-        allSelected={{ authorIds: ["1"] }}
       />,
     );
     expect(screen.getByRole("button", { name: /Асимов/ })).toBeInTheDocument();
@@ -64,7 +62,6 @@ describe("MobileFilterBar", () => {
         selected={{ authorIds: ["1", "2", "3"] }}
         onSelectionChange={vi.fn()}
         onClearAll={vi.fn()}
-        allSelected={{ authorIds: ["1"] }}
       />,
     );
     expect(screen.getByRole("button", { name: /3 выбрано/ })).toBeInTheDocument();
@@ -77,7 +74,6 @@ describe("MobileFilterBar", () => {
         selected={{}}
         onSelectionChange={vi.fn()}
         onClearAll={vi.fn()}
-        allSelected={{}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Автор/ }));
@@ -93,7 +89,6 @@ describe("MobileFilterBar", () => {
         selected={{}}
         onSelectionChange={onChange}
         onClearAll={vi.fn()}
-        allSelected={{}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Автор/ }));
@@ -110,7 +105,6 @@ describe("MobileFilterBar", () => {
         selected={{}}
         onSelectionChange={vi.fn()}
         onClearAll={onClearAll}
-        allSelected={{}}
       />,
     );
     expect(screen.queryByRole("button", { name: /Сбросить все/ })).toBeNull();
@@ -121,7 +115,6 @@ describe("MobileFilterBar", () => {
         selected={{ authorIds: ["1"] }}
         onSelectionChange={vi.fn()}
         onClearAll={onClearAll}
-        allSelected={{ authorIds: ["1"] }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Сбросить все/ }));

@@ -27,11 +27,6 @@ export function clearedFilters(): Record<FilterKey, undefined> {
   return cleared;
 }
 
-/** Есть ли в адресе хоть один выбранный фильтр — по всем ключам, а не только по видимым чипам. */
-export function hasAnyFilterSelected(selected: SelectedFilters): boolean {
-  return FILTER_QUERY_KEYS.some((key) => (selected[key]?.length ?? 0) > 0);
-}
-
 /**
  * Читает значения всех ключей фильтров из query-params и собирает SelectedFilters.
  * Используется страницами-списками (CatalogPage, AuthorsPage, SeriesListPage, TagPage),
