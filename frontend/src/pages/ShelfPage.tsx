@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import ConfirmDialog from "../components/confirm-dialog";
 
@@ -35,7 +35,6 @@ export default function ShelfPage() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 

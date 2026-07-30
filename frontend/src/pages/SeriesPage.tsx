@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
 import PageHeader from "../components/page-header";
 import LoadFailureNotice from "../components/load-failure-notice";
@@ -33,7 +33,6 @@ export default function SeriesPage() {
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds();
   const cardWidth = useBookCardWidth();
 

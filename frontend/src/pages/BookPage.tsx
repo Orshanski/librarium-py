@@ -79,7 +79,6 @@ export default function BookPage() {
     async (signal) => ({ books: seriesId ? await fetchSeriesBooks(seriesId, signal) : [] }),
   );
   const seriesBooks = useMemo(() => seriesResource.data?.books || [], [seriesResource.data]);
-  const seriesBookIds = useMemo(() => seriesBooks.map((b) => b.id), [seriesBooks]);
   const offlineSeriesBookIds = useOfflineBookIds();
   const loading = bookResource.loading;
   const notFound = bookResource.error instanceof NotFoundError || !id || Number.isNaN(bookId);

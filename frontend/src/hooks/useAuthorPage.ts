@@ -123,7 +123,6 @@ export function useAuthorPage(): UseAuthorPageResult {
     };
   }, [authorId, navigate]);
 
-  const bookIds = useMemo(() => books.map((b) => b.id), [books]);
   const offlineBookIds = useOfflineBookIds();
 
   const navigateAfterDelete = useCallback(() => {
