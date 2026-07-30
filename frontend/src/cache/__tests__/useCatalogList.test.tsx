@@ -457,7 +457,7 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loadingMore").textContent).toBe("true");
 
     // Ref-guard discriminator: a third click MUST be rejected. If the stale .then stomped
-    // loadingMoreRef.current = false, this click would pass the guard and start a parallel
+    // замок набора, this click would pass the guard and start a parallel
     // fetch against the same cursor — exactly the bug the regression check is pinning.
     fireEvent.click(screen.getByRole("button", { name: "more" }));
     await new Promise((r) => setTimeout(r, 0));
@@ -522,7 +522,8 @@ describe("useCatalogList", () => {
       const pendingB = deferred<{ books: Book[]; hasMore: boolean }>();
       const spy = vi.spyOn(booksApi, "listBooks")
         .mockReturnValueOnce(pendingA.promise)
-        .mockReturnValueOnce(pendingB.promise);
+        .mockReturnValueOnce(pendingB.promise)
+        .mockResolvedValue({ books: [], hasMore: false });
 
       const { rerender } = render(<Harness store={store} params={paramsA} />);
       fireEvent.click(screen.getByText("more"));
@@ -553,9 +554,12 @@ describe("useCatalogList", () => {
       seedBothSets();
       const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
       const pendingB = deferred<{ books: Book[]; hasMore: boolean }>();
-      vi.spyOn(booksApi, "listBooks")
+      const spy = vi.spyOn(booksApi, "listBooks")
         .mockReturnValueOnce(pendingA.promise)
-        .mockReturnValueOnce(pendingB.promise);
+        .mockReturnValueOnce(pendingB.promise)
+        // Хвост на случай, если разовая проверка переполнения (300 мс) успеет сработать
+        // за время теста: без него лишний вызов ушёл бы в настоящий listBooks.
+        .mockResolvedValue({ books: [], hasMore: false });
 
       const { rerender } = render(<Harness store={store} params={paramsA} />);
       fireEvent.click(screen.getByText("more"));
@@ -566,13 +570,53 @@ describe("useCatalogList", () => {
       await act(async () => { pendingA.reject(new Error("network")); });
 
       expect(screen.getByTestId("loadingMore").textContent).toBe("true");
+
+      // Замок набора B по-прежнему занят его собственным запросом: повторный клик
+      // не должен выпустить второй запрос по тому же курсору.
+      fireEvent.click(screen.getByText("more"));
+      expect(spy).toHaveBeenCalledTimes(2);
+
       await act(async () => { pendingB.resolve({ books: [], hasMore: false }); });
+    });
+
+    it("короткий список нового набора догружается сам, без прокрутки", async () => {
+      // Главный симптом o6t1: экран не заполнен, прокручивать нечего, и единственная
+      // попытка автоподгрузки — разовая проверка переполнения через 300 мс после
+      // отрисовки. Раньше она приходилась на замок, занятый запросом ПРЕЖНЕГО набора,
+      // и пропадала: список так и оставался недогруженным.
+      seedBothSets();
+      const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
+      const spy = vi.spyOn(booksApi, "listBooks")
+        .mockReturnValueOnce(pendingA.promise)
+        .mockResolvedValue({ books: [], hasMore: false });
+
+      const { rerender } = render(<Harness store={store} params={paramsA} />);
+      fireEvent.click(screen.getByText("more"));
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      // Смена фильтров, пока запрос прежнего набора висит. Кликов больше нет —
+      // подгрузку обязана выпустить сама проверка переполнения.
+      rerender(<Harness store={store} params={paramsB} />);
+
+      await waitFor(
+        () => {
+          expect(spy.mock.calls.some((call) => {
+            const params = call[0] as { tagIds?: string[] };
+            return params.tagIds?.[0] === "2";
+          })).toBe(true);
+        },
+        { timeout: 2000 },
+      );
+
+      await act(async () => { pendingA.resolve({ books: [], hasMore: false }); });
     });
 
     it("возврат к прежнему набору не даёт второго запроса за той же страницей", async () => {
       seedBothSets();
       const pendingA = deferred<{ books: Book[]; hasMore: boolean }>();
-      const spy = vi.spyOn(booksApi, "listBooks").mockReturnValueOnce(pendingA.promise);
+      const spy = vi.spyOn(booksApi, "listBooks")
+        .mockReturnValueOnce(pendingA.promise)
+        .mockResolvedValue({ books: [], hasMore: false });
 
       const { rerender } = render(<Harness store={store} params={paramsA} />);
       fireEvent.click(screen.getByText("more"));

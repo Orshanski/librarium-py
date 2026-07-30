@@ -418,6 +418,25 @@ describe("TagPage", () => {
     expect(last).not.toContain("language");
     expect(screen.getAllByText("Science Fiction").length).toBeGreaterThan(0);
   });
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/tags/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/tags/:id" element={<TagPage />} />
+      </Routes>,
+      { initialEntries: ["/tags/1"] },
+    );
+
+    expect(await screen.findAllByText("Жанр не найден")).not.toHaveLength(0);
+  });
+
 });
 
 const tagCase = {

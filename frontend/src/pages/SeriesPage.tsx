@@ -35,7 +35,8 @@ export default function SeriesPage() {
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
 
-  if (notFound) {
+  // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
+  if (notFound || (!loading && !series)) {
     return (
       <>
         <PageHeader title="Серия не найдена" breadcrumb={crumb} />

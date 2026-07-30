@@ -49,7 +49,10 @@ export default function TagPage() {
     [tag, pathnameWithSearch],
   );
 
-  if (notFound) {
+  // Загрузка кончилась, а жанра нет — это либо 404, либо сбой запроса (500, обрыв
+  // сети): useCachedResource в обоих случаях даёт loading === false и пустые данные.
+  // Без этой ветки страница застревала бы с заголовком «...» и пустым телом.
+  if (notFound || (!loading && !tag)) {
     return (
       <>
         <PageHeader title="Жанр не найден" breadcrumb={{ label: "Жанры", href: "/tags" }} />
@@ -58,7 +61,7 @@ export default function TagPage() {
     );
   }
 
-  const adminButton = user?.role === "admin" ? (
+  const adminButton = user?.role === "admin" && tag ? (
     <button
       onClick={() => setShowAdmin(!showAdmin)}
       style={{
@@ -79,7 +82,7 @@ export default function TagPage() {
     <>
       <PageHeader
         title={tag?.name ?? "..."}
-        titleSlot={tag ? adminButton : undefined}
+        titleSlot={adminButton}
         breadcrumb={{ label: "Жанры", href: "/tags" }}
         filterKeys={["authorIds", "seriesIds", "language"]}
         baseFilters={{ tagIds: [String(tagId)] }}
@@ -110,7 +113,7 @@ export default function TagPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
-      {!loading && (
+      {tag && (
       <BookGrid>
         {books.map((book) => (
           <BookCard

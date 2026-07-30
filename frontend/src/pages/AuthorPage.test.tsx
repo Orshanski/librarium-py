@@ -282,6 +282,25 @@ describe("AuthorPage", () => {
   });
 
 
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/authors/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/authors/:id" element={<AuthorPage />} />
+      </Routes>,
+      { initialEntries: ["/authors/1"] },
+    );
+
+    expect(await screen.findAllByText("Автор не найден")).not.toHaveLength(0);
+  });
+
 });
 
 const authorCase = {

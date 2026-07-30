@@ -293,10 +293,11 @@ describe("ShelfPage", () => {
     expect(screen.getByText("Dune")).toBeInTheDocument();
   });
 
-  it("во время загрузки шапка сохраняет сортировку, а не подменяется заглушкой", async () => {
-    // Списки (каталог, авторы, серии) держат шапку и показывают индикатор под ней;
-    // страницы сущностей раньше подменяли собой всю страницу и отнимали управление.
-    // Набор сортировок известен до ответа сервера, поэтому переключатель обязан быть.
+  it("во время загрузки не показывает переключатель сортировки", async () => {
+    // Набор сортировок зависит от вида полки (systemCode) и известен только из ответа:
+    // у «Читаю сейчас» вариантов нет вовсе. Показать до ответа значило бы нарисовать
+    // чужие восемь вариантов, которые потом исчезнут, а клик увёл бы на сортировку,
+    // которой у полки нет.
     server.use(
       http.get("/api/shelves/:id", () => new Promise(() => {})),
     );
@@ -309,7 +310,26 @@ describe("ShelfPage", () => {
     );
 
     expect(await screen.findByText("Загрузка...")).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+
+  it("сбой запроса не оставляет пустую страницу без объяснения", async () => {
+    // useCachedResource при не-404 ошибке даёт loading === false и пустые данные,
+    // а notFound остаётся false. Без явной ветки страница застревала бы с заголовком
+    // «...» и пустым телом — читателю нечего понять и некуда нажать.
+    server.use(
+      http.get("/api/shelves/:id", () => HttpResponse.json({ detail: "Internal server error" }, { status: 500 })),
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/shelves/:id" element={<ShelfPage />} />
+      </Routes>,
+      { initialEntries: ["/shelves/42"] },
+    );
+
+    expect(await screen.findAllByText("Полка не найдена")).not.toHaveLength(0);
   });
 
 });

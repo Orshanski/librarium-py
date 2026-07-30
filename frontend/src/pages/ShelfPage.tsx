@@ -36,19 +36,32 @@ export default function ShelfPage() {
   const offlineBookIds = useOfflineBookIds(bookIds);
   const cardWidth = useBookCardWidth();
 
-  const shelfOrigin = {
-    type: "shelf" as const,
-    url: pathnameWithSearch,
-    label: shelf?.name ?? "",
-  };
+  // Загрузка кончилась, а полки нет — 404 или сбой запроса. Раньше здесь возвращался
+  // null, то есть пустой экран без объяснения; теперь читатель видит, что случилось.
+  if (!loading && !shelf) {
+    return (
+      <>
+        <PageHeader title="Полка не найдена" />
+        <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Полка не найдена</div>
+      </>
+    );
+  }
+
+  const shelfOrigin = shelf
+    ? { type: "shelf" as const, url: pathnameWithSearch, label: shelf.name }
+    : undefined;
 
   return (
     <>
       <PageHeader
         title={shelf?.name ?? "..."}
-        sortOptions={options}
-        sortValue={options ? sort : undefined}
-        onSortChange={options ? onSortChange : undefined}
+        {...(shelf && options
+          // Набор сортировок зависит от вида полки (systemCode), то есть известен
+          // только из ответа: у «Читаю сейчас» вариантов нет вовсе. Рисовать
+          // переключатель до ответа нельзя — показали бы чужие восемь вариантов,
+          // которые потом исчезнут, а клик увёл бы на несуществующую сортировку.
+          ? { sortOptions: options, sortValue: sort, onSortChange }
+          : {})}
         actionSlot={
           shelf && !shelf.isSystem ? (
             <button
@@ -75,6 +88,7 @@ export default function ShelfPage() {
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Загрузка...</div>
       )}
 
+      {shelf && (
       <BookGrid>
         {books.map((b) => {
           const progress = progressByBookId[b.id];
@@ -83,7 +97,7 @@ export default function ShelfPage() {
             : undefined;
           // linkState пробрасывается только для книг, ведущих на /book/:id.
           // Для reader-override (readerHref задан) state для BookPage не нужен.
-          const linkState = readerHref ? undefined : { origin: shelfOrigin };
+          const linkState = readerHref || !shelfOrigin ? undefined : { origin: shelfOrigin };
           return (
             <BookCard
               key={b.id}
@@ -99,6 +113,7 @@ export default function ShelfPage() {
           );
         })}
       </BookGrid>
+      )}
 
       {!loading && books.length === 0 && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>На полке нет книг</div>

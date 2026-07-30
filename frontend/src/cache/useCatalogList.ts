@@ -138,6 +138,11 @@ export function useCatalogList(
 
   // Сброс кэша книг снимает все замки разом: записей, в которые можно дописать
   // страницу, больше нет, а пришедшие ответы отсекаются проверкой версии.
+  //
+  // Инвариант: ветки раннего выхода в .then/.catch (несовпадение версии) замок НЕ
+  // трогают. Иначе устаревший ответ, пришедший после инвалидации и после того, как
+  // преемник уже поставил свой замок, снял бы чужой — и по тому же курсору ушёл бы
+  // второй запрос. Закреплено тестом про отказ подгрузки после инвалидации.
   useEffect(() => {
     loadingMoreKeysRef.current.clear();
     setLoadingMore(false);
@@ -171,12 +176,17 @@ export function useCatalogList(
     listBooks(buildApiParams(params, current.cursor, PAGE_SIZE))
       .then((data) => {
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
-        // Defensive: in the current store model every entry-removal path also bumps
-        // invalidationVersion, so this branch is unreachable. Keep it: if someone later adds
-        // a non-invalidating entry-removal (e.g. targeted store.delete), this guard prevents
-        // a NaN cursor. If you add such a path, also add a test driving this branch.
+        // Defensive: в нынешней модели стора любой путь удаления записи заодно поднимает
+        // invalidationVersion, поэтому ветка недостижима. Оставлена на случай появления
+        // неинвалидирующего удаления (например точечного store.delete) — иначе получили бы
+        // NaN cursor. Замок снимаем ДО выхода: иначе ключ остался бы в множестве навсегда
+        // и подгрузка этого набора у этого экземпляра хука умерла бы до размонтирования.
         const baseline = store.get<CatalogEntry>("books", requestKey);
-        if (!baseline) return;
+        if (!baseline) {
+          loadingMoreKeysRef.current.delete(requestKey);
+          if (mountedRef.current && currentKeyRef.current === requestKey) setLoadingMore(false);
+          return;
+        }
         const next = mergeNextPage(baseline, data.books ?? [], data.hasMore ?? false);
         store.set("books", requestKey, next, { context: params.context });
         loadingMoreKeysRef.current.delete(requestKey);
@@ -185,11 +195,12 @@ export function useCatalogList(
       })
       .catch((err: unknown) => {
         if (store.invalidationVersion("books") !== startedAtInvalidationVersion) return;
-        console.warn("Failed to load more books:", err);
-        // Замок снимаем до проверки монтирования: ранний выход по размонтированию
-        // оставлял бы его занятым навсегда.
+        // Замок снимаем раньше проверки монтирования: он относится к запросу, а не к
+        // жизни компонента.
         loadingMoreKeysRef.current.delete(requestKey);
-        if (mountedRef.current && currentKeyRef.current === requestKey) setLoadingMore(false);
+        if (!mountedRef.current) return;
+        console.warn("Failed to load more books:", err);
+        if (currentKeyRef.current === requestKey) setLoadingMore(false);
       });
   }, [store, params.urlKey, params.context, loading]);
 

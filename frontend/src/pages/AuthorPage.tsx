@@ -26,7 +26,8 @@ export default function AuthorPage() {
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  if (notFound) {
+  // См. TagPage: загрузка кончилась, данных нет — 404 или сбой запроса.
+  if (notFound || (!loading && !author)) {
     return (
       <>
         <PageHeader title="Автор не найден" breadcrumb={crumb} />
