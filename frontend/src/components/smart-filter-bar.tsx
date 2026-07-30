@@ -30,6 +30,17 @@ const FILTER_META: Record<FilterKey, { apiKey: FilterOptionsKey; label: string; 
   language: { apiKey: "languages", label: "Язык", responseKey: "languages" },
 };
 
+/**
+ * Запас вариантов на время перезагрузки вместе с условиями, при которых он получен.
+ * Сравнение options по ссылке опирается на то, что кэш отдаёт хранимую ссылку
+ * (MetadataCacheStore.get), а не пересобирает массив на каждый вызов.
+ */
+interface KeptOptions {
+  options: FilterOption[];
+  baseKey: string;
+  invalidationVersion: number;
+}
+
 function serializeBase(baseFilters?: ApiFilterParams): string {
   if (!baseFilters) return "";
   return FILTER_QUERY_KEYS.map(k => `${k}=${JSON.stringify(baseFilters[k] ?? null)}`).join("|");
@@ -88,18 +99,36 @@ function useFilterOptions(
     },
     [key, meta.apiKey, meta.responseKey, cacheKey, active],
   );
-  const data = useCachedResource(metadataCache, `filter-options/${meta.apiKey}`, cacheKey, fetcher).data;
+  const namespace = `filter-options/${meta.apiKey}`;
+  const data = useCachedResource(metadataCache, namespace, cacheKey, fetcher).data;
+  const baseKey = serializeBase(baseFilters);
+  const invalidationVersion = metadataCache.invalidationVersion(namespace);
 
-  // Пока грузятся суженные варианты, отдаём прежний список. Иначе data === undefined,
+  // Пока грузятся суженные варианты, отдаём прежний список: иначе data === undefined,
   // чип (он рисуется только по загруженным вариантам) размонтируется и панель моргает
-  // при каждом первом сужении за сессию (o0ky). Правка состояния прямо в рендере —
-  // штатный приём React для «запомнить предыдущее значение»; ref здесь не годится:
-  // react-compiler (см. vite.config.ts) запрещает читать и писать ref в фазе рендера.
-  const [lastLoaded, setLastLoaded] = useState<FilterOption[] | undefined>(undefined);
-  if (data !== undefined && data !== lastLoaded) {
-    setLastLoaded(data);
+  // при каждом первом сужении за сессию (o0ky).
+  //
+  // Запас годится не всегда, поэтому хранится вместе с условиями, при которых он был
+  // получен:
+  //  - invalidationVersion: сброс пространства filter-options/* происходит как раз тогда,
+  //    когда варианты устарели (книга удалена, автор слит, жанр удалён — handlers.ts).
+  //    Отдавать после этого прежний список значило бы показывать удалённый вариант
+  //    кликабельным — ровно то, ради чего сброс и делается;
+  //  - baseKey: базовый фильтр страницы. Переход между жанрами не перемонтирует панель,
+  //    если данные целевой страницы уже в кэше, и без этой проверки в чипах на миг
+  //    оказались бы авторы и языки прежнего жанра.
+  // Сужение выбора меняет cacheKey, но не эти два условия — то есть именно тот случай,
+  // ради которого запас и нужен.
+  //
+  // Правка состояния прямо в рендере — штатный приём React для производного состояния
+  // («запомнить предыдущее значение»), присвоение условное и идемпотентное.
+  const [kept, setKept] = useState<KeptOptions | undefined>(undefined);
+  if (data !== undefined && data !== kept?.options) {
+    setKept({ options: data, baseKey, invalidationVersion });
   }
-  return data ?? lastLoaded;
+  if (data !== undefined) return data;
+  const keptFits = kept?.baseKey === baseKey && kept?.invalidationVersion === invalidationVersion;
+  return keptFits ? kept?.options : undefined;
 }
 
 export default function SmartFilterBar({
