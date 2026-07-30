@@ -304,7 +304,8 @@ describe("SeriesPage", () => {
       { initialEntries: ["/series/1"] },
     );
 
-    expect(await screen.findAllByText("Серия не найдена")).not.toHaveLength(0);
+    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
+    expect(await screen.findAllByText("Серия не найдена")).toHaveLength(2);
   });
 
 });

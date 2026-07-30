@@ -181,6 +181,7 @@ export function useCatalogList(
         // неинвалидирующего удаления (например точечного store.delete) — иначе получили бы
         // NaN cursor. Замок снимаем ДО выхода: иначе ключ остался бы в множестве навсегда
         // и подгрузка этого набора у этого экземпляра хука умерла бы до размонтирования.
+        // Если такой путь удаления появится — добавить тест, проходящий через эту ветку.
         const baseline = store.get<CatalogEntry>("books", requestKey);
         if (!baseline) {
           loadingMoreKeysRef.current.delete(requestKey);

@@ -434,7 +434,10 @@ describe("TagPage", () => {
       { initialEntries: ["/tags/1"] },
     );
 
-    expect(await screen.findAllByText("Жанр не найден")).not.toHaveLength(0);
+    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
+    expect(await screen.findAllByText("Жанр не найден")).toHaveLength(2);
+    // И никакой неправды рядом: запрос упал, а не «книг нет».
+    expect(screen.queryByText("Книги не найдены")).toBeNull();
   });
 
 });

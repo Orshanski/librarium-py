@@ -28,7 +28,9 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Fallback default until first fetch — real default-per-page determined after load
+  // ВНИМАНИЕ: запасной дефолт всегда от обычной полки. Свой дефолт «Лучшего»
+  // (ratingDesc) и «Читаю сейчас» (lastReadDesc) сюда не подставляется — вид полки
+  // известен только из ответа. Дефект librarium-py-zkxr.
   const sort = searchParams.get("sort") || SORT_CONFIG.shelf_regular.default;
 
   const locationKey = usePathnameWithSearch();

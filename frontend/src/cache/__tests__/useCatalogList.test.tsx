@@ -457,7 +457,7 @@ describe("useCatalogList", () => {
     expect(screen.getByTestId("loadingMore").textContent).toBe("true");
 
     // Ref-guard discriminator: a third click MUST be rejected. If the stale .then stomped
-    // замок набора, this click would pass the guard and start a parallel
+    // the per-key guard, this click would pass it and start a parallel
     // fetch against the same cursor — exactly the bug the regression check is pinning.
     fireEvent.click(screen.getByRole("button", { name: "more" }));
     await new Promise((r) => setTimeout(r, 0));
@@ -567,7 +567,9 @@ describe("useCatalogList", () => {
       fireEvent.click(screen.getByText("more"));
 
       // Прежний запрос падает — его ветка отказа не трогает чужой замок и индикатор.
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       await act(async () => { pendingA.reject(new Error("network")); });
+      warn.mockRestore();
 
       expect(screen.getByTestId("loadingMore").textContent).toBe("true");
 
@@ -600,10 +602,7 @@ describe("useCatalogList", () => {
 
       await waitFor(
         () => {
-          expect(spy.mock.calls.some((call) => {
-            const params = call[0] as { tagIds?: string[] };
-            return params.tagIds?.[0] === "2";
-          })).toBe(true);
+          expect(spy.mock.calls.some((call) => String(call[0]?.tagIds?.[0]) === "2")).toBe(true);
         },
         { timeout: 2000 },
       );

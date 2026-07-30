@@ -329,7 +329,10 @@ describe("ShelfPage", () => {
       { initialEntries: ["/shelves/42"] },
     );
 
-    expect(await screen.findAllByText("Полка не найдена")).not.toHaveLength(0);
+    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
+    expect(await screen.findAllByText("Полка не найдена")).toHaveLength(2);
+    // И никакой неправды рядом: запрос упал, а не «книг нет».
+    expect(screen.queryByText("На полке нет книг")).toBeNull();
   });
 
 });

@@ -47,21 +47,17 @@ export default function ShelfPage() {
     );
   }
 
-  const shelfOrigin = shelf
-    ? { type: "shelf" as const, url: pathnameWithSearch, label: shelf.name }
-    : undefined;
-
   return (
     <>
+      {/* Набор сортировок зависит от вида полки (systemCode), то есть известен только
+          из ответа: у «Читаю сейчас» вариантов нет вовсе. Рисовать переключатель до
+          ответа нельзя — показали бы чужие восемь вариантов, которые потом исчезнут,
+          а клик увёл бы на несуществующую сортировку. */}
       <PageHeader
         title={shelf?.name ?? "..."}
-        {...(shelf && options
-          // Набор сортировок зависит от вида полки (systemCode), то есть известен
-          // только из ответа: у «Читаю сейчас» вариантов нет вовсе. Рисовать
-          // переключатель до ответа нельзя — показали бы чужие восемь вариантов,
-          // которые потом исчезнут, а клик увёл бы на несуществующую сортировку.
-          ? { sortOptions: options, sortValue: sort, onSortChange }
-          : {})}
+        sortOptions={shelf ? options : undefined}
+        sortValue={shelf && options ? sort : undefined}
+        onSortChange={shelf && options ? onSortChange : undefined}
         actionSlot={
           shelf && !shelf.isSystem ? (
             <button
@@ -97,7 +93,9 @@ export default function ShelfPage() {
               : undefined;
             // linkState пробрасывается только для книг, ведущих на /book/:id.
             // Для reader-override (readerHref задан) state для BookPage не нужен.
-            const linkState = readerHref || !shelfOrigin ? undefined : { origin: shelfOrigin };
+            const linkState = readerHref
+            ? undefined
+            : { origin: { type: "shelf" as const, url: pathnameWithSearch, label: shelf.name } };
             return (
               <BookCard
                 key={b.id}
@@ -108,7 +106,7 @@ export default function ShelfPage() {
                 progressPercent={isReadingNow && progress?.fraction ? Math.round(progress.fraction * 100) : undefined}
                 hasOffline={offlineBookIds.has(b.id)}
                 linkState={linkState}
-                onRemove={shelf && !shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
+                onRemove={!shelf.isSystem ? () => handleRemoveBookFromShelf(b.id) : undefined}
               />
             );
           })}

@@ -298,7 +298,8 @@ describe("AuthorPage", () => {
       { initialEntries: ["/authors/1"] },
     );
 
-    expect(await screen.findAllByText("Автор не найден")).not.toHaveLength(0);
+    // Сообщение и в заголовке, и в теле — читателю видно, что случилось.
+    expect(await screen.findAllByText("Автор не найден")).toHaveLength(2);
   });
 
 });
