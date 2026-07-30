@@ -5,24 +5,22 @@ import MobileFilterBar from "./mobile/mobile-filter-bar";
 import { listFilterOptions, type FilterOptionsKey } from "../api/endpoints/filters";
 import type { ApiFilterParams } from "../api/filter-params";
 import type { FilterKey, SelectedFilters } from "../api/filter-types";
+import { FILTER_QUERY_KEYS } from "../api/filter-types";
 import { metadataCache, useCachedResource } from "../cache";
 
 export type { FilterKey, SelectedFilters };
 export type { ApiFilterParams };
+export { FILTER_QUERY_KEYS };
 
 // Читает значения 4 стандартных фильтров (authorIds/seriesIds/tagIds/language)
 // из query-params и собирает SelectedFilters. Используется страницами-списками
 // (CatalogPage, AuthorsPage, SeriesListPage, TagPage) чтобы избежать дубля одного паттерна.
 export function readSelectedFromSearchParams(searchParams: URLSearchParams): SelectedFilters {
   const selected: SelectedFilters = {};
-  const authorIds = searchParams.getAll("authorIds");
-  const seriesIds = searchParams.getAll("seriesIds");
-  const tagIds = searchParams.getAll("tagIds");
-  const language = searchParams.getAll("language");
-  if (authorIds.length) selected.authorIds = authorIds;
-  if (seriesIds.length) selected.seriesIds = seriesIds;
-  if (tagIds.length) selected.tagIds = tagIds;
-  if (language.length) selected.language = language;
+  for (const key of FILTER_QUERY_KEYS) {
+    const values = searchParams.getAll(key);
+    if (values.length) selected[key] = values;
+  }
   return selected;
 }
 

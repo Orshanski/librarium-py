@@ -2,11 +2,10 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { FilterKey, FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listAuthors } from "../api/endpoints/authors";
-import type { Author } from "../api/endpoints/authors";
 import { selectedToApiParams } from "../api/filter-params";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
@@ -33,9 +32,6 @@ export default function AuthorsPage() {
     [location.pathname, location.search],
   );
 
-  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
-  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-
   const selected = readSelectedFromSearchParams(searchParams);
 
   const authorsResource = useCachedResource(
@@ -56,11 +52,18 @@ export default function AuthorsPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    navigate(`/authors?${params.toString()}`);
+    const qs = params.toString();
+    navigate(qs ? `/authors?${qs}` : "/authors");
   }
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });
+  }
+
+  // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
+  // и переходы затирали друг друга (снимок searchParams внутри нажатия не обновляется).
+  function clearAllFilters() {
+    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
   }
 
   return (
@@ -70,6 +73,7 @@ export default function AuthorsPage() {
         filterKeys={["tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         showUpload
       />
 

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { FilterKey, FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import BookCard from "../components/book-card";
 import { bookToBookCardCommonProps } from "../components/book-card-tokens";
 import { useBookCardWidth } from "../components/use-book-card-width";
@@ -70,7 +70,9 @@ export default function CatalogPage() {
   }
 
   function clearAllFilters() {
-    navigate("/");
+    // Сброс снимает только фильтры: sort остаётся, потому что updateParams строит
+    // новый адрес от текущего searchParams. navigate("/") терял выбранную сортировку.
+    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
   }
 
   const bookIds = useMemo(() => books.map((b: Book) => b.id), [books]);

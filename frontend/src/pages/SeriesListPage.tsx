@@ -2,12 +2,11 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
-import { FilterKey, readSelectedFromSearchParams } from "../components/smart-filter-bar";
+import { FilterKey, FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "../components/smart-filter-bar";
 import { selectedToApiParams } from "../api/filter-params";
 import { pluralizeBooks } from "../utils/pluralize";
 import { colors } from "../theme";
 import { listSeries } from "../api/endpoints/series";
-import type { Series } from "../api/endpoints/series";
 import { useScrollRestore } from "../hooks/useScrollRestore";
 import { entityListScrollContext } from "@/scroll/contexts";
 import { metadataCache, useCachedResource } from "@/cache";
@@ -33,10 +32,6 @@ export default function SeriesListPage() {
     [location.pathname, location.search],
   );
 
-  const authorIds = useMemo(() => searchParams.getAll("authorIds"), [searchParams]);
-  const tagIds = useMemo(() => searchParams.getAll("tagIds"), [searchParams]);
-  const language = useMemo(() => searchParams.getAll("language"), [searchParams]);
-
   const selected = readSelectedFromSearchParams(searchParams);
 
   const seriesResource = useCachedResource(
@@ -57,11 +52,18 @@ export default function SeriesListPage() {
         for (const v of values) params.append(key, v);
       }
     }
-    navigate(`/series?${params.toString()}`);
+    const qs = params.toString();
+    navigate(qs ? `/series?${qs}` : "/series");
   }
 
   function onSelectionChange(key: FilterKey, values: string[]) {
     updateParams({ [key]: values.length > 0 ? values : undefined });
+  }
+
+  // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
+  // и переходы затирали друг друга (снимок searchParams внутри нажатия не обновляется).
+  function clearAllFilters() {
+    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
   }
 
   const sorted = useMemo(() => {
@@ -75,6 +77,7 @@ export default function SeriesListPage() {
         filterKeys={["authorIds", "tagIds", "language"]}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         showUpload
       />
 

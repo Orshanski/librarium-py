@@ -10,7 +10,7 @@ import { getTag } from "@/api/endpoints/tags";
 import type { TagSummary } from "@/api/endpoints/tags";
 import { NotFoundError } from "@/api/errors";
 import { SORT_CONFIG } from "@/config/sort";
-import { readSelectedFromSearchParams } from "@/components/smart-filter-bar";
+import { FILTER_QUERY_KEYS, readSelectedFromSearchParams } from "@/components/smart-filter-bar";
 import type { FilterKey, SelectedFilters } from "@/components/smart-filter-bar";
 import { selectedToApiParams } from "@/api/filter-params";
 import type { Book } from "@/types";
@@ -30,6 +30,7 @@ export interface UseTagPageResult {
   offlineBookIds: Set<number>;
   navigateAfterDelete: () => void;
   onSelectionChange: (key: FilterKey, values: string[]) => void;
+  clearAllFilters: () => void;
   handleSortChange: (newSort: string) => void;
 }
 
@@ -121,6 +122,13 @@ export function useTagPage(): UseTagPageResult {
     updateParams({ [key]: values.length > 0 ? values : undefined });
   }, [updateParams]);
 
+  // Свой обработчик сброса вместо запасного пути панели: тот снимал фильтры по одному,
+  // и переходы затирали друг друга. sort сохраняется — updateParams строит адрес от
+  // searchParams; сам жанр живёт в пути /tags/{tagId}, сбросом не затрагивается.
+  const clearAllFilters = useCallback(() => {
+    updateParams(Object.fromEntries(FILTER_QUERY_KEYS.map((key) => [key, undefined])));
+  }, [updateParams]);
+
   const handleSortChange = useCallback((newSort: string) => {
     updateParams({ sort: [newSort] });
   }, [updateParams]);
@@ -141,6 +149,7 @@ export function useTagPage(): UseTagPageResult {
     offlineBookIds,
     navigateAfterDelete,
     onSelectionChange,
+    clearAllFilters,
     handleSortChange,
   };
 }

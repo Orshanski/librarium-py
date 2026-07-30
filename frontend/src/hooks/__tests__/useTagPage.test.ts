@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { createElement, useEffect } from "react";
 import { domainEvents } from "@/domain/events";
 
@@ -186,5 +186,38 @@ describe("useTagPage", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(typeof result.current.navigateAfterDelete).toBe("function");
+  });
+
+  it("clearAllFilters снимает все фильтры и сохраняет сортировку", async () => {
+    mockedGetTag.mockResolvedValue({ tag: MINIMAL_TAG, books: [MINIMAL_BOOK] });
+
+    let lastLocation = "";
+
+    function LocationProbe() {
+      const location = useLocation();
+      lastLocation = location.pathname + location.search;
+      return null;
+    }
+
+    function wrapperWithFilters({ children }: { children: React.ReactNode }) {
+      return createElement(
+        MemoryRouter,
+        { initialEntries: ["/tags/7?authorIds=1&language=ru&sort=titleAsc"] },
+        createElement(LocationProbe),
+        createElement(Routes, null,
+          createElement(Route, { path: "/tags/:id", element: children }),
+        ),
+      );
+    }
+
+    const { result } = renderHook(() => useTagPage(), { wrapper: wrapperWithFilters });
+
+    await waitFor(() => expect(result.current.tag).not.toBeNull());
+
+    act(() => {
+      result.current.clearAllFilters();
+    });
+
+    await waitFor(() => expect(lastLocation).toBe("/tags/7?sort=titleAsc"));
   });
 });

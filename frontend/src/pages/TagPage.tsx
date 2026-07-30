@@ -29,6 +29,7 @@ export default function TagPage() {
     offlineBookIds,
     navigateAfterDelete,
     onSelectionChange,
+    clearAllFilters,
     handleSortChange,
   } = useTagPage();
 
@@ -93,6 +94,7 @@ export default function TagPage() {
         baseFilters={{ tagIds: [String(tagId)] }}
         selected={selected}
         onSelectionChange={onSelectionChange}
+        onClearAll={clearAllFilters}
         sortOptions={sortOptionsFor("tag")}
         sortValue={sort}
         onSortChange={handleSortChange}
