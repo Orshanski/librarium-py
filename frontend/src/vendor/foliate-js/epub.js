@@ -945,7 +945,6 @@ class Loader {
 const getHTMLFragment = (doc, id) => doc.getElementById(id)
     ?? doc.querySelector(`[name="${CSS.escape(id)}"]`)
 
-const INLINE_TOC_MIN_LINKS = 5
 const INLINE_TOC_MIN_PATH_COVERAGE = .7
 const CANONICAL_TOC_MIN_PATH_COVERAGE = .8
 
@@ -973,9 +972,17 @@ const removeDuplicateInlineTOC = (doc, sectionHref, toc) => {
         const after = list.nextElementSibling
         if (!before?.matches('hr') || !after?.matches('hr')
             || after !== body.lastElementChild) continue
+        const removeShell = () => {
+            before.remove()
+            list.remove()
+            after.remove()
+        }
+        if (!list.children.length && !list.textContent.trim()) {
+            removeShell()
+            continue
+        }
 
         const anchors = [...list.querySelectorAll('a[href]')]
-        if (anchors.length < INLINE_TOC_MIN_LINKS) continue
         const internalHrefs = anchors.map(a => a.getAttribute('href'))
             .filter(href => href && !isExternal(href))
         if (internalHrefs.length !== anchors.length) continue
@@ -989,9 +996,7 @@ const removeDuplicateInlineTOC = (doc, sectionHref, toc) => {
         if (inlineCoverage < INLINE_TOC_MIN_PATH_COVERAGE
             || canonicalCoverage < CANONICAL_TOC_MIN_PATH_COVERAGE) continue
 
-        before.remove()
-        list.remove()
-        after.remove()
+        removeShell()
     }
 }
 
