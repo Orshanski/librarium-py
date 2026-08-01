@@ -708,9 +708,10 @@ class Loader {
     #children = new Map()
     #refCount = new Map()
     eventTarget = new EventTarget()
-    constructor({ loadText, loadBlob, resources }) {
+    constructor({ loadText, loadBlob, resources, transformDocument }) {
         this.loadText = loadText
         this.loadBlob = loadBlob
+        this.transformDocument = transformDocument
         this.manifest = resources.manifest
         this.assets = resources.manifest
         // needed only when replacing in (X)HTML w/o parsing (see below)
@@ -820,6 +821,8 @@ class Loader {
                 item.mediaType = MIME.HTML
                 doc = new DOMParser().parseFromString(str, item.mediaType)
             }
+            if ([MIME.XHTML, MIME.HTML].includes(item.mediaType))
+                this.transformDocument?.(doc, item)
             // replace hrefs in XML processing instructions
             // this is mainly for SVGs that use xml-stylesheet
             if ([MIME.XHTML, MIME.SVG].includes(item.mediaType)) {
@@ -942,6 +945,56 @@ class Loader {
 const getHTMLFragment = (doc, id) => doc.getElementById(id)
     ?? doc.querySelector(`[name="${CSS.escape(id)}"]`)
 
+const INLINE_TOC_MIN_LINKS = 5
+const INLINE_TOC_MIN_PATH_COVERAGE = .7
+const CANONICAL_TOC_MIN_PATH_COVERAGE = .8
+
+const getTOCPaths = items => {
+    const paths = new Set()
+    const visit = items => {
+        for (const item of items ?? []) {
+            const href = item?.href
+            if (href && href !== '__cover__' && !isExternal(href))
+                paths.add(href.split('#')[0])
+            visit(item?.subitems)
+        }
+    }
+    visit(items)
+    return paths
+}
+
+const removeDuplicateInlineTOC = (doc, sectionHref, toc) => {
+    const body = doc.body
+    const canonicalPaths = getTOCPaths(toc)
+    if (!body || !canonicalPaths.size) return
+
+    for (const list of body.querySelectorAll(':scope > ul')) {
+        const before = list.previousElementSibling
+        const after = list.nextElementSibling
+        if (!before?.matches('hr') || !after?.matches('hr')
+            || after !== body.lastElementChild) continue
+
+        const anchors = [...list.querySelectorAll('a[href]')]
+        if (anchors.length < INLINE_TOC_MIN_LINKS) continue
+        const internalHrefs = anchors.map(a => a.getAttribute('href'))
+            .filter(href => href && !isExternal(href))
+        if (internalHrefs.length !== anchors.length) continue
+
+        const inlinePaths = new Set(internalHrefs
+            .map(href => resolveURL(href, sectionHref).split('#')[0]))
+        if (!inlinePaths.size) continue
+        const overlap = [...inlinePaths].filter(path => canonicalPaths.has(path)).length
+        const inlineCoverage = overlap / inlinePaths.size
+        const canonicalCoverage = overlap / canonicalPaths.size
+        if (inlineCoverage < INLINE_TOC_MIN_PATH_COVERAGE
+            || canonicalCoverage < CANONICAL_TOC_MIN_PATH_COVERAGE) continue
+
+        before.remove()
+        list.remove()
+        after.remove()
+    }
+}
+
 const getPageSpread = properties => {
     for (const p of properties) {
         if (p === 'page-spread-left' || p === 'rendition:page-spread-left')
@@ -1014,6 +1067,7 @@ ${doc.querySelector('parsererror').innerText}`)
             loadBlob: uri => Promise.resolve(this.loadBlob(uri))
                 .then(this.#encryption.getDecoder(uri)),
             resources: this.resources,
+            transformDocument: (doc, item) => this.#transformDocument(doc, item),
         })
         this.transformTarget = this.#loader.eventTarget
         this.sections = this.resources.spine.map((spineItem, index) => {
@@ -1144,9 +1198,16 @@ ${doc.querySelector('parsererror').innerText}`)
         }
         return this
     }
+    #transformDocument(doc, item) {
+        const firstContentSection = this.sections.find(section => !section.isCover)
+        if (firstContentSection?.id === item.href && !item.properties?.includes('nav'))
+            removeDuplicateInlineTOC(doc, item.href, this.toc)
+    }
     async loadDocument(item) {
         const str = await this.loadText(item.href)
-        return this.parser.parseFromString(str, item.mediaType)
+        const doc = this.parser.parseFromString(str, item.mediaType)
+        this.#transformDocument(doc, item)
+        return doc
     }
     getMediaOverlay() {
         return new MediaOverlay(this, this.#loadXML.bind(this))

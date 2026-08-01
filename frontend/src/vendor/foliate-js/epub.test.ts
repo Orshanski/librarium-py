@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { EPUB } from "./epub.js";
 
 type SpineItem = string | { id: string; linear?: string };
+type TocItem = { label: string; href: string };
 
 interface EpubFixture {
   loadText: (path: string) => string | null;
@@ -23,11 +24,13 @@ function makeMinimalEpub({
   coverImageHref,
   spine,
   files,
+  toc,
 }: {
   guideCoverHref?: string;
   coverImageHref?: string;
   spine: SpineItem[];
   files: Record<string, string>;
+  toc?: TocItem[];
 }): EpubFixture {
   const ids = new Set(spine.map(item => typeof item === "string" ? item : item.id));
   const manifest = new Map<string, { href: string; mediaType: string; properties?: string }>();
@@ -49,6 +52,9 @@ function makeMinimalEpub({
       manifest.set(id, { href: `${id}.xhtml`, mediaType: "application/xhtml+xml" });
     }
   }
+  if (toc) {
+    manifest.set("ncx", { href: "toc.ncx", mediaType: "application/x-dtbncx+xml" });
+  }
 
   const manifestXml = Array.from(manifest.entries())
     .map(([id, item]) => `<item id="${id}" href="${item.href}" media-type="${item.mediaType}"${item.properties ? ` properties="${item.properties}"` : ""}/>`)
@@ -63,6 +69,12 @@ function makeMinimalEpub({
   const guideXml = guideCoverHref
     ? `<guide><reference type="cover" title="Cover" href="${guideCoverHref}"/></guide>`
     : "";
+  const tocXml = toc
+    ? `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>${toc.map((item, index) => `<navPoint id="nav-${index}" playOrder="${index + 1}"><navLabel><text>${item.label}</text></navLabel><content src="${item.href}"/></navPoint>`).join("")}</navMap>
+</ncx>`
+    : null;
   const metaCoverXml = coverImageHref && !Array.from(manifest.values()).some(item => item.properties === "cover-image")
     ? `<meta name="cover" content="${coverImageHref.replace(/\.[^.]+$/, "")}"/>`
     : "";
@@ -80,7 +92,7 @@ function makeMinimalEpub({
     ${metaCoverXml}
   </metadata>
   <manifest>${manifestXml}</manifest>
-  <spine>${spineXml}</spine>
+  <spine${toc ? ' toc="ncx"' : ""}>${spineXml}</spine>
   ${guideXml}
 </package>`],
   ]);
@@ -88,6 +100,7 @@ function makeMinimalEpub({
     const path = `OEBPS/${href}`;
     allFiles.set(path, href.endsWith(".xhtml") ? content : new Blob([content], { type: "image/jpeg" }));
   }
+  if (tocXml) allFiles.set("OEBPS/toc.ncx", tocXml);
 
   return {
     loadText: path => {
@@ -104,6 +117,41 @@ function makeMinimalEpub({
       return typeof value === "string" ? value.length : (value?.size ?? 0);
     },
   };
+}
+
+const xhtml = (body: string) =>
+  `<html xmlns="http://www.w3.org/1999/xhtml"><body>${body}</body></html>`;
+
+function makeInlineTocBook({
+  inlineLinks,
+  toc,
+  contentBodies = {},
+}: {
+  inlineLinks: TocItem[];
+  toc: TocItem[];
+  contentBodies?: Record<string, string>;
+}) {
+  const contentFiles = Object.fromEntries(
+    [...new Set([...inlineLinks, ...toc].map(item => item.href.split("#", 1)[0]))]
+      .map((href, index) => [
+        href,
+        xhtml(contentBodies[href] ?? `<h1>Раздел ${index + 1}</h1><p>Текст</p>`),
+      ]),
+  );
+  const inlineList = inlineLinks
+    .map(item => `<li><a href="${item.href}">${item.label}</a></li>`)
+    .join("");
+  return makeMinimalEpub({
+    guideCoverHref: "titlepage.xhtml",
+    spine: ["titlepage", "annotation", ...Object.keys(contentFiles).map(href => href.replace(/\.xhtml$/, ""))],
+    toc,
+    files: {
+      "titlepage.xhtml": xhtml('<img src="cover.jpeg"/>'),
+      "annotation.xhtml": xhtml(`<div><h3>Annotation</h3><p>Настоящая аннотация</p></div><hr/><ul>${inlineList}</ul><hr/>`),
+      "cover.jpeg": "AAAA",
+      ...contentFiles,
+    },
+  });
 }
 
 describe("foliate EPUB cover zero page", () => {
@@ -215,5 +263,96 @@ describe("foliate EPUB cover zero page", () => {
     const book = await makeEPUBFromFixture(epub);
 
     expect(book.sections[0]).toMatchObject({ isCover: true, isOpening: true, counted: false, cfi: "__cover__" });
+  });
+});
+
+describe("foliate EPUB duplicate inline TOC", () => {
+  it("removes the duplicate TOC from the document loaded into the reader iframe", async () => {
+    const links = Array.from({ length: 6 }, (_, index) => ({
+      label: `Глава ${index + 1}`,
+      href: `chapter${index + 1}.xhtml#inline-${index + 1}`,
+    }));
+    const toc = links.map((item, index) => ({
+      label: item.label,
+      href: `${item.href.split("#", 1)[0]}#canonical-${index + 1}`,
+    }));
+    const book = await makeEPUBFromFixture(makeInlineTocBook({ inlineLinks: links, toc }));
+    let loadedAnnotation = "";
+    book.transformTarget.addEventListener("data", (event: Event) => {
+      const detail = (event as CustomEvent<{ data: string; name: string }>).detail;
+      if (detail.name.endsWith("annotation.xhtml")) loadedAnnotation = detail.data;
+    });
+
+    await book.sections[1].load();
+    const doc = new DOMParser().parseFromString(loadedAnnotation, "application/xhtml+xml");
+
+    expect(doc.body.textContent).toContain("Настоящая аннотация");
+    expect(doc.body.querySelector(":scope > ul")).toBeNull();
+  });
+
+  it("removes a book-222-style TOC while preserving chapter links to note pages", async () => {
+    const links = [
+      { label: "Глава", href: "chapter1.xhtml#inline-chapter" },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        label: `Примечание ${index + 1}`,
+        href: `note${index + 1}.xhtml#n${index + 1}`,
+      })),
+    ];
+    const toc = links.map((item, index) => ({
+      label: `Канонический пункт ${index + 1}`,
+      href: `${item.href.split("#", 1)[0]}#canonical-${index + 1}`,
+    }));
+    const book = await makeEPUBFromFixture(makeInlineTocBook({
+      inlineLinks: links,
+      toc,
+      contentBodies: {
+        "chapter1.xhtml": '<h1>Глава</h1><p>Текст<a id="back_n1" href="note1.xhtml#n1"><sup>[1]</sup></a></p>',
+        "note1.xhtml": '<h1 id="n1">1</h1><div>Текст примечания</div>',
+      },
+    }));
+
+    const annotationDoc = await book.sections[1].createDocument();
+    const chapterSection = book.sections.find((section: { id: string }) => section.id.endsWith("chapter1.xhtml"));
+    const chapterDoc = await chapterSection.createDocument();
+
+    expect(annotationDoc.body.textContent).toContain("Настоящая аннотация");
+    expect(annotationDoc.body.querySelector(":scope > ul")).toBeNull();
+    expect(annotationDoc.body.querySelectorAll(":scope > hr")).toHaveLength(0);
+    expect(chapterDoc.querySelector('a[href="note1.xhtml#n1"] sup')?.textContent).toBe("[1]");
+    expect(book.toc.slice(1).map((item: TocItem) => item.label)).toEqual(toc.map(item => item.label));
+  });
+
+  it("removes a duplicate TOC whose many fragment links share section paths", async () => {
+    const links = Array.from({ length: 6 }, (_, index) => ({
+      label: `Подраздел ${index + 1}`,
+      href: `chapter${Math.floor(index / 3) + 1}.xhtml#inline-${index + 1}`,
+    }));
+    const toc = links.map((item, index) => ({
+      label: `Другой заголовок ${index + 1}`,
+      href: `${item.href.split("#", 1)[0]}#canonical-${index + 1}`,
+    }));
+    const book = await makeEPUBFromFixture(makeInlineTocBook({ inlineLinks: links, toc }));
+
+    const doc = await book.sections[1].createDocument();
+
+    expect(doc.body.textContent).toContain("Настоящая аннотация");
+    expect(doc.body.querySelector("ul")).toBeNull();
+  });
+
+  it("keeps an annotation list whose targets do not duplicate the canonical TOC", async () => {
+    const inlineLinks = Array.from({ length: 6 }, (_, index) => ({
+      label: `Связанная тема ${index + 1}`,
+      href: `appendix${index + 1}.xhtml`,
+    }));
+    const toc = Array.from({ length: 6 }, (_, index) => ({
+      label: `Глава ${index + 1}`,
+      href: `chapter${index + 1}.xhtml`,
+    }));
+    const book = await makeEPUBFromFixture(makeInlineTocBook({ inlineLinks, toc }));
+
+    const doc = await book.sections[1].createDocument();
+
+    expect(doc.body.querySelector(":scope > ul")).not.toBeNull();
+    expect(doc.body.querySelectorAll(":scope > hr")).toHaveLength(2);
   });
 });
