@@ -163,6 +163,11 @@ describe("BookEditPage", () => {
       tags: [{ id: 1, name: "Фэнтези" }, { id: 2, name: "Детектив" }],
     };
     const events: unknown[] = [];
+    type ReorderBody = { authorIds: unknown[]; tagIds: unknown[] };
+    let resolvePut!: (body: ReorderBody) => void;
+    const putReceived = new Promise<ReorderBody>((resolve) => {
+      resolvePut = resolve;
+    });
     domainEvents.subscribe("bookUpdated", (payload) => events.push(payload));
 
     server.use(
@@ -180,9 +185,8 @@ describe("BookEditPage", () => {
         HttpResponse.json({ tags: original.tags }),
       ),
       http.put("/api/books/:id", async ({ request }) => {
-        const body = await request.json() as { authorIds: unknown[]; tagIds: unknown[] };
-        expect(body.authorIds).toEqual([2, 1]);
-        expect(body.tagIds).toEqual([2, 1]);
+        const body = await request.json() as ReorderBody;
+        resolvePut(body);
         return HttpResponse.json({
           ok: true,
           book: { ...original, authors: [...original.authors].reverse(), tags: [...original.tags].reverse() },
@@ -221,10 +225,11 @@ describe("BookEditPage", () => {
 
     await user.click(screen.getByRole("button", { name: /сохранить/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Book Detail")).toBeInTheDocument();
-    });
+    const putBody = await putReceived;
+    expect(await screen.findByText("Book Detail", undefined, { timeout: 3_000 })).toBeInTheDocument();
 
+    expect(putBody.authorIds).toEqual([2, 1]);
+    expect(putBody.tagIds).toEqual([2, 1]);
     expect(events).toEqual([]);
   });
 
