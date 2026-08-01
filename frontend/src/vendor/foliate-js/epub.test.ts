@@ -126,10 +126,12 @@ function makeInlineTocBook({
   inlineLinks,
   toc,
   contentBodies = {},
+  inlineListHtml,
 }: {
   inlineLinks: TocItem[];
   toc: TocItem[];
   contentBodies?: Record<string, string>;
+  inlineListHtml?: string;
 }) {
   const contentFiles = Object.fromEntries(
     [...new Set([...inlineLinks, ...toc].map(item => item.href.split("#", 1)[0]))]
@@ -138,7 +140,7 @@ function makeInlineTocBook({
         xhtml(contentBodies[href] ?? `<h1>Раздел ${index + 1}</h1><p>Текст</p>`),
       ]),
   );
-  const inlineList = inlineLinks
+  const inlineList = inlineListHtml ?? inlineLinks
     .map(item => `<li><a href="${item.href}">${item.label}</a></li>`)
     .join("");
   return makeMinimalEpub({
@@ -267,6 +269,52 @@ describe("foliate EPUB cover zero page", () => {
 });
 
 describe("foliate EPUB duplicate inline TOC", () => {
+  it("removes an empty trailing TOC shell", async () => {
+    const toc = [{ label: "Глава", href: "chapter1.xhtml" }];
+    const book = await makeEPUBFromFixture(makeInlineTocBook({
+      inlineLinks: [],
+      toc,
+      inlineListHtml: "",
+    }));
+
+    const doc = await book.sections[1].createDocument();
+
+    expect(doc.body.textContent).toContain("Настоящая аннотация");
+    expect(doc.body.querySelector(":scope > ul")).toBeNull();
+    expect(doc.body.querySelectorAll(":scope > hr")).toHaveLength(0);
+  });
+
+  it("keeps a non-empty annotation list without links", async () => {
+    const toc = [{ label: "Глава", href: "chapter1.xhtml" }];
+    const book = await makeEPUBFromFixture(makeInlineTocBook({
+      inlineLinks: [],
+      toc,
+      inlineListHtml: "Содержательный текст аннотации",
+    }));
+
+    const doc = await book.sections[1].createDocument();
+
+    expect(doc.body.querySelector(":scope > ul")?.textContent).toContain("Содержательный текст аннотации");
+    expect(doc.body.querySelectorAll(":scope > hr")).toHaveLength(2);
+  });
+
+  it("removes a short duplicate TOC without relying on a link-count threshold", async () => {
+    const links = Array.from({ length: 2 }, (_, index) => ({
+      label: `Глава ${index + 1}`,
+      href: `chapter${index + 1}.xhtml#inline-${index + 1}`,
+    }));
+    const toc = links.map((item, index) => ({
+      label: item.label,
+      href: `${item.href.split("#", 1)[0]}#canonical-${index + 1}`,
+    }));
+    const book = await makeEPUBFromFixture(makeInlineTocBook({ inlineLinks: links, toc }));
+
+    const doc = await book.sections[1].createDocument();
+
+    expect(doc.body.textContent).toContain("Настоящая аннотация");
+    expect(doc.body.querySelector(":scope > ul")).toBeNull();
+  });
+
   it("removes the duplicate TOC from the document loaded into the reader iframe", async () => {
     const links = Array.from({ length: 6 }, (_, index) => ({
       label: `Глава ${index + 1}`,
