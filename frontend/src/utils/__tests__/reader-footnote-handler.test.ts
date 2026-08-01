@@ -43,10 +43,11 @@ function makeCallbacks() {
 }
 
 /** Ссылка-сноска: надстрочная — этого достаточно, чтобы обработчик её признал. */
-function footnoteLink(): HTMLAnchorElement {
+function footnoteLink(id?: string): HTMLAnchorElement {
   const sup = document.createElement("sup");
   const a = document.createElement("a");
   a.setAttribute("href", "#note-1");
+  if (id) a.id = id;
   sup.append(a);
   document.body.append(sup);
   return a;
@@ -132,6 +133,72 @@ describe("attachFootnoteHandler", () => {
     expect(callbacks.setFootnoteHtml).not.toHaveBeenCalledWith(
       expect.stringContaining("Ссылка не найдена"),
     );
+  });
+
+  it("убирает из сноски обратную ссылку на исходный маркер", async () => {
+    const callbacks = makeCallbacks();
+    const el = document.createElement("div");
+    el.innerHTML = [
+      "<p>Текст сноски</p>",
+      '<p>Подробнее: <a href="glossary.html#dea">DEA</a></p>',
+      '<p><a href="content3.html#back_n3">Вернуться</a></p>',
+    ].join("");
+    const { view, listeners } = makeView({ anchorEl: el });
+    attachFootnoteHandler(view, document.createElement("div"), callbacks);
+
+    fireLink(listeners, footnoteLink("back_n3"), "contentnotes0.html#n3");
+
+    await vi.waitFor(() => {
+      expect(callbacks.setFootnoteHtml).toHaveBeenCalledWith(
+        expect.stringContaining("Текст сноски"),
+      );
+    });
+    expect(callbacks.setFootnoteHtml).not.toHaveBeenCalledWith(
+      expect.stringContaining("Вернуться"),
+    );
+    expect(callbacks.setFootnoteHtml).toHaveBeenCalledWith(
+      expect.stringContaining("<a>DEA</a>"),
+    );
+  });
+
+  it("для calibre-сноски с якорем на заголовке показывает следующий блок с текстом", async () => {
+    const callbacks = makeCallbacks();
+    const heading = document.createElement("h1");
+    heading.id = "n1";
+    heading.innerHTML = '<a id="toc-note-1"></a>1<br>';
+    const note = document.createElement("div");
+    note.innerHTML = "Саккара — селение в Египте в окрестностях Каира.";
+    document.body.append(heading, note);
+    const { view, listeners } = makeView({ anchorEl: heading });
+    attachFootnoteHandler(view, document.createElement("div"), callbacks);
+
+    fireLink(listeners, footnoteLink(), "index_split_033.xhtml#n1");
+
+    await vi.waitFor(() => {
+      expect(callbacks.setFootnoteHtml).toHaveBeenCalledWith(
+        expect.stringContaining("Саккара"),
+      );
+    });
+    expect(callbacks.setFootnoteHtml).not.toHaveBeenCalledWith(
+      expect.stringContaining("toc-note-1"),
+    );
+  });
+
+  it("не подменяет содержательный заголовок следующим блоком", async () => {
+    const callbacks = makeCallbacks();
+    const heading = document.createElement("h2");
+    heading.textContent = "Примечание автора";
+    const followingBlock = document.createElement("p");
+    followingBlock.textContent = "Следующий раздел";
+    document.body.append(heading, followingBlock);
+    const { view, listeners } = makeView({ anchorEl: heading });
+    attachFootnoteHandler(view, document.createElement("div"), callbacks);
+
+    fireLink(listeners, footnoteLink(), "notes.xhtml#author-note");
+
+    await vi.waitFor(() => {
+      expect(callbacks.setFootnoteHtml).toHaveBeenCalledWith("Примечание автора");
+    });
   });
 
   it("не трогает ссылки, которые не являются сносками", async () => {

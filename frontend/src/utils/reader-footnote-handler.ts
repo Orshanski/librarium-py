@@ -42,7 +42,7 @@ export function attachFootnoteHandler(
       // Признак «открыта» поднимается только вместе с содержимым: при пустой строке
       // всплывашка не рисуется, а поднятый признак съедал следующий тап (тот уходил на
       // закрытие вместо листания) — страница переставала листаться.
-      const html = await resolveFootnoteHtml(view, href);
+      const html = await resolveFootnoteHtml(view, href, a.id);
       callbacks.setFootnoteHtml(html || FOOTNOTE_NOT_FOUND_HTML);
       callbacks.setFootnoteOpen(true);
     })();
@@ -52,7 +52,11 @@ export function attachFootnoteHandler(
 }
 
 /** Пустая строка означает «показать нечего» — вызывающий покажет сообщение. */
-async function resolveFootnoteHtml(view: ReaderViewElement, href: string): Promise<string> {
+async function resolveFootnoteHtml(
+  view: ReaderViewElement,
+  href: string,
+  sourceId: string,
+): Promise<string> {
   try {
     const book = view.book;
     if (!book) return "";
@@ -66,7 +70,28 @@ async function resolveFootnoteHtml(view: ReaderViewElement, href: string): Promi
     }
     const el = anchor(doc);
     if (!el) return "";
-    return sanitizeHtml(el.innerHTML || el.textContent || "");
+    // Calibre can put the fragment id on a numbered heading and store the actual
+    // note in the following block (for example: <h1 id="n1">1</h1><div>…</div>).
+    const isNumberedNoteHeading = el.matches("h1, h2, h3, h4, h5, h6")
+      && /^\d+$/.test(el.textContent?.trim() ?? "");
+    const contentEl = isNumberedNoteHeading
+      ? el.nextElementSibling ?? el
+      : el;
+    const content = contentEl.cloneNode(true) as Element;
+    if (sourceId) {
+      for (const link of content.querySelectorAll<HTMLAnchorElement>("a[href]")) {
+        const linkHref = link.getAttribute("href") ?? "";
+        const fragment = linkHref.slice(linkHref.lastIndexOf("#") + 1);
+        if (!linkHref.includes("#") || fragment !== sourceId) continue;
+        const parent = link.parentElement;
+        if (parent?.children.length === 1 && parent.textContent?.trim() === link.textContent?.trim()) {
+          parent.remove();
+        } else {
+          link.remove();
+        }
+      }
+    }
+    return sanitizeHtml(content.innerHTML || content.textContent || "");
   } catch (err) {
     console.error("Failed to load footnote:", err);
     return "";
