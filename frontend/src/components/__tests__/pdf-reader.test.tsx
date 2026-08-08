@@ -1,7 +1,26 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { attachPdfInputListeners, attachPdfKeyboardListener } from "../pdf-reader";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, waitFor } from "@testing-library/react";
+import PdfReader, { attachPdfInputListeners, attachPdfKeyboardListener } from "../pdf-reader";
+import type { PdfReaderCallbacks } from "../pdf-reader";
 import { DEFAULT_PDF_TAP_ZONES } from "../../constants/reader-defaults";
+
+// Stub <foliate-view>: the real element needs pdf.js and a live iframe render.
+// The stub keeps the element contract the component uses (open/goTo/close +
+// "relocate"/"load" events) so page-index plumbing can be driven from tests.
+vi.mock("../../vendor/foliate-js/view.js", () => {
+  class StubFoliateView extends HTMLElement {
+    renderer = { setAttribute: vi.fn(), destroy: vi.fn() };
+    book = { toc: [] };
+    open = vi.fn().mockResolvedValue(undefined);
+    close = vi.fn();
+    goTo = vi.fn().mockResolvedValue(undefined);
+    prev = vi.fn().mockResolvedValue(undefined);
+    next = vi.fn().mockResolvedValue(undefined);
+  }
+  customElements.define("foliate-view", StubFoliateView);
+  return {};
+});
 
 interface TestView {
   prev: ReturnType<typeof vi.fn>;
@@ -191,32 +210,29 @@ function makeTouchEvent(type: string, touches: TouchPoint[], changedTouches: Tou
 describe("attachPdfInputListeners — desktop click", () => {
   let sb: ReturnType<typeof makeSandbox>;
   beforeEach(() => { sb = makeSandbox(); });
+  afterEach(() => { sb.cleanup(); });
 
   it("click in top-left → view.prev (DEFAULT_PDF_TAP_ZONES: topLeft=prev)", () => {
     dispatchClick(sb.doc, 100, 100);
     expect(sb.view.prev).toHaveBeenCalledTimes(1);
     expect(sb.view.next).not.toHaveBeenCalled();
     expect(sb.zoomIn).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("click in top-right → view.next", () => {
     dispatchClick(sb.doc, 900, 100);
     expect(sb.view.next).toHaveBeenCalledTimes(1);
-    sb.cleanup();
   });
 
   it("click in top-center → zoomIn (DEFAULT_PDF_TAP_ZONES: topCenter=zoom_in)", () => {
     dispatchClick(sb.doc, 500, 100);
     expect(sb.zoomIn).toHaveBeenCalledTimes(1);
     expect(sb.view.prev).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("click in bottom-center → zoomOut (DEFAULT_PDF_TAP_ZONES: bottomCenter=zoom_out)", () => {
     dispatchClick(sb.doc, 500, 700);
     expect(sb.zoomOut).toHaveBeenCalledTimes(1);
-    sb.cleanup();
   });
 
   it("click on a link is ignored (foliate handles link navigation)", () => {
@@ -225,7 +241,6 @@ describe("attachPdfInputListeners — desktop click", () => {
     sb.doc.body.appendChild(a);
     dispatchClick(sb.doc, 100, 100, a);
     expect(sb.view.prev).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("custom zones override defaults (topCenter remapped to next)", () => {
@@ -236,19 +251,18 @@ describe("attachPdfInputListeners — desktop click", () => {
     dispatchClick(sb.doc, 500, 100);
     expect(sb.view.next).toHaveBeenCalledTimes(1);
     expect(sb.zoomIn).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 });
 
 describe("attachPdfInputListeners — touch", () => {
   let sb: ReturnType<typeof makeSandbox>;
   beforeEach(() => { sb = makeSandbox(); });
+  afterEach(() => { sb.cleanup(); });
 
   it("single tap (touchstart→touchend, no movement) fires zone action", () => {
     sb.doc.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 100, clientY: 100 }]));
     sb.doc.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 100, clientY: 100 }]));
     expect(sb.view.prev).toHaveBeenCalledTimes(1);
-    sb.cleanup();
   });
 
   it("touch with >10px movement is treated as a swipe (no zone action)", () => {
@@ -257,7 +271,6 @@ describe("attachPdfInputListeners — touch", () => {
     sb.doc.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 200, clientY: 100 }]));
     expect(sb.view.prev).not.toHaveBeenCalled();
     expect(sb.view.next).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("multi-touch (pinch) does not fire a zone action", () => {
@@ -267,7 +280,6 @@ describe("attachPdfInputListeners — touch", () => {
     ]));
     sb.doc.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 100, clientY: 100 }]));
     expect(sb.view.prev).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("touch on a link is ignored (foliate handles link)", () => {
@@ -277,7 +289,6 @@ describe("attachPdfInputListeners — touch", () => {
     sb.doc.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 100, clientY: 100, target: a }]));
     sb.doc.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 100, clientY: 100, target: a }]));
     expect(sb.view.prev).not.toHaveBeenCalled();
-    sb.cleanup();
   });
 
   it("synthesized click after touch is swallowed (touchActive guard)", () => {
@@ -288,6 +299,83 @@ describe("attachPdfInputListeners — touch", () => {
     // Now the synthesised click — must be ignored.
     dispatchClick(sb.doc, 100, 100);
     expect(sb.view.prev).toHaveBeenCalledTimes(1);
-    sb.cleanup();
+  });
+});
+
+interface StubbedView extends HTMLElement {
+  goTo: ReturnType<typeof vi.fn>;
+}
+
+type RelocateHandler = NonNullable<PdfReaderCallbacks["onRelocate"]>;
+
+/**
+ * Renders PdfReader over the stubbed <foliate-view> and returns the element so
+ * tests can drive "relocate" the way foliate does: section.current counts pages
+ * from one (progress.js, SectionProgress.getProgress — every PDF page counts,
+ * see pdf.js `size: 1000`), while goTo() takes an index counting from zero.
+ */
+async function renderPdfReader(props: { initialPage?: number; onRelocate?: RelocateHandler } = {}) {
+  const { container } = render(
+    <PdfReader
+      bookBlob={new Blob(["%PDF-1.4"], { type: "application/pdf" })}
+      initialPage={props.initialPage}
+      pdfTapZones={DEFAULT_PDF_TAP_ZONES}
+      callbacks={{ onRelocate: props.onRelocate }}
+    />,
+  );
+  const view = container.querySelector("foliate-view") as StubbedView;
+  await waitFor(() => expect(view.goTo).toHaveBeenCalled());
+  return view;
+}
+
+function dispatchRelocate(view: HTMLElement, sectionCurrent: number, total = 122): void {
+  view.dispatchEvent(new CustomEvent("relocate", {
+    detail: {
+      section: { current: sectionCurrent, total },
+      fraction: sectionCurrent / total,
+    },
+  }));
+}
+
+describe("PdfReader page index — reported outward vs accepted inward", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("reports the page it opened at, not the next one", async () => {
+    // The saved position (index 49 = page 50) is fed back in; foliate then
+    // relocates on that page and reports section.current = 50. What comes out
+    // must equal what went in, otherwise every open walks a page forward.
+    const onRelocate = vi.fn<RelocateHandler>();
+    const view = await renderPdfReader({ initialPage: 49, onRelocate });
+    expect(view.goTo).toHaveBeenCalledWith(49);
+
+    dispatchRelocate(view, 50);
+
+    expect(onRelocate).toHaveBeenCalledTimes(1);
+    // total passes through as-is — only the index shifts units.
+    expect(onRelocate).toHaveBeenCalledWith(expect.objectContaining({ index: 49, total: 122 }));
+  });
+
+  it("reports zero on the first page", async () => {
+    const onRelocate = vi.fn<RelocateHandler>();
+    const view = await renderPdfReader({ onRelocate });
+    expect(view.goTo).toHaveBeenCalledWith(0);
+
+    dispatchRelocate(view, 1);
+
+    expect(onRelocate).toHaveBeenCalledTimes(1);
+    expect(onRelocate).toHaveBeenCalledWith(expect.objectContaining({ index: 0 }));
+  });
+
+  it("still reports a page only once when foliate relocates on it twice", async () => {
+    // Catches a half-converted same-page filter: comparing against the raw
+    // section.current while storing the converted index lets every repeat
+    // (zoom re-render) through, because the two never match.
+    const onRelocate = vi.fn<RelocateHandler>();
+    const view = await renderPdfReader({ onRelocate });
+
+    dispatchRelocate(view, 50);
+    dispatchRelocate(view, 50);
+
+    expect(onRelocate).toHaveBeenCalledTimes(1);
   });
 });

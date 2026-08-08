@@ -71,6 +71,10 @@ export default function DesktopPdfReaderPage() {
       if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href);
       setCurrentPage(detail.index);
       setTotalPages(detail.total);
+      // The two saved numbers answer different questions and differ by a page
+      // on purpose: index is where to reopen (0-based page index), fraction is
+      // how much is read (counted to the end of that page, same as EPUB/FB2 —
+      // it feeds the shelf progress bar and newer-position comparison).
       if (bookReady) handleSavePosition(detail.index, detail.fraction);
     },
     [bookReady, handleSavePosition],
