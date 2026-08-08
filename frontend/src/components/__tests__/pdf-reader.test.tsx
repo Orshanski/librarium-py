@@ -367,8 +367,9 @@ describe("PdfReader page index — reported outward vs accepted inward", () => {
   });
 
   it("still reports a page only once when foliate relocates on it twice", async () => {
-    // The same-page filter compares against the converted index; leaving it on
-    // the raw section.current would make every repeat (zoom re-render) pass.
+    // Catches a half-converted same-page filter: comparing against the raw
+    // section.current while storing the converted index lets every repeat
+    // (zoom re-render) through, because the two never match.
     const onRelocate = vi.fn<RelocateHandler>();
     const view = await renderPdfReader({ onRelocate });
 

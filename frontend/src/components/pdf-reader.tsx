@@ -37,6 +37,7 @@ export interface PdfReaderCallbacks {
   onRelocate?: (detail: {
     /** 0-based page index — the same units goTo()/initialPage take. */
     index: number;
+    /** Page count — the last index is total - 1. */
     total: number;
     /** Share of the book read, counted to the end of the current page. */
     fraction: number;
