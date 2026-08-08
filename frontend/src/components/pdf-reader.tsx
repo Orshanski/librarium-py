@@ -282,11 +282,17 @@ export default function PdfReader({ bookBlob, initialPage, pdfTapZones, onCenter
       if (disposed) return;
       const { section, fraction, tocItem } = (ev as CustomEvent<RelocateDetail>).detail;
       if (!section || typeof section.current !== "number") return;
+      // section.current counts pages from one (progress.js — every PDF page is
+      // counted, see pdf.js `size: 1000`), while goTo() and PdfNavBar expect an
+      // index counting from zero. Convert here so the number this component
+      // reports is the same number it accepts back as initialPage — otherwise
+      // each reopen resumes a page further than where the reader stopped.
+      const pageIndex = Math.max(0, section.current - 1);
       // Filter re-relocates on the same page (e.g., zoom-triggered)
-      if (lastPageRef.current === section.current) return;
-      lastPageRef.current = section.current;
+      if (lastPageRef.current === pageIndex) return;
+      lastPageRef.current = pageIndex;
       callbacksRef.current?.onRelocate?.({
-        index: section.current,
+        index: pageIndex,
         total: section.total,
         fraction: typeof fraction === "number" ? fraction : 0,
         tocItem,
