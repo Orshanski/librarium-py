@@ -30,6 +30,7 @@ backend/scripts/linearize_existing_pdfs.py
 .dolt/
 *.db
 .beads-credential-key
+.beads.gate.lock
 
 # SonarCloud scanner working directory
 .scannerwork/
