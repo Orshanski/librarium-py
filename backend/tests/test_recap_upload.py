@@ -2,8 +2,8 @@
 import json
 from pathlib import Path
 
-from app.config import LIBRARY_DIR
-from tests._helpers import assert_error
+from app.config import LIBRARY_DIR, MAX_RECAP_SIZE
+from tests._helpers import assert_error, login_client
 
 DOC = {
     "version": 1,
@@ -28,6 +28,15 @@ class TestRecapUpload:
         assert resp.json() == {"ok": True}
         saved = json.loads((Path(LIBRARY_DIR) / "2" / "recap.json").read_text(encoding="utf-8"))
         assert saved["recap"]["sections"][0]["people"][0]["name"] == "Кип"
+        assert "bookId" in saved
+        assert "book_id" not in saved
+
+    def test_creates_book_folder_when_missing(self, reader_client):
+        """Книга 3 в фикстуре без файла на диске — папки library/3 не существует."""
+        doc = {**DOC, "bookId": 3}
+        resp = reader_client.put("/api/books/3/recap", json=doc)
+        assert resp.status_code == 200
+        assert (Path(LIBRARY_DIR) / "3" / "recap.json").exists()
 
     def test_replaces_previous_document(self, reader_client):
         reader_client.put("/api/books/2/recap", json=DOC)
@@ -50,20 +59,43 @@ class TestRecapUpload:
     def test_unknown_version(self, reader_client):
         assert_error(reader_client.put("/api/books/2/recap", json={**DOC, "version": 99}), 400)
 
+    def test_empty_recap_sections(self, reader_client):
+        empty = {**DOC, "recap": {"sections": []}}
+        assert_error(reader_client.put("/api/books/2/recap", json=empty), 400)
+
+    def test_empty_retell_parts(self, reader_client):
+        empty = {**DOC, "retell": {"parts": []}}
+        assert_error(reader_client.put("/api/books/2/recap", json=empty), 400)
+
     def test_requires_login(self, anon_client):
         assert_error(anon_client.put("/api/books/2/recap", json=DOC), 401)
 
     def test_rejects_oversized_document(self, reader_client):
+        # "а" — кириллица, 2 байта в UTF-8: длина строки от предела вдвое дешевле,
+        # чем считать в байтах напрямую.
         huge = {**DOC, "recap": {"sections": [
-            {"title": "Кто есть кто", "kind": "prose", "paragraphs": ["а" * 11_000_000]},
+            {"title": "Кто есть кто", "kind": "prose",
+             "paragraphs": ["а" * (MAX_RECAP_SIZE // 2 + 1)]},
         ]}}
-        assert_error(reader_client.put("/api/books/2/recap", json=huge), 400)
+        resp = reader_client.put("/api/books/2/recap", json=huge)
+        assert_error(resp, 400)
+        book_dir = Path(LIBRARY_DIR) / "2"
+        assert not (book_dir / "recap.json").exists()
+        assert list(book_dir.glob("recap.tmp.*")) == []
+
+    def test_touches_book_updated_at(self, reader_client, db_test):
+        db_test.execute("UPDATE books SET updated_at = '2020-01-01 00:00:00' WHERE id = 2")
+        db_test.commit()
+
+        resp = reader_client.put("/api/books/2/recap", json=DOC)
+        assert resp.status_code == 200
+
+        row = db_test.execute("SELECT updated_at FROM books WHERE id = 2").fetchone()
+        assert row["updated_at"] != "2020-01-01 00:00:00"
 
     def test_book_delete_removes_recap(self, reader_client):
         # admin_client и reader_client построены на одном TestClient (conftest.py:101-131),
         # второй вход перетирает cookie первого — поэтому админа берём отдельным клиентом.
-        from tests._helpers.builders import login_client
-
         reader_client.put("/api/books/2/recap", json=DOC)
         assert (Path(LIBRARY_DIR) / "2" / "recap.json").exists()
         admin = login_client(username="admin", password="admin123")

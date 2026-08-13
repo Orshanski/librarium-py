@@ -2,7 +2,7 @@
 приём не знает видов разделов, иначе он отвергал бы каждый новый вид."""
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ._aliases import BODY_CONFIG
 
@@ -16,4 +16,4 @@ class RecapDocument(BaseModel):
     book_id: int
     book: dict[str, Any]
     recap: dict[str, Any]
-    retell: dict[str, Any] = Field(default_factory=dict)
+    retell: dict[str, Any]

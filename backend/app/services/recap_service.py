@@ -4,7 +4,7 @@ import os
 import sqlite3
 import uuid
 
-from ..config import LIBRARY_DIR, MAX_COVER_SIZE
+from ..config import LIBRARY_DIR, MAX_RECAP_SIZE
 from ..dal import books as books_dal
 from ..dtos.recap import RECAP_FORMAT_VERSION
 from ..exceptions import BadInputError, NotFoundError
@@ -44,7 +44,7 @@ def save_recap(db: sqlite3.Connection, book_id: int, document: dict) -> None:
         raise NotFoundError("Книга не найдена")
 
     body = json.dumps(document, ensure_ascii=False)
-    if len(body.encode("utf-8")) > MAX_COVER_SIZE:
+    if len(body.encode("utf-8")) > MAX_RECAP_SIZE:
         raise BadInputError("Документ рекапа слишком большой")
 
     book_dir = _book_dir(book_id)
@@ -53,8 +53,10 @@ def save_recap(db: sqlite3.Connection, book_id: int, document: dict) -> None:
     target = os.path.normpath(os.path.join(book_dir, RECAP_FILENAME))
     # Барьер повторяется inline у каждого места записи: через helper статический
     # анализ его не признаёт (backend/CLAUDE.md), образец — book_service.py:178-180.
-    if not temp.startswith(_LIBRARY_ROOT_PREFIX) or not target.startswith(_LIBRARY_ROOT_PREFIX):
-        raise BadInputError(f"Path escapes allowed root: {book_dir}")
+    if not temp.startswith(_LIBRARY_ROOT_PREFIX):
+        raise BadInputError(f"Path escapes allowed root: {temp}")
+    if not target.startswith(_LIBRARY_ROOT_PREFIX):
+        raise BadInputError(f"Path escapes allowed root: {target}")
     try:
         with open(temp, "w", encoding="utf-8") as f:
             f.write(body)
