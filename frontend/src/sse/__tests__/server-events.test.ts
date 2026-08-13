@@ -224,6 +224,23 @@ describe("dispatchServerEvent", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("rejects bookUpdated changedFields with an unrecognized field name", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+
+    expect(() => dispatchServerEvent({
+      eventId: 25,
+      publishedAt: "2026-08-13T10:00:00Z",
+      scope: { kind: "library" },
+      event: {
+        type: "bookUpdated",
+        payload: { book: { id: 9 }, changedFields: ["somethingNew"] },
+      },
+    })).toThrow(/payload/i);
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it.each(["rating", "read"] as const)(
     "rejects library bookUpdated with user-scoped changed field %s",
     (field) => {
