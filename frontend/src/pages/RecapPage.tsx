@@ -18,13 +18,6 @@ import { metadataCache, useCachedResource } from "@/cache";
 
 type Tab = "recap" | "retell";
 
-function bookMetaLine(book: { title: string; authors: { name: string }[]; series: { name: string } | null; seriesNumber: number | null }) {
-  const parts = [book.title];
-  if (book.authors.length > 0) parts.push(book.authors.map((a) => a.name).join(", "));
-  if (book.series) parts.push(book.seriesNumber ? `${book.series.name} ${book.seriesNumber}` : book.series.name);
-  return parts.join(" · ");
-}
-
 interface TocEntry {
   index: number;
   label: string;
@@ -246,7 +239,7 @@ export default function RecapPage() {
 
   return (
     <>
-      <PageHeader title="О чём книга" breadcrumb={crumb} infoSlot={<span>{bookMetaLine(book)}</span>} />
+      <PageHeader title="О чём книга" breadcrumb={crumb} />
 
       {!recapPath && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Рекап не найден</div>
