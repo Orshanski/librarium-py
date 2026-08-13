@@ -1,8 +1,12 @@
 """Приём структуры рекапа: запись к книге, замена, отказы."""
 import json
 from pathlib import Path
+from unittest.mock import patch
 
-from app.config import LIBRARY_DIR, MAX_RECAP_SIZE
+from fastapi.testclient import TestClient
+
+from app.config import LIBRARY_DIR
+from app.main import app
 from tests._helpers import assert_error, login_client
 
 DOC = {
@@ -67,20 +71,32 @@ class TestRecapUpload:
         empty = {**DOC, "retell": {"parts": []}}
         assert_error(reader_client.put("/api/books/2/recap", json=empty), 400)
 
+    def test_missing_retell_field_returns_422(self, reader_client):
+        """Поле retell обязательно в теле запроса — без него FastAPI отказывает
+        разбором тела (422), до того как код сервиса вообще увидит документ."""
+        doc = {k: v for k, v in DOC.items() if k != "retell"}
+        resp = reader_client.put("/api/books/2/recap", json=doc)
+        assert_error(resp, 422)
+
     def test_requires_login(self, anon_client):
         assert_error(anon_client.put("/api/books/2/recap", json=DOC), 401)
 
     def test_rejects_oversized_document(self, reader_client):
-        # "а" — кириллица, 2 байта в UTF-8: длина строки от предела вдвое дешевле,
-        # чем считать в байтах напрямую.
-        huge = {**DOC, "recap": {"sections": [
-            {"title": "Кто есть кто", "kind": "prose",
-             "paragraphs": ["а" * (MAX_RECAP_SIZE // 2 + 1)]},
-        ]}}
-        resp = reader_client.put("/api/books/2/recap", json=huge)
+        with patch("app.services.recap_service.MAX_RECAP_SIZE", 100):
+            resp = reader_client.put("/api/books/2/recap", json=DOC)
         assert_error(resp, 400)
+
+    def test_write_failure_leaves_no_temp_file(self, reader_client):
+        """Сбой на os.replace (запись прошла, переименование — нет): временный
+        файл убирается в except-ветке recap_service.save_recap, ответ — 500."""
+        no_raise = TestClient(app, raise_server_exceptions=False, cookies=reader_client.cookies)
+        no_raise.headers.update({"X-Requested-With": "XMLHttpRequest"})
+
+        with patch("app.services.recap_service.os.replace", side_effect=OSError("disk full")):
+            resp = no_raise.put("/api/books/2/recap", json=DOC)
+
+        assert_error(resp, 500)
         book_dir = Path(LIBRARY_DIR) / "2"
-        assert not (book_dir / "recap.json").exists()
         assert list(book_dir.glob("recap.tmp.*")) == []
 
     def test_touches_book_updated_at(self, reader_client, db_test):
