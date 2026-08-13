@@ -16,7 +16,7 @@ from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
 from ..fs_utils import assert_within
 from ..logging_utils import safe as safe_log
-from . import cover_service, filters_service, thumb
+from . import cover_service, filters_service, recap_service, thumb
 from ..dtos.book_card import BookCardItem
 from .book_file_writer import _safe_ext, prepare_book_format_path, register_and_linearize
 from .book_item_builder import row_to_book_card_item, row_to_book_detail_item
@@ -198,7 +198,7 @@ def get_book(db: sqlite3.Connection, book_id: int, user_id: int) -> BookDetailRe
     files = dal.get_book_files(db, book_id)
     identifiers = dal.get_book_identifiers(db, book_id)
     return BookDetailResponse(
-        book=row_to_book_detail_item(cast(dict, book)),
+        book=row_to_book_detail_item(cast(dict, book), has_recap=recap_service.has_recap(book_id)),
         files=cast(Any, files),
         identifiers=cast(Any, identifiers),
     )

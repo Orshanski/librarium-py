@@ -44,12 +44,14 @@ def row_to_book_card_item(row: Mapping[str, Any]) -> BookCardItem:
     )
 
 
-def row_to_book_detail_item(row: Mapping[str, Any]) -> BookDetailItem:
+def row_to_book_detail_item(row: Mapping[str, Any], has_recap: bool = False) -> BookDetailItem:
     """Maps a DAL row (snake_case) into BookDetailItem.
 
     Mirrors row_to_book_card_item plus 8 detail fields. cover_path is the
     API URL (`/api/covers/{id}?t=<updated_at>`), consistent with the unified
-    BookCardItem contract — not the raw DB column value.
+    BookCardItem contract — not the raw DB column value. `has_recap` is a
+    precomputed flag (caller-supplied, by image of `cover_path`'s always-set
+    contract) — the builder does not touch the filesystem itself.
 
     Row contract (guaranteed by parse_book_row_aggregates):
     - authors: list[AuthorRef]
@@ -77,4 +79,5 @@ def row_to_book_detail_item(row: Mapping[str, Any]) -> BookDetailItem:
         tags=row.get("tags") or [],
         added_at=row["added_at"],
         updated_at=updated_at,
+        recap_path=f"/api/books/{book_id}/recap?t={updated_at}" if has_recap else None,
     )
