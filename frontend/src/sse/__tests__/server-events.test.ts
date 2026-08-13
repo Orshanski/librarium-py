@@ -177,6 +177,18 @@ describe("dispatchServerEvent", () => {
     });
   });
 
+  it("принимает событие о заливке рекапа", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+    dispatchServerEvent({
+      eventId: 1,
+      publishedAt: "2026-08-13T10:00:00Z",
+      scope: { kind: "library" },
+      event: { type: "bookUpdated", payload: { book: { id: 42 }, changedFields: ["recap"] } },
+    });
+    expect(handler).toHaveBeenCalledWith({ book: { id: 42 }, changedFields: ["recap"] });
+  });
+
   it("rejects server bookUpdated detail before publishing", () => {
     const handler = vi.fn();
     domainEvents.subscribe("bookUpdated", handler);
@@ -206,6 +218,23 @@ describe("dispatchServerEvent", () => {
           detail: { book: { id: 9 }, files: [{}], identifiers: [{}] },
           changedFields: ["files"],
         },
+      },
+    })).toThrow(/payload/i);
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("rejects bookUpdated changedFields with an unrecognized field name", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+
+    expect(() => dispatchServerEvent({
+      eventId: 25,
+      publishedAt: "2026-08-13T10:00:00Z",
+      scope: { kind: "library" },
+      event: {
+        type: "bookUpdated",
+        payload: { book: { id: 9 }, changedFields: ["somethingNew"] },
       },
     })).toThrow(/payload/i);
 

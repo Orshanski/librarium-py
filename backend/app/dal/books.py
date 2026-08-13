@@ -236,6 +236,10 @@ def book_exists(db: sqlite3.Connection, book_id: int) -> bool:
     return queries.book_exists(db, id=book_id) is not None
 
 
+def touch_book(db: sqlite3.Connection, book_id: int) -> None:
+    queries.touch_book(db, id=book_id)
+
+
 def book_file_exists(db: sqlite3.Connection, book_id: int, fmt: str) -> bool:
     return queries.book_file_exists(db, book_id=book_id, format=fmt) is not None
 

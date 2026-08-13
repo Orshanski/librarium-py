@@ -36,9 +36,9 @@ export interface Book {
 }
 
 /**
- * Detail-page book — card-level fields plus the 8 detail fields (description,
- * language, publisher, pubDate, tags, sortTitle, addedAt, updatedAt). Mirrors
- * backend BookDetailItem (BookCardItem subset preserved).
+ * Detail-page book — card-level fields plus the 8 detail fields (sortTitle,
+ * description, language, publisher, pubDate, addedAt, updatedAt, recapPath).
+ * Mirrors backend BookDetailItem (BookCardItem subset preserved).
  *
  * Note: `formats` (BookFormat[]) and `isbn` are NOT on BookDetail — they come
  * from sibling fields `files` / `identifiers` on the BookDetailResponse and
@@ -52,6 +52,7 @@ export interface BookDetail extends Book {
   pubDate: string | null;
   addedAt: string;
   updatedAt: string;
+  recapPath?: string | null;
 }
 
 export interface BookFileInfo {

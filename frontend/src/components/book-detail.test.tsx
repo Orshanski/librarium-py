@@ -362,3 +362,48 @@ describe("book-detail — mobile admin actions", () => {
     expect(screen.queryByRole("link", { name: "Ред." })).not.toBeInTheDocument();
   });
 });
+
+describe("book-detail — кнопка «О чём книга»", () => {
+  it("показывает кнопку «О чём книга» со ссылкой на рекап на десктопе", async () => {
+    renderBookDetail({ ...mockBook, recapPath: "/api/books/7/recap?t=1" });
+    const link = await screen.findByRole("link", { name: "О чём книга" });
+    expect(link).toHaveAttribute("href", "/book/7/recap");
+  });
+
+  it("показывает кнопку со ссылкой на рекап и в мобильной раскладке", async () => {
+    setupMobileViewport();
+    try {
+      renderBookDetail({ ...mockBook, recapPath: "/api/books/7/recap?t=1" });
+      const link = await screen.findByRole("link", { name: "О чём книга" });
+      expect(link).toHaveAttribute("href", "/book/7/recap");
+    } finally {
+      teardownViewport();
+    }
+  });
+
+  // Красный на неполной правке: кнопку нарисовали без условия по recapPath.
+  // Условие `book.recapPath &&` продублировано в двух файлах
+  // (desktop-book-detail.tsx и mobile-book-detail.tsx) — каждый тест ниже
+  // ловит пропажу условия именно в своём файле; десктопный тест не видит
+  // мобильную ветку и наоборот, поэтому оба нужны отдельно.
+  it("не показывает кнопку на десктопе, когда рекапа нет", async () => {
+    // Ждём именно обложку: в десктопной вёрстке название книги текстом не выводится,
+    // оно живёт в alt картинки — так же цепляются соседние тесты этого файла.
+    renderBookDetail({ ...mockBook, recapPath: null });
+    await screen.findByRole("img", { name: mockBook.title });
+    expect(screen.queryByText("О чём книга")).toBeNull();
+  });
+
+  it("не показывает кнопку на мобильном, когда рекапа нет", async () => {
+    setupMobileViewport();
+    try {
+      // Ждём заголовок книги: в мобильной вёрстке (в отличие от десктопной)
+      // название книги выводится текстом, а не только в alt обложки.
+      renderBookDetail({ ...mockBook, recapPath: null });
+      await screen.findByText(mockBook.title);
+      expect(screen.queryByText("О чём книга")).toBeNull();
+    } finally {
+      teardownViewport();
+    }
+  });
+});

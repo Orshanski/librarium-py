@@ -66,6 +66,7 @@ const BOOK_CHANGED_FIELDS = new Set<BookChangedField>([
   "read",
   "files",
   "identifiers",
+  "recap",
 ]);
 
 const cursorCriticalHandlers: {

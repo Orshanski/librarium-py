@@ -21,7 +21,8 @@ export type BookChangedField =
   | "rating"
   | "read"
   | "files"
-  | "identifiers";
+  | "identifiers"
+  | "recap";
 
 export type DomainEventMap = {
   bookUpdated: {

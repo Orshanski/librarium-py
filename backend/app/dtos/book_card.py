@@ -45,3 +45,4 @@ class BookDetailItem(BookCardItem):
     pub_date: str | None
     added_at: str
     updated_at: str
+    recap_path: str | None = None

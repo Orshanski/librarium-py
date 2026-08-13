@@ -28,6 +28,7 @@ const SearchPage = lazy(() => import("./pages/SearchPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const SimilarBooksPage = lazy(() => import("./pages/SimilarBooksPage"));
+const RecapPage = lazy(() => import("./pages/RecapPage"));
 const ReaderPage = lazy(() => import("./pages/ReaderPage"));
 
 function ShellLayout() {
@@ -112,6 +113,7 @@ export default function App() {
               <Route path="/book/:id" element={<BookPage />} />
               <Route path="/book/:id/edit" element={<ProtectedRoute adminOnly><BookEditPage /></ProtectedRoute>} />
               <Route path="/book/:id/similar" element={<SimilarBooksPage />} />
+              <Route path="/book/:id/recap" element={<RecapPage />} />
               <Route path="/authors" element={<AuthorsPage />} />
               <Route path="/authors/:id" element={<AuthorPage />} />
               <Route path="/series" element={<SeriesListPage />} />

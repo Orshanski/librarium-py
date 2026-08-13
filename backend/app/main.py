@@ -37,6 +37,7 @@ from .routers import upload as upload_router
 from .routers import similar as similar_router
 from .routers import reader as reader_router
 from .routers import events as events_router
+from .routers import recap as recap_router
 from . import events as events_module
 
 
@@ -121,6 +122,7 @@ app.include_router(upload_router.router)
 app.include_router(similar_router.router)
 app.include_router(reader_router.router)
 app.include_router(events_router.router)
+app.include_router(recap_router.router)
 
 # Static files (Vite build) — added last so API routes take priority
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
