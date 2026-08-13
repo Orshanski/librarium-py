@@ -140,6 +140,16 @@ export default function MobileBookDetail({
           formats={formats}
           readableFormats={MOBILE_READABLE_FORMATS}
         />
+        {book.recapPath && (
+          <BookActionButton
+            kind="link"
+            to={`/book/${book.id}/recap`}
+            state={bookContext}
+            variant="neutral"
+          >
+            О чём книга
+          </BookActionButton>
+        )}
         <BookShelfMenu bookId={book.id} compact={true} />
         <BookActionButton
           kind="link"

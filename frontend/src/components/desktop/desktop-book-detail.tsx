@@ -119,6 +119,16 @@ export default function DesktopBookDetail({
             readableFormats={DESKTOP_READABLE_FORMATS}
           />
           <BookShelfMenu bookId={book.id} compact={false} />
+          {book.recapPath && (
+            <BookActionButton
+              kind="link"
+              to={`/book/${book.id}/recap`}
+              state={bookContext}
+              variant="neutral"
+            >
+              О чём книга
+            </BookActionButton>
+          )}
           <BookActionButton
             kind="link"
             to={`/book/${book.id}/similar`}
