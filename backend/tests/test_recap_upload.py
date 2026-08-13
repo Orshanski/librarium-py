@@ -82,7 +82,13 @@ class TestRecapUpload:
         assert_error(anon_client.put("/api/books/2/recap", json=DOC), 401)
 
     def test_rejects_oversized_document(self, reader_client):
-        with patch("app.services.recap_service.MAX_RECAP_SIZE", 100):
+        # Предел меряется в БАЙТАХ, а не в символах: ставим его чуть выше длины
+        # документа в символах — кириллица даёт по два байта, поэтому в байтах
+        # документ предел превышает, а в символах нет. Посимвольная проверка
+        # (len(body) вместо len(body.encode())) на таком пределе пропустит
+        # документ и тест покраснеет.
+        limit = len(json.dumps(DOC, ensure_ascii=False)) + 5
+        with patch("app.services.recap_service.MAX_RECAP_SIZE", limit):
             resp = reader_client.put("/api/books/2/recap", json=DOC)
         assert_error(resp, 400)
 
