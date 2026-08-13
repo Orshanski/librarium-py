@@ -52,6 +52,7 @@ export interface BookDetail extends Book {
   pubDate: string | null;
   addedAt: string;
   updatedAt: string;
+  recapPath?: string | null;
 }
 
 export interface BookFileInfo {

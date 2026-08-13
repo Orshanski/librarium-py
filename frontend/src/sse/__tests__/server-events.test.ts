@@ -177,6 +177,18 @@ describe("dispatchServerEvent", () => {
     });
   });
 
+  it("принимает событие о заливке рекапа", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+    dispatchServerEvent({
+      eventId: 1,
+      publishedAt: "2026-08-13T10:00:00Z",
+      scope: { kind: "library" },
+      event: { type: "bookUpdated", payload: { book: { id: 42 }, changedFields: ["recap"] } },
+    });
+    expect(handler).toHaveBeenCalledWith({ book: { id: 42 }, changedFields: ["recap"] });
+  });
+
   it("rejects server bookUpdated detail before publishing", () => {
     const handler = vi.fn();
     domainEvents.subscribe("bookUpdated", handler);
