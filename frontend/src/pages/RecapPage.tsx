@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
 import LoadFailureNotice from "../components/load-failure-notice";
@@ -9,7 +9,7 @@ import RecapDocumentView, {
   recapSectionAnchorId,
 } from "../components/recap-document";
 import { readOriginFromState } from "../components/breadcrumb-origin";
-import { colors, layout } from "../theme";
+import { colors, fonts, layout } from "../theme";
 import { useIsMobile } from "../responsive";
 import { getBook } from "../api/endpoints/books";
 import { fetchRecap, type RecapDocument } from "../api/endpoints/recap";
@@ -241,6 +241,53 @@ export default function RecapPage() {
     <>
       <PageHeader title="О чём книга" breadcrumb={crumb} />
 
+      <div
+        style={{
+          display: "flex",
+          gap: isMobile ? 12 : 20,
+          alignItems: "flex-start",
+          marginBottom: isMobile ? 20 : 32,
+          paddingBottom: isMobile ? 16 : 28,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
+        <img
+          src={`/api/covers/${book.id}?full=1`}
+          alt={book.title}
+          style={{
+            width: isMobile ? 56 : 80,
+            borderRadius: 4,
+            border: "1px solid rgba(255,255,255,0.12)",
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ minWidth: 0 }}>
+          <h1
+            style={{
+              fontFamily: fonts.display,
+              fontSize: isMobile ? 20 : 26,
+              fontWeight: 600,
+              lineHeight: 1.2,
+              marginBottom: 4,
+            }}
+          >
+            О чём книга
+          </h1>
+          <div style={{ fontSize: isMobile ? 12 : 14, color: colors.textSecondary, marginBottom: 12 }}>
+            по книге{" "}
+            <Link to={`/book/${id}`} style={{ color: colors.text, textDecoration: "none", fontWeight: 500 }}>
+              {book.title}
+            </Link>
+            {book.authors && book.authors.length > 0 && (
+              <span> — {book.authors.map((a) => a.name).join(", ")}</span>
+            )}
+          </div>
+          <div style={{ fontSize: isMobile ? 11 : 14, color: colors.textDim, lineHeight: 1.5 }}>
+            Пересказ всей книги, включая финал
+          </div>
+        </div>
+      </div>
+
       {!recapPath && (
         <div style={{ textAlign: "center", padding: 48, color: colors.textDim }}>Рекап не найден</div>
       )}
@@ -322,25 +369,7 @@ export default function RecapPage() {
             )}
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              margin: "18px 0 26px",
-              padding: "10px 14px",
-              background: "rgba(255, 255, 255, 0.035)",
-              borderLeft: "2px solid rgba(249, 190, 3, 0.5)",
-              borderRadius: "0 6px 6px 0",
-              fontSize: 12.5,
-              color: colors.textDim,
-            }}
-          >
-            <span>⚠</span>
-            <span>Пересказ всей книги, включая финал</span>
-          </div>
-
-          <div style={{ display: "flex", gap: 36, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 36, alignItems: "flex-start", marginTop: 26 }}>
             {!isMobile && (
               <TableOfContents
                 caption={tab === "recap" ? "Разделы" : "Части"}
