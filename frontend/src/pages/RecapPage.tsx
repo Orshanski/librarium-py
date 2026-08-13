@@ -28,12 +28,15 @@ function TableOfContents({
   entries,
   activeIndex,
   isMobile,
+  stickyTop,
   onJump,
 }: Readonly<{
   caption: string;
   entries: TocEntry[];
   activeIndex: number;
   isMobile: boolean;
+  /** Отступ сверху для закрепления: высота шапки страницы плюс полосы вкладок. */
+  stickyTop?: number;
   onJump: (index: number) => void;
 }>) {
   if (isMobile) {
@@ -73,7 +76,17 @@ function TableOfContents({
   }
 
   return (
-    <nav aria-label={caption} style={{ width: 196, flexShrink: 0 }}>
+    <nav
+      aria-label={caption}
+      style={{
+        width: 196,
+        flexShrink: 0,
+        // Оглавление не уезжает с текстом: липнет под закреплённой полосой вкладок.
+        position: "sticky",
+        top: stickyTop ?? 0,
+        alignSelf: "flex-start",
+      }}
+    >
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: colors.textDim, marginBottom: 10 }}>
         {caption}
       </div>
@@ -376,6 +389,7 @@ export default function RecapPage() {
                 entries={tocEntries}
                 activeIndex={activeIndex}
                 isMobile={false}
+                stickyTop={stickyHeight + 14}
                 onJump={(index) => jumpTo(index, tab === "recap" ? "sec" : "part")}
               />
             )}
