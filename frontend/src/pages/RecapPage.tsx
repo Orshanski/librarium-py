@@ -194,11 +194,17 @@ export default function RecapPage() {
     setActiveIndex(0);
   }, [tab, doc]);
 
+  // Пока идёт плавная прокрутка к выбранному разделу, пересчёт по прокрутке
+  // молчит: иначе он сразу же перебивает выбор человека тем разделом, который
+  // виден в этот момент, и подсветка возвращается на прежнее место.
+  const jumpUntilRef = useRef(0);
+
   useEffect(() => {
     const container = stickyRef.current?.closest("main");
     if (!container) return undefined;
     const edge = stickyHeight + 30;
     const update = () => {
+      if (performance.now() < jumpUntilRef.current) return;
       const containerTop = container.getBoundingClientRect().top;
       let current = 0;
       sectionRefs.current.forEach((el, index) => {
@@ -215,8 +221,9 @@ export default function RecapPage() {
 
   const jumpTo = (index: number, prefix: "sec" | "part") => {
     const anchorId = prefix === "sec" ? recapSectionAnchorId(index) : recapPartAnchorId(index);
-    document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    jumpUntilRef.current = performance.now() + 1000;
     setActiveIndex(index);
+    document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const origin = readOriginFromState(location.state);
