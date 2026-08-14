@@ -151,14 +151,12 @@ function SectionBody({ section, isMobile }: Readonly<{ section: RecapSection; is
 export interface RecapDocumentViewProps {
   sections: RecapSection[];
   isMobile: boolean;
-  registerSectionRef?: (index: number, el: HTMLElement | null) => void;
 }
 
 /** Вкладка «Кратко»: разделы рекапа, разбор по виду раздела. */
 export default function RecapDocumentView({
   sections,
   isMobile,
-  registerSectionRef,
 }: Readonly<RecapDocumentViewProps>) {
   return (
     <>
@@ -166,7 +164,6 @@ export default function RecapDocumentView({
         <section
           key={i}
           id={recapSectionAnchorId(i)}
-          ref={(el) => registerSectionRef?.(i, el)}
           style={{ marginBottom: isMobile ? 30 : 40, scrollMarginTop: 90 }}
         >
           <h2 style={sectionTitleStyle(isMobile)}>{section.title}</h2>
@@ -180,18 +177,16 @@ export default function RecapDocumentView({
 export interface RecapRetellViewProps {
   parts: RecapPart[];
   isMobile: boolean;
-  registerSectionRef?: (index: number, el: HTMLElement | null) => void;
 }
 
 /** Вкладка «Подробно»: пронумерованные части полного пересказа. */
-export function RecapRetellView({ parts, isMobile, registerSectionRef }: Readonly<RecapRetellViewProps>) {
+export function RecapRetellView({ parts, isMobile }: Readonly<RecapRetellViewProps>) {
   return (
     <>
       {parts.map((part, i) => (
         <section
           key={i}
           id={recapPartAnchorId(i)}
-          ref={(el) => registerSectionRef?.(i, el)}
           style={{ display: "flex", gap: 18, marginBottom: isMobile ? 24 : 30, scrollMarginTop: 90 }}
         >
           <div style={{ width: 52, flexShrink: 0, textAlign: "right", paddingTop: 2 }}>

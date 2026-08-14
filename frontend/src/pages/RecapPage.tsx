@@ -39,6 +39,15 @@ function TableOfContents({
   stickyTop?: number;
   onJump: (index: number) => void;
 }>) {
+  // На телефоне пункты идут лентой в один ряд, и подсвеченный уезжает за край
+  // экрана вслед за прокруткой текста. Подтягиваем его обратно на глаза —
+  // иначе подсветка есть, а видно её не всегда. На десктопе колонка стоит
+  // целиком, и ссылка ниже ни к чему не привязана.
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeIndex]);
+
   if (isMobile) {
     return (
       <nav
@@ -54,6 +63,7 @@ function TableOfContents({
           <button
             key={entry.index}
             type="button"
+            ref={activeIndex === entry.index ? activeRef : null}
             onClick={() => onJump(entry.index)}
             style={{
               flexShrink: 0,
@@ -181,24 +191,23 @@ export default function RecapPage() {
     return () => observer.disconnect();
   });
 
-  // Подсветка текущего раздела при прокрутке: сравниваем верх каждого раздела
-  // с нижней кромкой закреплённой полосы внутри скролл-контейнера страницы.
-  const sectionRefs = useRef<Map<number, HTMLElement>>(new Map());
-  const registerSectionRef = (index: number, el: HTMLElement | null) => {
-    if (el) sectionRefs.current.set(index, el);
-    else sectionRefs.current.delete(index);
-  };
-
-  useEffect(() => {
-    sectionRefs.current = new Map();
-    setActiveIndex(0);
-  }, [tab, doc]);
-
   // Пока идёт плавная прокрутка к выбранному разделу, пересчёт по прокрутке
   // молчит: иначе он сразу же перебивает выбор человека тем разделом, который
   // виден в этот момент, и подсветка возвращается на прежнее место.
   const jumpUntilRef = useRef(0);
 
+  const anchorId = (index: number) => (
+    tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index)
+  );
+  const sectionCount = doc
+    ? (tab === "recap" ? doc.recap.sections.length : doc.retell.parts.length)
+    : 0;
+
+  // Подсветка текущего раздела при прокрутке: сравниваем верх каждого раздела
+  // с нижней кромкой закреплённой полосы внутри скролл-контейнера страницы.
+  // Разделы берём из документа по их якорям в момент пересчёта и нигде не
+  // храним: хранимый список успевал устареть — переключение вкладки оставляло
+  // его пустым, и подсветка навсегда замирала на первом пункте.
   useEffect(() => {
     const container = stickyRef.current?.closest("main");
     if (!container) return undefined;
@@ -207,23 +216,23 @@ export default function RecapPage() {
       if (performance.now() < jumpUntilRef.current) return;
       const containerTop = container.getBoundingClientRect().top;
       let current = 0;
-      sectionRefs.current.forEach((el, index) => {
-        if (el.getBoundingClientRect().top - containerTop < edge) {
+      for (let index = 0; index < sectionCount; index++) {
+        const el = document.getElementById(anchorId(index));
+        if (el && el.getBoundingClientRect().top - containerTop < edge) {
           current = Math.max(current, index);
         }
-      });
+      }
       setActiveIndex(current);
     };
     update();
     container.addEventListener("scroll", update);
     return () => container.removeEventListener("scroll", update);
-  }, [stickyHeight, tab, doc]);
+  }, [stickyHeight, tab, doc, sectionCount]);
 
-  const jumpTo = (index: number, prefix: "sec" | "part") => {
-    const anchorId = prefix === "sec" ? recapSectionAnchorId(index) : recapPartAnchorId(index);
+  const jumpTo = (index: number) => {
     jumpUntilRef.current = performance.now() + 1000;
     setActiveIndex(index);
-    document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(anchorId(index))?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const origin = readOriginFromState(location.state);
@@ -384,7 +393,7 @@ export default function RecapPage() {
                 entries={tocEntries}
                 activeIndex={activeIndex}
                 isMobile
-                onJump={(index) => jumpTo(index, tab === "recap" ? "sec" : "part")}
+                onJump={jumpTo}
               />
             )}
           </div>
@@ -397,22 +406,14 @@ export default function RecapPage() {
                 activeIndex={activeIndex}
                 isMobile={false}
                 stickyTop={stickyHeight + 14}
-                onJump={(index) => jumpTo(index, tab === "recap" ? "sec" : "part")}
+                onJump={jumpTo}
               />
             )}
             <div style={{ flex: 1, maxWidth: 640, minWidth: 0 }}>
               {tab === "recap" ? (
-                <RecapDocumentView
-                  sections={doc.recap.sections}
-                  isMobile={isMobile}
-                  registerSectionRef={registerSectionRef}
-                />
+                <RecapDocumentView sections={doc.recap.sections} isMobile={isMobile} />
               ) : (
-                <RecapRetellView
-                  parts={doc.retell.parts}
-                  isMobile={isMobile}
-                  registerSectionRef={registerSectionRef}
-                />
+                <RecapRetellView parts={doc.retell.parts} isMobile={isMobile} />
               )}
             </div>
           </div>
