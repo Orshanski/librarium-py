@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, within, fireEvent } from "@testing-library/react";
+import { screen, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
@@ -58,11 +58,7 @@ const ACCENT = (() => {
   return probe.style.color;
 })();
 
-/**
- * Верх элемента в окне. Контейнер страницы в jsdom лежит в нуле, поэтому
- * значение читается как расстояние от его верхней кромки: отрицательное —
- * раздел уже ушёл вверх за пределы экрана.
- */
+/** Раскладки в jsdom нет — верх элемента в окне задаётся вручную. */
 function rectWithTop(top: number): DOMRect {
   return {
     top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top,
@@ -74,12 +70,25 @@ function placeAt(el: Element, top: number) {
   Object.defineProperty(el, "getBoundingClientRect", { configurable: true, value: () => rectWithTop(top) });
 }
 
+/**
+ * Верхи разделов относительно верхней кромки контейнера страницы, который в
+ * jsdom лежит в нуле, пока тест не сказал иначе: отрицательное значение —
+ * раздел уже ушёл вверх за пределы экрана.
+ */
 function placeSections(prefix: "sec" | "part", tops: number[]) {
   tops.forEach((top, index) => {
     const el = document.getElementById(`recap-${prefix}-${index}`);
     if (!el) throw new Error(`нет раздела recap-${prefix}-${index}`);
     placeAt(el, top);
   });
+}
+
+/**
+ * Ждём, пока выполнятся отложенные эффекты: подписка на прокрутку живёт в
+ * эффекте, а появление оглавления в разметке её ещё не гарантирует.
+ */
+async function flushEffects() {
+  await act(async () => { await Promise.resolve(); });
 }
 
 function activeTocLabel(toc: HTMLElement): string | null {
@@ -158,6 +167,7 @@ describe("RecapPage", () => {
   it("ведёт подсветку за прокруткой текста", async () => {
     renderPage();
     const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    await flushEffects();
     // Верх второго раздела ушёл выше кромки полосы вкладок, третий ещё под ней.
     placeSections("sec", [-500, 10, 800]);
     fireEvent.scroll(mainEl!);
@@ -170,6 +180,7 @@ describe("RecapPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
     const toc = await screen.findByRole("navigation", { name: "Части" });
     await screen.findByText("Часть третья, абзац");
+    await flushEffects();
     placeSections("part", [-900, -400, 10]);
     fireEvent.scroll(mainEl!);
     expect(activeTocLabel(toc)).toBe("Часть 3");
@@ -184,6 +195,7 @@ describe("RecapPage", () => {
     const now = vi.spyOn(performance, "now").mockReturnValue(0);
     renderPage();
     const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    await flushEffects();
     await userEvent.click(within(toc).getByText("Что осталось открытым"));
     // Прокрутка, начавшаяся по дороге к выбранному разделу, показывает пока
     // ещё первый раздел — подсветка не должна отскакивать к нему.
@@ -227,8 +239,9 @@ describe("RecapPage", () => {
       // прокруткой текста: без подтягивания подсветка есть, а видно её не всегда.
       renderPage();
       const toc = await screen.findByRole("navigation", { name: "Разделы" });
-      // Раскладки в jsdom нет — задаём её: в ленту шириной 200 видно только
-      // первый пункт, второй начинается за правым краем.
+      await flushEffects();
+      // Раскладки в jsdom нет — задаём её: в ленту шириной 200 второй пункт
+      // (150…290) целиком не помещается.
       Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
       within(toc).getAllByRole("button").forEach((item, index) => {
         Object.defineProperty(item, "offsetLeft", { configurable: true, value: index * 150 });
@@ -244,11 +257,13 @@ describe("RecapPage", () => {
     });
 
     it("возвращает ленту к началу, когда вкладка сменилась", async () => {
-      // Пункты меняются целиком, а лента — тот же узел и держит своё положение:
-      // без пересчёта на смену вкладки подсвеченная «Часть 1» осталась бы за
-      // левым краем у того, кто перед этим листал ленту рукой.
+      // Оглавление заводится заново на каждой вкладке, поэтому лента приходит
+      // в начало сама. Тест краснеет, если вкладки вернутся к общему узлу:
+      // тогда лента останется отмотанной с прошлой, а подсвеченная «Часть 1»
+      // окажется за левым краем у того, кто перед этим листал её рукой.
       renderPage();
       const toc = await screen.findByRole("navigation", { name: "Разделы" });
+      await flushEffects();
       Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
       // Текст в самом начале — верх контейнера выше любого раздела, поэтому
       // подсвечен первый пункт и на другой вкладке он тоже первый. Значит

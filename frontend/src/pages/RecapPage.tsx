@@ -179,6 +179,7 @@ export default function RecapPage() {
   useEffect(() => {
     if (!recapPath) {
       setDoc(null);
+      setActiveIndex(0);
       setDocLoading(false);
       return undefined;
     }
@@ -189,6 +190,10 @@ export default function RecapPage() {
       .then((data) => {
         if (controller.signal.aborted) return;
         setDoc(data);
+        // Другая книга — другой документ, и прежний пункт к нему отношения не
+        // имеет. Сброс висит на самой смене документа по той же причине, что и
+        // на смене вкладки ниже.
+        setActiveIndex(0);
         setDocLoading(false);
       })
       .catch((err: unknown) => {
@@ -203,9 +208,10 @@ export default function RecapPage() {
   // высоту, чтобы оглавление слева знало, где ему прилипать под ней.
   const stickyRef = useRef<HTMLDivElement | null>(null);
   const [stickyHeight, setStickyHeight] = useState(0);
-  // No dependency array on purpose: unlike PageHeader's header element, this
-  // sticky wrapper only exists once `doc` has loaded, so the effect must
-  // re-run on every render to catch the ref becoming available.
+  // Массива зависимостей нет намеренно: в отличие от шапки страницы, эта
+  // закреплённая обёртка появляется только после загрузки документа, поэтому
+  // эффект обязан идти на каждую отрисовку — иначе он пропустит момент, когда
+  // ссылка на неё наконец появится.
   useEffect(() => {
     const el = stickyRef.current;
     if (!el) return undefined;
@@ -224,17 +230,12 @@ export default function RecapPage() {
   // Новая вкладка начинается с первого пункта: выбор раздела включает секунду
   // тишины, и переключение внутри неё оставило бы подсветку на пункте прошлой
   // вкладки — где его может и не быть. Сброс висит на самой смене вкладки, как
-  // в нативе (RecapModel, didSet у tab): будь он отдельным эффектом, работал бы
-  // только пока стоит выше пересчёта, а эта связь ничем не держится.
+  // в нативе (RecapModel, didSet у tab): отдельным эффектом он работал бы,
+  // только пока объявлен выше пересчёта, а эта связь ничем не держится.
   const switchTab = (next: Tab) => {
     setTab(next);
     setActiveIndex(0);
   };
-
-  // Другая книга — другой документ, и прежний пункт к нему отношения не имеет.
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [doc]);
 
   // Подсветка текущего раздела при прокрутке: сравниваем верх каждого раздела
   // с нижней кромкой закреплённой полосы внутри скролл-контейнера страницы.
