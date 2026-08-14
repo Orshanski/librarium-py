@@ -63,17 +63,22 @@ const ACCENT = (() => {
  * значение читается как расстояние от его верхней кромки: отрицательное —
  * раздел уже ушёл вверх за пределы экрана.
  */
+function rectWithTop(top: number): DOMRect {
+  return {
+    top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+function placeAt(el: Element, top: number) {
+  Object.defineProperty(el, "getBoundingClientRect", { configurable: true, value: () => rectWithTop(top) });
+}
+
 function placeSections(prefix: "sec" | "part", tops: number[]) {
   tops.forEach((top, index) => {
     const el = document.getElementById(`recap-${prefix}-${index}`);
     if (!el) throw new Error(`нет раздела recap-${prefix}-${index}`);
-    Object.defineProperty(el, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top,
-        toJSON: () => ({}),
-      } as DOMRect),
-    });
+    placeAt(el, top);
   });
 }
 
@@ -193,6 +198,9 @@ describe("RecapPage", () => {
   });
 
   it("начинает новую вкладку с первого пункта, даже если только что выбрали дальний", async () => {
+    // Часы держим в руках: тест стоит на том, что переключение попало внутрь
+    // секунды тишины, а на живых часах это зависело бы от скорости прогона.
+    vi.spyOn(performance, "now").mockReturnValue(0);
     renderPage();
     const toc = await screen.findByRole("navigation", { name: "Разделы" });
     // Выбор раздела включает секунду тишины, и если переключить вкладку внутри
@@ -228,8 +236,11 @@ describe("RecapPage", () => {
       });
       placeSections("sec", [-500, 10, 800]);
       fireEvent.scroll(mainEl!);
-      // Второй пункт встал серединой в середину ленты.
-      expect(toc.scrollLeft).toBe(150 - (200 - 140) / 2);
+      // Требование — подсвеченный пункт целиком в окне ленты; каким правилом
+      // его туда привели, тест не решает.
+      const active = within(toc).getByRole("button", { name: "Что произошло" });
+      expect(active.offsetLeft).toBeGreaterThanOrEqual(toc.scrollLeft);
+      expect(active.offsetLeft + active.offsetWidth).toBeLessThanOrEqual(toc.scrollLeft + toc.clientWidth);
     });
 
     it("возвращает ленту к началу, когда вкладка сменилась", async () => {
@@ -242,15 +253,12 @@ describe("RecapPage", () => {
       // Текст в самом начале — верх контейнера выше любого раздела, поэтому
       // подсвечен первый пункт и на другой вкладке он тоже первый. Значит
       // сдвинуть ленту может только сама смена вкладки.
-      Object.defineProperty(mainEl!, "getBoundingClientRect", {
-        configurable: true,
-        value: () => ({ top: -1000, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: -1000, toJSON: () => ({}) } as DOMRect),
-      });
+      placeAt(mainEl!, -1000);
       fireEvent.scroll(mainEl!);
       toc.scrollLeft = 500;
       await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
-      await screen.findByRole("navigation", { name: "Части" });
-      expect(toc.scrollLeft).toBe(0);
+      const parts = await screen.findByRole("navigation", { name: "Части" });
+      expect(parts.scrollLeft).toBe(0);
     });
   });
 

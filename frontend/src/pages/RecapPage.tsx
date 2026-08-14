@@ -23,6 +23,11 @@ interface TocEntry {
   label: string;
 }
 
+/** Якорь раздела вкладки: по нему идут и переход по оглавлению, и пересчёт подсветки. */
+function anchorIdFor(tab: Tab, index: number): string {
+  return tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index);
+}
+
 function TableOfContents({
   caption,
   entries,
@@ -43,10 +48,8 @@ function TableOfContents({
   // экрана вслед за прокруткой текста. Подтягиваем его обратно на глаза —
   // иначе подсветка есть, а видно её не всегда. Двигаем саму ленту, а не зовём
   // scrollIntoView: тот приводит элемент в вид у каждого прокручиваемого
-  // предка, то есть трогал бы и страницу целиком. Заголовок в зависимостях —
-  // ради смены вкладки: пункты меняются, а лента остаётся отмотанной там, где
-  // её оставили. На десктопе колонка стоит целиком, и ссылки ниже ни к чему не
-  // привязаны.
+  // предка, то есть трогал бы и страницу целиком. На десктопе колонка стоит
+  // целиком, и ссылки ниже ни к чему не привязаны.
   const stripRef = useRef<HTMLElement | null>(null);
   const activeRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
@@ -57,9 +60,15 @@ function TableOfContents({
     // самого, а не от текущей прокрутки: повторный пересчёт тогда ничего не
     // сдвигает, и лента не зависит от того, сколько раз он случился. Правый
     // край браузер ограничит сам.
+    //
+    // Отсчёт — от левого края содержимого ленты, в той же системе, что и её
+    // scrollLeft: лента объявлена позиционированной (`position: relative`
+    // ниже) и потому сама служит началом отсчёта для своих пунктов. Без этого
+    // отсчёт шёл бы от закреплённой обёртки и тянул бы за собой её боковой
+    // отступ.
     const centered = item.offsetLeft - (strip.clientWidth - item.offsetWidth) / 2;
     strip.scrollLeft = Math.max(0, centered);
-  }, [activeIndex, caption]);
+  }, [activeIndex]);
 
   if (isMobile) {
     return (
@@ -67,6 +76,8 @@ function TableOfContents({
         aria-label={caption}
         ref={stripRef}
         style={{
+          // Лента — начало отсчёта для своих пунктов (см. подтягивание выше).
+          position: "relative",
           display: "flex",
           gap: 6,
           overflowX: "auto",
@@ -210,17 +221,20 @@ export default function RecapPage() {
   // виден в этот момент, и подсветка возвращается на прежнее место.
   const jumpUntilRef = useRef(0);
 
-  const anchorId = (index: number) => (
-    tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index)
-  );
-
   // Новая вкладка начинается с первого пункта: выбор раздела включает секунду
   // тишины, и переключение внутри неё оставило бы подсветку на пункте прошлой
-  // вкладки — где его может и не быть. Пересчёт ниже сразу уточнит значение по
-  // тому, что видно на экране.
+  // вкладки — где его может и не быть. Сброс висит на самой смене вкладки, как
+  // в нативе (RecapModel, didSet у tab): будь он отдельным эффектом, работал бы
+  // только пока стоит выше пересчёта, а эта связь ничем не держится.
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    setActiveIndex(0);
+  };
+
+  // Другая книга — другой документ, и прежний пункт к нему отношения не имеет.
   useEffect(() => {
     setActiveIndex(0);
-  }, [tab, doc]);
+  }, [doc]);
 
   // Подсветка текущего раздела при прокрутке: сравниваем верх каждого раздела
   // с нижней кромкой закреплённой полосы внутри скролл-контейнера страницы.
@@ -232,15 +246,15 @@ export default function RecapPage() {
     if (!container) return undefined;
     const edge = stickyHeight + 30;
     const count = doc ? (tab === "recap" ? doc.recap.sections.length : doc.retell.parts.length) : 0;
-    const idOf = (index: number) => (
-      tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index)
-    );
+    // Обход только читает геометрию — записей между чтениями нет, поэтому
+    // браузер верстает один раз на весь проход и копить пересчёты по кадрам не
+    // требуется. Появится здесь запись в раскладку — это перестанет быть верно.
     const update = () => {
       if (performance.now() < jumpUntilRef.current) return;
       const containerTop = container.getBoundingClientRect().top;
       let current = 0;
       for (let index = 0; index < count; index++) {
-        const el = document.getElementById(idOf(index));
+        const el = document.getElementById(anchorIdFor(tab, index));
         // Разделы идут по порядку сверху вниз, поэтому подходящий последний и
         // есть текущий.
         if (el && el.getBoundingClientRect().top - containerTop < edge) current = index;
@@ -255,7 +269,7 @@ export default function RecapPage() {
   const jumpTo = (index: number) => {
     jumpUntilRef.current = performance.now() + 1000;
     setActiveIndex(index);
-    document.getElementById(anchorId(index))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(anchorIdFor(tab, index))?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const origin = readOriginFromState(location.state);
@@ -367,7 +381,7 @@ export default function RecapPage() {
             <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${colors.border}` }}>
               <button
                 type="button"
-                onClick={() => setTab("recap")}
+                onClick={() => switchTab("recap")}
                 style={{
                   flex: isMobile ? 1 : undefined,
                   padding: isMobile ? "11px 4px" : "10px 18px",
@@ -386,7 +400,7 @@ export default function RecapPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTab("retell")}
+                onClick={() => switchTab("retell")}
                 style={{
                   flex: isMobile ? 1 : undefined,
                   padding: isMobile ? "11px 4px" : "10px 18px",
@@ -412,6 +426,9 @@ export default function RecapPage() {
 
             {isMobile && (
               <TableOfContents
+                // Другая вкладка — другое оглавление: лента заводится заново и
+                // не остаётся отмотанной там, где её оставили на прошлой.
+                key={tab}
                 caption={tab === "recap" ? "Разделы" : "Части"}
                 entries={tocEntries}
                 activeIndex={activeIndex}
@@ -424,6 +441,7 @@ export default function RecapPage() {
           <div style={{ display: "flex", gap: 36, alignItems: "flex-start", marginTop: 26 }}>
             {!isMobile && (
               <TableOfContents
+                key={tab}
                 caption={tab === "recap" ? "Разделы" : "Части"}
                 entries={tocEntries}
                 activeIndex={activeIndex}
