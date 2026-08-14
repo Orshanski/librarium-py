@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, within } from "@testing-library/react";
+import { screen, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
+import { setupMobileViewport, teardownViewport } from "@/test/mobile-viewport";
 import { metadataCache } from "@/cache";
+import { colors } from "@/theme";
 import RecapPage from "./RecapPage";
 
 const DOC = {
@@ -22,7 +24,11 @@ const DOC = {
       episodes: [{ title: "Гибель Ректона", paragraphs: ["Кип собирает люксин"] }] },
     { title: "Что осталось открытым", kind: "list", items: ["**Гэвин умирает.** Потеря цветов"] },
   ] },
-  retell: { parts: [{ number: 1, paragraphs: ["Часть первая, абзац"] }] },
+  retell: { parts: [
+    { number: 1, paragraphs: ["Часть первая, абзац"] },
+    { number: 2, paragraphs: ["Часть вторая, абзац"] },
+    { number: 3, paragraphs: ["Часть третья, абзац"] },
+  ] },
 };
 
 const BOOK = {
@@ -31,11 +37,66 @@ const BOOK = {
   tags: [], recapPath: "/api/books/42/recap?t=1",
 };
 
+let mainEl: HTMLElement | null = null;
+
 function renderPage() {
+  // Пересчёт подсветки слушает прокрутку контейнера страницы и ищет его как
+  // ближайший <main> над собой — как в оболочках desktop-shell и mobile-shell.
+  // Поэтому в тесте страница живёт внутри такого же <main>.
+  mainEl = document.createElement("main");
+  document.body.appendChild(mainEl);
   return renderWithProviders(
     <Routes><Route path="/book/:id/recap" element={<RecapPage />} /></Routes>,
-    { initialEntries: ["/book/42/recap"] },
+    { initialEntries: ["/book/42/recap"], container: mainEl },
   );
+}
+
+/** Нормализованный вид акцентного цвета: сравнивать с ним, а не с записью темы. */
+const ACCENT = (() => {
+  const probe = document.createElement("div");
+  probe.style.color = colors.accent;
+  return probe.style.color;
+})();
+
+/** Раскладки в jsdom нет — верх элемента в окне задаётся вручную. */
+function rectWithTop(top: number): DOMRect {
+  return {
+    top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+function placeAt(el: Element, top: number) {
+  Object.defineProperty(el, "getBoundingClientRect", { configurable: true, value: () => rectWithTop(top) });
+}
+
+/**
+ * Верхи разделов относительно верхней кромки контейнера страницы, который в
+ * jsdom лежит в нуле, пока тест не сказал иначе: отрицательное значение —
+ * раздел уже ушёл вверх за пределы экрана.
+ */
+function placeSections(prefix: "sec" | "part", tops: number[]) {
+  tops.forEach((top, index) => {
+    const el = document.getElementById(`recap-${prefix}-${index}`);
+    if (!el) throw new Error(`нет раздела recap-${prefix}-${index}`);
+    placeAt(el, top);
+  });
+}
+
+/**
+ * Ждём, пока выполнятся отложенные эффекты: подписка на прокрутку живёт в
+ * эффекте, а появление оглавления в разметке её ещё не гарантирует. Ожидание
+ * появления узла резолвится своей задачей, эффекты React сбрасывает другой, и
+ * порядок этих двух задач не определён — без явного сброса примерно один
+ * прогон из восьми диспатчил прокрутку в пустоту.
+ */
+async function flushEffects() {
+  await act(async () => { await Promise.resolve(); });
+}
+
+function activeTocLabel(toc: HTMLElement): string | null {
+  const active = within(toc).getAllByRole("link").find((el) => el.style.color === ACCENT);
+  return active?.textContent ?? null;
 }
 
 describe("RecapPage", () => {
@@ -46,6 +107,14 @@ describe("RecapPage", () => {
       http.get("/api/books/42", () => HttpResponse.json({ book: BOOK, files: [], identifiers: [] })),
       http.get("/api/books/42/recap", () => HttpResponse.json(DOC)),
     );
+  });
+
+  afterEach(() => {
+    mainEl?.remove();
+    mainEl = null;
+    // Подмены живут до конца файла, если их не снять: следующий тест получил бы
+    // чужие часы и чужую раскладку.
+    vi.restoreAllMocks();
   });
 
   it("показывает всех персонажей плитками", async () => {
@@ -96,6 +165,121 @@ describe("RecapPage", () => {
     })));
     renderPage();
     expect(await screen.findByText(/Кто-то что-то сделал/)).toBeInTheDocument();
+  });
+
+  it("ведёт подсветку за прокруткой текста", async () => {
+    renderPage();
+    const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    await flushEffects();
+    // Верх второго раздела ушёл выше кромки полосы вкладок, третий ещё под ней.
+    // Стартовое состояние — не первый раздел: у неподменённых разделов верхи
+    // нулевые, то есть все считаются пройденными, и подсвечен последний.
+    placeSections("sec", [-500, 10, 800]);
+    fireEvent.scroll(mainEl!);
+    expect(activeTocLabel(toc)).toBe("Что произошло");
+  });
+
+  it("ведёт подсветку за прокруткой и после переключения вкладки", async () => {
+    renderPage();
+    await screen.findByText("Кип");
+    await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
+    const toc = await screen.findByRole("navigation", { name: "Части" });
+    await screen.findByText("Часть третья, абзац");
+    await flushEffects();
+    placeSections("part", [-900, -400, 10]);
+    fireEvent.scroll(mainEl!);
+    expect(activeTocLabel(toc)).toBe("Часть 3");
+  });
+
+  it("оставляет подсветку на выбранном разделе, пока идёт переход к нему", async () => {
+    // Тест красен на неполной версии правки: пересчёт по разделам из документа
+    // есть, а секунды тишины после выбора нет — тогда первая же прокрутка по
+    // дороге к разделу возвращает подсветку на тот, что виден в этот момент.
+    // Часы держим в руках: иначе граница тишины зависела бы от того, за сколько
+    // прогон дошёл от щелчка до прокрутки.
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    renderPage();
+    const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    await flushEffects();
+    await userEvent.click(within(toc).getByText("Что осталось открытым"));
+    // Прокрутка, начавшаяся по дороге к выбранному разделу, показывает пока
+    // ещё первый раздел — подсветка не должна отскакивать к нему.
+    placeSections("sec", [10, 800, 1600]);
+    fireEvent.scroll(mainEl!);
+    expect(activeTocLabel(toc)).toBe("Что осталось открытым");
+
+    // Тишина кончилась — подсветка снова слушается прокрутки.
+    now.mockReturnValue(2000);
+    fireEvent.scroll(mainEl!);
+    expect(activeTocLabel(toc)).toBe("Кто есть кто");
+  });
+
+  it("начинает новую вкладку с первого пункта, даже если только что выбрали дальний", async () => {
+    // Часы держим в руках: тест стоит на том, что переключение попало внутрь
+    // секунды тишины, а на живых часах это зависело бы от скорости прогона.
+    vi.spyOn(performance, "now").mockReturnValue(0);
+    renderPage();
+    const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    // Выбор раздела включает секунду тишины, и если переключить вкладку внутри
+    // неё, пересчёт по прокрутке промолчит: подсветка обязана быть сброшена
+    // сама, иначе она укажет на пункт из прошлой вкладки — а его там может и
+    // не быть.
+    await userEvent.click(within(toc).getByText("Что осталось открытым"));
+    await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
+    const parts = await screen.findByRole("navigation", { name: "Части" });
+    expect(activeTocLabel(parts)).toBe("Часть 1");
+  });
+
+  describe("на телефоне", () => {
+    beforeEach(() => {
+      setupMobileViewport();
+    });
+
+    afterEach(() => {
+      teardownViewport();
+    });
+
+    it("подтягивает подсвеченный пункт ленты на глаза", async () => {
+      // Пункты идут в один ряд, и подсвеченный уезжает за край экрана вслед за
+      // прокруткой текста: без подтягивания подсветка есть, а видно её не всегда.
+      renderPage();
+      const toc = await screen.findByRole("navigation", { name: "Разделы" });
+      await flushEffects();
+      // Раскладки в jsdom нет — задаём её: в ленту шириной 200 второй пункт
+      // (150…290) целиком не помещается.
+      Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
+      within(toc).getAllByRole("button").forEach((item, index) => {
+        Object.defineProperty(item, "offsetLeft", { configurable: true, value: index * 150 });
+        Object.defineProperty(item, "offsetWidth", { configurable: true, value: 140 });
+      });
+      placeSections("sec", [-500, 10, 800]);
+      fireEvent.scroll(mainEl!);
+      // Требование — подсвеченный пункт целиком в окне ленты; каким правилом
+      // его туда привели, тест не решает.
+      const active = within(toc).getByRole("button", { name: "Что произошло" });
+      expect(active.offsetLeft).toBeGreaterThanOrEqual(toc.scrollLeft);
+      expect(active.offsetLeft + active.offsetWidth).toBeLessThanOrEqual(toc.scrollLeft + toc.clientWidth);
+    });
+
+    it("возвращает ленту к началу, когда вкладка сменилась", async () => {
+      // Оглавление заводится заново на каждой вкладке, поэтому лента приходит
+      // в начало сама. Тест краснеет, если вкладки вернутся к общему узлу:
+      // тогда лента останется отмотанной с прошлой, а подсвеченная «Часть 1»
+      // окажется за левым краем у того, кто перед этим листал её рукой.
+      renderPage();
+      const toc = await screen.findByRole("navigation", { name: "Разделы" });
+      await flushEffects();
+      Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
+      // Текст в самом начале — верх контейнера выше любого раздела, поэтому
+      // подсвечен первый пункт и на другой вкладке он тоже первый. Значит
+      // сдвинуть ленту может только сама смена вкладки.
+      placeAt(mainEl!, -1000);
+      fireEvent.scroll(mainEl!);
+      toc.scrollLeft = 500;
+      await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
+      const parts = await screen.findByRole("navigation", { name: "Части" });
+      expect(parts.scrollLeft).toBe(0);
+    });
   });
 
   it("сообщает об ошибке загрузки", async () => {
