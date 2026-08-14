@@ -95,6 +95,9 @@ describe("RecapPage", () => {
   afterEach(() => {
     mainEl?.remove();
     mainEl = null;
+    // Подмены живут до конца файла, если их не снять: следующий тест получил бы
+    // чужие часы и чужую раскладку.
+    vi.restoreAllMocks();
   });
 
   it("показывает всех персонажей плитками", async () => {
@@ -168,6 +171,12 @@ describe("RecapPage", () => {
   });
 
   it("оставляет подсветку на выбранном разделе, пока идёт переход к нему", async () => {
+    // Тест красен на неполной версии правки: пересчёт по разделам из документа
+    // есть, а секунды тишины после выбора нет — тогда первая же прокрутка по
+    // дороге к разделу возвращает подсветку на тот, что виден в этот момент.
+    // Часы держим в руках: иначе граница тишины зависела бы от того, за сколько
+    // прогон дошёл от щелчка до прокрутки.
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
     renderPage();
     const toc = await screen.findByRole("navigation", { name: "Разделы" });
     await userEvent.click(within(toc).getByText("Что осталось открытым"));
@@ -176,6 +185,24 @@ describe("RecapPage", () => {
     placeSections("sec", [10, 800, 1600]);
     fireEvent.scroll(mainEl!);
     expect(activeTocLabel(toc)).toBe("Что осталось открытым");
+
+    // Тишина кончилась — подсветка снова слушается прокрутки.
+    now.mockReturnValue(2000);
+    fireEvent.scroll(mainEl!);
+    expect(activeTocLabel(toc)).toBe("Кто есть кто");
+  });
+
+  it("начинает новую вкладку с первого пункта, даже если только что выбрали дальний", async () => {
+    renderPage();
+    const toc = await screen.findByRole("navigation", { name: "Разделы" });
+    // Выбор раздела включает секунду тишины, и если переключить вкладку внутри
+    // неё, пересчёт по прокрутке промолчит: подсветка обязана быть сброшена
+    // сама, иначе она укажет на пункт из прошлой вкладки — а его там может и
+    // не быть.
+    await userEvent.click(within(toc).getByText("Что осталось открытым"));
+    await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
+    const parts = await screen.findByRole("navigation", { name: "Части" });
+    expect(activeTocLabel(parts)).toBe("Часть 1");
   });
 
   describe("на телефоне", () => {
@@ -190,16 +217,40 @@ describe("RecapPage", () => {
     it("подтягивает подсвеченный пункт ленты на глаза", async () => {
       // Пункты идут в один ряд, и подсвеченный уезжает за край экрана вслед за
       // прокруткой текста: без подтягивания подсветка есть, а видно её не всегда.
-      const shown: Element[] = [];
-      vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(
-        function (this: HTMLElement) { shown.push(this); },
-      );
       renderPage();
       const toc = await screen.findByRole("navigation", { name: "Разделы" });
-      shown.length = 0;
+      // Раскладки в jsdom нет — задаём её: в ленту шириной 200 видно только
+      // первый пункт, второй начинается за правым краем.
+      Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
+      within(toc).getAllByRole("button").forEach((item, index) => {
+        Object.defineProperty(item, "offsetLeft", { configurable: true, value: index * 150 });
+        Object.defineProperty(item, "offsetWidth", { configurable: true, value: 140 });
+      });
       placeSections("sec", [-500, 10, 800]);
       fireEvent.scroll(mainEl!);
-      expect(shown).toContain(within(toc).getByRole("button", { name: "Что произошло" }));
+      // Второй пункт встал серединой в середину ленты.
+      expect(toc.scrollLeft).toBe(150 - (200 - 140) / 2);
+    });
+
+    it("возвращает ленту к началу, когда вкладка сменилась", async () => {
+      // Пункты меняются целиком, а лента — тот же узел и держит своё положение:
+      // без пересчёта на смену вкладки подсвеченная «Часть 1» осталась бы за
+      // левым краем у того, кто перед этим листал ленту рукой.
+      renderPage();
+      const toc = await screen.findByRole("navigation", { name: "Разделы" });
+      Object.defineProperty(toc, "clientWidth", { configurable: true, value: 200 });
+      // Текст в самом начале — верх контейнера выше любого раздела, поэтому
+      // подсвечен первый пункт и на другой вкладке он тоже первый. Значит
+      // сдвинуть ленту может только сама смена вкладки.
+      Object.defineProperty(mainEl!, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ top: -1000, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: -1000, toJSON: () => ({}) } as DOMRect),
+      });
+      fireEvent.scroll(mainEl!);
+      toc.scrollLeft = 500;
+      await userEvent.click(screen.getByRole("button", { name: /Подробно/ }));
+      await screen.findByRole("navigation", { name: "Части" });
+      expect(toc.scrollLeft).toBe(0);
     });
   });
 

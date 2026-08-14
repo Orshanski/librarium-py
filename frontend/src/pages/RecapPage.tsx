@@ -41,17 +41,31 @@ function TableOfContents({
 }>) {
   // На телефоне пункты идут лентой в один ряд, и подсвеченный уезжает за край
   // экрана вслед за прокруткой текста. Подтягиваем его обратно на глаза —
-  // иначе подсветка есть, а видно её не всегда. На десктопе колонка стоит
-  // целиком, и ссылка ниже ни к чему не привязана.
+  // иначе подсветка есть, а видно её не всегда. Двигаем саму ленту, а не зовём
+  // scrollIntoView: тот приводит элемент в вид у каждого прокручиваемого
+  // предка, то есть трогал бы и страницу целиком. Заголовок в зависимостях —
+  // ради смены вкладки: пункты меняются, а лента остаётся отмотанной там, где
+  // её оставили. На десктопе колонка стоит целиком, и ссылки ниже ни к чему не
+  // привязаны.
+  const stripRef = useRef<HTMLElement | null>(null);
   const activeRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [activeIndex]);
+    const strip = stripRef.current;
+    const item = activeRef.current;
+    if (!strip || !item) return;
+    // Активный пункт встаёт в середину ленты. Положение считается от него
+    // самого, а не от текущей прокрутки: повторный пересчёт тогда ничего не
+    // сдвигает, и лента не зависит от того, сколько раз он случился. Правый
+    // край браузер ограничит сам.
+    const centered = item.offsetLeft - (strip.clientWidth - item.offsetWidth) / 2;
+    strip.scrollLeft = Math.max(0, centered);
+  }, [activeIndex, caption]);
 
   if (isMobile) {
     return (
       <nav
         aria-label={caption}
+        ref={stripRef}
         style={{
           display: "flex",
           gap: 6,
@@ -199,9 +213,14 @@ export default function RecapPage() {
   const anchorId = (index: number) => (
     tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index)
   );
-  const sectionCount = doc
-    ? (tab === "recap" ? doc.recap.sections.length : doc.retell.parts.length)
-    : 0;
+
+  // Новая вкладка начинается с первого пункта: выбор раздела включает секунду
+  // тишины, и переключение внутри неё оставило бы подсветку на пункте прошлой
+  // вкладки — где его может и не быть. Пересчёт ниже сразу уточнит значение по
+  // тому, что видно на экране.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [tab, doc]);
 
   // Подсветка текущего раздела при прокрутке: сравниваем верх каждого раздела
   // с нижней кромкой закреплённой полосы внутри скролл-контейнера страницы.
@@ -212,22 +231,26 @@ export default function RecapPage() {
     const container = stickyRef.current?.closest("main");
     if (!container) return undefined;
     const edge = stickyHeight + 30;
+    const count = doc ? (tab === "recap" ? doc.recap.sections.length : doc.retell.parts.length) : 0;
+    const idOf = (index: number) => (
+      tab === "recap" ? recapSectionAnchorId(index) : recapPartAnchorId(index)
+    );
     const update = () => {
       if (performance.now() < jumpUntilRef.current) return;
       const containerTop = container.getBoundingClientRect().top;
       let current = 0;
-      for (let index = 0; index < sectionCount; index++) {
-        const el = document.getElementById(anchorId(index));
-        if (el && el.getBoundingClientRect().top - containerTop < edge) {
-          current = Math.max(current, index);
-        }
+      for (let index = 0; index < count; index++) {
+        const el = document.getElementById(idOf(index));
+        // Разделы идут по порядку сверху вниз, поэтому подходящий последний и
+        // есть текущий.
+        if (el && el.getBoundingClientRect().top - containerTop < edge) current = index;
       }
       setActiveIndex(current);
     };
     update();
     container.addEventListener("scroll", update);
     return () => container.removeEventListener("scroll", update);
-  }, [stickyHeight, tab, doc, sectionCount]);
+  }, [stickyHeight, tab, doc]);
 
   const jumpTo = (index: number) => {
     jumpUntilRef.current = performance.now() + 1000;
