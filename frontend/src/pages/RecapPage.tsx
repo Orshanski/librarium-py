@@ -179,6 +179,7 @@ export default function RecapPage() {
   useEffect(() => {
     if (!recapPath) {
       setDoc(null);
+      // Документа нет — подсветке не за что держаться (см. пару ниже).
       setActiveIndex(0);
       setDocLoading(false);
       return undefined;
