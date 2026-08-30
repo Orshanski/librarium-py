@@ -63,8 +63,13 @@ describe("metadata cache handlers", () => {
     expect(store.get("books", "catalog-title")).toBeUndefined();
   });
 
-  it("stores fresh book detail and invalidates publishers when publisher changes", () => {
+  it("merges fresh book detail into cached entry and invalidates publishers when publisher changes", () => {
     store.set("publishers", "all", { publishers: ["A"] });
+    store.set("book/1", "detail", {
+      book: { id: 1, title: "Old", rating: 2, isRead: false },
+      files: [],
+      identifiers: [],
+    });
 
     domainEvents.publish("bookUpdated", {
       book: { id: 1, title: "Book" },
@@ -78,7 +83,7 @@ describe("metadata cache handlers", () => {
 
     expect(store.get("publishers", "all")).toBeUndefined();
     expect(store.get("book/1", "detail")).toEqual({
-      book: { id: 1, title: "Book" },
+      book: { id: 1, title: "Book", rating: 2, isRead: false },
       files: [],
       identifiers: [],
     });
@@ -111,6 +116,42 @@ describe("metadata cache handlers", () => {
       rating: 5,
       isRead: true,
     });
+  });
+
+  it("сливает проводной detail в кэшированную деталь, сохраняя user-поля", () => {
+    store.set("book/1", "detail", {
+      book: { id: 1, title: "Old", rating: 4, isRead: true },
+      files: [],
+      identifiers: [],
+    });
+
+    domainEvents.publish("bookUpdated", {
+      book: { id: 1, title: "New" },
+      detail: {
+        book: { id: 1, title: "New" } as never,
+        files: [{ id: 9, format: "fb2", fileSize: 1 }],
+        identifiers: [],
+      },
+      changedFields: ["description"],
+    });
+
+    const detail = store.get<{ book: Record<string, unknown>; files: unknown[] }>("book/1", "detail");
+    expect(detail?.book).toMatchObject({ id: 1, title: "New", rating: 4, isRead: true });
+    expect(detail?.files).toEqual([{ id: 9, format: "fb2", fileSize: 1 }]);
+  });
+
+  it("событие с detail о некэшированной книге запись не создаёт", () => {
+    domainEvents.publish("bookUpdated", {
+      book: { id: 7, title: "T" },
+      detail: {
+        book: { id: 7, title: "T" } as never,
+        files: [],
+        identifiers: [],
+      },
+      changedFields: ["description"],
+    });
+
+    expect(store.get("book/7", "detail")).toBeUndefined();
   });
 
   it("invalidates stale book detail when book update has no fresh detail", () => {

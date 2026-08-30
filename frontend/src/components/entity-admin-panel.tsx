@@ -4,7 +4,6 @@ import ConfirmDialog from "./confirm-dialog";
 import { listSeries, renameSeries, mergeSeries, deleteSeries } from "../api/endpoints/series";
 import { listAuthors, renameAuthor, mergeAuthor, deleteAuthor } from "../api/endpoints/authors";
 import { listTagOptions, renameTag, mergeTag, deleteTag } from "../api/endpoints/tags";
-import { domainEvents } from "@/domain/events";
 
 interface EntityAdminPanelProps {
   entityType: "author" | "series" | "tag";
@@ -150,13 +149,10 @@ export default function EntityAdminPanel({
     try {
       if (entityType === "series") {
         await renameSeries(entityId, trimmed);
-        domainEvents.publish("seriesRenamed", { seriesId: entityId, name: trimmed });
       } else if (entityType === "tag") {
         await renameTag(entityId, trimmed);
-        domainEvents.publish("tagRenamed", { tagId: entityId, name: trimmed });
       } else {
         await renameAuthor(entityId, trimmed);
-        domainEvents.publish("authorRenamed", { authorId: entityId, name: trimmed });
       }
       onRenamed(trimmed);
     } catch (err) {
@@ -176,13 +172,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await mergeSeries(entityId, source.id);
-            domainEvents.publish("seriesMerged", { targetId: entityId, sourceId: source.id });
           } else if (entityType === "tag") {
             await mergeTag(entityId, source.id);
-            domainEvents.publish("tagMerged", { targetId: entityId, sourceId: source.id });
           } else {
             await mergeAuthor(entityId, source.id);
-            domainEvents.publish("authorMerged", { targetId: entityId, sourceId: source.id });
           }
           onMerged();
         } catch (err) {
@@ -205,13 +198,10 @@ export default function EntityAdminPanel({
         try {
           if (entityType === "series") {
             await deleteSeries(entityId);
-            domainEvents.publish("seriesDeleted", { seriesId: entityId });
           } else if (entityType === "tag") {
             await deleteTag(entityId);
-            domainEvents.publish("tagDeleted", { tagId: entityId });
           } else {
             await deleteAuthor(entityId);
-            domainEvents.publish("authorDeleted", { authorId: entityId });
           }
           onDeleted();
         } catch (err) {

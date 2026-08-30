@@ -90,7 +90,7 @@ describe("EntityAdminPanel — tag mode", () => {
     expect(screen.getByText(/жанр|Жанр/i)).toBeTruthy();
   });
 
-  it("renames tag: calls renameTag and publishes tagRenamed event", async () => {
+  it("renames tag: calls renameTag, в шину ничего не публикуется", async () => {
     domainEvents.clear();
     const events: unknown[] = [];
     domainEvents.subscribe("tagRenamed", (payload) => events.push(payload));
@@ -119,8 +119,9 @@ describe("EntityAdminPanel — tag mode", () => {
 
     await waitFor(() => {
       expect(onRenamed).toHaveBeenCalledWith("Фантастика");
-      expect(events).toEqual([{ tagId: 1, name: "Фантастика" }]);
     });
+    // Применение придёт серверным событием; локальная публикация удалена.
+    expect(events).toEqual([]);
   });
 
   it("delete button is disabled when bookCount > 0", () => {
@@ -156,7 +157,7 @@ describe("EntityAdminPanel — tag mode", () => {
     expect(screen.getByText("Удалить")).not.toBeDisabled();
   });
 
-  it("deletes tag: calls deleteTag and publishes tagDeleted event", async () => {
+  it("deletes tag: calls deleteTag, в шину ничего не публикуется", async () => {
     domainEvents.clear();
     const events: unknown[] = [];
     domainEvents.subscribe("tagDeleted", (payload) => events.push(payload));
@@ -190,11 +191,11 @@ describe("EntityAdminPanel — tag mode", () => {
 
     await waitFor(() => {
       expect(onDeleted).toHaveBeenCalled();
-      expect(events).toEqual([{ tagId: 1 }]);
     });
+    expect(events).toEqual([]);
   });
 
-  it("merges tag: calls mergeTag and publishes tagMerged event", async () => {
+  it("merges tag: calls mergeTag, в шину ничего не публикуется", async () => {
     domainEvents.clear();
     const events: unknown[] = [];
     domainEvents.subscribe("tagMerged", (payload) => events.push(payload));
@@ -242,8 +243,8 @@ describe("EntityAdminPanel — tag mode", () => {
 
     await waitFor(() => {
       expect(onMerged).toHaveBeenCalled();
-      expect(events).toEqual([{ targetId: 1, sourceId: 2 }]);
     });
+    expect(events).toEqual([]);
   });
 });
 
@@ -282,12 +283,8 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onRenamed).toHaveBeenCalledWith(rename.to);
-        expect(events).toEqual([
-          entityType === "author"
-            ? { authorId: 1, name: rename.to }
-            : { seriesId: 1, name: rename.to },
-        ]);
       });
+      expect(events).toEqual([]);
     });
 
     it("does not call onRenamed when rename request fails", async () => {
@@ -372,8 +369,8 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onMerged).toHaveBeenCalled();
-        expect(events).toEqual([{ targetId: 1, sourceId: 2 }]);
       });
+      expect(events).toEqual([]);
     });
 
     it("calls onDeleted after successful delete (no books)", async () => {
@@ -413,10 +410,8 @@ describe.each(CASES)(
 
       await waitFor(() => {
         expect(onDeleted).toHaveBeenCalled();
-        expect(events).toEqual([
-          entityType === "author" ? { authorId: 1 } : { seriesId: 1 },
-        ]);
       });
+      expect(events).toEqual([]);
     });
   }
 );

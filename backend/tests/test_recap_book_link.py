@@ -23,7 +23,7 @@ class TestRecapLink:
         admin = login_client(username="admin", password="admin123")
         resp = admin.put("/api/books/2", json={"title": "Новое название"})
         assert resp.status_code == 200
-        assert resp.json()["book"]["recapPath"] is not None
+        assert admin.get("/api/books/2").json()["book"]["recapPath"] is not None
 
     def test_absent_in_list_response(self, reader_client):
         # Красный на неполной правке: поле повесили на карточный DTO вместо

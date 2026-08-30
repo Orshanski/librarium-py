@@ -2,7 +2,6 @@ import type { LocalProgress } from "./offline-storage";
 import { reconcileAcceptedProgress, adoptServerProgressLocal, removeProgress } from "./offline-storage";
 import { saveProgress as apiSaveProgress } from "../api/endpoints/reader";
 import { NotFoundError } from "@/api/errors";
-import { domainEvents } from "@/domain/events";
 
 /**
  * Result of a CAS PUT to /api/reader/progress.
@@ -58,15 +57,6 @@ export async function pushProgressToServerCAS(
 
     if (data.accepted === true) {
       await reconcileAcceptedProgress(progress, data.version);
-      domainEvents.publish("readingProgressChanged", {
-        bookId: progress.bookId,
-        hadPosition: true,
-        hasPosition: Boolean(progress.position),
-        lastReadAtChanged: true,
-        fraction: progress.fraction,
-        lastFormat: progress.lastFormat,
-        lastReadAt: new Date(progress.lastReadAt).toISOString(),
-      });
       return {
         status: data.rebased === true ? "rebased" : "accepted",
         serverVersion: data.version,

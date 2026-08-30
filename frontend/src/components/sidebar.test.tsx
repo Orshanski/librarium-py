@@ -43,14 +43,18 @@ describe("SidebarContent — shelves list", () => {
     expect(tbrLink.getAttribute("href")).toContain("/shelves/2");
   });
 
-  it("publishes shelfCreated after creating shelf", async () => {
+  it("создание полки дергает POST, в шину ничего не публикуется", async () => {
     const user = userEvent.setup();
     const events: Array<{ shelfId: number; name: string }> = [];
     domainEvents.subscribe("shelfCreated", (payload) => events.push(payload));
 
+    let postCalled = false;
     server.use(
       http.get("/api/shelves", () => HttpResponse.json({ shelves: [] })),
-      http.post("/api/shelves", () => HttpResponse.json({ id: 9, name: "TBR" })),
+      http.post("/api/shelves", () => {
+        postCalled = true;
+        return HttpResponse.json({ id: 9, name: "TBR" });
+      }),
     );
 
     renderWithProviders(<SidebarContent />);
@@ -59,7 +63,11 @@ describe("SidebarContent — shelves list", () => {
     await user.type(screen.getByPlaceholderText("Название..."), "TBR{enter}");
 
     await waitFor(() => {
-      expect(events).toEqual([{ shelfId: 9, name: "TBR" }]);
+      expect(postCalled).toBe(true);
     });
+    // Тик — публикация (если её вернут) шла бы после резолва await у клиента.
+    await new Promise((r) => setTimeout(r, 0));
+    // Обновление списка полок придёт серверным событием; локальной публикации нет.
+    expect(events).toEqual([]);
   });
 });

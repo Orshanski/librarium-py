@@ -175,7 +175,7 @@ describe("book-detail — books", () => {
     vi.restoreAllMocks();
   });
 
-  it("rating: click star span → PUT /api/books/:id/rating fires and publishes event", async () => {
+  it("rating: click star span → PUT /api/books/:id/rating fires, в шину ничего не публикуется", async () => {
     const user = userEvent.setup();
     let capturedBody: unknown = null;
     const events: Array<{ bookId: number; rating: number | null }> = [];
@@ -198,8 +198,12 @@ describe("book-detail — books", () => {
     await waitFor(() => {
       expect(capturedBody).not.toBeNull();
       expect((capturedBody as { rating: number }).rating).toBe(5);
-      expect(events).toEqual([{ bookId: 7, rating: 5 }]);
     });
+    // Тик — чтобы возвращённая публикация (если её вернут) успела отработать
+    // после резолва await у клиента; без него проверка гоночно-зелёная.
+    await new Promise((r) => setTimeout(r, 0));
+    // Применение придёт серверным событием; локальная публикация удалена.
+    expect(events).toEqual([]);
   });
 
   it("rating optimistic: on 500 → rollback to previous value", async () => {
@@ -235,7 +239,7 @@ describe("book-detail — books", () => {
     });
   });
 
-  it("read status: click 'Не прочитано' → PUT /api/books/:id/read fires and publishes event", async () => {
+  it("read status: click 'Не прочитано' → PUT /api/books/:id/read fires, в шину ничего не публикуется", async () => {
     const user = userEvent.setup();
     let capturedBody: unknown = null;
     const events: Array<{ bookId: number; isRead: boolean }> = [];
@@ -256,8 +260,9 @@ describe("book-detail — books", () => {
     await waitFor(() => {
       expect(capturedBody).not.toBeNull();
       expect((capturedBody as { isRead: boolean }).isRead).toBe(true);
-      expect(events).toEqual([{ bookId: 7, isRead: true }]);
     });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual([]);
   });
 
   it("read status optimistic: on 500 → rollback to previous state", async () => {
@@ -284,7 +289,7 @@ describe("book-detail — books", () => {
     });
   });
 
-  it("delete: click 'Удалить' → confirm dialog → DELETE /api/books/:id fires and publishes event", async () => {
+  it("delete: click 'Удалить' → confirm dialog → DELETE /api/books/:id fires, в шину ничего не публикуется", async () => {
     const user = userEvent.setup();
     let deleteCalled = false;
     const events: Array<{ bookId: number }> = [];
@@ -310,8 +315,9 @@ describe("book-detail — books", () => {
     await user.click(confirmBtn);
     await waitFor(() => {
       expect(deleteCalled).toBe(true);
-      expect(events).toEqual([{ bookId: 7 }]);
     });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual([]);
   });
 
   it("delete: on 500 — component stays mounted (no crash)", async () => {

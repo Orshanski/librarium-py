@@ -1,4 +1,4 @@
-import type { Book, BookDetailSnapshot } from "@/types";
+import type { Book, BookDetail, BookFileInfo, BookIdentifier } from "@/types";
 
 type MinimalBook = {
   id: number;
@@ -27,7 +27,13 @@ export type BookChangedField =
 export type DomainEventMap = {
   bookUpdated: {
     book: MinimalBook;
-    detail?: BookDetailSnapshot;
+    // Снимок детали с провода: library-событие летит всем пользователям,
+    // поэтому сервер вычищает user-поля — в detail.book они опциональны.
+    detail?: {
+      book: Omit<BookDetail, "rating" | "isRead"> & Partial<Pick<BookDetail, "rating" | "isRead">>;
+      files: BookFileInfo[];
+      identifiers: BookIdentifier[];
+    };
     changedFields: BookChangedField[];
     affected?: {
       authorIds?: number[];

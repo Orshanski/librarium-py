@@ -39,10 +39,6 @@ export interface BookUpdatePayload {
   commitCover: boolean;
 }
 
-export interface UpdateBookResponse extends BookDetailResponse {
-  ok: true;
-}
-
 export interface AddFormatResponse {
   ok: true;
   format: string;
@@ -68,8 +64,9 @@ export function getBook(
 export function updateBook(
   id: number,
   body: BookUpdatePayload,
-): Promise<UpdateBookResponse> {
-  return client<UpdateBookResponse>("PUT", `/api/books/${id}`, { body });
+): Promise<OkResponse> {
+  // Тело ответа больше не несёт деталь: применение приходит серверным событием.
+  return client<OkResponse>("PUT", `/api/books/${id}`, { body });
 }
 
 export function deleteBook(id: number): Promise<OkResponse> {

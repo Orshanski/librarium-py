@@ -10,7 +10,6 @@ from ..config import LIBRARY_DIR, UPLOADS_DIR
 from ..dal import books as dal
 from ..dtos.books import (
     BookDetailResponse, BookFileLookup, BookListResponse, BookUpdateData, UpdateBookBody,
-    UpdateBookResponse,
 )
 from ..events import EventScope, publish_domain_event_after_commit
 from ..exceptions import BadInputError, ConflictError, NotFoundError
@@ -52,13 +51,24 @@ _USER_SCOPED_BOOK_EVENT_FIELDS = {
 }
 
 
-def _library_event_book_payload(response: UpdateBookResponse) -> dict[str, object]:
-    book = response.model_dump(mode="json", by_alias=True)["book"]
-    return {
+def _library_event_payload_parts(response: BookDetailResponse) -> tuple[dict[str, object], dict[str, object]]:
+    """Книга без user-полей + снимок детали для library-события.
+
+    Событие летит всем пользователям, поэтому rating/isRead автора правки
+    вычищаются и из book, и из detail.book.
+    """
+    dump = response.model_dump(mode="json", by_alias=True)
+    book = {
         key: value
-        for key, value in book.items()
+        for key, value in dump["book"].items()
         if key not in _USER_SCOPED_BOOK_EVENT_FIELDS
     }
+    detail: dict[str, object] = {
+        "book": book,
+        "files": dump["files"],
+        "identifiers": dump["identifiers"],
+    }
+    return book, detail
 
 
 def _current_isbn(detail: BookDetailResponse) -> str | None:
@@ -140,7 +150,7 @@ def _unique_strings(values: list[str | None]) -> list[str]:
 def _membership_affected_payload(
     changed_fields: list[str],
     previous: BookDetailResponse,
-    current: UpdateBookResponse,
+    current: BookDetailResponse,
 ) -> dict[str, object] | None:
     affected: dict[str, object] = {}
     if "authors" in changed_fields:
@@ -348,10 +358,9 @@ def _update_book_response(
     db: sqlite3.Connection,
     book_id: int,
     user_id: int,
-) -> UpdateBookResponse:
+) -> BookDetailResponse:
     detail = get_book(db, book_id, user_id)
-    return UpdateBookResponse(
-        ok=True,
+    return BookDetailResponse(
         book=detail.book,
         files=detail.files,
         identifiers=detail.identifiers,
@@ -363,9 +372,11 @@ def update_book(
     book_id: int,
     body: UpdateBookBody,
     user_id: int = 1,
-) -> UpdateBookResponse:
+) -> None:
     """Apply full desired state to a book: metadata + files + cover commit.
 
+    Ничего не возвращает: клиент получает {ok}, а свежий снимок детали едет
+    всем в payload события bookUpdated.
     Последовательность шагов — spec 2026-04-24-book-format-staging-design.md §5.
     """
     if not dal.book_exists(db, book_id):
@@ -378,12 +389,19 @@ def update_book(
             exclude={"add_formats", "delete_formats", "commit_cover"},
         ),
     )
+    # Форма шлёт полное тело: пустая строка в опциональном поле означает
+    # «значения нет», как и NULL. Без нормализации "" != NULL рождает
+    # фантомные changedFields (структурный снос кэшей у всех клиентов)
+    # и пишет "" в БД.
+    for optional_field in ("description", "language", "publisher", "pub_date"):
+        if data.get(optional_field) == "":
+            data[optional_field] = None  # type: ignore[literal-required]
     add_formats = body.add_formats or []
     delete_formats = body.delete_formats or []
 
     # Шаг 0: no-op guard.
     if not data and not add_formats and not delete_formats and not body.commit_cover:
-        return _update_book_response(db, book_id, user_id)
+        return
 
     # Шаг 1: валидация и резолвы — до любых side effects.
     current_detail = get_book(db, book_id, user_id)
@@ -427,16 +445,19 @@ def update_book(
     for (tid, _, _, _) in resolved_adds:
         cleanup_temp_session(tid)
 
-    response = _update_book_response(db, book_id, user_id)
     changed_fields = _changed_book_fields(
         metadata_changed_fields,
         files_changed=bool(resolved_adds or resolved_deletes),
         cover_changed=cover_changed,
     )
     if changed_fields:
+        # Снимок нужен только событию — строится по факту публикации.
+        response = _update_book_response(db, book_id, user_id)
+        event_book, event_detail = _library_event_payload_parts(response)
         payload: dict[str, object] = {
-            "book": _library_event_book_payload(response),
+            "book": event_book,
             "changedFields": changed_fields,
+            "detail": event_detail,
         }
         affected = _membership_affected_payload(changed_fields, current_detail, response)
         if affected:
@@ -447,7 +468,6 @@ def update_book(
             event_type="bookUpdated",
             payload=payload,
         )
-    return response
 
 
 def list_books(

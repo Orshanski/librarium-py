@@ -109,9 +109,13 @@ describe("BookShelfMenu", () => {
     await waitFor(() => expect(checkbox).not.toBeChecked());
   });
 
-  it("publishes shelf membership event after successful toggle", async () => {
+  it("успешный toggle дергает POST, в шину ничего не публикуется", async () => {
+    let postCalled = false;
     server.use(
-      http.post("/api/shelves/:shelfId/books", () => HttpResponse.json({ ok: true })),
+      http.post("/api/shelves/:shelfId/books", () => {
+        postCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
     );
     const events: Array<{ shelfId: number; bookId: number; hasBook: boolean }> = [];
     domainEvents.subscribe("shelfMembershipChanged", (payload) => events.push(payload));
@@ -123,8 +127,12 @@ describe("BookShelfMenu", () => {
     await user.click(checkbox);
 
     await waitFor(() => {
-      expect(events).toEqual([{ shelfId: 2, bookId: 7, hasBook: true }]);
+      expect(postCalled).toBe(true);
     });
+    // Тик — публикация (если её вернут) шла бы после резолва await у клиента.
+    await new Promise((r) => setTimeout(r, 0));
+    // Кэш полок обновит серверное событие; локальной публикации нет.
+    expect(events).toEqual([]);
   });
 
   it("rolls back only the shelf whose older mutation failed", async () => {

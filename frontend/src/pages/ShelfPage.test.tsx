@@ -92,8 +92,10 @@ describe("ShelfPage", () => {
     expect(screen.queryByText("Не удалось загрузить")).toBeNull();
   });
 
-  it("publishes events after successful shelf book removal and shelf delete", async () => {
+  it("снятие книги и удаление полки дергают DELETE, в шину ничего не публикуется", async () => {
     const user = userEvent.setup();
+    let removeCalled = false;
+    let deleteCalled = false;
     const membershipEvents: Array<{ shelfId: number; bookId: number; hasBook: boolean }> = [];
     const deleteEvents: Array<{ shelfId: number }> = [];
     domainEvents.subscribe("shelfMembershipChanged", (payload) => membershipEvents.push(payload));
@@ -123,8 +125,14 @@ describe("ShelfPage", () => {
           ],
         })
       ),
-      http.delete("/api/shelves/:shelfId/books/:bookId", () => HttpResponse.json({ ok: true })),
-      http.delete("/api/shelves/:id", () => HttpResponse.json({ ok: true })),
+      http.delete("/api/shelves/:shelfId/books/:bookId", () => {
+        removeCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
+      http.delete("/api/shelves/:id", () => {
+        deleteCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
     );
 
     renderWithProviders(
@@ -139,15 +147,20 @@ describe("ShelfPage", () => {
     await user.click(screen.getByRole("button", { name: "✕" }));
 
     await waitFor(() => {
-      expect(membershipEvents).toEqual([{ shelfId: 42, bookId: 101, hasBook: false }]);
+      expect(removeCalled).toBe(true);
     });
 
     await user.click(screen.getByRole("button", { name: "Удалить полку" }));
     await user.click(screen.getByTestId("confirm-dialog-submit"));
 
     await waitFor(() => {
-      expect(deleteEvents).toEqual([{ shelfId: 42 }]);
+      expect(deleteCalled).toBe(true);
     });
+    // Тик — публикация (если её вернут) шла бы после резолва await у клиента.
+    await new Promise((r) => setTimeout(r, 0));
+    // Применение придёт серверными событиями; локальных публикаций нет.
+    expect(membershipEvents).toEqual([]);
+    expect(deleteEvents).toEqual([]);
   });
 
   it("uses cached shelf detail on remount without refetch", async () => {
@@ -282,6 +295,8 @@ describe("ShelfPage", () => {
 
     await waitFor(() => expect(screen.getByText("Shelf 42")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "✕" }));
+    // Применение приходит серверным событием — имитируем его доставку мостом.
+    domainEvents.publish("shelfMembershipChanged", { shelfId: 42, bookId: 101, hasBook: false });
     await waitFor(() => expect(screen.queryByText("Dune")).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("link", { name: "Other shelf" }));

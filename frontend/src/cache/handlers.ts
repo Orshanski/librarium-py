@@ -15,10 +15,21 @@ export function registerMetadataCacheHandlers(store: MetadataCacheStore, bus: Ev
   const unsubscribers = [
     bus.subscribe("bookUpdated", (payload: DomainEventMap["bookUpdated"]) => {
       store.applyBookUpdate(payload);
-      if (payload.detail) {
-        store.set(`book/${payload.book.id}`, "detail", payload.detail);
+      // Проводной detail чищен от user-полей, поэтому применяется только
+      // слиянием в уже кэшированную запись (rating/isRead переживают
+      // событие); создавать запись из события нельзя — она подавила бы
+      // первый честный запрос страницы.
+      const namespace = `book/${payload.book.id}`;
+      const cached = payload.detail
+        ? store.get<{ book?: unknown } & Record<string, unknown>>(namespace, "detail")
+        : undefined;
+      if (payload.detail && isCachedBookDetailFor(cached, payload.book.id)) {
+        store.set(namespace, "detail", {
+          ...payload.detail,
+          book: { ...cached.book, ...payload.detail.book },
+        });
       } else {
-        store.invalidate(`book/${payload.book.id}`);
+        store.invalidate(namespace);
       }
       if (payload.changedFields.includes("publisher")) {
         invalidatePublisherOptionsAfterPublisherChange(store);

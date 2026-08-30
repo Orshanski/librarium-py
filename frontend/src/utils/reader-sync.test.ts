@@ -61,50 +61,9 @@ describe("pushProgressToServerCAS — accept path", () => {
     expect(mockReconcileAcceptedProgress).toHaveBeenCalledOnce();
     expect(mockReconcileAcceptedProgress).toHaveBeenCalledWith(baseProgress, 4);
     expect(mockAdoptServerProgressLocal).not.toHaveBeenCalled();
-    expect(events).toEqual([
-      {
-        bookId: 42,
-        hadPosition: true,
-        hasPosition: true,
-        lastReadAtChanged: true,
-        fraction: 0.5,
-        lastFormat: "epub",
-        lastReadAt: new Date(baseProgress.lastReadAt).toISOString(),
-      },
-    ]);
-  });
-
-  it("publishes a structural progress event when an accepted local write clears position", async () => {
-    const events: Array<{
-      bookId: number;
-      hadPosition: boolean;
-      hasPosition: boolean;
-      lastReadAtChanged: boolean;
-      fraction: number;
-      lastFormat: string;
-      lastReadAt: string;
-    }> = [];
-    const clearedProgress = { ...baseProgress, position: "", fraction: 0.2 };
-    domainEvents.subscribe("readingProgressChanged", (payload) => events.push(payload));
-    server.use(
-      http.put("/api/reader/progress/42", () =>
-        HttpResponse.json({ accepted: true, version: 5, rebased: false }),
-      ),
-    );
-
-    await pushProgressToServerCAS(clearedProgress, { deviceName: "desktop" });
-
-    expect(events).toEqual([
-      {
-        bookId: 42,
-        hadPosition: true,
-        hasPosition: false,
-        lastReadAtChanged: true,
-        fraction: 0.2,
-        lastFormat: "epub",
-        lastReadAt: new Date(clearedProgress.lastReadAt).toISOString(),
-      },
-    ]);
+    // Событие прогресса приходит от сервера (с честными hadPosition/lastReadAtChanged);
+    // локальная публикация с захардкоженными полями удалена.
+    expect(events).toEqual([]);
   });
 });
 
