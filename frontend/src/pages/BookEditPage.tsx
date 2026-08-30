@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import PageHeader from "../components/page-header";
@@ -10,81 +10,10 @@ import { colors } from "../theme";
 import type { BookDetail, BookFormat } from "../types";
 import { getBook, updateBook, type BookFileInfo, type BookIdentifier } from "@/api/endpoints/books";
 import { listFilterOptions, listPublishers } from "@/api/endpoints/filters";
-import { deriveBookChangedFields } from "@/domain/book-changes";
-import { domainEvents } from "@/domain/events";
-import type { BookChangedField } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { NotFoundError } from "@/api/errors";
 
 const FALLBACK_BOOK_ORIGIN: ListOrigin = { type: "catalog", url: "/", label: "Каталог" };
-
-function arraysEqualAsSets(left: unknown[], right: unknown[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightValues = new Set(right);
-  return left.every((value) => rightValues.has(value));
-}
-
-function changedBookEditBody(body: Record<string, unknown>, original: BookDetail, originalIsbn: string | null): Record<string, unknown> {
-  const changed: Record<string, unknown> = {};
-  if (body.title !== original.title) changed.title = body.title;
-  if ((body.description || "") !== (original.description || "")) changed.description = body.description;
-  if ((body.language || "") !== (original.language || "")) changed.language = body.language;
-  if ((body.publisher || null) !== (original.publisher || null)) changed.publisher = body.publisher;
-  if ((body.pubDate || null) !== (original.pubDate || null)) changed.pubDate = body.pubDate;
-  if ((body.isbn || null) !== (originalIsbn || null)) changed.isbn = body.isbn;
-  if (!arraysEqualAsSets(body.authorIds as unknown[], original.authors.map((author) => author.id))) {
-    changed.authorIds = body.authorIds;
-  }
-  if ((body.seriesId ?? null) !== (original.series?.id ?? null)) changed.seriesId = body.seriesId;
-  if ((body.seriesNumber ?? null) !== (original.seriesNumber ?? null)) changed.seriesNumber = body.seriesNumber;
-  if (!arraysEqualAsSets(body.tagIds as unknown[], original.tags.map((tag) => tag.id))) {
-    changed.tagIds = body.tagIds;
-  }
-  if (Array.isArray(body.addFormats) && body.addFormats.length > 0) changed.addFormats = body.addFormats;
-  if (Array.isArray(body.deleteFormats) && body.deleteFormats.length > 0) changed.deleteFormats = body.deleteFormats;
-  if (body.commitCover === true) changed.commitCover = true;
-  return changed;
-}
-
-function hasMembershipChange(changedFields: BookChangedField[]): boolean {
-  return changedFields.some((field) => field === "authors" || field === "series" || field === "tags" || field === "language");
-}
-
-function uniqueNumbers(values: Array<number | null | undefined>): number[] {
-  return [...new Set(values.filter((value): value is number => typeof value === "number"))];
-}
-
-function uniqueStrings(values: Array<string | null | undefined>): string[] {
-  return [...new Set(values.filter((value): value is string => typeof value === "string" && value.length > 0))];
-}
-
-export function buildBookUpdateAffected(
-  changedFields: BookChangedField[],
-  previous: BookDetail,
-  next: BookDetail,
-): NonNullable<Parameters<typeof domainEvents.publish<"bookUpdated">>[1]["affected"]> | undefined {
-  if (!hasMembershipChange(changedFields)) return undefined;
-  const affected: NonNullable<Parameters<typeof domainEvents.publish<"bookUpdated">>[1]["affected"]> = {};
-  if (changedFields.includes("authors")) {
-    affected.authorIds = uniqueNumbers([
-      ...previous.authors.map((author) => author.id),
-      ...next.authors.map((author) => author.id),
-    ]);
-  }
-  if (changedFields.includes("series")) {
-    affected.seriesIds = uniqueNumbers([previous.series?.id, next.series?.id]);
-  }
-  if (changedFields.includes("tags")) {
-    affected.tagIds = uniqueNumbers([
-      ...previous.tags.map((tag) => tag.id),
-      ...next.tags.map((tag) => tag.id),
-    ]);
-  }
-  if (changedFields.includes("language")) {
-    affected.languages = uniqueStrings([previous.language, next.language]);
-  }
-  return affected;
-}
 
 export default function BookEditPage() {
   const { id } = useParams();
@@ -232,16 +161,7 @@ export default function BookEditPage() {
       commitCover: data.commitCover,
     };
 
-    const updated = await updateBook(Number(id), body);
-    const changedFields = deriveBookChangedFields(changedBookEditBody(body, currentBook, isbn));
-    if (changedFields.length > 0) {
-      domainEvents.publish("bookUpdated", {
-        book: updated.book,
-        detail: updated,
-        changedFields,
-        affected: buildBookUpdateAffected(changedFields, currentBook, updated.book),
-      });
-    }
+    await updateBook(Number(id), body);
     navigate(`/book/${id}`, {
       replace: true,
       state: { origin: editOrigin?.bookOrigin ?? FALLBACK_BOOK_ORIGIN },

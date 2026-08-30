@@ -4,7 +4,6 @@ import { useAuth } from "../auth";
 import { colors, layout } from "../theme";
 import { listShelves, createShelf as apiCreateShelf, type Shelf } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey } from "../config/sort";
-import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 
 function shelfHref(shelf: Shelf): string {
@@ -73,13 +72,13 @@ export function SidebarContent({
     if (!newShelfName.trim()) return;
     try {
       const name = newShelfName.trim();
-      const { id } = await apiCreateShelf(name);
+      await apiCreateShelf(name);
       setNewShelfName("");
       setShowNewShelf(false);
-      // publish → handler инвалидирует 'shelves' в store → useCachedResource refetch.
-      // Локальный оптимистичный setShelves удалён намеренно: согласовано с «store first»,
-      // короткая пауза до refetch (~RTT) принята как компромисс.
-      domainEvents.publish("shelfCreated", { shelfId: id, name });
+      // Обновление придёт серверным событием: handler инвалидирует 'shelves' →
+      // useCachedResource refetch. Локальный оптимистичный setShelves удалён
+      // намеренно («store first»); пауза до refetch — RTT ответа плюс доставка
+      // события — принята как компромисс.
       onNavigate?.();
     } catch (err) {
       console.warn("Failed to create shelf:", err);

@@ -8,7 +8,7 @@ import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
 import { domainEvents } from "@/domain/events";
-import BookEditPage, { buildBookUpdateAffected } from "./BookEditPage";
+import BookEditPage from "./BookEditPage";
 
 const mockBookDetail = {
   id: 42,
@@ -80,7 +80,7 @@ describe("BookEditPage", () => {
     });
   });
 
-  it("save success: PUT /api/books/:id fires, publishes bookUpdated, and navigates", async () => {
+  it("save success: PUT /api/books/:id fires, navigates, и ничего не публикует в шину", async () => {
     setupAllHandlers();
     let putBody: unknown = null;
     const events: unknown[] = [];
@@ -127,35 +127,12 @@ describe("BookEditPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Book Detail")).toBeInTheDocument();
     });
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      book: { id: 42, title: "Тестовая книга 2" },
-      changedFields: ["title", "identifiers"],
-      detail: {
-        book: { id: 42, title: "Тестовая книга 2" },
-      },
-    });
+    // Локальных публикаций больше нет: применение придёт серверным событием.
+    expect(events).toEqual([]);
     expect(putBody).toMatchObject({ isbn: "9780000000000" });
   });
 
-  it("buildBookUpdateAffected includes old and new membership values only for changed fields", () => {
-    expect(buildBookUpdateAffected(["authors", "series", "tags", "language"], mockBookDetail, {
-      ...mockBookDetail,
-      authors: [{ id: 2, name: "Новый Автор" }],
-      series: { id: 20, name: "Новая серия" },
-      tags: [{ id: 200, name: "Новый тег" }],
-      language: "en",
-    })).toEqual({
-      authorIds: [1, 2],
-      seriesIds: [20],
-      tagIds: [200],
-      languages: ["ru", "en"],
-    });
-
-    expect(buildBookUpdateAffected(["title"], mockBookDetail, { ...mockBookDetail, title: "Другое" })).toBeUndefined();
-  });
-
-  it("does not publish membership changes for author/tag reorder-only saves", async () => {
+  it("reorder-only save: порядок авторов и жанров доезжает в тело PUT", async () => {
     setupAllHandlers();
     const original = {
       ...mockBookDetail,

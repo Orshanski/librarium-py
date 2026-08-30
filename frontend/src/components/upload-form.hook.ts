@@ -3,7 +3,6 @@ import {
   uploadTempFile, deleteTempUpload, createBookFromUpload,
 } from "@/api/endpoints/upload";
 import { addFormat } from "@/api/endpoints/books";
-import { domainEvents } from "@/domain/events";
 import type { BookGroup, UploadEntry, UploadDuplicateAction } from "./upload-form.types";
 import {
   formatSize, groupKey, mergeMeta, updateFileInGroups,
@@ -127,10 +126,6 @@ export function useUploadGroups() {
     for (const f of readyFiles) {
       try {
         await addFormat(g.duplicate.id, f.tempId);
-        domainEvents.publish("bookUpdated", {
-          book: { id: g.duplicate.id },
-          changedFields: ["files"],
-        });
       } catch (err) {
         console.warn("Failed to add format:", err);
         alert("Не удалось добавить формат");
@@ -145,17 +140,9 @@ export function useUploadGroups() {
     try {
       const created = await createBookFromUpload(first.tempId, g.metadata);
       if (created) {
-        domainEvents.publish("bookCreated", {
-          bookId: created.bookId,
-          book: { id: created.bookId, title: g.metadata.title },
-        });
         for (const f of readyFiles.slice(1)) {
           try {
             await addFormat(created.bookId, f.tempId);
-            domainEvents.publish("bookUpdated", {
-              book: { id: created.bookId },
-              changedFields: ["files"],
-            });
           } catch (err) {
             console.warn("Failed to add format:", err);
             alert("Не удалось добавить формат");

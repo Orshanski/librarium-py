@@ -220,9 +220,34 @@ function validatePayload(type: keyof DomainEventMap, payload: unknown): void {
 
 function validateBookUpdatedPayload(value: Record<string, unknown>): void {
   requireBookPayload(value.book);
-  if (value.detail !== undefined) throw new Error("bad server event payload");
+  if (value.detail !== undefined) validateDetailSnapshot(value.detail);
   requireChangedFields(value.changedFields);
   if (value.affected !== undefined) validateAffected(value.affected);
+}
+
+// Форма проводного detail не строже фактического серверного снимка:
+// nullable-поля книги допустимы, user-поля отсутствуют (сервер их чистит).
+function validateDetailSnapshot(raw: unknown): void {
+  const detail = expectRecord(raw, "bad server event payload");
+  requireBookPayload(detail.book);
+  if (!Array.isArray(detail.files) || !detail.files.every(isFileInfoRecord)) {
+    throw new Error("bad server event payload");
+  }
+  if (!Array.isArray(detail.identifiers) || !detail.identifiers.every(isIdentifierRecord)) {
+    throw new Error("bad server event payload");
+  }
+}
+
+function isFileInfoRecord(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const file = value as Record<string, unknown>;
+  return typeof file.id === "number" && typeof file.format === "string";
+}
+
+function isIdentifierRecord(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const identifier = value as Record<string, unknown>;
+  return typeof identifier.type === "string" && typeof identifier.value === "string";
 }
 
 function requireChangedFields(value: unknown): void {

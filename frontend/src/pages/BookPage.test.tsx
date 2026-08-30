@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,6 +7,8 @@ import { Routes, Route } from "react-router-dom";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/render";
 import { metadataCache } from "@/cache";
+import { domainEvents } from "@/domain/events";
+import { registerMetadataCacheHandlers } from "@/cache/handlers";
 import BookPage from "./BookPage";
 
 const mockBookDetail = {
@@ -29,9 +31,21 @@ const mockBookDetail = {
 };
 
 describe("BookPage", () => {
+  // Кэш-обработчики в тестовой среде ставятся вручную (образец — ShelfPage.test):
+  // регистрация в beforeEach/afterEach, чтобы падение теста не оставляло
+  // подписки на модульной шине для соседних тестов.
+  let unregisterCacheHandlers: (() => void) | undefined;
+
   beforeEach(() => {
     sessionStorage.clear();
     metadataCache.clear();
+    domainEvents.clear();
+    unregisterCacheHandlers = registerMetadataCacheHandlers(metadataCache, domainEvents);
+  });
+
+  afterEach(() => {
+    unregisterCacheHandlers?.();
+    unregisterCacheHandlers = undefined;
   });
 
   it("happy: renders book title and files on successful fetch", async () => {
@@ -55,6 +69,54 @@ describe("BookPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Мастер и Маргарита").length).toBeGreaterThan(0);
     });
+  });
+
+  it("bookUpdated с detail обновляет страницу слиянием, без повторного GET", async () => {
+    // Ловит возврат замены/инвалидации: мутация «слить → инвалидировать» даёт
+    // повторный GET (requestCount=2) со старым заголовком — тест краснеет дважды.
+    let requestCount = 0;
+    server.use(
+      http.get("/api/books/:id", () => {
+        requestCount += 1;
+        return HttpResponse.json({
+          book: { ...mockBookDetail, rating: 4, isRead: true },
+          files: [{ format: "epub", fileSize: 1048576 }],
+          identifiers: [],
+        });
+      })
+    );
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/book/:id" element={<BookPage />} />
+      </Routes>,
+      { initialEntries: ["/book/42"] }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Мастер и Маргарита").length).toBeGreaterThan(0);
+    });
+
+    // Серверное событие правки: detail на проводе чищен от user-полей.
+    const { rating: _rating, isRead: _isRead, ...wireBook } = { ...mockBookDetail, title: "Новое название" };
+    domainEvents.publish("bookUpdated", {
+      book: { id: 42, title: "Новое название" },
+      detail: {
+        book: wireBook as never,
+        files: [{ id: 1, format: "epub", fileSize: 1048576 }],
+        identifiers: [],
+      },
+      changedFields: ["title"],
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Новое название").length).toBeGreaterThan(0);
+    });
+    expect(requestCount).toBe(1);
+
+    // User-поля кэшированной записи пережили слияние.
+    const cached = metadataCache.get<{ book: { rating: number | null; isRead: boolean; title: string } }>("book/42", "detail");
+    expect(cached?.book).toMatchObject({ rating: 4, isRead: true, title: "Новое название" });
   });
 
   it("happy with series: loads series books when book has series.id", async () => {

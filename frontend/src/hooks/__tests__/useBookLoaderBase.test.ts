@@ -109,7 +109,7 @@ describe("fetchBookMetadata", () => {
 });
 
 describe("markUnreadInBackground", () => {
-  it("calls setRead(id, false) when online and publishes event after success", async () => {
+  it("calls setRead(id, false) when online, в шину ничего не публикуется", async () => {
     mockedSetRead.mockResolvedValue(undefined);
     const events: Array<{ bookId: number; isRead: boolean }> = [];
     domainEvents.subscribe("bookReadChanged", (payload) => events.push(payload));
@@ -118,7 +118,7 @@ describe("markUnreadInBackground", () => {
 
     expect(mockedSetRead).toHaveBeenCalledWith(42, false);
     await new Promise((r) => setTimeout(r, 0));
-    expect(events).toEqual([{ bookId: 42, isRead: false }]);
+    expect(events).toEqual([]);
   });
 
   it("does NOT call setRead when offline", () => {

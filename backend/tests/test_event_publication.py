@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._helpers import assert_error, assert_ok, login_client
+from tests._helpers import assert_error, assert_ok, connect_test_db, login_client
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
@@ -193,7 +193,9 @@ def test_update_book_publishes_library_book_updated(admin_client, captured_domai
         json={"title": "Evented Title", "publisher": "Evented Publisher"},
     )
 
-    data = assert_ok(response)
+    assert assert_ok(response) == {"ok": True}
+    # Эталон — свежий GET: тело PUT деталь больше не несёт, она едет событием.
+    data = assert_ok(admin_client.get("/api/books/1"))
 
     assert captured_domain_events == [
         {
@@ -203,6 +205,11 @@ def test_update_book_publishes_library_book_updated(admin_client, captured_domai
                 "payload": {
                     "book": _without_user_scoped_fields(data["book"]),
                     "changedFields": ["title", "publisher"],
+                    "detail": {
+                        "book": _without_user_scoped_fields(data["book"]),
+                        "files": data["files"],
+                        "identifiers": data["identifiers"],
+                    },
                 },
             },
         }
@@ -219,7 +226,8 @@ def test_update_book_library_payload_excludes_user_scoped_fields(
     reader_admin = login_client(username="reader", password="reader123")
 
     response = reader_admin.put("/api/books/1", json={"title": "Reader Evented Title"})
-    data = assert_ok(response)
+    assert assert_ok(response) == {"ok": True}
+    data = assert_ok(reader_admin.get("/api/books/1"))
 
     assert data["book"]["rating"] == 5
     assert data["book"]["isRead"] == 1
@@ -234,6 +242,60 @@ def test_no_op_update_does_not_publish(admin_client, captured_domain_events):
     assert_ok(admin_client.put("/api/books/1", json={}))
 
     assert captured_domain_events == []
+
+
+def test_full_form_body_with_empty_strings_is_no_op_for_null_fields(admin_client, captured_domain_events):
+    # Форма правки шлёт полное тело: у книги с NULL-полями пустые строки
+    # означают «не менялось». Без нормализации "" != null рождает фантомные
+    # changedFields (включая структурный language) — снос кэшей и прокрутки
+    # у всех клиентов на каждом Save.
+    db = connect_test_db()
+    try:
+        db.execute(
+            "UPDATE books SET description = NULL, language = NULL, publisher = NULL, pub_date = NULL WHERE id = 1"
+        )
+        title = db.execute("SELECT title FROM books WHERE id = 1").fetchone()[0]
+        db.commit()
+    finally:
+        db.close()
+
+    response = admin_client.put(
+        "/api/books/1",
+        json={"title": title, "description": "", "language": "", "publisher": "", "pubDate": ""},
+    )
+
+    assert assert_ok(response) == {"ok": True}
+    assert captured_domain_events == []
+
+    db = connect_test_db()
+    try:
+        row = db.execute(
+            "SELECT description, language, publisher, pub_date FROM books WHERE id = 1"
+        ).fetchone()
+    finally:
+        db.close()
+    assert tuple(row) == (None, None, None, None)
+
+
+def test_update_book_event_detail_strips_populated_user_fields(admin_client, captured_domain_events):
+    # Правит читатель с непустыми rating/isRead — чистка detail.book проверяется
+    # на реальных значениях, а не на пустых (у admin_client они пусты, и очистка
+    # была бы неотличима от отсутствия данных).
+    assert_ok(admin_client.put("/api/admin/users/2", json={"role": "admin"}))
+    reader_admin = login_client(username="reader", password="reader123")
+
+    response = reader_admin.put("/api/books/1", json={"title": "Detail Reader Title"})
+
+    assert assert_ok(response) == {"ok": True}
+    data = assert_ok(reader_admin.get("/api/books/1"))
+    assert data["book"]["rating"] == 5
+    assert data["book"]["isRead"] == 1
+
+    detail = captured_domain_events[0]["event"]["payload"]["detail"]
+    assert USER_SCOPED_BOOK_FIELDS.isdisjoint(detail["book"])
+    assert detail["book"]["title"] == "Detail Reader Title"
+    assert detail["files"] == data["files"]
+    assert detail["identifiers"] == data["identifiers"]
 
 
 def test_isbn_only_update_publishes_identifiers_changed_field(

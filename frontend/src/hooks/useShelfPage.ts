@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { getShelf, deleteShelf, removeBookFromShelf, type ShelfSummary, type ShelfProgressEntry } from "@/api/endpoints/shelves";
 import { SORT_CONFIG, shelfSortConfigKey, sortOptionsFor, type SortOption } from "../config/sort";
 import { shelfScrollContext } from "@/scroll/contexts";
-import { domainEvents } from "@/domain/events";
 import { metadataCache, useCachedResource } from "@/cache";
 import { NotFoundError } from "@/api/errors";
 import { useScrollRestore } from "./useScrollRestore";
@@ -90,8 +89,6 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const handleDeleteShelf = useCallback(async () => {
     try {
       await deleteShelf(shelfId);
-      // publish → handler инвалидирует 'shelves' в store → Sidebar реактивен через useCachedResource.
-      domainEvents.publish("shelfDeleted", { shelfId });
       navigate("/");
     } catch (err) {
       console.warn("Failed to delete shelf:", err);
@@ -101,7 +98,6 @@ export function useShelfPage(shelfId: number): UseShelfPageResult {
   const handleRemoveBookFromShelf = useCallback(async (bookId: number) => {
     try {
       await removeBookFromShelf(shelfId, bookId);
-      domainEvents.publish("shelfMembershipChanged", { shelfId, bookId, hasBook: false });
     } catch (err) {
       console.warn("Failed to remove book from shelf:", err);
     }

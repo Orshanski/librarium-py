@@ -5,7 +5,6 @@ import { LocalProgress, LocalSettings, getProgress, getSettings as getLocalSetti
 import { getBook, setRead as apiSetRead } from "@/api/endpoints/books";
 import type { BookDetailResponse } from "@/api/endpoints/books";
 import type { LoadProgress } from "../components/ReaderLoadingScreen";
-import { domainEvents } from "@/domain/events";
 
 export interface BookLoaderResult {
   bookBlob: Blob | null;
@@ -100,7 +99,6 @@ export function markUnreadInBackground(id: string, bookData: BookDetailResponse 
   if (!navigator.onLine || !bookData?.book?.isRead) return;
   const bookId = Number(id);
   apiSetRead(bookId, false)
-    .then(() => domainEvents.publish("bookReadChanged", { bookId, isRead: false }))
     .catch((err) => console.warn("Failed to clear isRead:", err));
 }
 

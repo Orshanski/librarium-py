@@ -172,8 +172,11 @@ describe("UploadForm", () => {
         tempId: "abc123",
         metadata: expect.objectContaining({ title: "Test Book" }),
       });
-      expect(events).toEqual([{ bookId: 100, book: { id: 100, title: "Test Book" } }]);
     });
+    // Тик — публикация (если её вернут) шла бы после резолва await у клиента.
+    await new Promise((r) => setTimeout(r, 0));
+    // Списки инвалидирует серверное событие; локальной публикации нет.
+    expect(events).toEqual([]);
   });
 
   it("remove file → DELETE /api/uploads/:tempId fires", async () => {
@@ -413,10 +416,7 @@ describe("UploadForm", () => {
     await waitFor(() => expect(addFormatCalls.length).toBe(2));
     expect(createCalls).toBe(0);
     expect(addFormatCalls.every((c) => c.id === "42")).toBe(true);
-    expect(events).toEqual([
-      { book: { id: 42 }, changedFields: ["files"] },
-      { book: { id: 42 }, changedFields: ["files"] },
-    ]);
+    expect(events).toEqual([]);
   });
 
   it("merge-self: clicking own card after activating merge resets mergeSource via Отмена", async () => {

@@ -189,7 +189,37 @@ describe("dispatchServerEvent", () => {
     expect(handler).toHaveBeenCalledWith({ book: { id: 42 }, changedFields: ["recap"] });
   });
 
-  it("rejects server bookUpdated detail before publishing", () => {
+  it("принимает серверный bookUpdated с валидным detail и доносит его до шины", () => {
+    const handler = vi.fn();
+    domainEvents.subscribe("bookUpdated", handler);
+
+    dispatchServerEvent({
+      eventId: 11,
+      publishedAt: "2026-08-30T10:00:00Z",
+      scope: { kind: "library" },
+      event: {
+        type: "bookUpdated",
+        payload: {
+          book: { id: 9, title: "T" },
+          detail: {
+            book: { id: 9, title: "T" },
+            files: [{ id: 1, format: "fb2", fileSize: 10 }],
+            identifiers: [{ type: "isbn", value: "1" }],
+          },
+          changedFields: ["title"],
+        },
+      },
+    });
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({
+        book: expect.objectContaining({ id: 9, title: "T" }),
+        files: [{ id: 1, format: "fb2", fileSize: 10 }],
+      }),
+    }));
+  });
+
+  it("rejects malformed server bookUpdated detail before publishing", () => {
     const handler = vi.fn();
     domainEvents.subscribe("bookUpdated", handler);
 
@@ -220,6 +250,19 @@ describe("dispatchServerEvent", () => {
         },
       },
     })).toThrow(/payload/i);
+
+    // Нескалярные нарушения формы: не-объект, массив, null вместо массивов.
+    for (const detail of ["x", [], { book: { id: 9 }, files: null, identifiers: [] }]) {
+      expect(() => dispatchServerEvent({
+        eventId: 11,
+        publishedAt: "2026-05-27T10:00:00Z",
+        scope: { kind: "library" },
+        event: {
+          type: "bookUpdated",
+          payload: { book: { id: 9 }, detail, changedFields: ["files"] },
+        },
+      })).toThrow(/payload/i);
+    }
 
     expect(handler).not.toHaveBeenCalled();
   });
