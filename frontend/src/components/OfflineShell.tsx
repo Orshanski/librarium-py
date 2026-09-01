@@ -11,21 +11,26 @@ import { useBookCardWidth } from "./use-book-card-width";
 
 const DEFAULT_READER_FORMAT = "epub";
 
-function pickReaderFormat(book: OfflineBook): string {
-  const first = book.formats[0]?.format;
-  if (first) return first.toLowerCase();
-  return DEFAULT_READER_FORMAT;
+/** Формат последнего чтения, если он скачан; иначе первый скачанный. */
+function pickReaderFormat(book: OfflineBook, lastFormat: string | undefined): string {
+  const downloaded = book.formats.map((f) => f.format.toLowerCase());
+  const last = lastFormat?.toLowerCase();
+  if (last && downloaded.includes(last)) return last;
+  return downloaded[0] ?? DEFAULT_READER_FORMAT;
 }
 
 interface OfflineBooksData {
   books: OfflineBook[];
   progressMap: Map<number, number>;
+  /** Формат последнего чтения по книге — из локальной позиции. */
+  lastFormatMap: Map<number, string>;
   loading: boolean;
 }
 
 export function useOfflineBooks(): OfflineBooksData {
   const [books, setBooks] = useState<OfflineBook[]>([]);
   const [progressMap, setProgressMap] = useState<Map<number, number>>(new Map());
+  const [lastFormatMap, setLastFormatMap] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,9 +41,10 @@ export function useOfflineBooks(): OfflineBooksData {
         fetched.sort((a, b) => b.lastAccessedAt - a.lastAccessedAt);
         if (cancelled) return;
         setBooks(fetched);
-        const map = await loadProgressMap(fetched);
+        const { percents, lastFormats } = await loadPositions(fetched);
         if (cancelled) return;
-        setProgressMap(map);
+        setProgressMap(percents);
+        setLastFormatMap(lastFormats);
       } catch (err) {
         // IndexedDB unavailability or storage corruption: render empty offline shell
         // rather than crashing the whole app. Per-book progress errors are handled
@@ -51,24 +57,29 @@ export function useOfflineBooks(): OfflineBooksData {
     return () => { cancelled = true; };
   }, []);
 
-  return { books, progressMap, loading };
+  return { books, progressMap, lastFormatMap, loading };
 }
 
-async function loadProgressMap(books: OfflineBook[]): Promise<Map<number, number>> {
-  const map = new Map<number, number>();
+/** Из локальной позиции каждой книги: процент прочитанного и формат последнего чтения. */
+async function loadPositions(
+  books: OfflineBook[],
+): Promise<{ percents: Map<number, number>; lastFormats: Map<number, string> }> {
+  const percents = new Map<number, number>();
+  const lastFormats = new Map<number, string>();
   for (const book of books) {
     const p = await getProgress(book.bookId).catch(() => null);
     if (p) {
       // Спека (решение E): прогресс рисуется при любом значении, включая 0
       // (тонкая полоска как сигнал «книга открывалась»). Унифицировано с catalog desktop.
-      map.set(book.bookId, Math.round(p.fraction * 100));
+      percents.set(book.bookId, Math.round(p.fraction * 100));
+      if (p.lastFormat) lastFormats.set(book.bookId, p.lastFormat);
     }
   }
-  return map;
+  return { percents, lastFormats };
 }
 
 export default function OfflineShell() {
-  const { books, progressMap, loading } = useOfflineBooks();
+  const { books, progressMap, lastFormatMap, loading } = useOfflineBooks();
   const isMobile = useIsMobile();
 
   if (loading) return <LoadingScreen />;
@@ -78,7 +89,7 @@ export default function OfflineShell() {
       <Header isMobile={isMobile} />
       {books.length === 0
         ? <EmptyState isMobile={isMobile} />
-        : <BooksGrid books={books} progressMap={progressMap} isMobile={isMobile} />
+        : <BooksGrid books={books} progressMap={progressMap} lastFormatMap={lastFormatMap} isMobile={isMobile} />
       }
     </div>
   );
@@ -143,10 +154,11 @@ function EmptyState({ isMobile }: Readonly<{ isMobile: boolean }>) {
 interface BooksGridProps {
   books: OfflineBook[];
   progressMap: Map<number, number>;
+  lastFormatMap: Map<number, string>;
   isMobile: boolean;
 }
 
-function BooksGrid({ books, progressMap, isMobile }: Readonly<BooksGridProps>) {
+function BooksGrid({ books, progressMap, lastFormatMap, isMobile }: Readonly<BooksGridProps>) {
   const cardWidth = useBookCardWidth();
   return (
     <>
@@ -166,6 +178,7 @@ function BooksGrid({ books, progressMap, isMobile }: Readonly<BooksGridProps>) {
               key={book.bookId}
               book={book}
               progressPercent={progressMap.get(book.bookId)}
+              lastFormat={lastFormatMap.get(book.bookId)}
               cardWidth={cardWidth}
             />
           ))}
@@ -178,10 +191,11 @@ function BooksGrid({ books, progressMap, isMobile }: Readonly<BooksGridProps>) {
 interface OfflineBookGridItemProps {
   book: OfflineBook;
   progressPercent: number | undefined;
+  lastFormat: string | undefined;
   cardWidth: number;
 }
 
-function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<OfflineBookGridItemProps>) {
+function OfflineBookGridItem({ book, progressPercent, lastFormat, cardWidth }: Readonly<OfflineBookGridItemProps>) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -213,7 +227,7 @@ function OfflineBookGridItem({ book, progressPercent, cardWidth }: Readonly<Offl
       width={cardWidth}
       progressPercent={progressPercent}
       hasOffline
-      href={`/book/${book.bookId}/read/${pickReaderFormat(book)}`}
+      href={`/book/${book.bookId}/read/${pickReaderFormat(book, lastFormat)}`}
       onClick={setReadingFlag}
     />
   );
