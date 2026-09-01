@@ -26,6 +26,8 @@ export interface EbookReaderInstanceConfig {
 
 export interface UseEbookReaderInstanceParams {
   bookBlob: Blob;
+  /** Сохранённое место; null и undefined — места нет. Вызывающий монтирует читалку уже после применения
+   *  локальной и серверной позиции, поэтому «ещё неизвестно» сюда не попадает. */
   initialPosition: string | null | undefined;
   containerRef: RefObject<HTMLDivElement | null>;
   viewRef: RefObject<ReaderViewElement | null>;
@@ -78,7 +80,8 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
     const nav = createNavigationController(view, {
       onSavePosition: () => {
         const loc = view.lastLocation;
-        if (loc?.cfi && !loc.isCover && !loc.isOpening) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
+        // Обложка и титул — обычное место чтения: открытие книги оставляет след, как скачивание и снятый флаг.
+        if (loc?.cfi) callbacksRef.current?.onSavePosition?.(loc.cfi, loc.fraction ?? 0);
       },
       onReady: () => callbacksRef.current?.onReady?.(),
       isDisposed: () => disposed,
@@ -135,11 +138,13 @@ export function useEbookReaderInstance(params: UseEbookReaderInstanceParams): vo
         if (configRef.current.maxBlockSize) renderer.setAttribute("max-block-size", configRef.current.maxBlockSize);
 
         // Finish initial navigation before making the reader interactive.
+        // Известная позиция восстанавливается без записи; без позиции открытие само записывает
+        // место и кладёт книгу на полку «Читаю сейчас».
         await (initialPosition
           ? nav.performNavigation({ type: "goTo", target: initialPosition, persist: false, allowDuringInit: true })
           : nav.enqueueNavigation(
             () => view.goTo(0),
-            { persist: false, allowDuringInit: true },
+            { persist: true, allowDuringInit: true },
           ));
         if (!disposed) {
           nav.setInteractive();
