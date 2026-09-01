@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import * as authApi from "./api/endpoints/auth";
 import type { User } from "./api/types";
 import { clearAllProgress } from "./utils/offline-storage";
+import { metadataCache } from "./cache";
 
 const LOCALSTORAGE_AUTH_KEY = "librarium_user";
 const LOCALSTORAGE_AUTH_SCHEMA_VERSION = 1;
@@ -71,6 +72,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     await authApi.logout().catch((err) => console.warn("Logout request failed:", err));
     // Локальные позиции чтения — след ушедшего: иначе они уйдут на сервер под следующим вошедшим.
     await clearAllProgress().catch((err) => console.warn("Failed to clear reading progress:", err));
+    // Кэш метаданных несёт оценки и «прочитано» ушедшего — следующему вошедшему они достаться не должны.
+    try {
+      metadataCache.clear();
+    } catch (err) {
+      console.warn("Failed to clear metadata cache:", err);
+    }
     setUser(null);
     try {
       localStorage.removeItem(LOCALSTORAGE_AUTH_KEY);

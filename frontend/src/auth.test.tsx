@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "./auth";
 import "fake-indexeddb/auto";
 import userEvent from "@testing-library/user-event";
 import { initDB, _resetDB, saveProgress, getProgress } from "./utils/offline-storage";
+import { metadataCache } from "./cache";
+import { STORAGE_PREFIX } from "./cache/storage/persistence";
 
 // Consumer renders the `loading` state explicitly so tests can distinguish
 // "initial render before fetch completes" from "fetch done, anon result".
@@ -194,5 +196,26 @@ describe("auth provider — выход забывает локальные по�
     await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("anon"));
 
     await waitFor(async () => expect(await getProgress(7)).toBeNull());
+  });
+});
+
+describe("auth provider — выход забывает кэш метаданных (q4fg)", () => {
+  it("после выхода кэш пуст и в памяти, и в sessionStorage", async () => {
+    server.use(http.post("/api/auth/logout", () => HttpResponse.json({ ok: true })));
+    metadataCache.set("books", "/api/books?sort=addedDesc", { books: [{ id: 1, isRead: true, rating: 5 }] });
+    // Снимок пространства, ещё не поднятый в память: чистка обязана снести и его.
+    sessionStorage.setItem(STORAGE_PREFIX + "shelves", JSON.stringify({ k: { value: [], cachedAt: 1 } }));
+
+    render(
+      <AuthProvider>
+        <LogoutConsumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("admin"));
+    await userEvent.click(screen.getByRole("button", { name: "Выйти" }));
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("anon"));
+
+    expect(metadataCache.get("books", "/api/books?sort=addedDesc")).toBeUndefined();
+    expect(sessionStorage.getItem(STORAGE_PREFIX + "shelves")).toBeNull();
   });
 });
