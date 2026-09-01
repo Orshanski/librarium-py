@@ -409,6 +409,12 @@ export async function removeProgress(bookId: number): Promise<void> {
   await db.delete("reading_progress", bookId);
 }
 
+/** Забыть все локальные позиции чтения — при выходе из аккаунта: они принадлежат ушедшему. */
+export async function clearAllProgress(): Promise<void> {
+  const db = await initDB();
+  await db.clear("reading_progress");
+}
+
 export async function getUnsyncedProgress(): Promise<LocalProgress[]> {
   const db = await initDB();
   const all = await db.getAll("reading_progress");
