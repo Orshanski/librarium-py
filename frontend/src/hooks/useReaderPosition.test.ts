@@ -248,6 +248,40 @@ describe("useReaderPosition — syncProgressWithServer", () => {
     expect(mockRemoveProgress).toHaveBeenCalledWith(42);
     expect(result.current.initialPosition).toBeNull();
   });
+
+  // 7xtr: сбой запроса — не ответ «позиции нет». Проверка removeProgress ловит отсутствие правки;
+  // проверка pushCAS — неполную правку, где загорожено только удаление, а несинхронизированная
+  // позиция уходит в отправку на сервер, до которого только что не достучались.
+  it.each([
+    ["сервер отвечает ошибкой", () => new HttpResponse(null, { status: 500 })],
+    ["сети нет", () => HttpResponse.error()],
+  ])("оставляет локальную позицию, когда %s", async (_name, respond) => {
+    server.use(http.get("/api/reader/progress/42", respond));
+
+    const localProgress: LocalProgress = {
+      bookId: 42,
+      position: '{"kind":"cfi","value":"epubcfi(/6/4!/4/2/2:0)"}',
+      fraction: 0.5,
+      lastFormat: "epub",
+      lastReadAt: Date.now(),
+      serverVersion: 1,
+      synced: false,
+    };
+
+    const { result } = renderHook(() => useReaderPosition(hookOptions));
+
+    act(() => {
+      result.current.applyLocalProgress(localProgress);
+    });
+
+    await act(async () => {
+      await result.current.syncProgressWithServer(42, localProgress);
+    });
+
+    expect(mockRemoveProgress).not.toHaveBeenCalled();
+    expect(mockPushCAS).not.toHaveBeenCalled();
+    expect(result.current.initialPosition).toBe("epubcfi(/6/4!/4/2/2:0)");
+  });
 });
 
 describe("useReaderPosition — rapid progress pushes", () => {

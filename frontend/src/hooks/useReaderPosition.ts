@@ -5,7 +5,7 @@ import {
   adoptServerProgressLocal, removeProgress,
 } from "../utils/offline-storage";
 import { pushProgressToServerCAS } from "../utils/reader-sync";
-import { getProgress as apiGetProgress } from "../api/endpoints/reader";
+import { getProgress as apiGetProgress, type ReadingProgressState } from "../api/endpoints/reader";
 
 type PositionKind = "cfi" | "page";
 
@@ -120,11 +120,18 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
   adoptServerProgressRef.current = adoptServerProgress;
 
   const syncProgressWithServer = useCallback(async (bookId: number, localProgress: LocalProgress | null) => {
-    const serverProgress = await apiGetProgress(bookId).catch(() => null);
+    let serverProgress: ReadingProgressState;
+    try {
+      serverProgress = await apiGetProgress(bookId);
+    } catch (err) {
+      // Сбой запроса — не ответ «позиции нет»: сервер недоступен, сверку пропускаем, локальное остаётся.
+      console.warn("Failed to fetch server progress, keeping local:", err);
+      return;
+    }
 
     const hasUnsyncedLocal = Boolean(localProgress && !localProgress.synced);
-    const serverPosition = serverProgress?.position ?? null;
-    const serverVersion = serverProgress?.version ?? 0;
+    const serverPosition = serverProgress.position ?? null;
+    const serverVersion = serverProgress.version ?? 0;
     const localServerVersion = localProgress?.serverVersion ?? 0;
 
     if (localProgress && !serverPosition) {
@@ -134,7 +141,7 @@ export function useReaderPosition({ bookId: id, format, positionKind, deviceName
     } else if (hasUnsyncedLocal && localProgress) {
       await pushProgressToServerRef.current(bookId);
     } else if (serverPosition && serverVersion > localServerVersion) {
-      if (typeof serverProgress?.position !== "string") return;
+      if (typeof serverProgress.position !== "string") return;
       const narrowed = { ...serverProgress, position: serverProgress.position };
       await adoptServerProgressRef.current(bookId, narrowed, { resume: false });
     }
