@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import { server } from "./test/msw/server";
 import { AuthProvider, useAuth } from "./auth";
+import "fake-indexeddb/auto";
+import userEvent from "@testing-library/user-event";
+import { initDB, _resetDB, saveProgress, getProgress } from "./utils/offline-storage";
 
 // Consumer renders the `loading` state explicitly so tests can distinguish
 // "initial render before fetch completes" from "fetch done, anon result".
@@ -139,5 +142,57 @@ describe("auth provider — /api/auth/me", () => {
     await waitFor(() =>
       expect(screen.getByTestId("user")).toHaveTextContent("reader42"),
     );
+  });
+});
+
+// Кнопка выхода нужна тестам выхода: базовый Consumer только показывает, кто вошёл.
+function LogoutConsumer() {
+  const { user, loading, logout } = useAuth();
+  if (loading) return <div data-testid="user">loading</div>;
+  return (
+    <div>
+      <div data-testid="user">{user ? user.username : "anon"}</div>
+      <button onClick={() => void logout()}>Выйти</button>
+    </div>
+  );
+}
+
+describe("auth provider — выход забывает локальные позиции чтения (wzjm)", () => {
+  beforeEach(async () => {
+    await initDB();
+    await _resetDB();
+    await initDB();
+  });
+
+  it("после выхода локальная позиция чтения удалена", async () => {
+    server.use(http.post("/api/auth/logout", () => HttpResponse.json({ ok: true })));
+    await saveProgress(7, { position: "epubcfi(/6/2)", fraction: 0.4, lastFormat: "epub", lastReadAt: 1 });
+
+    render(
+      <AuthProvider>
+        <LogoutConsumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("admin"));
+    await userEvent.click(screen.getByRole("button", { name: "Выйти" }));
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("anon"));
+
+    await waitFor(async () => expect(await getProgress(7)).toBeNull());
+  });
+
+  it("выход при недоступном сервере тоже удаляет локальную позицию", async () => {
+    server.use(http.post("/api/auth/logout", () => HttpResponse.error()));
+    await saveProgress(7, { position: "epubcfi(/6/2)", fraction: 0.4, lastFormat: "epub", lastReadAt: 1 });
+
+    render(
+      <AuthProvider>
+        <LogoutConsumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("admin"));
+    await userEvent.click(screen.getByRole("button", { name: "Выйти" }));
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("anon"));
+
+    await waitFor(async () => expect(await getProgress(7)).toBeNull());
   });
 });

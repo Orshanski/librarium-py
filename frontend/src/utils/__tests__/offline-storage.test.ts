@@ -15,6 +15,7 @@ import {
   saveProgress,
   getProgress,
   removeProgress,
+  clearAllProgress,
   reconcileAcceptedProgress,
   getUnsyncedProgress,
   markProgressSynced,
@@ -46,6 +47,25 @@ beforeEach(async () => {
   await initDB();   // ensure DB exists
   await _resetDB(); // clear all stores
   await initDB();   // re-init fresh promise
+});
+
+describe("clearAllProgress (wzjm)", () => {
+  it("удаляет все позиции, синхронизированные и нет; соседние хранилища не трогает", async () => {
+    await saveProgress(1, { position: "a", fraction: 0.1, lastFormat: "epub", lastReadAt: 1 });
+    await saveProgress(2, { position: "b", fraction: 0.2, lastFormat: "fb2", lastReadAt: 2 });
+    await markProgressSynced(2);
+    const book = makeBook({ id: 3, title: "Survivor" });
+    await saveOfflineBook(book, [{ format: "EPUB", fileBlob: new Blob(["x"]), fileSize: 1 }], new Blob(["c"]));
+    await saveSettings("desktop", { fontSize: 18 });
+
+    await clearAllProgress();
+
+    expect(await getProgress(1)).toBeNull();
+    expect(await getProgress(2)).toBeNull();
+    // Ловит копипаст с _resetDB, которая чистит все три хранилища.
+    expect(await getOfflineBook(3)).not.toBeNull();
+    expect((await getSettings("desktop"))?.settings).toEqual({ fontSize: 18 });
+  });
 });
 
 describe("offline book storage", () => {
