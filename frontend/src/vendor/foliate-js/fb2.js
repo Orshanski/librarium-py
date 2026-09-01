@@ -311,21 +311,19 @@ img.float-image {
    object-fit:contain (от paginator) держит аспект, ширина авто. Нормализует inline-глиф к
    высоте строки (величина 1.2em — стартовая, тюнится на визуалке Alexey). */
 img.inline-glyph { height: 1.2em; }
-.title h1 { text-align: center; font-size: 1.6em; font-weight: 700; line-height: 1.2; }
-.title h2 { text-align: center; font-size: 1.45em; font-weight: 700; }
-.title h3 { text-align: center; font-size: 1.3em; font-weight: 700; }
-.title h4 { text-align: center; font-size: 1.15em; font-weight: 700; color: var(--muted); font-style: italic; }
+.title h1 { text-align: center; font-size: 1.5em; font-weight: 700; line-height: 1.2; }
+.title h2 { text-align: center; font-size: 1.25em; font-weight: 700; }
+.title h3 { text-align: center; font-size: 1.1em; font-weight: 700; }
+.title h4 { text-align: center; font-size: 1em; font-weight: 700; color: var(--muted); font-style: italic; }
 /* Heading spacing — per level. A STANDALONE heading (a section break with no
-   adjacent .title sibling, at any nesting depth) gets per-level margins,
-   INCLUDING the top margin that separates it from the preceding section.
-   Поля и кегли уровней — как в нативной читалке (librarium-py-rdep): под титулом,
-   над заголовками глав и вокруг подзаголовка плотнее, h4 крупнее текста.
+   adjacent .title sibling, at any nesting depth) gets per-level margins from the
+   mockup, INCLUDING the top margin that separates it from the preceding section.
    The margin sits on the inner heading and collapses through the header.title
    wrapper, so it works no matter how deep the section nests. */
-.title h1 { margin: 0 0 0.6em; }
-.title h2 { margin: 1em 0 0.8em; }
-.title h3 { margin: 1em 0 0.7em; }
-.title h4 { margin: 1em 0 0.6em; }
+.title h1 { margin: 0 0 1.1em; }
+.title h2 { margin: 1.6em 0 0.8em; }
+.title h3 { margin: 1.4em 0 0.7em; }
+.title h4 { margin: 1.3em 0 0.6em; }
 /* A run of adjacent .title siblings is an opening stack (book -> part -> chapter,
    gathered into one flat block): collapse it compact — zero the stacked titles'
    inner margins and replace them with one tight uniform gap. The first title
@@ -410,7 +408,7 @@ body .subtitle {
     color: var(--muted);
     text-indent: 0;
     /* explicit spacing (subtitle is an h2/h3/h4 tag, UA margin now zeroed) */
-    margin: 0.4em 0 0.8em;
+    margin: 1.3em 0;
 }
 .text-author {
     text-align: end;
