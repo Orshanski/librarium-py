@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useRef } from "react";
 import type { RefObject } from "react";
-import { render } from "@testing-library/react";
+import { render, waitFor, act } from "@testing-library/react";
 import { useEbookReaderInstance, type EbookReaderInstanceConfig } from "./useEbookReaderInstance";
 import { useFootnoteState } from "./useFootnoteState";
 import { useReaderFooter } from "./useReaderFooter";
@@ -165,7 +165,8 @@ describe("useEbookReaderInstance", () => {
     expect(viewRef.current).toBeNull();
   });
 
-  it("does not persist cover locations on pagehide", () => {
+  // bcsy: обложка и титул — обычное место чтения, стража isCover/isOpening больше нет.
+  it("persists cover location on pagehide", () => {
     const onSavePosition = vi.fn();
     const blob = new Blob([""], { type: "application/epub+zip" });
     const viewRef: RefObject<ReaderViewElement | null> = { current: null };
@@ -179,11 +180,11 @@ describe("useEbookReaderInstance", () => {
     }
     globalThis.dispatchEvent(new Event("pagehide"));
 
-    expect(onSavePosition).not.toHaveBeenCalled();
+    expect(onSavePosition).toHaveBeenCalledWith("__cover__", 0);
     unmount();
   });
 
-  it("does not persist opening frontmatter locations on pagehide", () => {
+  it("persists opening frontmatter location on pagehide", () => {
     const onSavePosition = vi.fn();
     const blob = new Blob([""], { type: "application/epub+zip" });
     const viewRef: RefObject<ReaderViewElement | null> = { current: null };
@@ -197,8 +198,60 @@ describe("useEbookReaderInstance", () => {
     }
     globalThis.dispatchEvent(new Event("pagehide"));
 
-    expect(onSavePosition).not.toHaveBeenCalled();
+    expect(onSavePosition).toHaveBeenCalledWith("/6/2", 0);
     unmount();
   });
 
+  describe("первичный переход при открытии (bcsy)", () => {
+    // Открытие подменяется: настоящий разбор пустого файла в jsdom невозможен, а нужен только
+    // порядок «открыли → перешли → записали позицию».
+    function stubOpen() {
+      const proto = customElements.get("foliate-view")!.prototype as ReaderViewElement;
+      const openSpy = vi.spyOn(proto, "open").mockImplementation(async function (this: ReaderViewElement) {
+        this.book = { sections: [], resolveHref: () => null };
+        this.renderer = { setAttribute: () => {} };
+      });
+      // Место — от цели перехода, как в бою: 0 → обложка, адрес → он же.
+      const goToSpy = vi.spyOn(proto, "goTo").mockImplementation(async function (this: ReaderViewElement, target) {
+        this.lastLocation = target === 0
+          ? { cfi: "__cover__", fraction: 0, isCover: true }
+          : { cfi: String(target), fraction: 0.4, isCover: false };
+      });
+      return { openSpy, goToSpy };
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("без сохранённой позиции открытие пишет позицию обложки", async () => {
+      const { goToSpy } = stubOpen();
+      const onSavePosition = vi.fn();
+      const viewRef: RefObject<ReaderViewElement | null> = { current: null };
+
+      const { unmount } = render(
+        <TestHost blob={new Blob([""])} viewRef={viewRef} callbacks={{ onSavePosition }} initialPosition={null} />,
+      );
+
+      await waitFor(() => expect(goToSpy).toHaveBeenCalledWith(0));
+      await waitFor(() => expect(onSavePosition).toHaveBeenCalledWith("__cover__", 0));
+      unmount();
+    });
+
+    // Зелёный и до правки; ловит неполную версию, сделавшую пишущим и переход к известной позиции.
+    it("с сохранённой позицией открытие её не перезаписывает", async () => {
+      const { goToSpy } = stubOpen();
+      const onSavePosition = vi.fn();
+      const viewRef: RefObject<ReaderViewElement | null> = { current: null };
+
+      const { unmount } = render(
+        <TestHost blob={new Blob([""])} viewRef={viewRef} callbacks={{ onSavePosition }} initialPosition="/6/4" />,
+      );
+
+      await waitFor(() => expect(goToSpy).toHaveBeenCalledWith("/6/4"));
+      await act(async () => {});
+      expect(onSavePosition).not.toHaveBeenCalled();
+      unmount();
+    });
+  });
 });
