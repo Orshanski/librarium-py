@@ -99,3 +99,24 @@ def test_invalid_json_returns_empty():
         mock_client.return_value.messages.create.return_value = mock_response
         result = extract_metadata_from_filename("book.pdf")
     assert result == LlmMetadata()
+
+
+def test_request_pins_the_answer_to_the_metadata_schema():
+    """Формат ответа держит API, а не просьба в промпте; схема обязана совпадать с
+    LlmMetadata, иначе новое поле тихо не доедет до каталога."""
+    from dataclasses import fields
+    from app.enrichers.pdf_llm import OUTPUT_FORMAT
+
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(type="text", text='{"title": "X"}')]
+    with patch("app.enrichers.pdf_llm.ANTHROPIC_API_KEY", "test-key"), \
+         patch("app.enrichers.pdf_llm.anthropic.Anthropic") as mock_client:
+        mock_client.return_value.messages.create.return_value = mock_response
+        extract_metadata_from_filename("book.pdf")
+
+    sent = mock_client.return_value.messages.create.call_args.kwargs
+    assert sent["output_config"] == {"format": OUTPUT_FORMAT}
+    schema = OUTPUT_FORMAT["schema"]
+    names = {f.name for f in fields(LlmMetadata)}
+    assert set(schema["properties"]) == names
+    assert set(schema["required"]) == names

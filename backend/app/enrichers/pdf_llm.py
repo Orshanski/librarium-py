@@ -13,27 +13,31 @@ MAX_TOKENS = 2000
 SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вход получаешь имя PDF-файла книги.
 Используй web search, чтобы найти полные выходные данные книги.
 
-Верни JSON:
-{
-  "title": "...",
-  "authors": ["...", "..."],
-  "publisher": "...",
-  "year": "...",
-  "isbn": "...",
-  "annotation": "...",
-  "genres": ["...", "..."],
-  "cover_url": "..."
-}
-
 Правила:
 - Если не нашёл книгу — верни пустые строки / пустые массивы, НЕ придумывай
 - authors: массив строк, каждая строка — один автор в формате "Имя Фамилия" (на русском если книга русская)
 - annotation: краткое описание 1-2 предложения
 - genres: массив строк, каждая строка — отдельный жанр/категория (например ["Бизнес-литература", "Анализ данных"])
 - cover_url: прямая ссылка на изображение обложки (jpg/png)
-- Не придумывай имена по инициалам, если не уверен — оставь как есть
+- Не придумывай имена по инициалам, если не уверен — оставь как есть"""
 
-Верни только JSON, без markdown и пояснений."""
+# Схема ответа: формат держит API, а не просьба в промпте. Все поля обязательны —
+# «не нашёл» модель выражает пустой строкой или пустым массивом.
+_STR = {"type": "string"}
+_STR_LIST = {"type": "array", "items": _STR}
+OUTPUT_FORMAT = {
+    "type": "json_schema",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "title": _STR, "authors": _STR_LIST, "publisher": _STR, "year": _STR,
+            "isbn": _STR, "annotation": _STR, "genres": _STR_LIST, "cover_url": _STR,
+        },
+        "required": ["title", "authors", "publisher", "year", "isbn",
+                     "annotation", "genres", "cover_url"],
+        "additionalProperties": False,
+    },
+}
 
 
 def _extract_json_object(text: str) -> dict | None:
@@ -90,6 +94,7 @@ def _call_llm(filename: str) -> str:
                 "max_uses": 3,
             }],
             messages=[{"role": "user", "content": f"Имя файла: {filename}"}],
+            output_config={"format": OUTPUT_FORMAT},
         )
     except Exception as e:
         log.warning("LLM metadata extraction failed: %s", safe_log(e))
