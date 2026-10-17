@@ -1,7 +1,6 @@
 {
   "permissions": {
     "deny": [
-      "Read(./data/**)",
       "Read(./backend/venv/**)",
       "Read(./frontend/node_modules/**)",
       "Read(./frontend/dist/**)",
