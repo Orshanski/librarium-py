@@ -257,6 +257,10 @@ def delete_book_file(db: sqlite3.Connection, file_id: int) -> None:
     queries.delete_book_file(db, id=file_id)
 
 
+def update_book_file_size(db: sqlite3.Connection, file_id: int, file_size: int) -> None:
+    queries.update_book_file_size(db, id=file_id, file_size=file_size)
+
+
 def update_cover_path(db: sqlite3.Connection, book_id: int, cover_path: str) -> None:
     queries.update_cover_path(db, id=book_id, cover_path=cover_path)
 
