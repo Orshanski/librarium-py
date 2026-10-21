@@ -155,6 +155,8 @@ def test_translate_without_api_key_is_502(reader_client, book_id, fake_stream, m
 @pytest.mark.parametrize("overrides", [
     {"targetLanguage": "de"},
     {"selectedText": ""},
+    {"selectedText": " \n "},
+    {"messages": [{"role": "assistant", "text": " \n"}, {"role": "user", "text": "x"}]},
     {"selected_text": "snake"},
     {"extra": 1},
     {"messages": [{"role": "system", "text": "x"}, {"role": "user", "text": "x"}]},
@@ -307,7 +309,9 @@ async def _collect(gen):
     return [chunk async for chunk in gen]
 
 
-def test_provider_yields_text_and_passes_model_settings():
+def test_provider_yields_text_and_passes_model_settings(monkeypatch):
+    monkeypatch.setattr(claude_chat, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(claude_chat, "ANTHROPIC_TIMEOUT_SEC", 42.0)
     stream_obj = _FakeAnthropicStream(["a", "b"], "end_turn")
     messages = [{"role": "user", "content": "hi"}]
     result, client, ctor = _run_provider(stream_obj, _collect, system="SYS", messages=messages)
@@ -323,7 +327,7 @@ def test_provider_yields_text_and_passes_model_settings():
         "fallbacks": "default",
         "betas": ["server-side-fallback-2026-07-01"],
     }
-    assert ctor.call_args.kwargs["api_key"] == claude_chat.ANTHROPIC_API_KEY
+    assert ctor.call_args.kwargs == {"api_key": "sk-test", "timeout": 42.0}
 
 
 @pytest.mark.parametrize("stop_reason, error", [

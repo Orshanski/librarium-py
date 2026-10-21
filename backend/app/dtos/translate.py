@@ -8,13 +8,15 @@ from ._aliases import BODY_CONFIG
 # Защитный потолок, а не правило: самый длинный абзац библиотеки — около 47 тыс. знаков.
 MAX_TEXT_LENGTH = 200_000
 MAX_MESSAGES = 100
+# Хоть один не пробельный знак: пустое или из одних пробелов Claude отклонит уже после ответа 200.
+_NOT_BLANK = r"\S"
 
 
 class TranslateMessage(BaseModel):
     model_config = BODY_CONFIG
 
     role: Literal["user", "assistant"]
-    text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
+    text: str = Field(max_length=MAX_TEXT_LENGTH, pattern=_NOT_BLANK)
 
 
 class TranslateChatBody(BaseModel):
@@ -22,7 +24,7 @@ class TranslateChatBody(BaseModel):
     model_config = BODY_CONFIG
 
     book_id: int
-    selected_text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
+    selected_text: str = Field(max_length=MAX_TEXT_LENGTH, pattern=_NOT_BLANK)
     paragraph: str = Field(max_length=MAX_TEXT_LENGTH)
     messages: list[TranslateMessage] = Field(max_length=MAX_MESSAGES)
     target_language: Literal["ru", "en"]
