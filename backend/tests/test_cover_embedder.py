@@ -335,3 +335,33 @@ class TestCoverCommitIntegration:
         fb2_path = LIBRARY_DIR / "1" / "book.fb2"
         extracted = _extract_cover_from_fb2(fb2_path)
         assert extracted == cover_bytes
+
+    @pytest.mark.parametrize("book_id", [1, 2], ids=["cover-added", "cover-replaced"])
+    def test_commit_cover_keeps_declared_file_size(self, admin_client, book_id):
+        """Размер формата в карточке совпадает с длиной скачиваемого файла после встраивания."""
+        with open(FIXTURES / "minimal.epub", "rb") as f:
+            upload = admin_client.post(
+                "/api/upload", files={"file": ("test.epub", f, "application/octet-stream")}
+            )
+        assert upload.status_code == 200
+        resp = admin_client.post(
+            f"/api/books/{book_id}/add-format", json={"tempId": upload.json()["tempId"]}
+        )
+        assert resp.status_code == 200
+
+        resp = admin_client.post(
+            f"/api/books/{book_id}/cover",
+            files={"file": ("cover.jpg", BytesIO(_make_test_jpeg(color="teal")), "image/jpeg")},
+        )
+        assert resp.status_code == 200
+        resp = admin_client.put(f"/api/books/{book_id}", json={"commitCover": True})
+        assert resp.status_code == 200
+
+        files = admin_client.get(f"/api/books/{book_id}").json()["files"]
+        assert sorted(f["format"] for f in files) == ["EPUB", "FB2"]
+        for f in files:
+            download = admin_client.get(
+                f"/api/books/{book_id}/download", params={"format": f["format"]}
+            )
+            assert download.status_code == 200
+            assert f["fileSize"] == len(download.content), f["format"]

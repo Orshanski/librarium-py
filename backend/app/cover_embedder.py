@@ -221,7 +221,7 @@ def to_jpeg(image_bytes: bytes) -> bytes:
 
 def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
     """Orchestrator: find cover on disk, convert to JPEG, embed into all book files."""
-    from .dal.books import get_book_files
+    from .dal.books import get_book_files, update_book_file_size
 
     # CodeQL py/path-injection barrier (см. backend/CLAUDE.md).
     book_dir_str = os.path.normpath(os.path.join(_LIBRARY_ROOT, str(int(book_id))))
@@ -279,3 +279,6 @@ def embed_cover(db: sqlite3.Connection, book_id: int) -> None:
             embed_cover_epub(file_path, jpeg_bytes)
         else:
             log.debug("Skipping format %s for book %d", safe_log(str(fmt)), int(book_id))
+            continue
+        # Файл переписан — размер в карточке должен совпадать с тем, что отдаёт скачивание.
+        update_book_file_size(db, bf["id"], os.path.getsize(file_path))
