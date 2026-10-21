@@ -11,6 +11,13 @@ DEV_Y = "44444444-4444-4444-8444-444444444444"
 DEV_UPSERT = "55555555-5555-4555-8555-555555555555"
 
 
+def _use_device(client, device_id: str) -> None:
+    """Как у браузера: одна кука устройства. Ответ сервера кладёт свою копию с адресом хоста, и без
+    удаления клиент слал бы обе — какую прочтёт сервер, решал бы порядок в заголовке."""
+    client.cookies.delete("device_id")
+    client.cookies.set("device_id", device_id)
+
+
 class TestReaderSettings:
     def test_get_settings_auto_generates_device_id(self, reader_client):
         """First request without device_id cookie → response sets device_id cookie."""
@@ -38,16 +45,16 @@ class TestReaderSettings:
 
     def test_settings_isolated_by_device(self, reader_client):
         """Different device_id cookies → different settings."""
-        reader_client.cookies.set("device_id", DEV_A)
+        _use_device(reader_client, DEV_A)
         reader_client.put("/api/reader/settings", json={"settings": {"font_size": 18}})
 
-        reader_client.cookies.set("device_id", DEV_B)
+        _use_device(reader_client, DEV_B)
         reader_client.put("/api/reader/settings", json={"settings": {"font_size": 14}})
 
-        reader_client.cookies.set("device_id", DEV_A)
+        _use_device(reader_client, DEV_A)
         aaa = reader_client.get("/api/reader/settings").json()
 
-        reader_client.cookies.set("device_id", DEV_B)
+        _use_device(reader_client, DEV_B)
         bbb = reader_client.get("/api/reader/settings").json()
 
         assert aaa["settings"]["font_size"] == 18
@@ -55,15 +62,15 @@ class TestReaderSettings:
 
     def test_settings_saved_with_device_id_a_not_visible_with_b(self, reader_client):
         """Settings saved with device A are not returned for device B."""
-        reader_client.cookies.set("device_id", DEV_X)
+        _use_device(reader_client, DEV_X)
         reader_client.put("/api/reader/settings", json={"settings": {"theme": "light"}})
 
-        reader_client.cookies.set("device_id", DEV_Y)
+        _use_device(reader_client, DEV_Y)
         resp = reader_client.get("/api/reader/settings")
         assert resp.json() == {"settings": {}}
 
     def test_settings_upsert(self, reader_client):
-        reader_client.cookies.set("device_id", DEV_UPSERT)
+        _use_device(reader_client, DEV_UPSERT)
         reader_client.put("/api/reader/settings", json={"settings": {"theme": "dark"}})
         reader_client.put("/api/reader/settings", json={"settings": {"theme": "light", "zoom": 120}})
         data = reader_client.get("/api/reader/settings").json()

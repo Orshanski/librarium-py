@@ -12,6 +12,16 @@ python run.py --dev        # Dev server with reload
 pytest                     # Тесты — ВСЕГДА последовательно, не параллельно
 ```
 
+Зависимости — с обновлением до свежих, как на выкладке и в CI:
+
+```bash
+cd backend && ./venv/bin/pip install --upgrade --upgrade-strategy eager -r requirements.txt
+```
+
+В `requirements.txt` — только нижние пороги, без точных версий. Простой
+`pip install -r` уже стоящий пакет не трогает, и окружение застревает на
+старых версиях, тогда как CI ставит всё с нуля и проверяет свежие.
+
 Тестирование на реальных устройствах (планшет/телефон) через tailscale — HTTPS
 на том же порту 8000, сертификат `~/dev-ca/tailscale.{key,crt}`:
 
@@ -97,8 +107,7 @@ pyright                    # Полный прогон
 - `typeCheckingMode: basic`. Strict не включён — слишком много
   cast'ов потребуется.
 - Известные «чужие» проблемы (заглушены `# pyright: ignore`):
-  lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`,
-  PyMuPDF `fitz`.
+  lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`.
 
 ## LSP (Python)
 
