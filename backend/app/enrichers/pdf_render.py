@@ -20,19 +20,19 @@ def render_cover(pdf_path: str, zoom: float = COVER_ZOOM) -> tuple[bytes | None,
     instead of breaking the whole parser module at import time.
     """
     try:
-        import fitz  # PyMuPDF (lazy import)
+        import pymupdf  # lazy import
     except ImportError as e:
         log.warning("PyMuPDF not installed, cannot render cover: %s", safe_log(e))
         return None, None
 
     try:
-        doc = fitz.open(pdf_path)
+        doc = pymupdf.open(pdf_path)
     except Exception as e:
         log.warning("Cannot open PDF for cover render: %s", safe_log(e))
         return None, None
 
     try:
-        matrix = fitz.Matrix(zoom, zoom)
+        matrix = pymupdf.Matrix(zoom, zoom)
         for pno in range(min(MAX_COVER_PAGES_TO_TRY, len(doc))):
             try:
                 page = doc[pno]
