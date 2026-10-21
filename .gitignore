@@ -40,3 +40,6 @@ frontend/coverage/
 backend/coverage.xml
 backend/.coverage
 project_documentation/
+
+# Версии пакетов сервера до последней выкладки — для отката (.github/workflows/deploy.yml).
+pip-freeze.prev.txt

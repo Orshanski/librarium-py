@@ -107,8 +107,7 @@ pyright                    # Полный прогон
 - `typeCheckingMode: basic`. Strict не включён — слишком много
   cast'ов потребуется.
 - Известные «чужие» проблемы (заглушены `# pyright: ignore`):
-  lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`,
-  PyMuPDF `fitz`.
+  lxml `etree`, `requests.compat`, Pydantic `Field(default_factory=...)`.
 
 ## LSP (Python)
 
