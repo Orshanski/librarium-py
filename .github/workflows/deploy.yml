@@ -46,6 +46,6 @@ jobs:
             set -e
             cd /opt/librarium
             git pull origin main
-            cd backend && source venv/bin/activate && pip install -r requirements.txt
+            cd backend && source venv/bin/activate && pip install --upgrade --upgrade-strategy eager -r requirements.txt
             cd ../frontend && npm install && npx vite build
             sudo systemctl restart librarium
