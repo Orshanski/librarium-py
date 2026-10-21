@@ -18,6 +18,7 @@ log = logging.getLogger("librarium.translate")
 
 REFUSAL_MESSAGE = "Модель отказалась отвечать на этот запрос."
 FAILURE_MESSAGE = "Не удалось получить ответ. Попробуйте ещё раз."
+TRUNCATED_MESSAGE = "Ответ оборвался: фрагмент слишком длинный."
 
 # Язык перевода в трёх местах подсказки: «на ...», «уже на ...», «отвечай ...».
 _LANGUAGE_FORMS = {
@@ -46,7 +47,7 @@ def opening_message(book: BookListRow, paragraph: str, selected_text: str) -> st
     """Человеку не показывается: окно читалки цитирует только выделенное."""
     names = ", ".join(author.name for author in book["authors"])
     author = f", автор: {names}" if names else ""
-    language = book.get("language")
+    language = book["language"]
     language_line = f"Язык книги: {language}\n" if language else ""
     return (
         f"Книга: «{book['title']}»{author}.\n"
@@ -75,16 +76,25 @@ def _event(name: str, payload: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
 
-async def chat_events(system: str, messages: list[BetaMessageParam]) -> AsyncIterator[str]:
-    """Статус 200 уже ушёл с первым куском, поэтому любая беда дальше — событие `error`, а не код."""
+async def chat_events(
+    system: str, messages: list[BetaMessageParam], *, user_id: int, book_id: int
+) -> AsyncIterator[str]:
+    """Статус 200 уходит с первым куском, поэтому любая ошибка после этого — событие `error`, а не код."""
     try:
         async for text in claude_chat.stream_text(system=system, messages=messages):
             yield _event("delta", {"text": text})
     except claude_chat.ModelRefusal:
+        log.info("Translate refused user_id=%s book_id=%s", str(user_id), int(book_id))
         yield _event("error", {"message": REFUSAL_MESSAGE})
         return
+    except claude_chat.ResponseTruncated:
+        log.info("Translate truncated user_id=%s book_id=%s", str(user_id), int(book_id))
+        yield _event("error", {"message": TRUNCATED_MESSAGE})
+        return
     except Exception as e:
-        log.warning("Translate stream failed: %s", safe_log(e))
+        log.warning(
+            "Translate stream failed user_id=%s book_id=%s: %s", str(user_id), int(book_id), safe_log(e)
+        )
         yield _event("error", {"message": FAILURE_MESSAGE})
         return
     yield _event("done", {})

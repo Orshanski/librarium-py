@@ -19,20 +19,26 @@ class ModelRefusal(Exception):
     """Модель отказалась отвечать на запрос."""
 
 
+class ResponseTruncated(Exception):
+    """Ответ упёрся в потолок длины и оборван."""
+
+
 async def stream_text(*, system: str, messages: list[BetaMessageParam]) -> AsyncIterator[str]:
     """Закрытие генератора (человек закрыл окно посреди ответа) закрывает и поток Anthropic."""
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=ANTHROPIC_TIMEOUT_SEC)
-    async with client.beta.messages.stream(
-        model=TRANSLATE_MODEL,
-        max_tokens=TRANSLATE_MAX_TOKENS,
-        system=system,
-        messages=messages,
-        output_config={"effort": TRANSLATE_EFFORT},
-        fallbacks="default",
-        betas=[FALLBACK_BETA],
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
-        final = await stream.get_final_message()
+    async with anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=ANTHROPIC_TIMEOUT_SEC) as client:
+        async with client.beta.messages.stream(
+            model=TRANSLATE_MODEL,
+            max_tokens=TRANSLATE_MAX_TOKENS,
+            system=system,
+            messages=messages,
+            output_config={"effort": TRANSLATE_EFFORT},
+            fallbacks="default",
+            betas=[FALLBACK_BETA],
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+            final = await stream.get_final_message()
     if final.stop_reason == "refusal":
         raise ModelRefusal()
+    if final.stop_reason == "max_tokens":
+        raise ResponseTruncated()

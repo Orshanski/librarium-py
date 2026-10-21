@@ -124,6 +124,12 @@ def test_opening_message_joins_authors_and_drops_author_part_when_none():
 # --- Эндпоинт: ошибки до потока ---------------------------------------------------
 
 
+def _history(count: int, first_text: str = "a") -> list[dict]:
+    """Правильная история: с ответа модели, по очереди, последним — вопрос человека."""
+    roles = ["assistant", "user"] * (count // 2)
+    return [{"role": role, "text": first_text if i == 0 else "x"} for i, role in enumerate(roles)]
+
+
 def test_translate_requires_login(anon_client, book_id):
     assert anon_client.post(URL, json=_body(book_id)).status_code == 401
 
@@ -151,13 +157,20 @@ def test_translate_without_api_key_is_502(reader_client, book_id, fake_stream, m
     {"selectedText": ""},
     {"selected_text": "snake"},
     {"extra": 1},
-    {"messages": [{"role": "system", "text": "x"}]},
-    {"messages": [{"role": "user", "content": "x"}]},
-    {"messages": [{"role": "user", "text": "x", "extra": 1}]},
+    {"messages": [{"role": "system", "text": "x"}, {"role": "user", "text": "x"}]},
+    {"messages": [{"role": "assistant", "content": "x"}, {"role": "user", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": "x", "extra": 1}, {"role": "user", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": ""}, {"role": "user", "text": "x"}]},
+    {"messages": [{"role": "user", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": "x"}]},
+    {"messages": [{"role": "user", "text": "x"}, {"role": "assistant", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": "x"}, {"role": "assistant", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": "x"}, {"role": "assistant", "text": "x"}, {"role": "user", "text": "x"}]},
+    {"messages": [{"role": "assistant", "text": "x"}, {"role": "user", "text": "x"}, {"role": "user", "text": "x"}]},
     {"selectedText": "x" * 200_001},
     {"paragraph": "x" * 200_001},
-    {"messages": [{"role": "user", "text": "x"}] * 101},
-    {"messages": [{"role": "user", "text": "x" * 200_001}]},
+    {"messages": _history(102)},
+    {"messages": _history(2, first_text="x" * 200_001)},
 ])
 def test_translate_rejects_bad_body(reader_client, book_id, fake_stream, overrides):
     resp = reader_client.post(URL, json=_body(book_id, **overrides))
@@ -170,7 +183,7 @@ def test_translate_accepts_limits_exactly(reader_client, book_id, fake_stream):
         book_id,
         selectedText="x" * 200_000,
         paragraph="x" * 200_000,
-        messages=[{"role": "user", "text": "x" * 200_000}] + [{"role": "assistant", "text": "y"}] * 99,
+        messages=_history(100, first_text="x" * 200_000),
     )
     assert reader_client.post(URL, json=body).status_code == 200
 
@@ -209,12 +222,26 @@ def test_translate_sends_prompt_opening_and_history(reader_client, book_id, fake
     ]
 
 
-def test_translate_refusal_ends_with_error_not_done(reader_client, book_id, fake_stream):
-    fake_stream.script["raise"] = claude_chat.ModelRefusal()
-    events = _parse_sse(reader_client.post(URL, json=_body(book_id)).text)
-    assert events[-1] == ("error", {"message": translate_service.REFUSAL_MESSAGE})
-    assert ("done", {}) not in events
-    assert events[:2] == [("delta", {"text": "Их "}), ("delta", {"text": "было\nнесколько."})]
+def _log_message(caplog) -> str:
+    return next(r.getMessage() for r in caplog.records if r.name == "librarium.translate")
+
+
+@pytest.mark.parametrize("error, message", [
+    (claude_chat.ModelRefusal(), translate_service.REFUSAL_MESSAGE),
+    (claude_chat.ResponseTruncated(), translate_service.TRUNCATED_MESSAGE),
+])
+def test_translate_model_stop_ends_with_its_error_not_done(
+    reader_client, book_id, fake_stream, caplog, error, message
+):
+    fake_stream.script["raise"] = error
+    with caplog.at_level("INFO", logger="librarium.translate"):
+        events = _parse_sse(reader_client.post(URL, json=_body(book_id)).text)
+    assert events == [
+        ("delta", {"text": "Их "}),
+        ("delta", {"text": "было\nнесколько."}),
+        ("error", {"message": message}),
+    ]
+    assert f"book_id={book_id}" in _log_message(caplog)
 
 
 def test_translate_api_failure_ends_with_generic_error(reader_client, book_id, fake_stream, caplog):
@@ -223,8 +250,10 @@ def test_translate_api_failure_ends_with_generic_error(reader_client, book_id, f
     with caplog.at_level("WARNING", logger="librarium.translate"):
         events = _parse_sse(reader_client.post(URL, json=_body(book_id)).text)
     assert events == [("error", {"message": translate_service.FAILURE_MESSAGE})]
-    message = next(r.getMessage() for r in caplog.records if r.name == "librarium.translate")
+    message = _log_message(caplog)
     assert "overloaded\\nFORGED line" in message
+    assert f"book_id={book_id}" in message
+    assert "user_id=" in message
 
 
 # --- Вызов Claude ----------------------------------------------------------------
@@ -234,11 +263,13 @@ class _FakeAnthropicStream:
     def __init__(self, chunks, stop_reason):
         self._chunks = chunks
         self._stop_reason = stop_reason
+        self.pulled = 0
         self.closed = False
 
     async def __aenter__(self):
         async def texts():
             for chunk in self._chunks:
+                self.pulled += 1
                 yield chunk
         self.text_stream = texts()
         return self
@@ -251,24 +282,37 @@ class _FakeAnthropicStream:
         return SimpleNamespace(stop_reason=self._stop_reason)
 
 
-def _run_provider(stream_obj, **kwargs):
-    client = MagicMock()
-    client.beta.messages.stream.return_value = stream_obj
+class _FakeClient:
+    def __init__(self, stream_obj):
+        self.beta = MagicMock()
+        self.beta.messages.stream.return_value = stream_obj
+        self.closed = False
 
-    async def collect():
-        return [chunk async for chunk in claude_chat.stream_text(**kwargs)]
+    async def __aenter__(self):
+        return self
 
+    async def __aexit__(self, *exc):
+        self.closed = True
+        return False
+
+
+def _run_provider(stream_obj, consume, **kwargs):
+    client = _FakeClient(stream_obj)
     with patch("app.providers.claude_chat.anthropic.AsyncAnthropic", return_value=client) as ctor:
-        result = asyncio.run(collect())
+        result = asyncio.run(consume(claude_chat.stream_text(**kwargs)))
     return result, client, ctor
+
+
+async def _collect(gen):
+    return [chunk async for chunk in gen]
 
 
 def test_provider_yields_text_and_passes_model_settings():
     stream_obj = _FakeAnthropicStream(["a", "b"], "end_turn")
     messages = [{"role": "user", "content": "hi"}]
-    result, client, ctor = _run_provider(stream_obj, system="SYS", messages=messages)
+    result, client, ctor = _run_provider(stream_obj, _collect, system="SYS", messages=messages)
     assert result == ["a", "b"]
-    assert stream_obj.closed
+    assert stream_obj.closed and client.closed
     kwargs = client.beta.messages.stream.call_args.kwargs
     assert kwargs == {
         "model": "claude-opus-5-5",
@@ -282,18 +326,34 @@ def test_provider_yields_text_and_passes_model_settings():
     assert ctor.call_args.kwargs["api_key"] == claude_chat.ANTHROPIC_API_KEY
 
 
-def test_provider_raises_on_refusal_after_text():
-    stream_obj = _FakeAnthropicStream(["part"], "refusal")
+@pytest.mark.parametrize("stop_reason, error", [
+    ("refusal", claude_chat.ModelRefusal),
+    ("max_tokens", claude_chat.ResponseTruncated),
+])
+def test_provider_raises_on_model_stop_after_text(stop_reason, error):
+    stream_obj = _FakeAnthropicStream(["part"], stop_reason)
     seen: list[str] = []
 
-    async def collect():
-        async for chunk in claude_chat.stream_text(system="S", messages=[]):
+    async def consume(gen):
+        async for chunk in gen:
             seen.append(chunk)
 
-    client = MagicMock()
-    client.beta.messages.stream.return_value = stream_obj
-    with patch("app.providers.claude_chat.anthropic.AsyncAnthropic", return_value=client):
-        with pytest.raises(claude_chat.ModelRefusal):
-            asyncio.run(collect())
+    with pytest.raises(error):
+        _run_provider(stream_obj, consume, system="S", messages=[])
     assert seen == ["part"]
     assert stream_obj.closed
+
+
+def test_provider_closing_midway_closes_anthropic_stream():
+    """Человек закрыл окно посреди ответа: остаток не дочитывается, поток и клиент закрыты."""
+    stream_obj = _FakeAnthropicStream(["first", "second"], "end_turn")
+
+    async def first_then_close(gen):
+        first = await gen.__anext__()
+        await gen.aclose()
+        return first
+
+    result, client, _ = _run_provider(stream_obj, first_then_close, system="S", messages=[])
+    assert result == "first"
+    assert stream_obj.pulled == 1
+    assert stream_obj.closed and client.closed

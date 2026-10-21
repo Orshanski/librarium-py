@@ -18,7 +18,7 @@ def translate_chat(
 ):
     system, messages = translate_service.prepare_chat(db, user.user_id, body)
     return StreamingResponse(
-        translate_service.chat_events(system, messages),
+        translate_service.chat_events(system, messages, user_id=user.user_id, book_id=body.book_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

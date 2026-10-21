@@ -1,7 +1,7 @@
 """Тело запроса перевода выделенного (POST /api/translate/chat)."""
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ._aliases import BODY_CONFIG
 
@@ -14,7 +14,7 @@ class TranslateMessage(BaseModel):
     model_config = BODY_CONFIG
 
     role: Literal["user", "assistant"]
-    text: str = Field(max_length=MAX_TEXT_LENGTH)
+    text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
 
 
 class TranslateChatBody(BaseModel):
@@ -26,3 +26,12 @@ class TranslateChatBody(BaseModel):
     paragraph: str = Field(max_length=MAX_TEXT_LENGTH)
     messages: list[TranslateMessage] = Field(max_length=MAX_MESSAGES)
     target_language: Literal["ru", "en"]
+
+    @model_validator(mode="after")
+    def history_alternates(self) -> Self:
+        """Первое сообщение — от человека (его собирает сервер), поэтому история начинается ответом
+        модели, идёт по очереди и кончается вопросом: иначе Claude отклонит запрос уже после 200."""
+        expected = ["assistant", "user"] * (len(self.messages) // 2 + 1)
+        if [m.role for m in self.messages] != expected[:len(self.messages)] or len(self.messages) % 2:
+            raise ValueError("messages must alternate assistant/user and end with user")
+        return self
