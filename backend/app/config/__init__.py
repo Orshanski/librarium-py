@@ -57,3 +57,8 @@ MAX_RECAP_SIZE = 10 * 1024 * 1024   # 10 MB
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 ANTHROPIC_TIMEOUT_SEC = float(os.environ.get("ANTHROPIC_TIMEOUT_SEC", "60"))
+
+# Перевод выделенного в читалке — своя модель, независимо от ANTHROPIC_MODEL разбора PDF.
+TRANSLATE_MODEL = "claude-opus-5-5"
+TRANSLATE_EFFORT = "low"
+TRANSLATE_MAX_TOKENS = 8000

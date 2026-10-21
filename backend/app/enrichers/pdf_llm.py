@@ -3,6 +3,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 import anthropic
+from anthropic.types import JSONOutputFormatParam
 from ..config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_TIMEOUT_SEC
 from ..logging_utils import safe as safe_log
 
@@ -25,7 +26,7 @@ SYSTEM_PROMPT = """Ты — помощник библиотекаря. На вх
 # «не нашёл» модель выражает пустой строкой или пустым массивом.
 _STR = {"type": "string"}
 _STR_LIST = {"type": "array", "items": _STR}
-OUTPUT_FORMAT = {
+OUTPUT_FORMAT: JSONOutputFormatParam = {
     "type": "json_schema",
     "schema": {
         "type": "object",
