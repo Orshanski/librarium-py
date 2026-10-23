@@ -8,6 +8,9 @@ UserSort = Literal[
     "ratingDesc", "ratingAsc",
 ]
 
+OpdsSort = Literal["addedDesc", "titleAsc", "authorAsc"]
+"""Сортировки новых поступлений в каталоге OPDS — подмножество UserSort."""
+
 
 class CatalogFilters(TypedDict, total=False):
     """Dimension filters for book-listing queries.

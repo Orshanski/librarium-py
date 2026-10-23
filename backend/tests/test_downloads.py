@@ -10,7 +10,7 @@ class TestDownload:
     def test_download_fb2(self, reader_client):
         resp = reader_client.get("/api/books/1/download", params={"format": "FB2"})
         assert resp.status_code == 200
-        assert resp.headers.get("content-type") == "application/octet-stream"
+        assert resp.headers.get("content-type") == "application/x-fictionbook+xml"
 
     def test_download_missing_format(self, reader_client):
         resp = reader_client.get("/api/books/1/download", params={"format": "EPUB"})

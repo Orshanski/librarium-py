@@ -15,6 +15,7 @@ from ..dtos.books import (
     BookListRow,
     BookUpdateData,
     DuplicateHit,
+    PublicationRow,
 )
 from ..dtos.catalog import CatalogFilters
 from ..dtos.search import SearchResults
@@ -24,7 +25,7 @@ from ..search import (
     search_preprocess,
     token_min_ratio,
 )
-from ._parsers import parse_book_row_aggregates
+from ._parsers import PUBLICATION_AUTHOR_LIST, PUBLICATION_FILE_LIST, parse_book_row_aggregates
 from .filters import build_book_where
 from .sort import resolve_order_clause
 
@@ -74,6 +75,20 @@ def get_book_by_id(db: sqlite3.Connection, book_id: int, user_id: int | None = N
 
 def get_book_files(db: sqlite3.Connection, book_id: int) -> list[BookFileRow]:
     return cast(list[BookFileRow], dicts_from_rows(queries.get_book_files(db, book_id=book_id)))
+
+
+def get_publication_rows(db: sqlite3.Connection, book_ids: list[int]) -> dict[int, PublicationRow]:
+    """Подробные данные книг для каталога OPDS по списку id, ключ — id книги."""
+    if not book_ids:
+        return {}
+    placeholders = ",".join(f":b{i}" for i in range(len(book_ids)))
+    params = {f"b{i}": book_id for i, book_id in enumerate(book_ids)}
+    final_sql = queries.get_publication_rows.sql.replace("{placeholders}", placeholders)
+    rows = dicts_from_rows(db.execute(final_sql, params).fetchall())
+    for row in rows:
+        parse_book_row_aggregates(row, authors=PUBLICATION_AUTHOR_LIST)
+        row["files"] = PUBLICATION_FILE_LIST.validate_json(row["files"])
+    return {row["id"]: cast(PublicationRow, row) for row in rows}
 
 
 def get_book_identifiers(db: sqlite3.Connection, book_id: int) -> list[BookIdentifierRow]:

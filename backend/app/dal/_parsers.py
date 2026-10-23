@@ -4,14 +4,18 @@
 from pydantic import TypeAdapter
 
 from ..dtos._refs import AuthorRef, TagRef, SeriesRef
+from ..dtos.books import PublicationAuthor, PublicationFile
 
 AUTHOR_LIST = TypeAdapter(list[AuthorRef])
+PUBLICATION_AUTHOR_LIST = TypeAdapter(list[PublicationAuthor])
+PUBLICATION_FILE_LIST = TypeAdapter(list[PublicationFile])
 TAG_LIST = TypeAdapter(list[TagRef])
-SERIES_REF = TypeAdapter(SeriesRef | None)
+SERIES_REF = TypeAdapter(SeriesRef | None)  # pyright: ignore[reportArgumentType]
 
 
-def parse_book_row_aggregates(row: dict) -> None:
+def parse_book_row_aggregates(row: dict, *, authors: TypeAdapter = AUTHOR_LIST) -> None:
     """Разбирает JSON-поля `authors`/`tags`/`series` строки на месте, мутируя `row`.
+    `authors` — адаптер для авторов, когда в запросе у автора есть поля сверх id и имени.
 
     Применяется после `cur.fetchall()` для каждой строки из SQL, который
     использует `json_group_array`/`json_object` для этих полей. Если SQL
@@ -22,7 +26,7 @@ def parse_book_row_aggregates(row: dict) -> None:
     # если будущий SQL-запрос вдруг вернёт NULL или пустую строку, это предотвращает
     # падение JSON-парсера.
     if "authors" in row:
-        row["authors"] = AUTHOR_LIST.validate_json(row["authors"] or "[]")
+        row["authors"] = authors.validate_json(row["authors"] or "[]")
     if "tags" in row:
         row["tags"] = TAG_LIST.validate_json(row["tags"] or "[]")
     if "series" in row:

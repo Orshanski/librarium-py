@@ -13,11 +13,22 @@ _LANGUAGE_MAP: dict[str, str] = {
 }
 
 
+_LANGUAGE_CODES: dict[str, str] = {
+    name: key for key, name in _LANGUAGE_MAP.items() if key != name.lower()
+}
+
+
 def normalize_language(raw: str | None) -> str | None:
     if not raw:
         return None
     key = raw.strip().lower().split("-")[0]
     return _LANGUAGE_MAP.get(key, raw.strip())
+
+
+def language_code(raw: str | None) -> str | None:
+    """Код языка (`ru`, `en`) по значению из книги; None, если языка нет в словаре."""
+    name = normalize_language(raw)
+    return _LANGUAGE_CODES.get(name) if name else None
 
 
 @dataclass

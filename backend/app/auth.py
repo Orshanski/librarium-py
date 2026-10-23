@@ -228,10 +228,8 @@ def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
 
-def get_current_user(request: Request) -> CurrentUser:
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        raise AuthError("Not authenticated")
+def authenticate_token(token: str) -> tuple[CurrentUser, dict[str, Any]]:
+    """Проверить подпись и эпоху токена. Общая часть входа по куке сайта и по Bearer."""
     try:
         payload = decode_token(token)
     except jwt.ExpiredSignatureError:
@@ -244,14 +242,30 @@ def get_current_user(request: Request) -> CurrentUser:
     user = CurrentUser.from_payload(payload)
 
     _ensure_token_epoch_cache_initialized()
-    jwt_epoch = payload.get("tep", 0)
-    _validate_token_epoch(user.user_id, jwt_epoch)
+    _validate_token_epoch(user.user_id, payload.get("tep", 0))
+    return user, payload
+
+
+def get_current_user(request: Request) -> CurrentUser:
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise AuthError("Not authenticated")
+    user, payload = authenticate_token(token)
 
     if token_needs_refresh(payload):
         request.state._refresh_token = True
         request.state._refresh_user_id = user.user_id
         request.state._refresh_role = user.role
-        request.state._refresh_epoch = jwt_epoch
+        request.state._refresh_epoch = payload.get("tep", 0)
+    return user
+
+
+def get_bearer_user(request: Request) -> CurrentUser:
+    """Вход по заголовку `Authorization: Bearer`. Куку не продлевает."""
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise AuthError("Not authenticated")
+    user, _ = authenticate_token(token.strip())
     return user
 
 

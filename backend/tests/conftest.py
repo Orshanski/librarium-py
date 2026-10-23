@@ -132,6 +132,13 @@ def anon_client(client):
 
 
 @pytest.fixture
+def opds_headers(anon_client):
+    """Заголовок `Authorization: Bearer` с токеном каталога OPDS для reader."""
+    from tests._helpers.opds import bearer, opds_token
+    return bearer(opds_token(anon_client))
+
+
+@pytest.fixture
 def db_test():
     """Open a fresh SQLite connection to the test DB for direct inspection.
 

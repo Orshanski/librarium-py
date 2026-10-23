@@ -17,8 +17,9 @@ from fastapi.responses import JSONResponse
 
 from .exceptions import (
     AuthError, BadInputError, ConflictError, ForbiddenError,
-    NotFoundError, RateLimitError, UpstreamError,
+    NotFoundError, OpdsAuthRequired, RateLimitError, UpstreamError,
 )
+from .services import opds_service
 
 
 def _bad_input(request: Request, exc: BadInputError) -> JSONResponse:
@@ -41,6 +42,19 @@ def _auth(request: Request, exc: AuthError) -> JSONResponse:
     return JSONResponse(status_code=401, content={"detail": str(exc)})
 
 
+def _opds_auth_required(request: Request, exc: OpdsAuthRequired) -> JSONResponse:
+    document_url = request.url_for("opds_auth_document")
+    return JSONResponse(
+        status_code=401,
+        content=opds_service.auth_document(str(document_url)),
+        media_type=opds_service.AUTH_DOCUMENT_TYPE,
+        headers={"Link": (
+            f'<{document_url.path}>; rel="http://opds-spec.org/auth/document"; '
+            f'type="{opds_service.AUTH_DOCUMENT_TYPE}"'
+        )},
+    )
+
+
 def _rate_limit(request: Request, exc: RateLimitError) -> JSONResponse:
     return JSONResponse(status_code=429, content={"detail": str(exc)})
 
@@ -56,5 +70,6 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ConflictError, cast(Any, _conflict))
     app.add_exception_handler(ForbiddenError, cast(Any, _forbidden))
     app.add_exception_handler(AuthError, cast(Any, _auth))
+    app.add_exception_handler(OpdsAuthRequired, cast(Any, _opds_auth_required))
     app.add_exception_handler(RateLimitError, cast(Any, _rate_limit))
     app.add_exception_handler(UpstreamError, cast(Any, _upstream))

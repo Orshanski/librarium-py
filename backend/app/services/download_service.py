@@ -9,6 +9,17 @@ from ..exceptions import NotFoundError
 
 _FILE_NOT_FOUND = "File not found"
 
+_MEDIA_TYPES = {
+    "FB2": "application/x-fictionbook+xml",
+    "EPUB": "application/epub+zip",
+    "PDF": "application/pdf",
+}
+
+
+def media_type_for(fmt: str) -> str:
+    """Медиатип файла книги по коду формата."""
+    return _MEDIA_TYPES.get(fmt.upper(), "application/octet-stream")
+
 
 @dataclass
 class DownloadTarget:
@@ -63,5 +74,5 @@ def resolve_download(db: sqlite3.Connection, book_id: int, fmt: str) -> Download
     return DownloadTarget(
         path=str(resolved),
         filename=f"{book['title']}.{fmt.lower()}",
-        media_type="application/octet-stream",
+        media_type=media_type_for(fmt),
     )
