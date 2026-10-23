@@ -12,6 +12,7 @@ from ..dtos.covers import CoverUploadResponse
 from ..exceptions import BadInputError
 from ..fs_utils import safe_extension
 from ..services import cover_service
+from ._file_responses import cover_response
 from ._validators import TempIdStr
 
 _COVER_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
@@ -28,14 +29,7 @@ def get_cover(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
     full: int = 0,
 ):
-    cover_path = cover_service.get_cover_path(book_id)
-    headers = {"Cache-Control": "public, max-age=3600"}
-    if full:
-        return FileResponse(cover_path, headers=headers)
-    thumb_path = cover_service.get_thumb(book_id, cover_path)
-    if thumb_path is None:
-        return FileResponse(cover_path, headers=headers)
-    return FileResponse(thumb_path, media_type="image/jpeg", headers=headers)
+    return cover_response(book_id, full=bool(full))
 
 
 @router.post("/api/books/{book_id}/cover")

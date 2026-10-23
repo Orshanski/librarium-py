@@ -1,6 +1,7 @@
 """Canonical domain exceptions для Librarium.
 
-Семь классов — один на HTTP статус. Наследование от builtin (где оно есть)
+Семь классов — один на HTTP статус; `OpdsAuthRequired` — тот же 401, но с телом
+по правилам OPDS. Наследование от builtin (где оно есть)
 сохраняет совместимость с `except ValueError|LookupError|...` в сервисах, но
 middleware ловит только custom-типы — случайный `raise ValueError(...)` НЕ
 превратится в 400.
@@ -33,6 +34,10 @@ class ForbiddenError(PermissionError):
 
 class AuthError(Exception):
     """Authentication failure — нет/невалидный токен, credentials. → 401."""
+
+
+class OpdsAuthRequired(AuthError):
+    """Нет годного токена в каталоге OPDS. → 401 с документом аутентификации OPDS."""
 
 
 class RateLimitError(Exception):

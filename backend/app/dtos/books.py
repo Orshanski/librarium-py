@@ -100,6 +100,34 @@ class BookFileRow(TypedDict):
     file_size: int | None
 
 
+class PublicationAuthor(AuthorRef):
+    """Автор книги с именем для сортировки — для записи каталога OPDS."""
+    sort_name: str | None
+
+
+class PublicationFile(BaseModel):
+    format: str
+    file_size: int | None
+
+
+class PublicationRow(TypedDict):
+    """Строка `dal.books.get_publication_rows` — книга для записи каталога OPDS."""
+    id: int
+    title: str
+    description: str | None
+    language: str | None
+    publisher: str | None
+    pub_date: str | None
+    cover_path: str | None
+    updated_at: str
+    series_number: float | None
+    series: SeriesRef | None
+    authors: list[PublicationAuthor]
+    tags: list[TagRef]
+    files: list[PublicationFile]
+    isbn: str | None
+
+
 class BookFileLookup(TypedDict):
     """Narrow lookup shape from `dal.books.get_book_file` — returns only
     `id` and `file_path`, not the full `BookFileRow` (R-A: distinct shape,
