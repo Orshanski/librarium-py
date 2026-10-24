@@ -19,7 +19,7 @@ FEED_TYPE = "application/opds+json"
 AUTH_DOCUMENT_TYPE = "application/opds-authentication+json"
 _PAGE_SIZE = 50
 _SEARCH_LIMIT = 50
-_NEW_SORTS: tuple[OpdsSort, ...] = get_args(OpdsSort)
+_BOOKS_SORTS: tuple[OpdsSort, ...] = get_args(OpdsSort)
 _DEFAULT_SORT: OpdsSort = "addedDesc"
 _CATALOG_TITLE = "Librarium"
 _CATALOG_IDENTIFIER = "urn:librarium:main"
@@ -183,7 +183,7 @@ def _paged_feed(
 
 def root_feed() -> Feed:
     feed = _feed(_CATALOG_TITLE, "/opds/", navigation=[
-        _nav("/opds/new", "Новые поступления"),
+        _nav("/opds/books", "Все книги"),
         _nav("/opds/authors", "Авторы"),
         _nav("/opds/series", "Серии"),
         _nav("/opds/genres", "Жанры"),
@@ -195,7 +195,7 @@ def root_feed() -> Feed:
     return feed
 
 
-def new_feed(db: sqlite3.Connection, user_id: int, sort: OpdsSort, language: str | None, page: int) -> Feed:
+def books_feed(db: sqlite3.Connection, user_id: int, sort: OpdsSort, language: str | None, page: int) -> Feed:
     listing = book_service.list_books(
         db, user_id, sort=sort, cursor=(page - 1) * _PAGE_SIZE, page_size=_PAGE_SIZE,
         author_ids=None, tag_ids=None, series_ids=None,
@@ -211,18 +211,18 @@ def new_feed(db: sqlite3.Connection, user_id: int, sort: OpdsSort, language: str
 
     labels = SORT_CONFIG["labels"]
     sort_links = [
-        facet(labels[key], _href("/opds/new", sort=key if key != _DEFAULT_SORT else None, language=language),
+        facet(labels[key], _href("/opds/books", sort=key if key != _DEFAULT_SORT else None, language=language),
               key == sort)
-        for key in _NEW_SORTS
+        for key in _BOOKS_SORTS
     ]
     languages = filters_service.list_language_options(db, user_id, {}).languages
-    language_links = [facet("Все", _href("/opds/new", sort=sort_param), language is None)] + [
-        facet(lang["name"], _href("/opds/new", sort=sort_param, language=lang["name"]),
+    language_links = [facet("Все", _href("/opds/books", sort=sort_param), language is None)] + [
+        facet(lang["name"], _href("/opds/books", sort=sort_param, language=lang["name"]),
               lang["name"] == language)
         for lang in languages
     ]
     return _paged_feed(
-        db, "Новые поступления", "/opds/new", {"sort": sort_param, "language": language}, page,
+        db, "Все книги", "/opds/books", {"sort": sort_param, "language": language}, page,
         listing.books, listing.has_more,
         facets=[
             {"metadata": {"title": "Сортировка"}, "links": sort_links},
