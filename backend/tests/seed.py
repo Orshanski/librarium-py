@@ -1,22 +1,15 @@
 """Собирает .test-data-baseline/ с seeded dataset."""
-import io
 import os
 import shutil
 import sqlite3
 from pathlib import Path
 
+from tests._helpers.images import make_jpeg
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE_DIR = PROJECT_ROOT / ".test-data-baseline"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "books"
-
-
-def _make_test_jpeg(width=100, height=150) -> bytes:
-    from PIL import Image
-    img = Image.new("RGB", (width, height), color=(70, 130, 180))
-    buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=80)
-    return buf.getvalue()
 
 
 def seed_baseline():
@@ -73,7 +66,7 @@ def seed_baseline():
     book2_dir = BASELINE_DIR / "library" / "2"
     book2_dir.mkdir()
     shutil.copy(FIXTURES_DIR / "with-cover.fb2", book2_dir / "book.fb2")
-    (book2_dir / "cover.jpg").write_bytes(_make_test_jpeg())
+    (book2_dir / "cover.jpg").write_bytes(make_jpeg(100, 150, color=(70, 130, 180)))
     db.execute(
         "INSERT INTO books (id, title, sort_title, language, publisher, pub_date, cover_path, added_at) VALUES (2, 'Book With Cover', 'Book With Cover', 'en', 'Cover Press', '2024', 'data/library/2/cover.jpg', '2025-01-02 00:00:00')"
     )

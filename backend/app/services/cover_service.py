@@ -197,6 +197,22 @@ def get_cover_path(book_id: int) -> str:
     return os.path.join(book_dir, cover)
 
 
+def thumb_size(width: int, height: int) -> tuple[int, int]:
+    """Размер миниатюры для обложки данного размера."""
+    ratio = _THUMB_HEIGHT / height
+    return int(width * ratio), _THUMB_HEIGHT
+
+
+def cover_size(book_id: int) -> tuple[int, int] | None:
+    """Размер файла обложки по его заголовку; None, если файла нет или он не читается."""
+    try:
+        with Image.open(get_cover_path(book_id)) as img:
+            return img.size
+    except (NotFoundError, OSError, Image.DecompressionBombError) as e:
+        log.warning("Failed to read cover size for book=%d: %s", int(book_id), safe_log(e))
+        return None
+
+
 def get_thumb(book_id: int, cover_path: str) -> str | None:
     """Generate (or return cached) thumbnail for a cover.
 
@@ -209,8 +225,7 @@ def get_thumb(book_id: int, cover_path: str) -> str | None:
             return thumb_path
         original = Image.open(cover_path)
         try:
-            ratio = _THUMB_HEIGHT / original.height
-            new_size = (int(original.width * ratio), _THUMB_HEIGHT)
+            new_size = thumb_size(original.width, original.height)
             resized = original.resize(new_size, Image.Resampling.LANCZOS)
         finally:
             original.close()

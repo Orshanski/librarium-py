@@ -11,6 +11,7 @@ from lxml import etree
 from PIL import Image
 
 from app.cover_embedder import embed_cover_epub, embed_cover_fb2, to_jpeg
+from tests._helpers.images import make_jpeg
 
 FIXTURES = Path(__file__).parent / "fixtures" / "books"
 
@@ -18,14 +19,6 @@ NS = {
     "fb": "http://www.gribuser.ru/xml/fictionbook/2.0",
     "l": "http://www.w3.org/1999/xlink",
 }
-
-
-def _make_test_jpeg(width: int = 20, height: int = 20, color: str = "red") -> bytes:
-    """Create a small test JPEG and return its bytes."""
-    img = Image.new("RGB", (width, height), color)
-    buf = BytesIO()
-    img.save(buf, format="JPEG")
-    return buf.getvalue()
 
 
 def _extract_cover_from_fb2(file_path: Path) -> bytes:
@@ -52,7 +45,7 @@ class TestEmbedCoverFb2ReplaceExisting:
         dst = tmp_path / "with-cover.fb2"
         shutil.copy2(src, dst)
 
-        cover_bytes = _make_test_jpeg(color="blue")
+        cover_bytes = make_jpeg(color="blue")
 
         embed_cover_fb2(dst, cover_bytes)
 
@@ -64,7 +57,7 @@ class TestEmbedCoverFb2ReplaceExisting:
         dst = tmp_path / "with-cover.fb2"
         shutil.copy2(src, dst)
 
-        embed_cover_fb2(dst, _make_test_jpeg())
+        embed_cover_fb2(dst, make_jpeg())
 
         tree = etree.parse(str(dst))
         title = tree.xpath(
@@ -82,7 +75,7 @@ class TestEmbedCoverFb2AddNew:
         dst = tmp_path / "no-cover.fb2"
         shutil.copy2(src, dst)
 
-        cover_bytes = _make_test_jpeg(color="green")
+        cover_bytes = make_jpeg(color="green")
 
         embed_cover_fb2(dst, cover_bytes)
 
@@ -94,7 +87,7 @@ class TestEmbedCoverFb2AddNew:
         dst = tmp_path / "no-cover.fb2"
         shutil.copy2(src, dst)
 
-        embed_cover_fb2(dst, _make_test_jpeg())
+        embed_cover_fb2(dst, make_jpeg())
 
         tree = etree.parse(str(dst))
         title = tree.xpath(
@@ -174,7 +167,7 @@ class TestEmbedCoverEpubReplaceExisting:
         dst = tmp_path / "minimal.epub"
         shutil.copy2(src, dst)
 
-        cover_bytes = _make_test_jpeg(color="blue")
+        cover_bytes = make_jpeg(color="blue")
 
         embed_cover_epub(dst, cover_bytes)
 
@@ -186,7 +179,7 @@ class TestEmbedCoverEpubReplaceExisting:
         dst = tmp_path / "minimal.epub"
         shutil.copy2(src, dst)
 
-        embed_cover_epub(dst, _make_test_jpeg())
+        embed_cover_epub(dst, make_jpeg())
 
         # Verify valid ZIP
         assert zipfile.is_zipfile(str(dst))
@@ -213,7 +206,7 @@ class TestEmbedCoverEpubAddNew:
         dst = tmp_path / "no-cover.epub"
         shutil.copy2(src, dst)
 
-        cover_bytes = _make_test_jpeg(color="green")
+        cover_bytes = make_jpeg(color="green")
 
         embed_cover_epub(dst, cover_bytes)
 
@@ -225,7 +218,7 @@ class TestEmbedCoverEpubAddNew:
         dst = tmp_path / "no-cover.epub"
         shutil.copy2(src, dst)
 
-        embed_cover_epub(dst, _make_test_jpeg())
+        embed_cover_epub(dst, make_jpeg())
 
         # Verify valid ZIP
         assert zipfile.is_zipfile(str(dst))
@@ -269,7 +262,7 @@ class TestConvertToJpeg:
         assert result[:2] == b"\xff\xd8"
 
     def test_jpeg_passthrough(self):
-        jpeg_bytes = _make_test_jpeg(color="blue")
+        jpeg_bytes = make_jpeg(color="blue")
         result = to_jpeg(jpeg_bytes)
         assert result is jpeg_bytes
 
@@ -285,7 +278,7 @@ class TestEmbedCover:
 
         # Book 1 has FB2 file (minimal.fb2 → book.fb2). Put a cover on disk.
         book_dir = LIBRARY_DIR / "1"
-        cover_bytes = _make_test_jpeg(color="purple")
+        cover_bytes = make_jpeg(color="purple")
         (book_dir / "cover.jpg").write_bytes(cover_bytes)
 
         from app.cover_embedder import embed_cover
@@ -320,7 +313,7 @@ class TestCoverCommitIntegration:
         from app.config import LIBRARY_DIR
 
         # Upload a new cover
-        cover_bytes = _make_test_jpeg(color="orange")
+        cover_bytes = make_jpeg(color="orange")
         resp = admin_client.post(
             "/api/books/1/cover",
             files={"file": ("cover.jpg", BytesIO(cover_bytes), "image/jpeg")},
@@ -351,7 +344,7 @@ class TestCoverCommitIntegration:
 
         resp = admin_client.post(
             f"/api/books/{book_id}/cover",
-            files={"file": ("cover.jpg", BytesIO(_make_test_jpeg(color="teal")), "image/jpeg")},
+            files={"file": ("cover.jpg", BytesIO(make_jpeg(color="teal")), "image/jpeg")},
         )
         assert resp.status_code == 200
         resp = admin_client.put(f"/api/books/{book_id}", json={"commitCover": True})

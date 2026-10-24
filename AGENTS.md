@@ -19,11 +19,11 @@ Librarium is a personal family web library.
   or ad-hoc internal task lists.
 - At session start or before taking non-trivial work, run `bd prime` and inspect
   the relevant bead. Create or update a bead when the work is not already tracked.
-- Do not implement broad behavior changes without a task/spec/plan when the
+- Do not implement broad behavior changes without a task/spec when the
   scope is unclear or cross-cutting.
 - Use TDD for feature work and bug fixes: add the regression/behavior test first,
   watch it fail for the right reason, then implement.
-- After every artifact that matters (spec, plan, code), run or request review
+- After every artifact that matters (spec, code), run or request review
   according to the workflow in `CLAUDE.md`.
 - Show review findings to Alexey. Do not silently discard findings or postpone
   them unless Alexey explicitly agrees.
@@ -41,27 +41,23 @@ compress or reorder it without Alexey's explicit approval.
    is gitignored and must not be committed.
 2. **Spec review.** Run reviewer, then show Alexey all findings.
 3. **Spec fixes.** Fix findings and get Alexey's approval.
-4. **Plan.** Use `superpowers:writing-plans` to write a detailed staged TDD plan
-   in `project_documentation/plans/YYYY-MM-DD-<topic>.md`. This directory is
-   gitignored and must not be committed.
-5. **Plan review.** Run reviewer, then show Alexey all findings.
-6. **Plan fixes.** Fix findings and get Alexey's approval.
-7. **Branch.** Create a feature branch or worktree from `main`. Do not work on
+   There is no plan step: the spec holds every decision (Alexey, 2026-10-24).
+4. **Branch.** Create a feature branch or worktree from `main`. Do not work on
    `main`.
-8. **Tests.** Write tests before implementation.
-9. **Implementation.** Implement the code and run the relevant tests.
-10. **Manual testing.** Alexey checks the behavior manually. Wait for the result.
-11. **Commit.** Commit only after Alexey's approval.
-12. **Spec review of code.** After each atomic code commit, run review for code
+5. **Tests.** Write tests before implementation.
+6. **Implementation.** Implement the code and run the relevant tests.
+7. **Manual testing.** Alexey checks the behavior manually. Wait for the result.
+8. **Commit.** Commit only after Alexey's approval.
+9. **Spec review of code.** After each atomic code commit, run review for code
    compliance with the spec and show Alexey all findings.
-13. **Code review.** After each atomic code commit, run code-quality review and
+10. **Code review.** After each atomic code commit, run code-quality review and
    show Alexey all findings. Before merge, run a final branch-wide review sweep.
-14. **Review fixes.** Fix every review finding in the same task unless Alexey
+11. **Review fixes.** Fix every review finding in the same task unless Alexey
    explicitly decides otherwise. Fix commits also go through review.
-15. **Bead update.** Close or update the bead with the actual result and
+12. **Bead update.** Close or update the bead with the actual result and
    verification evidence.
-16. **Merge.** Merge only when Alexey explicitly says to merge.
-17. **Push.** Push only when Alexey explicitly says to push. Merge permission is
+13. **Merge.** Merge only when Alexey explicitly says to merge.
+14. **Push.** Push only when Alexey explicitly says to push. Merge permission is
    not push permission.
 
 ## Branches, Commits, Pushes
