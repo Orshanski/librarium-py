@@ -1,4 +1,4 @@
-"""Ленты каталога OPDS: корень, новые поступления, авторы, серии, жанры."""
+"""Ленты каталога OPDS: корень, все книги, авторы, серии, жанры."""
 import io
 from urllib.parse import parse_qs, urlsplit
 
@@ -116,7 +116,7 @@ class TestRoot:
             "rel": "search", "href": "/opds/search{?query}", "type": FEED_TYPE, "templated": True,
         }
         assert [(n["title"], n["href"]) for n in feed["navigation"]] == [
-            ("Новые поступления", "/opds/new"),
+            ("Все книги", "/opds/books"),
             ("Авторы", "/opds/authors"),
             ("Серии", "/opds/series"),
             ("Жанры", "/opds/genres"),
@@ -132,7 +132,7 @@ class TestPublication:
     def test_full_record(self, opds, db):
         updated_at = db.execute("SELECT updated_at FROM books WHERE id = 1").fetchone()[0]
         size = db.execute("SELECT file_size FROM book_files WHERE book_id = 1").fetchone()[0]
-        feed = opds.get("/opds/new")
+        feed = opds.get("/opds/books")
         pub = next(p for p in feed["publications"] if p["metadata"]["title"] == "Minimal Test Book")
         meta = pub["metadata"]
         assert meta["modified"] == updated_at.replace(" ", "T") + "Z"
@@ -158,7 +158,7 @@ class TestPublication:
 
     def test_cover_images(self, opds, db):
         updated_at = db.execute("SELECT updated_at FROM books WHERE id = 2").fetchone()[0]
-        feed = opds.get("/opds/new")
+        feed = opds.get("/opds/books")
         pub = next(p for p in feed["publications"] if p["metadata"]["title"] == "Book With Cover")
         t = parse_qs(urlsplit(pub["images"][0]["href"]).query)["t"][0]
         assert t == updated_at
@@ -174,7 +174,7 @@ class TestPublication:
         Обложка 70×110: миниатюра 190×300, на округлении формула ленты
         разошлась бы с построением миниатюр."""
         (LIBRARY_DIR / "2" / "cover.jpg").write_bytes(make_jpeg(70, 110))
-        pub = next(p for p in opds.get("/opds/new")["publications"]
+        pub = next(p for p in opds.get("/opds/books")["publications"]
                    if p["metadata"]["title"] == "Book With Cover")
         served = []
         for image in pub["images"]:
@@ -191,7 +191,7 @@ class TestPublication:
             cover.unlink()
         else:
             cover.write_bytes(content)
-        pub = next(p for p in opds.get("/opds/new")["publications"]
+        pub = next(p for p in opds.get("/opds/books")["publications"]
                    if p["metadata"]["title"] == "Book With Cover")
         assert len(pub["images"]) == 2
         assert all("width" not in i and "height" not in i for i in pub["images"])
@@ -200,7 +200,7 @@ class TestPublication:
         db.execute("UPDATE books SET language = 'Polski' WHERE id = 1")
         db.execute("UPDATE books SET language = 'Klingon' WHERE id = 2")
         db.commit()
-        pubs = {p["metadata"]["title"]: p["metadata"] for p in opds.get("/opds/new")["publications"]}
+        pubs = {p["metadata"]["title"]: p["metadata"] for p in opds.get("/opds/books")["publications"]}
         assert pubs["Minimal Test Book"]["language"] == "pl"
         assert "language" not in pubs["Book With Cover"]
 
@@ -208,7 +208,7 @@ class TestPublication:
         db.execute("UPDATE books SET pub_date = '1999-05' WHERE id = 1")
         db.execute("UPDATE books SET pub_date = '1999-05-12' WHERE id = 2")
         db.commit()
-        pubs = {p["metadata"]["title"]: p["metadata"] for p in opds.get("/opds/new")["publications"]}
+        pubs = {p["metadata"]["title"]: p["metadata"] for p in opds.get("/opds/books")["publications"]}
         assert pubs["Minimal Test Book"]["published"] == "1999-05"
         assert pubs["Book With Cover"]["published"] == "1999-05-12"
 
@@ -216,7 +216,7 @@ class TestPublication:
         db.execute("INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (1, 'EPUB', 'data/library/1/book.epub', NULL)")
         db.execute("INSERT INTO book_files (book_id, format, file_path, file_size) VALUES (1, 'PDF', 'data/library/1/book.pdf', 5)")
         db.commit()
-        pub = next(p for p in opds.get("/opds/new")["publications"] if p["metadata"]["title"] == "Minimal Test Book")
+        pub = next(p for p in opds.get("/opds/books")["publications"] if p["metadata"]["title"] == "Minimal Test Book")
         links = {link["href"]: link for link in pub["links"]}
         assert links["/opds/books/1/download?format=epub"] == {
             "rel": ACQUISITION, "href": "/opds/books/1/download?format=epub", "type": "application/epub+zip",
@@ -226,78 +226,78 @@ class TestPublication:
     def test_description(self, opds, db):
         db.execute("UPDATE books SET description = 'Про всё' WHERE id = 1")
         db.commit()
-        pub = next(p for p in opds.get("/opds/new")["publications"] if p["metadata"]["title"] == "Minimal Test Book")
+        pub = next(p for p in opds.get("/opds/books")["publications"] if p["metadata"]["title"] == "Minimal Test Book")
         assert pub["metadata"]["description"] == "Про всё"
 
 
-class TestNew:
+class TestBooks:
     def test_newest_first_with_paging_metadata(self, opds, files_for_all_books):
-        feed = opds.get("/opds/new")
-        assert feed["metadata"]["title"] == "Новые поступления"
+        feed = opds.get("/opds/books")
+        assert feed["metadata"]["title"] == "Все книги"
         assert feed["metadata"]["itemsPerPage"] == 50
         assert feed["metadata"]["currentPage"] == 1
         assert _ids(feed["publications"]) == [5, 4, 3, 2, 1]
-        assert _link(feed["links"], "self")["href"] == "/opds/new"
-        assert _link(feed["links"], "first")["href"] == "/opds/new"
+        assert _link(feed["links"], "self")["href"] == "/opds/books"
+        assert _link(feed["links"], "first")["href"] == "/opds/books"
         assert "next" not in _rels(feed["links"])
         assert "previous" not in _rels(feed["links"])
 
     def test_paging(self, opds, db):
         _add_books(db, 55)
-        page1 = opds.get("/opds/new")
+        page1 = opds.get("/opds/books")
         assert len(page1["publications"]) == 50
         next_href = _link(page1["links"], "next")["href"]
-        assert next_href == "/opds/new?page=2"
+        assert next_href == "/opds/books?page=2"
         page2 = opds.get(next_href)
         assert page2["metadata"]["currentPage"] == 2
         # 55 новых + книги 1 и 2 с файлами
         assert len(page2["publications"]) == 7
-        assert _link(page2["links"], "self")["href"] == "/opds/new?page=2"
-        assert _link(page2["links"], "previous")["href"] == "/opds/new"
-        assert _link(page2["links"], "first")["href"] == "/opds/new"
+        assert _link(page2["links"], "self")["href"] == "/opds/books?page=2"
+        assert _link(page2["links"], "previous")["href"] == "/opds/books"
+        assert _link(page2["links"], "first")["href"] == "/opds/books"
         assert "next" not in _rels(page2["links"])
 
     def test_page_beyond_end_is_empty_feed(self, opds):
-        feed = opds.get("/opds/new", page=9)
+        feed = opds.get("/opds/books", page=9)
         assert feed["groups"] == []
         assert "publications" not in feed
 
     def test_sort_facets(self, opds, files_for_all_books):
-        feed = opds.get("/opds/new", sort="titleAsc")
+        feed = opds.get("/opds/books", sort="titleAsc")
         sort_facet = next(f for f in feed["facets"] if f["metadata"]["title"] == "Сортировка")
         assert [(link["title"], link["href"], link.get("rel")) for link in sort_facet["links"]] == [
-            ("По дате добавления (сначала новые)", "/opds/new", None),
-            ("По названию А→Я", "/opds/new?sort=titleAsc", "self"),
-            ("По автору А→Я", "/opds/new?sort=authorAsc", None),
+            ("По дате добавления (сначала новые)", "/opds/books", None),
+            ("По названию А→Я", "/opds/books?sort=titleAsc", "self"),
+            ("По автору А→Я", "/opds/books?sort=authorAsc", None),
         ]
         assert _ids(feed["publications"]) == [2, 3, 5, 1, 4]
-        assert _ids(opds.get("/opds/new", sort="authorAsc")["publications"]) == [3, 1, 4, 2, 5]
+        assert _ids(opds.get("/opds/books", sort="authorAsc")["publications"]) == [3, 1, 4, 2, 5]
 
     def test_all_languages_facet_is_active_by_default(self, opds):
-        feed = opds.get("/opds/new")
+        feed = opds.get("/opds/books")
         lang_facet = next(f for f in feed["facets"] if f["metadata"]["title"] == "Язык")
         assert [link.get("rel") for link in lang_facet["links"]] == ["self", None, None]
         assert lang_facet["links"][0]["title"] == "Все"
 
     def test_language_facet(self, opds, files_for_all_books):
-        feed = opds.get("/opds/new", language="en")
+        feed = opds.get("/opds/books", language="en")
         lang_facet = next(f for f in feed["facets"] if f["metadata"]["title"] == "Язык")
         assert [(link["title"], link["href"], link.get("rel")) for link in lang_facet["links"]] == [
-            ("Все", "/opds/new", None),
-            ("en", "/opds/new?language=en", "self"),
-            ("ru", "/opds/new?language=ru", None),
+            ("Все", "/opds/books", None),
+            ("en", "/opds/books?language=en", "self"),
+            ("ru", "/opds/books?language=ru", None),
         ]
         assert _ids(feed["publications"]) == [5, 3, 2]
 
     def test_facets_keep_each_other_and_reset_page(self, opds, db):
         _add_books(db, 55)
-        feed = opds.get("/opds/new", sort="titleAsc", page=2)
+        feed = opds.get("/opds/books", sort="titleAsc", page=2)
         lang_facet = next(f for f in feed["facets"] if f["metadata"]["title"] == "Язык")
-        assert lang_facet["links"][1]["href"] == "/opds/new?sort=titleAsc&language=en"
-        assert _link(feed["links"], "self")["href"] == "/opds/new?sort=titleAsc&page=2"
+        assert lang_facet["links"][1]["href"] == "/opds/books?sort=titleAsc&language=en"
+        assert _link(feed["links"], "self")["href"] == "/opds/books?sort=titleAsc&page=2"
 
     def test_book_without_files_is_skipped(self, opds):
-        assert _ids(opds.get("/opds/new")["publications"]) == [2, 1]
+        assert _ids(opds.get("/opds/books")["publications"]) == [2, 1]
 
 
 class TestAuthors:

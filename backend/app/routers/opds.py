@@ -79,15 +79,15 @@ def root(user: User) -> FeedResponse:
     return FeedResponse(opds_service.root_feed())
 
 
-@router.get("/new", response_class=FeedResponse)
-def new(
+@router.get("/books", response_class=FeedResponse)
+def books(
     user: User,
     db: Db,
     sort: OpdsSort = "addedDesc",
     language: str | None = None,
     page: Page = 1,
 ) -> FeedResponse:
-    return FeedResponse(opds_service.new_feed(db, user.user_id, sort, language or None, page))
+    return FeedResponse(opds_service.books_feed(db, user.user_id, sort, language or None, page))
 
 
 @router.get("/authors", response_class=FeedResponse)

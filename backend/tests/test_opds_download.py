@@ -60,7 +60,7 @@ class TestCovers:
         db.execute("UPDATE books SET cover_path = ? WHERE id = 2", (f"data/library/2/cover.{ext}",))
         db.commit()
 
-        feed = anon_client.get("/opds/new", headers=opds_headers).json()
+        feed = anon_client.get("/opds/books", headers=opds_headers).json()
         pub = next(p for p in feed["publications"] if p["metadata"]["title"] == "Book With Cover")
         full_image = pub["images"][1]
         assert full_image["type"] == media_type
