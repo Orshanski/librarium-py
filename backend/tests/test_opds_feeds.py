@@ -6,8 +6,9 @@ import pytest
 from PIL import Image
 
 from app.config import LIBRARY_DIR
-from tests._helpers.opds import FEED_TYPE, assert_valid_feed
 from tests._helpers.images import make_jpeg
+from tests._helpers.opds import FEED_TYPE, assert_valid_feed
+
 ACQUISITION = "http://opds-spec.org/acquisition"
 
 
