@@ -7,7 +7,7 @@ from PIL import Image
 
 from app.config import LIBRARY_DIR
 from tests._helpers.opds import FEED_TYPE, assert_valid_feed
-from tests.seed import _make_test_jpeg
+from tests._helpers.images import make_jpeg
 ACQUISITION = "http://opds-spec.org/acquisition"
 
 
@@ -172,7 +172,7 @@ class TestPublication:
         """Размеры в ленте — размеры картинок, которые отдают их адреса.
         Обложка 70×110: миниатюра 190×300, на округлении формула ленты
         разошлась бы с построением миниатюр."""
-        (LIBRARY_DIR / "2" / "cover.jpg").write_bytes(_make_test_jpeg(70, 110))
+        (LIBRARY_DIR / "2" / "cover.jpg").write_bytes(make_jpeg(70, 110))
         pub = next(p for p in opds.get("/opds/new")["publications"]
                    if p["metadata"]["title"] == "Book With Cover")
         served = []

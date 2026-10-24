@@ -2,25 +2,17 @@
 
 import glob
 import os
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PIL import Image
 
 from tests._helpers import assert_error, assert_ok
+from tests._helpers.images import make_jpeg
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "books"
 
 TINY_PNG = (Path(__file__).resolve().parent / "fixtures" / "test_cover.png").read_bytes()
-
-
-def _make_jpeg(color="red", size=(20, 20)):
-    img = Image.new("RGB", size, color)
-    buf = BytesIO()
-    img.save(buf, format="JPEG")
-    return buf.getvalue()
 
 
 # ── Covers: GET ──
@@ -135,7 +127,7 @@ class TestCoverEdgeCases:
     def test_upload_nonexistent_book(self, admin_client):
         resp = admin_client.post(
             "/api/books/999/cover",
-            files={"file": ("cover.jpg", _make_jpeg(), "image/jpeg")},
+            files={"file": ("cover.jpg", make_jpeg(), "image/jpeg")},
         )
         assert_error(resp, 404)
 
@@ -156,13 +148,13 @@ class TestCoverEdgeCases:
         with patch("app.routers.covers.MAX_COVER_SIZE", 100):
             resp = admin_client.post(
                 "/api/books/2/cover",
-                files={"file": ("big.jpg", _make_jpeg(size=(200, 200)), "image/jpeg")},
+                files={"file": ("big.jpg", make_jpeg(200, 200), "image/jpeg")},
             )
         assert_error(resp, 400)
 
     def test_upload_replaces_previous_temp(self, admin_client):
-        first_jpeg = _make_jpeg(color="red")
-        second_jpeg = _make_jpeg(color="blue")
+        first_jpeg = make_jpeg(color="red")
+        second_jpeg = make_jpeg(color="blue")
 
         admin_client.post(
             "/api/books/2/cover",
@@ -204,7 +196,7 @@ def test_commit_move_failure_preserves_old_cover(admin_client, db):
     # Загрузить temp cover через реальный API.
     resp = admin_client.post(
         "/api/books/2/cover",
-        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+        files={"file": ("new.jpg", make_jpeg(color="green"), "image/jpeg")},
     )
     assert resp.status_code == 200
 
@@ -241,7 +233,7 @@ def test_commit_db_failure_preserves_old_cover_same_ext(admin_client, db):
 
     resp = admin_client.post(
         "/api/books/2/cover",
-        files={"file": ("new.jpg", _make_jpeg(color="green"), "image/jpeg")},
+        files={"file": ("new.jpg", make_jpeg(color="green"), "image/jpeg")},
     )
     assert resp.status_code == 200
 
