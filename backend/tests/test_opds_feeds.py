@@ -184,6 +184,7 @@ class TestPublication:
 
     @pytest.mark.parametrize("content", [None, b"not an image"], ids=["no-file", "unreadable"])
     def test_cover_without_readable_file_has_no_sizes(self, opds, content):
+        """Обложка, которая не открывается, не роняет ленту: картинки остаются, размеров у них нет."""
         cover = LIBRARY_DIR / "2" / "cover.jpg"
         if content is None:
             cover.unlink()
