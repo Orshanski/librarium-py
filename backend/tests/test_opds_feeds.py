@@ -1,4 +1,4 @@
-"""Ленты каталога OPDS: корень, новые поступления, авторы, серии, жанры."""
+"""Ленты каталога OPDS: корень, все книги, авторы, серии, жанры."""
 import io
 from urllib.parse import parse_qs, urlsplit
 
@@ -230,7 +230,7 @@ class TestPublication:
         assert pub["metadata"]["description"] == "Про всё"
 
 
-class TestNew:
+class TestBooks:
     def test_newest_first_with_paging_metadata(self, opds, files_for_all_books):
         feed = opds.get("/opds/books")
         assert feed["metadata"]["title"] == "Все книги"
