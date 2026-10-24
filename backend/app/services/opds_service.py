@@ -10,7 +10,8 @@ from ..dtos.books import PublicationRow
 from ..dtos.catalog import OpdsSort
 from ..parsers import language_code
 from . import (
-    authors_service, book_service, filters_service, search_service, series_service, tags_service,
+    authors_service, book_service, cover_service, filters_service, search_service, series_service,
+    tags_service,
 )
 from .download_service import media_type_for
 
@@ -21,6 +22,7 @@ _SEARCH_LIMIT = 50
 _NEW_SORTS: tuple[OpdsSort, ...] = get_args(OpdsSort)
 _DEFAULT_SORT: OpdsSort = "addedDesc"
 _CATALOG_TITLE = "Librarium"
+_CATALOG_IDENTIFIER = "urn:librarium:main"
 _ACQUISITION = "http://opds-spec.org/acquisition"
 
 _COVER_TYPES = {
@@ -133,11 +135,14 @@ def _publication(row: PublicationRow) -> dict[str, Any] | None:
     if row["cover_path"]:
         t = row["updated_at"]
         ext = row["cover_path"].rsplit(".", 1)[-1].lower()
-        publication["images"] = [
-            {"href": _href(f"/opds/covers/{book_id}", t=t), "type": "image/jpeg"},
-            {"href": _href(f"/opds/covers/{book_id}", full=1, t=t),
-             "type": _COVER_TYPES.get(ext, "image/jpeg")},
-        ]
+        thumb: dict[str, Any] = {"href": _href(f"/opds/covers/{book_id}", t=t), "type": "image/jpeg"}
+        full: dict[str, Any] = {"href": _href(f"/opds/covers/{book_id}", full=1, t=t),
+                                "type": _COVER_TYPES.get(ext, "image/jpeg")}
+        size = cover_service.cover_size(book_id)
+        if size is not None:
+            thumb["width"], thumb["height"] = cover_service.thumb_size(*size)
+            full["width"], full["height"] = size
+        publication["images"] = [thumb, full]
     return publication
 
 
@@ -183,6 +188,7 @@ def root_feed() -> Feed:
         _nav("/opds/series", "Серии"),
         _nav("/opds/genres", "Жанры"),
     ])
+    feed["metadata"]["identifier"] = _CATALOG_IDENTIFIER
     feed["links"].append(
         {"rel": "search", "href": "/opds/search{?query}", "type": FEED_TYPE, "templated": True}
     )

@@ -1,9 +1,13 @@
 """Ленты каталога OPDS: корень, новые поступления, авторы, серии, жанры."""
+import io
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from PIL import Image
 
+from app.config import LIBRARY_DIR
 from tests._helpers.opds import FEED_TYPE, assert_valid_feed
+from tests.seed import _make_test_jpeg
 ACQUISITION = "http://opds-spec.org/acquisition"
 
 
@@ -118,6 +122,10 @@ class TestRoot:
         ]
         assert all(n["type"] == FEED_TYPE for n in feed["navigation"])
 
+    def test_server_identifier(self, opds):
+        """По этой строке Librique узнаёт наш сервер."""
+        assert opds.get("/opds/")["metadata"]["identifier"] == "urn:librarium:main"
+
 
 class TestPublication:
     def test_full_record(self, opds, db):
@@ -159,6 +167,32 @@ class TestPublication:
             ("/opds/covers/2", ["1"], "image/jpeg"),
         ]
         assert pub["metadata"]["language"] == "en"
+
+    def test_cover_image_sizes_match_served_images(self, opds, anon_client, opds_headers):
+        """Размеры в ленте — размеры картинок, которые отдают их адреса.
+        Обложка 70×110: миниатюра 190×300, на округлении формула ленты
+        разошлась бы с построением миниатюр."""
+        (LIBRARY_DIR / "2" / "cover.jpg").write_bytes(_make_test_jpeg(70, 110))
+        pub = next(p for p in opds.get("/opds/new")["publications"]
+                   if p["metadata"]["title"] == "Book With Cover")
+        served = []
+        for image in pub["images"]:
+            resp = anon_client.get(image["href"], headers=opds_headers)
+            assert resp.status_code == 200
+            served.append(Image.open(io.BytesIO(resp.content)).size)
+        assert [(i["width"], i["height"]) for i in pub["images"]] == served == [(190, 300), (70, 110)]
+
+    @pytest.mark.parametrize("content", [None, b"not an image"], ids=["no-file", "unreadable"])
+    def test_cover_without_readable_file_has_no_sizes(self, opds, content):
+        cover = LIBRARY_DIR / "2" / "cover.jpg"
+        if content is None:
+            cover.unlink()
+        else:
+            cover.write_bytes(content)
+        pub = next(p for p in opds.get("/opds/new")["publications"]
+                   if p["metadata"]["title"] == "Book With Cover")
+        assert len(pub["images"]) == 2
+        assert all("width" not in i and "height" not in i for i in pub["images"])
 
     def test_language_names_map_to_codes(self, opds, db):
         db.execute("UPDATE books SET language = 'Polski' WHERE id = 1")
