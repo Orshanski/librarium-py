@@ -195,38 +195,61 @@ def root_feed() -> Feed:
     return feed
 
 
-def books_feed(db: sqlite3.Connection, user_id: int, sort: OpdsSort, language: str | None, page: int) -> Feed:
-    listing = book_service.list_books(
-        db, user_id, sort=sort, cursor=(page - 1) * _PAGE_SIZE, page_size=_PAGE_SIZE,
-        author_ids=None, tag_ids=None, series_ids=None,
+def books_feed(
+    db: sqlite3.Connection,
+    user_id: int,
+    sort: OpdsSort,
+    author: int | None,
+    series: int | None,
+    genre: int | None,
+    language: str | None,
+    page: int,
+) -> Feed:
+    """Все книги с фильтрами, как в каталоге сайта: в каждом фильтре одно значение,
+    варианты фильтра — значения, которые есть среди книг при остальных фильтрах."""
+    chosen: dict[str, Any] = {"author": author, "series": series, "genre": genre, "language": language}
+    params = {"sort": sort if sort != _DEFAULT_SORT else None, **chosen}
+    selection: dict[str, Any] = dict(
+        author_ids=[author] if author is not None else None,
+        tag_ids=[genre] if genre is not None else None,
+        series_ids=[series] if series is not None else None,
         language=[language] if language else None,
     )
-    sort_param = sort if sort != _DEFAULT_SORT else None
+    listing = book_service.list_books(
+        db, user_id, sort=sort, cursor=(page - 1) * _PAGE_SIZE, page_size=_PAGE_SIZE, **selection,
+    )
+    filters = filters_service.build_catalog_filters(**selection)
 
-    def facet(title: str, href: str, active: bool) -> dict[str, Any]:
-        link: dict[str, Any] = {"href": href, "title": title, "type": FEED_TYPE}
+    def facet(title: str, active: bool, **change: Any) -> dict[str, Any]:
+        link: dict[str, Any] = {"href": _href("/opds/books", **{**params, **change}),
+                                "title": title, "type": FEED_TYPE}
         if active:
             link["rel"] = "self"
         return link
 
+    def choice(title: str, param: str, options: list[tuple[Any, str]]) -> dict[str, Any]:
+        current = chosen[param]
+        links = [facet("Все", current is None, **{param: None})] + [
+            facet(name, value == current, **{param: value}) for value, name in options
+        ]
+        return {"metadata": {"title": title}, "links": links}
+
     labels = SORT_CONFIG["labels"]
     sort_links = [
-        facet(labels[key], _href("/opds/books", sort=key if key != _DEFAULT_SORT else None, language=language),
-              key == sort)
-        for key in _BOOKS_SORTS
+        facet(labels[key], key == sort, sort=key if key != _DEFAULT_SORT else None) for key in _BOOKS_SORTS
     ]
-    languages = filters_service.list_language_options(db, user_id, {}).languages
-    language_links = [facet("Все", _href("/opds/books", sort=sort_param), language is None)] + [
-        facet(lang["name"], _href("/opds/books", sort=sort_param, language=lang["name"]),
-              lang["name"] == language)
-        for lang in languages
-    ]
+    authors = filters_service.list_author_options(db, user_id, filters).authors
+    series_options = filters_service.list_series_options(db, user_id, filters).series
+    tags = filters_service.list_tag_options(db, user_id, filters).tags
+    languages = filters_service.list_language_options(db, user_id, filters).languages
     return _paged_feed(
-        db, "Все книги", "/opds/books", {"sort": sort_param, "language": language}, page,
-        listing.books, listing.has_more,
+        db, "Все книги", "/opds/books", params, page, listing.books, listing.has_more,
         facets=[
             {"metadata": {"title": "Сортировка"}, "links": sort_links},
-            {"metadata": {"title": "Язык"}, "links": language_links},
+            choice("Автор", "author", [(a["id"], a["name"]) for a in authors]),
+            choice("Серия", "series", [(s["id"], s["name"]) for s in series_options]),
+            choice("Жанр", "genre", [(t["id"], t["name"]) for t in tags]),
+            choice("Язык", "language", [(lang["name"], lang["name"]) for lang in languages]),
         ],
     )
 
