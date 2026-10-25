@@ -300,6 +300,110 @@ class TestBooks:
         assert _ids(opds.get("/opds/books")["publications"]) == [2, 1]
 
 
+def _facet(feed, title) -> list:
+    found = [f for f in feed["facets"] if f["metadata"]["title"] == title]
+    assert len(found) == 1, f"фильтр {title!r}: {feed['facets']}"
+    return [(link["title"], link["href"], link.get("rel")) for link in found[0]["links"]]
+
+
+class TestBooksFilters:
+    def test_filter_groups_in_web_order(self, opds):
+        feed = opds.get("/opds/books")
+        assert [f["metadata"]["title"] for f in feed["facets"]] == [
+            "Сортировка", "Автор", "Серия", "Жанр", "Язык",
+        ]
+
+    def test_without_selection_all_is_active_and_options_are_from_all_books(self, opds):
+        feed = opds.get("/opds/books")
+        assert _facet(feed, "Автор") == [
+            ("Все", "/opds/books", "self"),
+            ("Test Author", "/opds/books?author=1", None),
+            ("Test Autor", "/opds/books?author=3", None),
+            ("Cover Writer", "/opds/books?author=2", None),
+        ]
+        assert _facet(feed, "Серия") == [
+            ("Все", "/opds/books", "self"),
+            ("Test Series", "/opds/books?series=1", None),
+            ("Tset Series", "/opds/books?series=2", None),
+        ]
+        assert _facet(feed, "Жанр") == [
+            ("Все", "/opds/books", "self"),
+            ("Классический детектив", "/opds/books?genre=2", None),
+            ("Фэнтези", "/opds/books?genre=1", None),
+        ]
+
+    def test_selected_author_filters_books_and_narrows_other_filters(self, opds, files_for_all_books):
+        feed = opds.get("/opds/books", author=1)
+        assert _ids(feed["publications"]) == [3, 1]
+        assert _facet(feed, "Автор") == [
+            ("Все", "/opds/books", None),
+            ("Test Author", "/opds/books?author=1", "self"),
+            ("Test Autor", "/opds/books?author=3", None),
+            ("Cover Writer", "/opds/books?author=2", None),
+        ]
+        assert _facet(feed, "Серия") == [
+            ("Все", "/opds/books?author=1", "self"),
+            ("Test Series", "/opds/books?author=1&series=1", None),
+        ]
+        assert _facet(feed, "Жанр") == [
+            ("Все", "/opds/books?author=1", "self"),
+            ("Фэнтези", "/opds/books?author=1&genre=1", None),
+        ]
+
+    def test_language_options_follow_other_filters(self, opds, files_for_all_books):
+        feed = opds.get("/opds/books", author=3)
+        assert _facet(feed, "Язык") == [
+            ("Все", "/opds/books?author=3", "self"),
+            ("ru", "/opds/books?author=3&language=ru", None),
+        ]
+
+    def test_selected_series(self, opds, files_for_all_books):
+        feed = opds.get("/opds/books", series=1)
+        assert _ids(feed["publications"]) == [3, 1]
+        assert ("Test Series", "/opds/books?series=1", "self") in _facet(feed, "Серия")
+        assert _facet(feed, "Серия")[0] == ("Все", "/opds/books", None)
+
+    def test_all_filters_combine_and_each_link_changes_only_its_own(self, opds, files_for_all_books):
+        feed = opds.get("/opds/books", sort="titleAsc", genre=1, language="en")
+        assert _ids(feed["publications"]) == [3, 5]
+        assert _link(feed["links"], "self")["href"] == "/opds/books?sort=titleAsc&genre=1&language=en"
+        assert _facet(feed, "Сортировка") == [
+            ("По дате добавления (сначала новые)", "/opds/books?genre=1&language=en", None),
+            ("По названию А→Я", "/opds/books?sort=titleAsc&genre=1&language=en", "self"),
+            ("По автору А→Я", "/opds/books?sort=authorAsc&genre=1&language=en", None),
+        ]
+        assert _facet(feed, "Автор") == [
+            ("Все", "/opds/books?sort=titleAsc&genre=1&language=en", "self"),
+            ("Test Author", "/opds/books?sort=titleAsc&author=1&genre=1&language=en", None),
+            ("Cover Writer", "/opds/books?sort=titleAsc&author=2&genre=1&language=en", None),
+        ]
+        assert _facet(feed, "Серия") == [
+            ("Все", "/opds/books?sort=titleAsc&genre=1&language=en", "self"),
+            ("Test Series", "/opds/books?sort=titleAsc&series=1&genre=1&language=en", None),
+        ]
+        assert _facet(feed, "Жанр") == [
+            ("Все", "/opds/books?sort=titleAsc&language=en", None),
+            ("Классический детектив", "/opds/books?sort=titleAsc&genre=2&language=en", None),
+            ("Фэнтези", "/opds/books?sort=titleAsc&genre=1&language=en", "self"),
+        ]
+        assert _facet(feed, "Язык") == [
+            ("Все", "/opds/books?sort=titleAsc&genre=1", None),
+            ("en", "/opds/books?sort=titleAsc&genre=1&language=en", "self"),
+            ("ru", "/opds/books?sort=titleAsc&genre=1&language=ru", None),
+        ]
+
+    def test_paging_keeps_filters(self, opds, db):
+        _add_books(db, 55, tag_id=1)
+        page1 = opds.get("/opds/books", sort="titleAsc", genre=1)
+        next_href = _link(page1["links"], "next")["href"]
+        assert next_href == "/opds/books?sort=titleAsc&genre=1&page=2"
+        page2 = opds.get(next_href)
+        # 55 новых и книга 1: у книг 3 и 5 нет файлов
+        assert len(page2["publications"]) == 6
+        assert _link(page2["links"], "previous")["href"] == "/opds/books?sort=titleAsc&genre=1"
+        assert ("Фэнтези", "/opds/books?sort=titleAsc&genre=1", "self") in _facet(page2, "Жанр")
+
+
 class TestAuthors:
     def test_list_by_sort_name_with_counts(self, opds):
         feed = opds.get("/opds/authors")

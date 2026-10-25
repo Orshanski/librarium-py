@@ -84,10 +84,15 @@ def books(
     user: User,
     db: Db,
     sort: OpdsSort = "addedDesc",
+    author: int | None = None,
+    series: int | None = None,
+    genre: int | None = None,
     language: str | None = None,
     page: Page = 1,
 ) -> FeedResponse:
-    return FeedResponse(opds_service.books_feed(db, user.user_id, sort, language or None, page))
+    return FeedResponse(opds_service.books_feed(
+        db, user.user_id, sort, author, series, genre, language or None, page,
+    ))
 
 
 @router.get("/authors", response_class=FeedResponse)
