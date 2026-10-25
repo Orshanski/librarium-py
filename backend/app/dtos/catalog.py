@@ -9,7 +9,7 @@ UserSort = Literal[
 ]
 
 OpdsSort = Literal["addedDesc", "titleAsc", "authorAsc"]
-"""Сортировки новых поступлений в каталоге OPDS — подмножество UserSort."""
+"""Сортировки раздела «Все книги» каталога OPDS — подмножество UserSort."""
 
 
 class CatalogFilters(TypedDict, total=False):

@@ -15,8 +15,6 @@ from ..services import cover_service
 from ._file_responses import cover_response
 from ._validators import TempIdStr
 
-_COVER_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
-
 log = logging.getLogger("librarium.covers")
 
 router = APIRouter(tags=["covers"])
@@ -39,7 +37,7 @@ async def upload_cover(
     db: Annotated[sqlite3.Connection, Depends(db_session)],
     file: Annotated[UploadFile, File()],
 ) -> CoverUploadResponse:
-    ext = safe_extension(file.filename or "cover.jpg", _COVER_EXTS, default="jpg")
+    ext = safe_extension(file.filename or "cover.jpg", cover_service.COVER_MEDIA_TYPES, default="jpg")
 
     file.file.seek(0, 2)
     size = file.file.tell()
