@@ -20,7 +20,11 @@ from .temp_cleanup import cleanup_old_uploads
 
 # Whitelist для cover-форматов: дублирует router-валидацию как defense-in-depth.
 # Любой новый caller upload_temp обязан пройти ext-чек на этом уровне.
-_COVER_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
+COVER_MEDIA_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp",
+}
+"""Допустимые расширения файла обложки и их медиатипы."""
 
 log = logging.getLogger("librarium.services.covers")
 
@@ -66,7 +70,7 @@ def upload_temp(db: sqlite3.Connection, book_id: int, content: bytes, ext: str) 
 
     # Defense-in-depth: ext-whitelist на уровне сервиса. Router уже валидирует
     # через safe_extension, но любой будущий caller должен пройти ту же проверку.
-    ext = safe_extension(f"x.{ext}", _COVER_EXTS, default="jpg")
+    ext = safe_extension(f"x.{ext}", COVER_MEDIA_TYPES, default="jpg")
 
     # Self-healing orphan GC: снести brew-старые temp'ы до того как положим
     # свой. Без scheduler/cron — пользовательский upload-поток сам себя
@@ -155,7 +159,7 @@ def _commit(db: sqlite3.Connection, book_id: int) -> bool:
     # Defense-in-depth: ext-whitelist даже на temp_file, который сам прошёл
     # валидацию в upload_temp — если UPLOADS_DIR будет скомпрометирован любым
     # другим путём, glob может вернуть имя с traversal-ext.
-    ext = safe_extension(temp_file, _COVER_EXTS, default="jpg")
+    ext = safe_extension(temp_file, COVER_MEDIA_TYPES, default="jpg")
     src = assert_within(UPLOADS_DIR, UPLOADS_DIR / temp_file)
     dst = assert_within(LIBRARY_DIR, os.path.join(book_dir, f"cover.{ext}"))
     old = find_cover(book_dir)

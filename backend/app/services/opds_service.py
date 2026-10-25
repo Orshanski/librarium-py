@@ -25,11 +25,6 @@ _CATALOG_TITLE = "Librarium"
 _CATALOG_IDENTIFIER = "urn:librarium:main"
 _ACQUISITION = "http://opds-spec.org/acquisition"
 
-_COVER_TYPES = {
-    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-    "gif": "image/gif", "webp": "image/webp",
-}
-
 Feed = dict[str, Any]
 
 
@@ -137,7 +132,7 @@ def _publication(row: PublicationRow) -> dict[str, Any] | None:
         ext = row["cover_path"].rsplit(".", 1)[-1].lower()
         thumb: dict[str, Any] = {"href": _href(f"/opds/covers/{book_id}", t=t), "type": "image/jpeg"}
         full: dict[str, Any] = {"href": _href(f"/opds/covers/{book_id}", full=1, t=t),
-                                "type": _COVER_TYPES.get(ext, "image/jpeg")}
+                                "type": cover_service.COVER_MEDIA_TYPES.get(ext, "image/jpeg")}
         size = cover_service.cover_size(book_id)
         if size is not None:
             thumb["width"], thumb["height"] = cover_service.thumb_size(*size)
