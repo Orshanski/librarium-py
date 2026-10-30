@@ -497,3 +497,32 @@ class TestGenres:
 
     def test_unknown_genre_is_404(self, opds):
         assert opds.raw("/opds/genres/999").status_code == 404
+
+
+class TestFeedVersion:
+    """Пометка версии ленты: повторный показ без изменений — короткий 304 без тела."""
+
+    @pytest.mark.parametrize("path", ["/opds/", "/opds/books", "/opds/authors", "/opds/series", "/opds/genres"])
+    def test_feed_has_version_and_is_checked_every_time(self, opds, path):
+        resp = opds.raw(path)
+        assert resp.status_code == 200
+        assert resp.headers["etag"]
+        assert resp.headers["cache-control"] == "private, no-cache"
+
+    @pytest.mark.parametrize("sent", ["{etag}", "W/{etag}", '"other", {etag}'])
+    def test_same_version_is_304_without_body(self, anon_client, opds_headers, sent):
+        etag = anon_client.get("/opds/books", headers=opds_headers).headers["etag"]
+        resp = anon_client.get("/opds/books", headers={**opds_headers, "If-None-Match": sent.format(etag=etag)})
+        assert resp.status_code == 304
+        assert resp.content == b""
+        assert resp.headers["etag"] == etag
+        assert resp.headers["cache-control"] == "private, no-cache"
+
+    def test_changed_feed_is_sent_with_new_version(self, anon_client, opds_headers, db):
+        etag = anon_client.get("/opds/books", headers=opds_headers).headers["etag"]
+        db.execute("UPDATE books SET title = 'Renamed Book' WHERE id = 1")
+        db.commit()
+        resp = anon_client.get("/opds/books", headers={**opds_headers, "If-None-Match": etag})
+        assert resp.status_code == 200
+        assert resp.headers["etag"] != etag
+        assert "Renamed Book" in resp.text

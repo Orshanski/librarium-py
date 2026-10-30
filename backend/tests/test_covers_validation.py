@@ -28,6 +28,13 @@ class TestCoverGet:
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("image/")
 
+    @pytest.mark.parametrize("params", [{}, {"full": 1}])
+    def test_kept_for_an_hour(self, reader_client, params):
+        # Срок без конца — только у обложек OPDS: часть адресов сайта идёт без версии (?t=),
+        # и замена обложки на них не видна бы. Тест ловит смену срока в общей выдаче обложки.
+        resp = reader_client.get("/api/covers/2", params=params)
+        assert resp.headers["cache-control"] == "public, max-age=3600"
+
     def test_no_cover(self, reader_client):
         assert_error(reader_client.get("/api/covers/1"), 404)
 

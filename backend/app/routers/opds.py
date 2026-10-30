@@ -1,9 +1,13 @@
 """Каталог OPDS 2.0. Вход только по `Authorization: Bearer`, куки не принимаются и не ставятся."""
-from typing import Annotated
+from typing import Annotated, Any
+import hashlib
 import sqlite3
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from starlette.datastructures import Headers
+from starlette.staticfiles import NotModifiedResponse
+from starlette.types import Receive, Scope, Send
 
 from ..auth import CurrentUser, get_bearer_user, get_client_ip
 from ..config import JWT_EXPIRE_HOURS
@@ -29,7 +33,21 @@ Page = Annotated[int, Query(ge=1)]
 
 
 class FeedResponse(JSONResponse):
+    """Лента с пометкой версии: повтор с той же пометкой получает 304 без тела.
+    `no-cache` — каждый показ всё равно доходит до сервера и проверяет вход."""
     media_type = opds_service.FEED_TYPE
+
+    def __init__(self, content: Any) -> None:
+        super().__init__(content, headers={"Cache-Control": "private, no-cache"})
+        self.headers["ETag"] = f'"{hashlib.sha256(self.body).hexdigest()}"'
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Сравнение пометок — как у StaticFiles.is_not_modified: прокси со сжатием отдаёт её как W/"…"
+        if_none_match = Headers(scope=scope).get("if-none-match", "")
+        if self.headers["etag"] in [tag.strip().removeprefix("W/") for tag in if_none_match.split(",")]:
+            await NotModifiedResponse(self.headers)(scope, receive, send)
+        else:
+            await super().__call__(scope, receive, send)
 
 
 def _token_error(error: str) -> JSONResponse:
@@ -137,4 +155,5 @@ def download(book_id: int, format: str, user: User, db: Db) -> FileResponse:
 
 @router.get("/covers/{book_id}")
 def cover(book_id: int, user: User, full: int = 0) -> FileResponse:
-    return cover_response(book_id, full=bool(full))
+    # Адрес обложки в ленте несёт версию (?t=), замена обложки его меняет — хранить можно без срока
+    return cover_response(book_id, full=bool(full), cache_control="public, max-age=31536000, immutable")
