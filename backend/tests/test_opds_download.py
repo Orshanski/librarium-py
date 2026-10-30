@@ -77,6 +77,12 @@ class TestCovers:
         assert full.status_code == 200
         assert full.headers["content-type"] == "image/jpeg"
 
+    @pytest.mark.parametrize("params", [{"t": "x"}, {"full": 1, "t": "x"}])
+    def test_cover_is_kept_without_expiry(self, anon_client, opds_headers, params):
+        # Адрес обложки в ленте несёт версию (?t=), замена обложки его меняет
+        resp = anon_client.get("/opds/covers/2", params=params, headers=opds_headers)
+        assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
+
     def test_book_without_cover_is_404(self, anon_client, opds_headers):
         assert anon_client.get("/opds/covers/1", headers=opds_headers).status_code == 404
 

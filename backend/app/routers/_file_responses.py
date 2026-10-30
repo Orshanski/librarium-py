@@ -11,9 +11,9 @@ def book_file_response(db: sqlite3.Connection, book_id: int, fmt: str) -> FileRe
     return FileResponse(target.path, filename=target.filename, media_type=target.media_type)
 
 
-def cover_response(book_id: int, *, full: bool) -> FileResponse:
+def cover_response(book_id: int, *, full: bool, cache_control: str = "public, max-age=3600") -> FileResponse:
     cover_path = cover_service.get_cover_path(book_id)
-    headers = {"Cache-Control": "public, max-age=3600"}
+    headers = {"Cache-Control": cache_control}
     if full:
         return FileResponse(cover_path, headers=headers)
     thumb_path = cover_service.get_thumb(book_id, cover_path)
