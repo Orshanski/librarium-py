@@ -415,28 +415,27 @@ class TestAuthors:
             ("Cover Writer", "/opds/authors/2", 2),
         ]
 
-    def test_author_series_group(self, opds):
+    def test_author_series_group_holds_its_books_by_number(self, opds, files_for_all_books):
         feed = opds.get("/opds/authors/1")
         assert feed["metadata"]["title"] == "Test Author"
         assert _link(feed["links"], "self")["href"] == "/opds/authors/1"
-        series = _group(feed, "Серии")
-        assert series["navigation"] == [{
-            "href": "/opds/series/1", "title": "Test Series", "type": FEED_TYPE,
-            "properties": {"numberOfItems": 2},
-        }]
-        assert _group_titles(feed) == ["Серии"]
+        assert _group_titles(feed) == ["Test Series"]
+        series = _group(feed, "Test Series")
+        assert "navigation" not in series
+        assert _ids(series["publications"]) == [1, 3]
 
     def test_author_with_series_and_books_outside(self, opds, db, files_for_all_books):
         db.execute("UPDATE books SET series_id = NULL, series_number = NULL WHERE id = 1")
         db.commit()
         feed = opds.get("/opds/authors/1")
-        assert _group_titles(feed) == ["Серии", "Книги"]
-        assert _ids(_group(feed, "Книги")["publications"]) == [1]
+        assert _group_titles(feed) == ["Test Series", "Вне серий"]
+        assert _ids(_group(feed, "Test Series")["publications"]) == [3]
+        assert _ids(_group(feed, "Вне серий")["publications"]) == [1]
 
     def test_author_books_outside_series(self, opds, files_for_all_books):
         feed = opds.get("/opds/authors/2")
-        assert _group_titles(feed) == ["Книги"]
-        assert _ids(_group(feed, "Книги")["publications"]) == [5, 2]
+        assert _group_titles(feed) == ["Вне серий"]
+        assert _ids(_group(feed, "Вне серий")["publications"]) == [5, 2]
 
     def test_unknown_author_is_404(self, opds):
         assert opds.raw("/opds/authors/999").status_code == 404
