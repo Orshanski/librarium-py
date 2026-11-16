@@ -257,14 +257,22 @@ def authors_feed(db: sqlite3.Connection, user_id: int) -> Feed:
 
 
 def author_feed(db: sqlite3.Connection, user_id: int, author_id: int) -> Feed:
+    """Страница автора — та же раскладка, что в вебе: каждая серия со своими книгами по номеру,
+    затем книги вне серий. frontend/src/components/author-detail.tsx"""
     detail = authors_service.get_author(db, author_id, user_id)
-    series = series_service.list_series(db, user_id, author_ids=[author_id], tag_ids=None, language=None).series
-    return _feed(detail.author["name"], f"/opds/authors/{author_id}", groups=[
-        *_group("Серии", navigation=[
-            _nav(f"/opds/series/{s['id']}", s["name"], s["book_count"]) for s in series
-        ]),
-        *_group("Книги", publications=_publications(db, [b for b in detail.books if b.series is None])),
-    ])
+    by_series: dict[str, list] = {}
+    standalone = []
+    for book in detail.books:
+        if book.series is not None:
+            by_series.setdefault(book.series.name, []).append(book)
+        else:
+            standalone.append(book)
+    groups = []
+    for name, books in by_series.items():
+        books.sort(key=lambda b: b.series_number or 0)
+        groups += _group(name, publications=_publications(db, books))
+    groups += _group("Вне серий", publications=_publications(db, standalone))
+    return _feed(detail.author["name"], f"/opds/authors/{author_id}", groups=groups)
 
 
 def series_list_feed(db: sqlite3.Connection, user_id: int) -> Feed:
